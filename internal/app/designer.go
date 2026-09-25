@@ -57,16 +57,19 @@ func (a *App) showNewChat() {
 		page.Append(btn)
 	}
 
-	add("Design a character",
-		"Describe what you want and the model interviews you, then writes the character for you.",
-		a.newDesignerChat)
-
+	// Playing comes first when there is anyone to play with. It is the thing
+	// this dialog is most often opened to do, and it was listed under the one
+	// that takes twenty minutes and an interview.
 	n, _ := a.store.CountCharacters()
 	if n > 0 {
 		add("Play a scene",
 			"Pick someone from your cast and start roleplaying.",
 			a.showCharacters)
 	}
+
+	add("Design a character",
+		"Describe what you want and the model interviews you, then writes the character for you.",
+		a.newDesignerChat)
 
 	add("Just chat",
 		"A plain conversation with the model. No character, no roleplay.",

@@ -295,7 +295,12 @@ func TestConfigBackfillsNewSettings(t *testing.T) {
 	if cfg.Model != "qwen3:8b" || cfg.PersonaName != "Wren" {
 		t.Errorf("stored values lost: %+v", cfg)
 	}
-	if cfg.NumCtx != DefaultNumCtx || cfg.Theme != ThemeDark || !cfg.ShowStats {
+	// Checked against settings whose default is not the zero value, or the
+	// assertion would pass whether backfilling worked or not. ShowStats used
+	// to be one of these and is now false by default, so it no longer proves
+	// anything here.
+	if cfg.NumCtx != DefaultNumCtx || cfg.Theme != ThemeDark ||
+		cfg.KeepAlive != "30m" || cfg.Temperature != DefaultTemperature || !cfg.SidebarOpen {
 		t.Errorf("new settings did not backfill: %+v", cfg)
 	}
 }

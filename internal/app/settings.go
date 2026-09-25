@@ -140,9 +140,7 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	// background model nobody chose.
 	f.housekeeping.SetSelected(uint(housekeepingRow(f.models, a.cfg.HousekeepingModel)))
 	card.Append(labelledField("Background model",
-		"Writes the scene recap and keeps the lorebook. A small model is the point: "+
-			"Ollama holds it in memory beside the one playing the scene, so it has to be "+
-			"small enough to fit there. Astral says so if it stops fitting.",
+		"Writes the recap and keeps the lorebook. It stays in memory beside your main model, so pick a small one.",
 		f.housekeeping))
 
 	f.baseURL = gtk.NewEntry()
@@ -156,7 +154,7 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	sOuter, sCard := groupCard("How it writes")
 	f.temperature = newSlider(0, 2, 0.05, a.cfg.Temperature)
 	sCard.Append(labelledField("Temperature",
-		"Higher wanders further and surprises more; lower stays safe and can get repetitive. Around 0.85 suits roleplay.",
+		"Higher wanders further, lower plays safer. Around 0.85 suits roleplay.",
 		f.temperature))
 
 	f.topP = newSlider(0.1, 1, 0.01, a.cfg.TopP)
@@ -172,7 +170,7 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	f.numCtx = gtk.NewEntry()
 	f.numCtx.SetText(fmt.Sprintf("%d", a.cfg.NumCtx))
 	sCard.Append(labelledField("Context size (tokens)",
-		"How much of the scene the model can see at once. Larger remembers more and uses more memory.",
+		"How much of the scene the model sees at once. Larger remembers more and uses more memory.",
 		f.numCtx))
 
 	// The reply limit was already referenced by the "the model spent its whole
@@ -190,7 +188,7 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	f.keepAlive = gtk.NewEntry()
 	f.keepAlive.SetText(a.cfg.KeepAlive)
 	sCard.Append(labelledField("Keep the model loaded for",
-		"How long Ollama holds the model in memory after a reply, \"30m\", \"2h\", or \"-1\" to never unload. Ollama's own default of five minutes means a thinking pause costs you a full model reload on the next message.",
+		"\"30m\", \"2h\", or \"-1\" to never unload. Ollama's own five-minute default makes a reading pause cost a full reload.",
 		f.keepAlive))
 
 	f.think = gtk.NewCheckButton()
@@ -216,8 +214,7 @@ func (a *App) buildPersonaPage(f *settingsForm) *gtk.Box {
 	frame, view := multilineField(a.cfg.PersonaDescription, 5)
 	f.personaDesc = view
 	card.Append(labelledField("About you",
-		"Optional. Who you are in the scene, appearance, role, anything the character should already know. Left empty, the model will invent it as it goes.\n\n"+
-			"{{user}} becomes your name and {{char}} becomes whichever character you are playing with.",
+		"Optional. Who you are in the scene: appearance, role, anything the character already knows.",
 		frame))
 	page.Append(outer)
 
@@ -226,7 +223,7 @@ func (a *App) buildPersonaPage(f *settingsForm) *gtk.Box {
 	cur.SetXAlign(0)
 	cur.AddCSSClass("field-label")
 	styleCard.Append(labelledField("In use",
-		"Controls how the prose sounds, without touching the formatting the transcript is rendered from.",
+		"Controls how the prose sounds, not how it is formatted.",
 		cur))
 	manage := gtk.NewButtonWithLabel("Manage writing styles…")
 	manage.SetHAlign(gtk.AlignStart)
@@ -238,9 +235,8 @@ func (a *App) buildPersonaPage(f *settingsForm) *gtk.Box {
 	giFrame, giView := multilineField(a.cfg.GlobalInstructions, 5)
 	f.globalInstrs = giView
 	insCard.Append(labelledField("Always apply these",
-		"Rules that hold for every scene, whoever you are playing with, \"keep replies under three paragraphs\", \"never fade to black\", \"British spelling\".\n\n"+
-			"Write {{char}} and {{user}} rather than names: these apply to every character.\n\n"+
-			"A character's own instructions are applied after these, so a specific one wins where the two disagree. One instruction per line works best.",
+		"Rules for every scene, one per line: \"keep replies under three paragraphs\", "+
+			"\"British spelling\". Write {{char}} and {{user}} rather than names.",
 		giFrame))
 	page.Append(insOuter)
 	return page
@@ -261,7 +257,7 @@ func (a *App) buildAppearancePage(f *settingsForm) *gtk.Box {
 		f.fontMode))
 
 	f.showStat = gtk.NewCheckButton()
-	f.showStat.SetChild(wrappingLabel("Show speed and token count under each reply"))
+	f.showStat.SetChild(wrappingLabel("Show generation speed and token count under each reply (for measuring the model, not for reading)"))
 	f.showStat.SetActive(a.cfg.ShowStats)
 	card.Append(f.showStat)
 	page.Append(outer)

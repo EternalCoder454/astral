@@ -62,9 +62,8 @@ func (a *App) showLorebook(w world.World) {
 	}
 
 	if len(entries) == 0 {
-		empty := gtk.NewLabel("Nothing here yet.\n\nAstral adds entries as you play: when a scene " +
-			"establishes something about a person, a place or how this world works, it is " +
-			"written down here and sent back whenever it comes up again. You can add your own too.")
+		empty := gtk.NewLabel("Nothing here yet.\n\nAstral writes entries as you play, " +
+			"and sends them back whenever they come up. You can add your own with +.")
 		empty.SetWrap(true)
 		empty.SetJustify(gtk.JustifyCenter)
 		empty.SetVExpand(true)
@@ -92,9 +91,18 @@ func (a *App) showLorebook(w world.World) {
 		heading.AddCSSClass("settings-heading")
 		heading.SetMarginTop(8)
 		page.Append(heading)
+		rows := make([]filterRow, 0, len(rest))
 		for _, e := range rest {
-			page.Append(a.loreRow(e, w, d))
+			rows = append(rows, filterRow{
+				Widget: a.loreRow(e, w, d),
+				// The content matters as much as the name here. What anyone
+				// remembers about a lore entry is what it said, not what it
+				// was called, and this is the one list the app fills by itself
+				// while you are busy doing something else.
+				Text: strings.ToLower(e.Name + " " + strings.Join(e.Keys, " ") + " " + e.Content),
+			})
 		}
+		searchableList(page, "Search entries", rows)
 	}
 
 	tv := adw.NewToolbarView()
@@ -121,8 +129,12 @@ func (a *App) loreRow(e world.Entry, w world.World, parent *adw.Dialog) *gtk.Box
 	head.Append(name)
 
 	if e.Auto {
-		tag := gtk.NewLabel(fmt.Sprintf("learned · %.0f%%", e.Confidence*100))
-		tag.SetTooltipText("Written by the model, with how sure it was")
+		// Not "learned · 45%", which reads as a progress bar rather than as a
+		// confidence, and left people wondering what the other 55% would be.
+		tag := gtk.NewLabel(fmt.Sprintf("model · %.0f%% sure", e.Confidence*100))
+		tag.SetTooltipText(fmt.Sprintf(
+			"Astral wrote this entry from the scene rather than you, and was %.0f%% sure of it. "+
+				"Below 75%% an entry is switched off until you have looked at it.", e.Confidence*100))
 		tag.AddCSSClass("character-card-tag")
 		head.Append(tag)
 	}
@@ -238,20 +250,19 @@ func (a *App) editLore(e world.Entry, w world.World) {
 	nameEntry.SetText(e.Name)
 	nameEntry.SetPlaceholderText("Kestrel Bay")
 	card.Append(labelledField("Name",
-		"What this is about. Astral matches on it when adding to this entry later, so renaming one starts a new entry rather than updating this.",
+		"What this is about. Astral matches on it to update the entry later, so renaming starts a new one.",
 		nameEntry))
 
 	keysEntry := gtk.NewEntry()
 	keysEntry.SetText(strings.Join(e.Keys, ", "))
 	keysEntry.SetPlaceholderText("Kestrel Bay, the Bay, the ferry")
 	card.Append(labelledField("Triggers",
-		"Comma separated. This entry is sent when the recent conversation mentions any of them. "+
-			"Keep them specific: a common word matches everything and spends the budget other entries needed.",
+		"Comma separated. The entry is sent when the conversation mentions one, so keep them specific.",
 		keysEntry))
 
 	frame, view := multilineField(e.Content, 7)
 	card.Append(labelledField("What is true",
-		"Plain statements of fact, as the model should treat them. Under sixty words works best.",
+		"Plain statements of fact. Under sixty words works best.",
 		frame))
 
 	constant := gtk.NewCheckButton()

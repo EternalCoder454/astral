@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"log"
+	"strings"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
@@ -50,6 +51,7 @@ type App struct {
 	portraitSplit *adw.OverlaySplitView
 	portraitBox   *gtk.Box
 	portraitBtn   *gtk.ToggleButton
+	offlineBtn    *gtk.Button
 
 	sidebar    *ui.Sidebar
 	chat       *ui.ChatView
@@ -201,7 +203,44 @@ func (a *App) onModelsChanged() {
 	if a.sidebar != nil {
 		a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.PersonaDescription)
 	}
+	a.refreshOfflineChip()
 	a.refreshWelcome()
+}
+
+// refreshOfflineChip shows or hides the header warning.
+//
+// The state comes from real traffic rather than from polling: the startup
+// probe sets it, and every turn that fails or succeeds updates it. Polling a
+// local server on a timer to light a lamp nobody asked for is work the machine
+// can do without.
+func (a *App) refreshOfflineChip() {
+	if a.offlineBtn == nil {
+		return
+	}
+	switch {
+	case a.probeErr != nil:
+		a.offlineBtn.SetTooltipText("Ollama is not answering at " + a.cfg.BaseURL +
+			".\nStart it with `ollama serve`, then click here to check again.")
+		a.offlineBtn.SetVisible(true)
+	case len(a.models) == 0:
+		a.offlineBtn.SetTooltipText("Ollama is running but has no models installed.\n" +
+			"Pull one with `ollama pull qwen3:8b`, then click here to check again.")
+		a.offlineBtn.SetVisible(true)
+	case !ollama.HasModel(a.models, a.cfg.Model):
+		a.offlineBtn.SetTooltipText(a.cfg.Model + " is no longer installed.\n" +
+			"Choose another model in Settings, or pull it back.")
+		a.offlineBtn.SetVisible(true)
+	default:
+		a.offlineBtn.SetVisible(false)
+	}
+}
+
+// noteTurnFailed re-checks the server after a turn could not be sent, so the
+// header catches up with what just happened rather than waiting for a restart.
+func (a *App) noteTurnFailed(msg string) {
+	if strings.Contains(msg, "Ollama isn't running") || strings.Contains(msg, "cannot reach Ollama") {
+		a.probeModels()
+	}
 }
 
 // ready reports whether a turn can actually be sent right now.

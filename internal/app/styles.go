@@ -180,9 +180,8 @@ func (a *App) editStyle(st chars.WritingStyle, isNew bool) {
 	}
 	frame, view := multilineField(body, 10)
 	card.Append(labelledField("How the prose should sound",
-		"One instruction per line, in the imperative, sentence length, paragraph count, tense, how much interiority, what to avoid.\n\n"+
-			"Write {{char}} for whichever character is being played and {{user}} for you; a style applies to everyone, so it should not name anyone.\n\n"+
-			"Do not mention asterisks or quotes: Astral handles formatting, and repeating it here only competes with it.",
+		"One instruction per line, in the imperative: length, tense, what to avoid. "+
+			"Write {{char}} and {{user}} rather than names, and leave formatting to Astral.",
 		frame))
 	page.Append(outer)
 

@@ -517,7 +517,8 @@ frame:focus-within {
    rather than a button: it is an offer, not the primary action, and the send
    button has to stay the loudest thing down here. */
 .chat-actions {
-	margin-bottom: 8px;
+	margin-top: 18px;
+	margin-bottom: 4px;
 }
 
 .chat-action-chip {
@@ -745,4 +746,39 @@ frame:focus-within {
 
 .chat-action-chip.direction-set:hover {
 	background-color: alpha(@accent_bg_color, 0.30);
+}
+
+/* The header warning shown when the model server is not answering. Amber
+   rather than red: nothing is broken or lost, something is simply not running
+   yet, and a red light in a header bar reads as an error that has already
+   cost you something. */
+.offline-chip {
+	background-color: alpha(#e8a33d, 0.20);
+	border: 1px solid alpha(#e8a33d, 0.55);
+	border-radius: 9px;
+	color: #f0c98a;
+}
+
+.offline-chip:hover {
+	background-color: alpha(#e8a33d, 0.32);
+}
+
+/* "+ New thing" at the end of a list. Outlined rather than filled: it is a
+   way in, not the thing the list is for, and a solid button here would
+   outweigh the rows above it. */
+.add-row {
+	padding: 10px 14px;
+	border-radius: 10px;
+	background-color: transparent;
+	border: 1px dashed @astral_border;
+	color: @astral_muted;
+	box-shadow: none;
+	transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.add-row:hover {
+	background-color: alpha(@accent_bg_color, 0.12);
+	border-color: alpha(@accent_bg_color, 0.55);
+	border-style: solid;
+	color: @astral_text;
 }

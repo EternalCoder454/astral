@@ -44,9 +44,7 @@ func (a *App) editDirection() {
 	outer, card := groupCard("")
 	frame, view := multilineField(a.chat.Note(), 5)
 	card.Append(labelledField("Where this scene should go next",
-		"Sent with every turn until you change it. The model steers toward it without "+
-			"announcing it and without trying to get there in one reply. "+
-			"{{char}} and {{user}} work here like everywhere else.",
+		"Sent every turn until you change it. The model steers toward it without saying it out loud.",
 		frame))
 
 	ex := gtk.NewLabel("For example:\n" + strings.Join(directionExamples, "\n"))

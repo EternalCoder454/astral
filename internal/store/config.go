@@ -107,7 +107,12 @@ type Config struct {
 	// would have been the same without it.
 	Think bool `json:"think"`
 
-	// ShowStats puts tok/s under each reply.
+	// ShowStats puts tok/s and a token count under each reply.
+	//
+	// Off by default. It is a developer's measurement sitting directly under
+	// the prose, and "34.8 tok/s · 112 tokens" tells someone who came here to
+	// write nothing they can act on — a reader cannot tell whether 34.8 is
+	// good, and does not know what a token is. The timestamp stays either way.
 	ShowStats bool `json:"show_stats"`
 }
 
@@ -157,7 +162,7 @@ func DefaultConfig() Config {
 		TopP:          DefaultTopP,
 		RepeatPenalty: DefaultRepeatPenalty,
 		NumCtx:        DefaultNumCtx,
-		ShowStats:     true,
+		ShowStats:     false,
 	}
 }
 

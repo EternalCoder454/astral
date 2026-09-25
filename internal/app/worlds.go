@@ -39,18 +39,26 @@ func (a *App) showWorlds() {
 		a.toast("Could not read your worlds: " + err.Error())
 	}
 	if len(worlds) == 0 {
-		empty := gtk.NewLabel("No worlds yet.\n\nA world holds the lorebook for a setting: " +
-			"the people, places and rules that stay true across every scene played in it. " +
-			"Astral adds to it as you play.")
+		empty := gtk.NewLabel("No worlds yet.\n\nA world is a setting your characters share, " +
+			"and Astral remembers what is true in it as you play.")
 		empty.SetWrap(true)
 		empty.SetJustify(gtk.JustifyCenter)
 		empty.SetVExpand(true)
 		empty.AddCSSClass("dim-label")
 		list.Append(empty)
 	}
+	rows := make([]filterRow, 0, len(worlds))
 	for _, w := range worlds {
-		list.Append(a.worldRow(w, d))
+		rows = append(rows, filterRow{
+			Widget: a.worldRow(w, d),
+			Text:   strings.ToLower(w.Name + " " + w.Description),
+		})
 	}
+	searchableList(list, "Search worlds", rows)
+	list.Append(addRow("New world", func() {
+		d.Close()
+		a.editWorld(world.World{})
+	}))
 
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(header)
@@ -169,7 +177,7 @@ func (a *App) editWorld(w world.World) {
 
 	frame, view := multilineField(w.Description, 4)
 	card.Append(labelledField("Description",
-		"One or two sentences about the setting. This is sent whenever any of its lore is, so keep it short.",
+		"One or two sentences. Sent whenever any of this world's lore is, so keep it short.",
 		frame))
 	page.Append(outer)
 
@@ -384,6 +392,28 @@ func (a *App) worldCastRow(c chars.Character, w world.World, parent *adw.Dialog)
 		a.editCharacter(character)
 	})
 	side.Append(open)
+
+	// Not a delete: from inside a world, the useful action is to take someone
+	// out of it, and deleting the character outright from here would be a very
+	// different thing wearing the same icon.
+	out := gtk.NewButtonFromIconName(ui.IconTrash)
+	out.SetTooltipText("Move " + character.Name + " out of " + w.Name)
+	out.AddCSSClass("flat")
+	out.ConnectClicked(func() {
+		parent.Close()
+		a.confirm("Move "+character.Name+" out of "+w.Name+"?",
+			"They are kept, and simply stop having a setting. Their scenes will no longer draw on this world's lorebook.",
+			"Move out", func() {
+				character.WorldID = 0
+				if _, err := a.store.SaveCharacter(character); err != nil {
+					a.toast("Could not move them out: " + err.Error())
+					return
+				}
+				a.toast(character.Name + " no longer lives in " + w.Name + ".")
+				a.showWorld(w)
+			})
+	})
+	side.Append(out)
 	row.Append(side)
 	return row
 }

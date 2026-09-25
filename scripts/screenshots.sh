@@ -35,6 +35,14 @@ trap 'rm -rf "$seed" "$cfg"' EXIT
 if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/astral/config.json" ]; then
     mkdir -p "$cfg/astral"
     cp "${XDG_CONFIG_HOME:-$HOME/.config}/astral/config.json" "$cfg/astral/config.json"
+    # Settings that differ from the defaults are forced back for the capture.
+    # These images stand in for the app as someone installing it today meets
+    # it, not for one developer's config: generation statistics under every
+    # reply are off by default, and leaving them on here would misrepresent
+    # the thing being reviewed. The copy is a throwaway, the real config is
+    # untouched.
+    python3 -c 'import json,sys; p=sys.argv[1]; c=json.load(open(p)); c["show_stats"]=False; json.dump(c, open(p,"w"), indent=2)' \
+        "$cfg/astral/config.json"
 fi
 
 echo "seeding..."

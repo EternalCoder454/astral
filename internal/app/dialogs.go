@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"strings"
 )
 
 // confirm asks before something irreversible. The confirming button is styled
@@ -202,4 +203,83 @@ func textOf(tv *gtk.TextView) string {
 	b := tv.Buffer()
 	start, end := b.Bounds()
 	return b.Text(start, end, false)
+}
+
+// searchThreshold is how many rows a list needs before it is offered a search
+// field. Below this the field is pure clutter: scanning four names is faster
+// than reaching for the keyboard, and an empty search box over an empty list
+// is the clearest way to make a new install look complicated.
+const searchThreshold = 7
+
+// addRow is the "make another one" button that sits at the end of a list.
+//
+// The header keeps its "+" for people who know where it is. This is for
+// everyone else: a short list above a large empty panel gives no indication
+// that anything can be added to it, and the panel is emptiest exactly when a
+// new user is looking at it.
+func addRow(label string, onClick func()) *gtk.Button {
+	b := gtk.NewButton()
+	b.AddCSSClass("add-row")
+	b.SetChild(rowLabel("+   " + label))
+	b.ConnectClicked(onClick)
+	return b
+}
+
+func rowLabel(text string) *gtk.Label {
+	l := gtk.NewLabel(text)
+	l.SetXAlign(0)
+	return l
+}
+
+// filterRow is one row of a searchable list, with the text it matches on.
+type filterRow struct {
+	Widget gtk.Widgetter
+	// Text is everything worth matching, already lowercased: a name, its
+	// description, its tags. Matching the description as well as the name is
+	// what makes searching a lorebook useful, since the thing you remember
+	// about an entry is rarely its title.
+	Text string
+}
+
+// searchableList fills a box with rows and, when there are enough of them,
+// puts a search field above that filters as you type.
+//
+// Filtering hides rows rather than rebuilding the list, so the widgets and
+// their signal handlers are built once and a keystroke costs a visibility
+// change per row rather than a teardown.
+func searchableList(list *gtk.Box, placeholder string, rows []filterRow) {
+	if len(rows) >= searchThreshold {
+		search := gtk.NewSearchEntry()
+		search.SetPlaceholderText(placeholder)
+		search.SetHExpand(true)
+		search.SetMarginBottom(4)
+		list.Append(search)
+
+		empty := gtk.NewLabel("Nothing matches that.")
+		empty.SetJustify(gtk.JustifyCenter)
+		empty.SetVExpand(true)
+		empty.SetVisible(false)
+		empty.AddCSSClass("dim-label")
+
+		search.ConnectSearchChanged(func() {
+			q := strings.ToLower(strings.TrimSpace(search.Text()))
+			shown := 0
+			for _, r := range rows {
+				match := q == "" || strings.Contains(r.Text, q)
+				gtk.BaseWidget(r.Widget).SetVisible(match)
+				if match {
+					shown++
+				}
+			}
+			empty.SetVisible(shown == 0)
+		})
+		for _, r := range rows {
+			list.Append(r.Widget)
+		}
+		list.Append(empty)
+		return
+	}
+	for _, r := range rows {
+		list.Append(r.Widget)
+	}
 }

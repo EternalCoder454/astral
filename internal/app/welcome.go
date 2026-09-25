@@ -271,8 +271,8 @@ func (a *App) buildEmptyCast() *gtk.Box {
 	t.AddCSSClass("setup-title")
 	card.Append(t)
 
-	b := gtk.NewLabel("Let the model build one with you: describe what you want and it asks the rest. " +
-		"You can also import a character card you already have, or write one yourself.")
+	b := gtk.NewLabel("Describe who you want and the model builds them with you. " +
+		"Or import a card you already have.")
 	b.SetXAlign(0)
 	b.SetWrap(true)
 	b.AddCSSClass("setup-body")

@@ -59,9 +59,18 @@ func (a *App) showCharacters() {
 		empty.AddCSSClass("dim-label")
 		list.Append(empty)
 	}
+	rows := make([]filterRow, 0, len(characters))
 	for _, c := range characters {
-		list.Append(a.castRow(c, d))
+		rows = append(rows, filterRow{
+			Widget: a.castRow(c, d),
+			Text:   strings.ToLower(c.Name + " " + c.Summary() + " " + strings.Join(c.Tags, " ")),
+		})
 	}
+	searchableList(list, "Search by name, description or tag", rows)
+	list.Append(addRow("New character", func() {
+		d.Close()
+		a.editCharacter(chars.Character{})
+	}))
 
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(header)
@@ -219,8 +228,8 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	descFrame, descView := multilineField(c.Description, 5)
 	f.description = descView
 	idCard.Append(labelledField("Description",
-		"Who they are, how they look, how they speak. Sent to the model on every single turn, so keep it tight.\n\n"+
-			"{{user}} becomes your name and {{char}} becomes theirs, here and in every other field.",
+		"Who they are, how they look, how they speak, in as few words as will do. "+
+			"{{user}} and {{char}} expand to names, here and in every field.",
 		descFrame))
 
 	persFrame, persView := multilineField(c.Personality, 2)
@@ -282,13 +291,13 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	firstFrame, firstView := multilineField(c.FirstMes, 5)
 	f.firstMes = firstView
 	sceneCard.Append(labelledField("Opening message",
-		"Their first words. The model copies its length, tense and formatting for the rest of the scene, so write this one the way you want the whole thing to read.",
+		"Their first words. The model copies its length and tone, so write it the way you want the scene to read.",
 		firstFrame))
 
 	exFrame, exView := multilineField(c.MesExample, 4)
 	f.mesExample = exView
 	sceneCard.Append(labelledField("Example dialogue",
-		"Optional. Use <START> between exchanges, and prefix lines with {{user}}: and {{char}}:, Astral turns these into real example turns.",
+		"Optional. Put <START> between exchanges and prefix lines with {{user}}: and {{char}}:.",
 		exFrame))
 	page.Append(sceneOuter)
 
@@ -297,8 +306,8 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	insFrame, insView := multilineField(c.Instructions, 5)
 	f.instructions = insView
 	insCard.Append(labelledField("How this character should be played",
-		"Your own rules for them, \"keep replies to one paragraph\", \"never break the fourth wall\", \"{{char}} always lies about her past\".\n\n"+
-			"These are added to Astral's roleplay framing rather than replacing it, and they are repeated at the end of the context on every turn, which is the position a model actually obeys. One instruction per line works best.",
+		"Your own rules for them, one per line: \"keep replies to one paragraph\", "+
+			"\"{{char}} always lies about her past\".",
 		insFrame))
 	page.Append(insOuter)
 

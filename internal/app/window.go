@@ -108,6 +108,20 @@ func (a *App) buildContent() *adw.ToolbarView {
 	newBtn.ConnectClicked(a.actionNewChat)
 	header.PackStart(newBtn)
 
+	// Shown only when the model server is not answering. A green light that is
+	// always on is decoration; what someone needs is to be told before they
+	// type a paragraph into a window that cannot answer, and the welcome
+	// screen's setup card is no help once a scene is open.
+	a.offlineBtn = gtk.NewButton()
+	a.offlineBtn.SetIconName(ui.IconInfo)
+	a.offlineBtn.AddCSSClass("offline-chip")
+	a.offlineBtn.SetVisible(false)
+	a.offlineBtn.ConnectClicked(func() {
+		a.toast("Checking for Ollama…")
+		a.probeModels()
+	})
+	header.PackEnd(a.offlineBtn)
+
 	a.portraitBtn = gtk.NewToggleButton()
 	a.portraitBtn.SetIconName(ui.IconCharacters)
 	a.portraitBtn.SetTooltipText("Show or hide the character portrait")
@@ -155,7 +169,10 @@ func (a *App) buildSidebar() {
 func (a *App) buildCenter() {
 	a.chat = ui.NewChatView(a.client, a.store, a.cfg)
 	a.chat.OnChatChanged = a.refreshSidebar
-	a.chat.OnError = a.toast
+	a.chat.OnError = func(msg string) {
+		a.toast(msg)
+		a.noteTurnFailed(msg)
+	}
 	a.chat.OnPickModel = a.showModelPicker
 	a.chat.OnBuildCharacter = a.buildCharacterFromChat
 	a.chat.OnEditDirection = a.editDirection
