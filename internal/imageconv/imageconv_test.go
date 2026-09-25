@@ -3,6 +3,8 @@ package imageconv
 import (
 	"bytes"
 	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"testing"
@@ -154,5 +156,71 @@ func TestJunkIsRejected(t *testing.T) {
 				t.Error("accepted something that is not a readable image")
 			}
 		})
+	}
+}
+
+// An avatar has to come out the size asked for and square, whatever shape went
+// in. A tall portrait used as an avatar was allocated at its own size and
+// appeared beside messages several times too large, because a widget size
+// request is only a minimum.
+func TestThumbnailIsAlwaysSquareAndTheSizeAsked(t *testing.T) {
+	for _, name := range []string{"sample.png", "sample.jpg", "lossy.webp", "sample.bmp"} {
+		for _, size := range []int{28, 64} {
+			out, err := Thumbnail(read(t, name), size)
+			if err != nil {
+				t.Fatalf("Thumbnail(%s, %d): %v", name, size, err)
+			}
+			cfg, _, err := image.DecodeConfig(bytes.NewReader(out))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Width != size || cfg.Height != size {
+				t.Errorf("%s at %d came out %dx%d", name, size, cfg.Width, cfg.Height)
+			}
+		}
+	}
+}
+
+// A non-square source must be centre cropped rather than squashed.
+func TestThumbnailCropsRatherThanDistorts(t *testing.T) {
+	tall := image.NewRGBA(image.Rect(0, 0, 40, 120))
+	for y := 0; y < 120; y++ {
+		for x := 0; x < 40; x++ {
+			// A band of white across the vertical middle, black elsewhere.
+			c := uint8(0)
+			if y > 50 && y < 70 {
+				c = 255
+			}
+			tall.Set(x, y, color.RGBA{c, c, c, 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, tall); err != nil {
+		t.Fatal(err)
+	}
+	out, err := Thumbnail(buf.Bytes(), 40)
+	if err != nil {
+		t.Fatal(err)
+	}
+	img, _, err := image.Decode(bytes.NewReader(out))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := img.Bounds(); b.Dx() != 40 || b.Dy() != 40 {
+		t.Fatalf("thumbnail is %v", b)
+	}
+	// The centre band should have survived the crop and be near the middle.
+	mid, _, _, _ := img.At(20, 20).RGBA()
+	if mid < 0x8000 {
+		t.Errorf("the middle of the image was cropped away; centre pixel = %d", mid>>8)
+	}
+}
+
+func TestThumbnailRejectsJunk(t *testing.T) {
+	if _, err := Thumbnail([]byte("not an image"), 28); err == nil {
+		t.Error("junk was accepted")
+	}
+	if _, err := Thumbnail(read(t, "sample.png"), 0); err == nil {
+		t.Error("a zero size was accepted")
 	}
 }

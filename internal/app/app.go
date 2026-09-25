@@ -129,6 +129,7 @@ func (a *App) activate() {
 
 	// Everything below happens after the window is up, so the first frame is
 	// not waiting on a network round trip to a server that may not be running.
+	a.runDevSeed()
 	a.refreshSidebar()
 	a.restoreLastChat()
 	a.probeModels()

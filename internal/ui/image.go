@@ -3,9 +3,12 @@ package ui
 import (
 	"os"
 
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
 	"astral/internal/chars"
+	"astral/internal/imageconv"
 )
 
 // Characters can carry two images, and they are cropped for different jobs.
@@ -25,21 +28,33 @@ func NewCharacterAvatar(c chars.Character, size int) gtk.Widgetter {
 	return NewAvatar(c.Initial(), c.Accent, size)
 }
 
-// loadCropped builds a square, centre-cropped, rounded image, or nil when the
-// path is empty or unreadable.
+// loadCropped builds a square, rounded avatar image, or nil when the path is
+// empty or unreadable.
+//
+// The image is cropped and scaled in Go rather than by GTK. A GtkPicture's
+// natural size is the size of the image inside it, and a size request on a
+// widget is only a minimum, so a tall portrait used as an avatar was allocated
+// at its own size and appeared beside messages several times too large.
 func loadCropped(path string, size int) gtk.Widgetter {
 	if path == "" {
 		return nil
 	}
-	if _, err := os.Stat(path); err != nil {
+	data, err := os.ReadFile(path)
+	if err != nil {
 		return nil
 	}
-	pic := gtk.NewPictureForFilename(path)
-	// Cover fills the square and crops the overflow, which is what a face at
-	// avatar size wants; Contain would letterbox it into a smaller face.
-	pic.SetContentFit(gtk.ContentFitCover)
-	pic.SetSizeRequest(size, size)
+	thumb, err := imageconv.Thumbnail(data, size)
+	if err != nil {
+		return nil
+	}
+	tex, err := gdk.NewTextureFromBytes(glib.NewBytesWithGo(thumb))
+	if err != nil {
+		return nil
+	}
+
+	pic := gtk.NewPictureForPaintable(tex)
 	pic.SetCanShrink(true)
+	pic.SetSizeRequest(size, size)
 
 	// The rounding is on a wrapper: a GtkPicture draws its own contents and
 	// will happily paint over a border-radius set on itself.

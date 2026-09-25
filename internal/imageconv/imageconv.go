@@ -23,6 +23,8 @@ import (
 	// the rest.
 	_ "image/gif"
 
+	"golang.org/x/image/draw"
+
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/tiff"
 	_ "golang.org/x/image/webp"
@@ -107,4 +109,45 @@ func Format(data []byte) string {
 		return ""
 	}
 	return format
+}
+
+// Thumbnail returns a square, centre-cropped PNG of the given pixel size.
+//
+// This is done here rather than by asking GTK to scale a GtkPicture, because a
+// picture's *natural* size is the size of the image in it. A size request on
+// the widget is only a minimum, so a 64x96 portrait used as an avatar was
+// allocated 64x96 and appeared beside messages roughly three times the size
+// intended. Producing a texture that is already the right shape removes the
+// negotiation entirely, and means each row holds a 28px image rather than a
+// full-resolution one.
+func Thumbnail(data []byte, size int) ([]byte, error) {
+	if size <= 0 {
+		return nil, fmt.Errorf("thumbnail size must be positive")
+	}
+	src, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("that file is not an image Astral can read")
+	}
+
+	// Centre crop to a square first, so scaling cannot distort the aspect.
+	b := src.Bounds()
+	side := b.Dx()
+	if b.Dy() < side {
+		side = b.Dy()
+	}
+	crop := image.Rect(
+		b.Min.X+(b.Dx()-side)/2,
+		b.Min.Y+(b.Dy()-side)/2,
+		b.Min.X+(b.Dx()-side)/2+side,
+		b.Min.Y+(b.Dy()-side)/2+side,
+	)
+
+	dst := image.NewRGBA(image.Rect(0, 0, size, size))
+	draw.CatmullRom.Scale(dst, dst.Bounds(), src, crop, draw.Over, nil)
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, dst); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }

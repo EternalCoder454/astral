@@ -100,6 +100,25 @@ func (a *App) runDevView() {
 			a.showStyles()
 		case "worlds":
 			a.showWorlds()
+		case "lorebook":
+			if ws, err := a.store.Worlds(); err == nil && len(ws) > 0 {
+				a.showLorebook(ws[0])
+			}
+		case "editchar":
+			if cs, err := a.store.Characters(); err == nil && len(cs) > 0 {
+				a.editCharacter(cs[0])
+			}
+		case "portrait":
+			if cs, err := a.store.Characters(); err == nil && len(cs) > 0 {
+				for _, c := range cs {
+					if c.PortraitPath != "" {
+						a.newChat(c)
+						a.cfg.PortraitOpen = true
+						a.showPortraitFor(c)
+						break
+					}
+				}
+			}
 		case "styledesigner":
 			a.newStyleDesignerChat()
 		case "assistant":
