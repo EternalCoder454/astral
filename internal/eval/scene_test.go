@@ -124,6 +124,7 @@ func TestLongScene(t *testing.T) {
 		collapses         int
 		driftTurns        int
 		unmarkedReplies   int
+		badlyUnmarked     int
 		totalReplyTokens  int
 		totalReplySeconds float64
 	)
@@ -209,7 +210,15 @@ func TestLongScene(t *testing.T) {
 			collapses++
 			t.Logf("turn %d: the model collapsed into repeating itself", turn)
 		}
-		if markedRatio(body) < 0.75 {
+		// Two thresholds, because they answer different questions. Under 75%
+		// is a reply with some unmarked narration in it, which is untidy.
+		// Under 40% is a reply that visibly is not doing the format at all,
+		// which is what someone actually complains about.
+		switch r := markedRatio(body); {
+		case r < 0.40:
+			badlyUnmarked++
+			unmarkedReplies++
+		case r < 0.75:
 			unmarkedReplies++
 		}
 		if _, err := st.AddMessage(store.Message{ChatID: chat.ID,
@@ -290,7 +299,7 @@ func TestLongScene(t *testing.T) {
 	t.Logf("  worst headroom     %d tokens of %d", worstHeadroom, numCtx)
 	t.Logf("  collapses          %d", collapses)
 	t.Logf("  turns that drifted %d of %d (prefill applied)", driftTurns, *turns)
-	t.Logf("  replies under-marked %d of %d", unmarkedReplies, *turns)
+	t.Logf("  replies under-marked %d of %d (badly: %d)", unmarkedReplies, *turns, badlyUnmarked)
 	if totalReplySeconds > 0 {
 		t.Logf("  reply throughput   %.1f tok/s over %.0fs",
 			float64(totalReplyTokens)/totalReplySeconds, totalReplySeconds)

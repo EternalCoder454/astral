@@ -42,6 +42,24 @@ jobs:
             mingw-w64-x86_64-libadwaita
             mingw-w64-x86_64-adwaita-icon-theme
 
+      - name: Locate the Go caches
+        id: gocache
+        run: |
+          echo "build=$(cygpath -w "$(go env GOCACHE)")" >> "$GITHUB_OUTPUT"
+          echo "mod=$(cygpath -w "$(go env GOMODCACHE)")" >> "$GITHUB_OUTPUT"
+
+      # gotk4 is an enormous generated codebase and compiling it from cold
+      # takes the better part of half an hour. Caching it is the difference
+      # between a CI round being worth doing and not.
+      - name: Restore the Go caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.gocache.outputs.build }}
+            ${{ steps.gocache.outputs.mod }}
+          key: go-windows-${{ hashFiles('go.sum') }}
+          restore-keys: go-windows-
+
       - name: Report the toolchain
         run: |
           go version

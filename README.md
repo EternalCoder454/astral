@@ -314,6 +314,39 @@ internal/app/      window, theming, settings, dialogs
 
 Branches: `release` is stable, `beta` is where work lands first.
 
+### Versioning
+
+`internal/app/version.go` is the single source of truth. The Makefile reads it,
+so `go build .` and `make install` cannot report different numbers at each
+other, and the update check compares against it.
+
+Versions are `major.minor.patch`. Patch is a fix, minor is anything anyone
+would notice, major is reserved for a break in the database or the card format.
+
+To cut a release:
+
+```bash
+# 1. Bump the number
+$EDITOR internal/app/version.go
+
+# 2. Add the entry people will actually read. Newest heading first,
+#    at most eight lines, each under 110 characters. The tests enforce both.
+$EDITOR WHATSNEW.md
+
+# 3. Check that what you wrote will parse and display
+go test ./internal/update/
+
+# 4. Tag it and move release forward
+git commit -am "Release 0.3.0"
+git tag -a v0.3.0 -m "0.3.0"
+git push origin beta --tags
+git checkout release && git merge --ff-only beta && git push origin release
+```
+
+Anyone on the release channel is offered it on their next launch; anyone on
+beta was offered it when it landed there. Nothing else needs doing: the update
+check reads `WHATSNEW.md` from the branch, so publishing is the merge.
+
 Environment variables for development:
 
 | Variable | Effect |
@@ -321,6 +354,8 @@ Environment variables for development:
 | `ASTRAL_DEV_TITLE=1` | Pins a matchable window title for screenshot tools |
 | `ASTRAL_DEV_SIZE=1400x900` | Fixed geometry, so runs are reproducible |
 | `ASTRAL_DEV_VIEW=<name>` | Opens a surface on launch |
+| `ASTRAL_NO_UPDATE_CHECK=1` | Never checks for a new version |
+| `ASTRAL_UPDATE_NOTES_URL=<url>` | Reads release notes from somewhere else, for testing the update path |
 | `ASTRAL_DEV_CSS='<rules>'` | Appended to the stylesheet, to try a value without rebuilding |
 | `ASTRAL_DEBUG_FONTS=1` | Dumps the resolved text rendering settings |
 
