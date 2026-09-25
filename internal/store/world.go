@@ -181,3 +181,12 @@ func (s *Store) CountLore(worldID int64) (int, error) {
 	err := s.db.QueryRow(`SELECT COUNT(*) FROM lore_entries WHERE world_id = ?`, worldID).Scan(&n)
 	return n, err
 }
+
+// CountCharactersInWorld is how many characters live in a world. The home
+// screen shows it because a world with nobody in it cannot be played, and that
+// is worth knowing before you click into it.
+func (s *Store) CountCharactersInWorld(worldID int64) (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM characters WHERE world_id = ?`, worldID).Scan(&n)
+	return n, err
+}

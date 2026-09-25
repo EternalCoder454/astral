@@ -52,20 +52,28 @@ func loadCropped(path string, size int) gtk.Widgetter {
 		return nil
 	}
 
-	pic := gtk.NewPictureForPaintable(tex)
-	pic.SetCanShrink(true)
-	pic.SetSizeRequest(size, size)
+	// GtkImage, not GtkPicture. A picture's natural size is negotiable: it
+	// takes whatever width the row has going spare, and a letter tile does
+	// not, so a list mixing the two had its image rows indented and their
+	// text pushed half an avatar to the right. An image with a pixel size
+	// asks for exactly that many pixels and nothing else.
+	img := gtk.NewImageFromPaintable(tex)
+	img.SetPixelSize(size)
+	img.SetHExpand(false)
+	img.SetVExpand(false)
 
-	// The rounding is on a wrapper: a GtkPicture draws its own contents and
+	// The rounding is on a wrapper: the image paints its own contents and
 	// will happily paint over a border-radius set on itself.
 	frame := gtk.NewBox(gtk.OrientationHorizontal, 0)
 	frame.AddCSSClass("avatar")
 	frame.AddCSSClass("avatar-image")
 	frame.SetOverflow(gtk.OverflowHidden)
 	frame.SetSizeRequest(size, size)
-	frame.SetHAlign(gtk.AlignCenter)
+	frame.SetHExpand(false)
+	frame.SetVExpand(false)
+	frame.SetHAlign(gtk.AlignStart)
 	frame.SetVAlign(gtk.AlignCenter)
-	frame.Append(pic)
+	frame.Append(img)
 	return frame
 }
 

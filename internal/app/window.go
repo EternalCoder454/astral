@@ -44,9 +44,9 @@ func (a *App) buildWindow() {
 	a.portraitSplit.SetSidebarPosition(gtk.PackEnd)
 	a.portraitSplit.SetSidebar(a.buildPortraitPanel())
 	a.portraitSplit.SetContent(a.stack)
-	a.portraitSplit.SetSidebarWidthFraction(0.22)
-	a.portraitSplit.SetMaxSidebarWidth(320)
-	a.portraitSplit.SetMinSidebarWidth(180)
+	a.portraitSplit.SetSidebarWidthFraction(0.18)
+	a.portraitSplit.SetMaxSidebarWidth(300)
+	a.portraitSplit.SetMinSidebarWidth(170)
 	a.portraitSplit.SetShowSidebar(false)
 
 	a.split = adw.NewOverlaySplitView()
@@ -64,6 +64,15 @@ func (a *App) buildWindow() {
 	breakpoint := adw.NewBreakpoint(adw.BreakpointConditionParse("max-width: 700px"))
 	breakpoint.AddSetter(a.split, "collapsed", glib.NewValue(true))
 	a.win.AddBreakpoint(breakpoint)
+
+	// The portrait gives way earlier, and for a different reason. Three
+	// columns fit comfortably on a wide window; below about 1100px the one in
+	// the middle is the one that suffers, and the middle one is the scene. So
+	// past that point the portrait floats over the chat instead of taking a
+	// slice out of it.
+	portraitBP := adw.NewBreakpoint(adw.BreakpointConditionParse("max-width: 1100px"))
+	portraitBP.AddSetter(a.portraitSplit, "collapsed", glib.NewValue(true))
+	a.win.AddBreakpoint(portraitBP)
 
 	a.toasts = adw.NewToastOverlay()
 	a.toasts.SetChild(a.split)
@@ -130,6 +139,7 @@ func (a *App) buildSidebar() {
 	a.sidebar = ui.NewSidebar()
 	a.sidebar.OnNewChat = a.actionNewChat
 	a.sidebar.OnCharacters = a.showCharacters
+	a.sidebar.OnWorlds = a.showWorlds
 	a.sidebar.OnSettings = a.showSettings
 	a.sidebar.OnPersona = func() { a.showSettingsPage("persona") }
 	a.sidebar.OnStyles = a.showStyles
@@ -196,13 +206,19 @@ func (a *App) setTitle(ch store.Chat, ca chars.Character) {
 	if a.title == nil {
 		return
 	}
+	where := ""
+	if ca.WorldID != 0 {
+		if w, err := a.store.World(ca.WorldID); err == nil {
+			where = " in " + w.Name
+		}
+	}
 	switch {
 	case ca.Name != "" && ch.Title != "":
 		a.title.SetTitle(ch.Title)
-		a.title.SetSubtitle("with " + ca.Name)
+		a.title.SetSubtitle("with " + ca.Name + where)
 	case ca.Name != "":
 		a.title.SetTitle(ca.Name)
-		a.title.SetSubtitle("New scene")
+		a.title.SetSubtitle("New scene" + where)
 	case ch.Title != "":
 		a.title.SetTitle(ch.Title)
 		a.title.SetSubtitle("")

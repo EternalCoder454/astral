@@ -45,6 +45,7 @@ map=(
     search:search
     history:history
     info:info
+    public:worlds
 )
 
 mkdir -p "$out_dir"

@@ -26,10 +26,10 @@ func (a *App) showLorebook(w world.World) {
 
 	header := adw.NewHeaderBar()
 	back := gtk.NewButtonFromIconName(ui.IconPanelLeft)
-	back.SetTooltipText("All worlds")
+	back.SetTooltipText("Back to " + w.Name)
 	back.ConnectClicked(func() {
 		d.Close()
-		a.showWorlds()
+		a.showWorld(w)
 	})
 	header.PackStart(back)
 
@@ -133,11 +133,40 @@ func (a *App) loreRow(e world.Entry, w world.World, parent *adw.Dialog) *gtk.Box
 		head.Append(tag)
 	}
 
+	entry := e
+	card.Append(head)
+
+	if keys := strings.Join(e.Keys, ", "); keys != "" {
+		k := gtk.NewLabel("Triggers on: " + keys)
+		k.SetXAlign(0)
+		k.SetHAlign(gtk.AlignStart)
+		k.SetMaxWidthChars(44)
+		k.SetEllipsize(3)
+		k.SetTooltipText(keys)
+		k.AddCSSClass("character-card-tag")
+		card.Append(k)
+	}
+
+	body := gtk.NewLabel(ui.Snippet(e.Content, 260))
+	body.SetXAlign(0)
+	body.SetWrap(true)
+	body.SetLines(3)
+	body.SetEllipsize(3)
+	body.AddCSSClass("character-card-desc")
+	card.Append(body)
+	row.Append(card)
+
+	// The switch lives in its own fixed-width column rather than at the end of
+	// the card's heading. Inside the heading it came after a run of tags that
+	// differ per entry, so every switch in the list landed at a different x
+	// and the column read as scattered. Out here they line up.
+	swCell := gtk.NewBox(gtk.OrientationVertical, 0)
+	swCell.AddCSSClass("lore-switch-cell")
+	swCell.SetVAlign(gtk.AlignCenter)
 	sw := gtk.NewSwitch()
 	sw.SetActive(e.Enabled)
-	sw.SetVAlign(gtk.AlignCenter)
-	sw.SetTooltipText("Whether this is sent to the model")
-	entry := e
+	sw.SetHAlign(gtk.AlignCenter)
+	sw.SetTooltipText("Whether this entry is sent to the model")
 	sw.ConnectStateSet(func(state bool) bool {
 		entry.Enabled = state
 		// Accepting a held entry makes it the user's, so a later automatic
@@ -152,27 +181,8 @@ func (a *App) loreRow(e world.Entry, w world.World, parent *adw.Dialog) *gtk.Box
 		a.reloadLoreIfOpen(w.ID)
 		return false
 	})
-	head.Append(sw)
-	card.Append(head)
-
-	if keys := strings.Join(e.Keys, ", "); keys != "" {
-		k := gtk.NewLabel("Triggers on: " + keys)
-		k.SetXAlign(0)
-		k.SetWrap(true)
-		k.SetLines(1)
-		k.SetEllipsize(3)
-		k.AddCSSClass("character-card-tag")
-		card.Append(k)
-	}
-
-	body := gtk.NewLabel(ui.Snippet(e.Content, 180))
-	body.SetXAlign(0)
-	body.SetWrap(true)
-	body.SetLines(3)
-	body.SetEllipsize(3)
-	body.AddCSSClass("character-card-desc")
-	card.Append(body)
-	row.Append(card)
+	swCell.Append(sw)
+	row.Append(swCell)
 
 	side := gtk.NewBox(gtk.OrientationVertical, 4)
 	side.SetVAlign(gtk.AlignCenter)

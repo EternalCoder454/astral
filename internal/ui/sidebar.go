@@ -36,6 +36,8 @@ type Sidebar struct {
 	OnNewChat    func()
 	OnOpenChat   func(id int64)
 	OnCharacters func()
+	// OnWorlds opens the list of settings.
+	OnWorlds func()
 	OnSettings   func()
 	// OnPersona opens the persona editor from the profile menu.
 	OnPersona func()
@@ -73,6 +75,13 @@ func NewSidebar() *Sidebar {
 	s.charsBtn.SetTooltipText("Browse and import characters (Ctrl+K)")
 	s.charsBtn.ConnectClicked(func() { fire(s.OnCharacters) })
 	nav.Append(s.charsBtn)
+
+	worldsBtn := gtk.NewButton()
+	worldsBtn.AddCSSClass("sidebar-item")
+	worldsBtn.SetChild(rowContent(IconWorlds, "Worlds"))
+	worldsBtn.SetTooltipText("Settings your characters live in, and what they remember (Ctrl+W)")
+	worldsBtn.ConnectClicked(func() { fire(s.OnWorlds) })
+	nav.Append(worldsBtn)
 	s.widget.Append(nav)
 
 	// The conversation list.

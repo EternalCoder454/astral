@@ -11,6 +11,7 @@ import (
 	"astral/internal/chars"
 	"astral/internal/ollama"
 	"astral/internal/ui"
+	"astral/internal/world"
 )
 
 // The welcome screen is what you see with no chat open. It has one job beyond
@@ -79,6 +80,95 @@ func (a *App) refreshWelcome() {
 		return
 	}
 	a.appendCast()
+	a.appendWorlds()
+}
+
+// appendWorlds puts the settings on the home screen.
+//
+// A world used to be reachable only from the main menu, which is where you
+// look for a thing you already know is there. Someone who has just made one
+// and wants to play in it looks at the screen in front of them, so that is
+// where it now is.
+func (a *App) appendWorlds() {
+	worlds, err := a.store.Worlds()
+	if err != nil || len(worlds) == 0 {
+		return
+	}
+
+	heading := gtk.NewLabel("Worlds")
+	heading.SetXAlign(0)
+	heading.AddCSSClass("welcome-section")
+	a.welcomeBox.Append(heading)
+
+	flow := gtk.NewFlowBox()
+	flow.SetSelectionMode(gtk.SelectionNone)
+	flow.SetMaxChildrenPerLine(2)
+	flow.SetColumnSpacing(10)
+	flow.SetRowSpacing(10)
+	flow.SetHomogeneous(true)
+
+	const maxShown = 4
+	shown := worlds
+	if len(shown) > maxShown {
+		shown = shown[:maxShown]
+	}
+	for _, w := range shown {
+		flow.Insert(a.worldCard(w), -1)
+	}
+	a.welcomeBox.Append(flow)
+
+	row := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	row.SetHAlign(gtk.AlignCenter)
+	row.SetMarginTop(12)
+	more := gtk.NewButton()
+	more.AddCSSClass("welcome-action")
+	if len(worlds) > maxShown {
+		more.SetLabel(fmt.Sprintf("All %d worlds…", len(worlds)))
+	} else {
+		more.SetLabel("Manage worlds")
+	}
+	more.SetTooltipText("Create a world, or open one's lorebook")
+	more.ConnectClicked(a.showWorlds)
+	row.Append(more)
+	a.welcomeBox.Append(row)
+}
+
+// worldCard is one world on the home screen, opening its page.
+func (a *App) worldCard(w world.World) *gtk.Button {
+	btn := gtk.NewButton()
+	btn.AddCSSClass("character-card")
+
+	col := gtk.NewBox(gtk.OrientationVertical, 3)
+	head := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	name := gtk.NewLabel(w.Name)
+	name.SetXAlign(0)
+	name.SetHExpand(true)
+	name.SetEllipsize(3)
+	name.AddCSSClass("character-card-name")
+	head.Append(name)
+
+	if n, err := a.store.CountCharactersInWorld(w.ID); err == nil && n > 0 {
+		tag := gtk.NewLabel(fmt.Sprintf("%d here", n))
+		tag.AddCSSClass("character-card-tag")
+		head.Append(tag)
+	}
+	col.Append(head)
+
+	if d := ui.Snippet(w.Description, 140); d != "" {
+		desc := gtk.NewLabel(d)
+		desc.SetXAlign(0)
+		desc.SetWrap(true)
+		desc.SetLines(2)
+		desc.SetEllipsize(3)
+		desc.AddCSSClass("character-card-desc")
+		col.Append(desc)
+	}
+	btn.SetChild(col)
+	btn.SetTooltipText("Open " + w.Name)
+
+	setting := w
+	btn.ConnectClicked(func() { a.showWorld(setting) })
+	return btn
 }
 
 // greetingLine addresses you by name when the system knows it, the way the
@@ -146,21 +236,21 @@ func (a *App) appendCast() {
 	row.SetMarginTop(12)
 
 	design := gtk.NewButton()
-	design.AddCSSClass("sidebar-item")
+	design.AddCSSClass("welcome-action")
 	design.SetLabel("Design a new character")
 	design.SetTooltipText("Describe what you want and the model builds it with you")
 	design.ConnectClicked(a.newDesignerChat)
 	row.Append(design)
 
 	plain := gtk.NewButton()
-	plain.AddCSSClass("sidebar-item")
+	plain.AddCSSClass("welcome-action")
 	plain.SetLabel("Just chat")
 	plain.SetTooltipText("A plain conversation with the model, no character")
 	plain.ConnectClicked(a.newAssistantChat)
 	row.Append(plain)
 
 	more := gtk.NewButton()
-	more.AddCSSClass("sidebar-item")
+	more.AddCSSClass("welcome-action")
 	if len(characters) > maxShown {
 		more.SetLabel(fmt.Sprintf("All %d…", len(characters)))
 	} else {
@@ -213,19 +303,32 @@ func (a *App) characterCard(c chars.Character) *gtk.Button {
 	btn.AddCSSClass("character-card")
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 10)
-	avatar := ui.NewAvatar(c.Initial(), c.Accent, 36)
-	avatar.SetVAlign(gtk.AlignStart)
+	avatar := ui.NewCharacterAvatar(c, 36)
+	gtk.BaseWidget(avatar).SetVAlign(gtk.AlignStart)
 	box.Append(avatar)
 
 	col := gtk.NewBox(gtk.OrientationVertical, 2)
 	col.SetHExpand(true)
+	head := gtk.NewBox(gtk.OrientationHorizontal, 6)
 	name := gtk.NewLabel(c.Name)
 	name.SetXAlign(0)
+	name.SetHExpand(true)
 	name.SetEllipsize(3)
 	name.AddCSSClass("character-card-name")
-	col.Append(name)
+	head.Append(name)
+	if c.WorldID != 0 {
+		if w, err := a.store.World(c.WorldID); err == nil {
+			tag := gtk.NewLabel(w.Name)
+			tag.SetEllipsize(3)
+			tag.SetMaxWidthChars(24)
+			tag.SetTooltipText("This scene is set in " + w.Name)
+			tag.AddCSSClass("character-card-tag")
+			head.Append(tag)
+		}
+	}
+	col.Append(head)
 
-	desc := gtk.NewLabel(ui.Snippet(c.Summary(), 70))
+	desc := gtk.NewLabel(ui.Snippet(c.Summary(), 240))
 	desc.SetXAlign(0)
 	desc.SetWrap(true)
 	desc.SetLines(2)

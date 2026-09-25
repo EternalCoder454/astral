@@ -81,8 +81,21 @@ func (a *App) showSettingsPage(page string) {
 		stack.SetVisibleChildName(page)
 	}
 
+	// A sidebar of pages beside a single Save leaves a fair question open:
+	// does Save mean this page or all of them? It means all of them, so it
+	// says so where the button is rather than leaving it to be discovered.
+	scope := gtk.NewLabel("Changes on every page are saved together.")
+	scope.AddCSSClass("settings-hint")
+	scope.SetMarginTop(6)
+	scope.SetMarginBottom(6)
+	scope.SetMarginStart(14)
+	scope.SetMarginEnd(14)
+	scope.SetXAlign(0)
+	save.SetTooltipText("Save the changes on all three pages")
+
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(header)
+	tv.AddBottomBar(scope)
 	tv.SetContent(body)
 	d.SetChild(tv)
 	d.Present(a.win)

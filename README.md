@@ -149,9 +149,16 @@ name, and it is what `{{user}}` expands to.
 
 ## Worlds
 
-Create one under **Worlds** (Ctrl+W), then point a character at it in the
-character editor. Scenes played with that character inherit the lorebook, and
-anything learned while playing them is written there.
+Open **Worlds** in the sidebar (Ctrl+W) and create one. Its page is where you
+play: give it a character, either by writing one who lives there or by moving
+one you already have in, and every character listed on that page is one click
+from a scene set in the world. Worlds you have made also appear on the home
+screen, under the cast.
+
+A scene started this way inherits the world's lorebook, and anything learned
+while playing it is written back there. The window header says where you are,
+so "with Vesper Quill in The Drowned Coast" is the confirmation that a lorebook
+is in play.
 
 Each entry has trigger words. The entry is sent when the recent conversation
 mentions one of them, so only the relevant slice of a world costs context on

@@ -75,7 +75,8 @@ type ChatView struct {
 	actionBar *gtk.Box
 	sendBtn   *gtk.Button
 	modelBtn  *gtk.Button
-	hint      *gtk.Label
+	hint        *gtk.Label
+	placeholder *gtk.Label
 
 	chat store.Chat
 	char chars.Character
@@ -248,7 +249,21 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 	inputScroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	inputScroll.SetMaxContentHeight(maxComposerHeight)
 	inputScroll.SetPropagateNaturalHeight(true)
-	card.Append(inputScroll)
+
+	// GtkTextView has no placeholder, so it gets one: a label laid over the
+	// empty input and hidden the moment there is anything to hide it behind.
+	// Without it the composer is a blank rectangle that never says what it
+	// wants from you, which on a first run is the only question that matters.
+	c.placeholder = gtk.NewLabel("")
+	c.placeholder.AddCSSClass("composer-placeholder")
+	c.placeholder.SetXAlign(0)
+	c.placeholder.SetYAlign(0)
+	c.placeholder.SetEllipsize(3)
+	c.placeholder.SetCanTarget(false) // clicks belong to the text view under it
+	inputOverlay := gtk.NewOverlay()
+	inputOverlay.SetChild(inputScroll)
+	inputOverlay.AddOverlay(c.placeholder)
+	card.Append(inputOverlay)
 
 	tools := gtk.NewBox(gtk.OrientationHorizontal, 6)
 	tools.AddCSSClass("composer-tools")
@@ -318,8 +333,10 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 	// answers "will this do anything?" without having to try it.
 	c.composer.Buffer().ConnectChanged(func() {
 		c.sendBtn.SetSensitive(c.busy || strings.TrimSpace(c.composerText()) != "")
+		c.placeholder.SetVisible(c.composerText() == "")
 	})
 
+	c.refreshPlaceholder()
 	c.refreshModelChip()
 	return &wrap.Widget
 }
@@ -334,15 +351,71 @@ func (c *ChatView) setComposerText(s string) {
 	c.composer.Buffer().SetText(s)
 }
 
+// refreshPlaceholder says what this particular composer is for. A scene, a
+// plain chat and a design session all want different things typed into them,
+// and the composer is where you are looking when you wonder which.
+func (c *ChatView) refreshPlaceholder() {
+	if c.placeholder == nil {
+		return
+	}
+	var text string
+	switch {
+	case c.char.Name != "":
+		text = "Write your reply, or *describe what you do*"
+	case c.chat.Kind == store.KindDesigner:
+		text = "Describe who you want, in as much or as little detail as you like"
+	case c.chat.Kind == store.KindStyleDesigner:
+		text = "Describe how you want the writing to read"
+	case c.chat.Kind == store.KindAssistant:
+		text = "Ask anything"
+	default:
+		text = "Write a message"
+	}
+	c.placeholder.SetText(text)
+	c.placeholder.SetVisible(c.composerText() == "")
+}
+
 func (c *ChatView) refreshModelChip() {
 	if c.modelBtn == nil {
 		return
 	}
 	m := c.activeModel()
 	if m == "" {
-		m = "Choose a model"
+		c.modelBtn.SetLabel("Choose a model")
+		c.modelBtn.SetTooltipText("Choose the model for this chat")
+		return
 	}
-	c.modelBtn.SetLabel(m)
+	// The full tag is a path with a registry org in front of it, and at
+	// composer size that is a wall of text sitting where a small control
+	// should be. The short form is what distinguishes one of your models from
+	// another; the whole thing stays a hover away.
+	c.modelBtn.SetLabel(shortModel(m))
+	c.modelBtn.SetTooltipText(m + "\nClick to use a different model for this chat")
+}
+
+// shortModel trims a model tag to the part that identifies it.
+//
+// Lengths here are in runes, not bytes. A tag is ASCII in practice, but the
+// ellipsis is not, and counting it as one byte is how a 28-character budget
+// quietly produces a 30-character label.
+func shortModel(m string) string {
+	if i := strings.LastIndexByte(m, '/'); i >= 0 && i+1 < len(m) {
+		m = m[i+1:]
+	}
+	const max = 28
+	r := []rune(m)
+	if len(r) <= max {
+		return m
+	}
+	// Keeping the tag is the point: qwen3:8b and qwen3:32b differ only at the
+	// end, so that is the end that survives.
+	if i := strings.LastIndexByte(m, ':'); i > 0 {
+		tail := []rune(m[i:])
+		if len(tail) < max-1 {
+			return string(r[:max-len(tail)-1]) + "…" + string(tail)
+		}
+	}
+	return string(r[:max-1]) + "…"
 }
 
 // activeModel is the chat's own model if it has one, else the global default.
@@ -393,6 +466,7 @@ func (c *ChatView) LoadChat(ch store.Chat, ca chars.Character, msgs []store.Mess
 		c.mode = Plain
 	}
 	c.refreshModelChip()
+	c.refreshPlaceholder()
 	c.refreshActions()
 
 	// Only the tail is built; the rest waits behind the button below.

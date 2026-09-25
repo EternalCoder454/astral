@@ -80,19 +80,33 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 	play.SetHExpand(true)
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 10)
-	avatar := ui.NewAvatar(c.Initial(), c.Accent, 38)
-	avatar.SetVAlign(gtk.AlignStart)
+	avatar := ui.NewCharacterAvatar(c, 38)
+	gtk.BaseWidget(avatar).SetVAlign(gtk.AlignStart)
 	box.Append(avatar)
 
 	col := gtk.NewBox(gtk.OrientationVertical, 2)
 	col.SetHExpand(true)
+	head := gtk.NewBox(gtk.OrientationHorizontal, 6)
 	name := gtk.NewLabel(c.Name)
 	name.SetXAlign(0)
+	name.SetHExpand(true)
 	name.SetEllipsize(3)
 	name.AddCSSClass("character-card-name")
-	col.Append(name)
+	head.Append(name)
+	// Where their scenes are set, said on the screen where you pick one.
+	if c.WorldID != 0 {
+		if w, err := a.store.World(c.WorldID); err == nil {
+			tag := gtk.NewLabel(w.Name)
+			tag.SetEllipsize(3)
+			tag.SetMaxWidthChars(24)
+			tag.SetTooltipText("Scenes with " + c.Name + " are set in " + w.Name)
+			tag.AddCSSClass("character-card-tag")
+			head.Append(tag)
+		}
+	}
+	col.Append(head)
 
-	desc := gtk.NewLabel(ui.Snippet(c.Summary(), 110))
+	desc := gtk.NewLabel(ui.Snippet(c.Summary(), 240))
 	desc.SetXAlign(0)
 	desc.SetWrap(true)
 	desc.SetLines(2)
@@ -294,15 +308,6 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	cancel.ConnectClicked(func() { d.Close() })
 	header.PackStart(cancel)
 
-	// Import without export is a one-way door. This writes the character back
-	// out as a V2 card, which is what everything else in the ecosystem reads.
-	if c.ID != 0 {
-		export := gtk.NewButtonWithLabel("Export…")
-		export.SetTooltipText("Save as a character card other apps can read")
-		export.ConnectClicked(func() { a.exportCharacter(c) })
-		header.PackStart(export)
-	}
-
 	save := gtk.NewButtonWithLabel("Save")
 	save.AddCSSClass("suggested-action")
 	save.ConnectClicked(func() {
@@ -316,6 +321,35 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 		}
 	})
 	header.PackEnd(save)
+
+	// Import without export is a one-way door. This writes the character back
+	// out as a V2 card, which is what everything else in the ecosystem reads.
+	//
+	// It sits in an overflow menu rather than beside Cancel. Cancel and Save
+	// are what a dialog's header promises; a third bare button wedged in with
+	// them reads as neither, and Export is not part of that decision.
+	if c.ID != 0 {
+		menu := gtk.NewMenuButton()
+		menu.SetIconName(ui.IconMenu)
+		menu.SetTooltipText("More actions")
+		menu.AddCSSClass("flat")
+
+		items := gtk.NewBox(gtk.OrientationVertical, 0)
+		items.AddCSSClass("menu-popover")
+		export := gtk.NewButtonWithLabel("Export as a character card…")
+		export.AddCSSClass("flat")
+		export.SetTooltipText("Save a file other roleplay apps can read")
+		gtk.BaseWidget(export.Child()).SetHAlign(gtk.AlignStart)
+		pop := gtk.NewPopover()
+		export.ConnectClicked(func() {
+			pop.Popdown()
+			a.exportCharacter(c)
+		})
+		items.Append(export)
+		pop.SetChild(items)
+		menu.SetPopover(pop)
+		header.PackEnd(menu)
+	}
 
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(header)

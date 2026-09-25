@@ -76,4 +76,8 @@
 
 @define-color astral_surface_hover #47443c;
 @define-color astral_composer_bg #434039;
-@define-color astral_user_bubble #4d362c;  /* clay at 22% over the canvas */
+/* Clay at 38% over the canvas. It was 22%, which put the two bubbles 1.05:1
+   apart: the sides of the conversation were distinguished by hue and alignment
+   alone, and at a glance the transcript read as one column. 38% is 1.39:1
+   against the character's bubble, with body text still at 7.8:1 on it. */
+@define-color astral_user_bubble #6a4435;

@@ -81,7 +81,7 @@ func (a *App) styleRow(st chars.WritingStyle, active bool, parent *adw.Dialog) *
 	}
 	col.Append(head)
 
-	desc := gtk.NewLabel(ui.Snippet(st.Resolved(), 150))
+	desc := gtk.NewLabel(ui.Snippet(st.Resolved(), 260))
 	desc.SetXAlign(0)
 	desc.SetWrap(true)
 	desc.SetLines(3)

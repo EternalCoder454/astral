@@ -74,8 +74,9 @@ grab newchat      04-new-chat
 grab characters   05-characters
 grab editchar     06-character-editor
 grab worlds       07-worlds
-grab lorebook     08-lorebook
-grab styles       09-writing-styles
-grab settings     10-settings
+grab world        08-world
+grab lorebook     09-lorebook
+grab styles       10-writing-styles
+grab settings     11-settings
 
 echo "wrote $(ls -1 "$out"/*.png | wc -l) screenshots to $out/"
