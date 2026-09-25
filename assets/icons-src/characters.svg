@@ -1,0 +1,9 @@
+<!-- Drawn for Astral, not a Material Symbols export: the set vendored from
+     Atlas Notes and Atlas Monitor has no "group" glyph. Same 960 grid, same
+     stroke weight and optical size as the rest, so it sits with them. -->
+<svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#e3e3e3">
+  <circle cx="370" cy="-606" r="118"/>
+  <path d="M140-160v-26q0-97 67-155.5T370-400q96 0 163 58.5T600-186v26H140Z"/>
+  <circle cx="670" cy="-636" r="88"/>
+  <path d="M672-160v-26q0-63-24.5-112T578-380q22-6 46-6 88 0 151.5 53T839-186v26H672Z"/>
+</svg>

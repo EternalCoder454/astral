@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Astral's mark: the same orb the app draws in Cairo, frozen. A warm core
+  inside a clay ring, so the icon reads at 16px as a dot in a circle and at
+  128px as the thing the app actually shows you.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <radialGradient id="core" cx="50%" cy="44%" r="52%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="42%" stop-color="#f5d2c0"/>
+      <stop offset="100%" stop-color="#d97757"/>
+    </radialGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="60%" stop-color="#d97757" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#d97757" stop-opacity="0.34"/>
+    </radialGradient>
+  </defs>
+
+  <circle cx="64" cy="64" r="58" fill="url(#halo)"/>
+  <circle cx="64" cy="64" r="43" fill="none" stroke="#d97757" stroke-opacity="0.62" stroke-width="3"/>
+  <circle cx="64" cy="64" r="21" fill="url(#core)"/>
+  <circle cx="58" cy="57" r="5.5" fill="#ffffff" fill-opacity="0.92"/>
+</svg>

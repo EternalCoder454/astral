@@ -1,0 +1,631 @@
+/*
+ * Astral styles.
+ *
+ * Every colour here is a named colour defined in dark.css / light.css, so this
+ * file is scheme-agnostic: switching theme swaps those definitions and nothing
+ * in here changes. The only literal colours are the Ollama status dot and the
+ * per-character accent tints, which carry meaning rather than decoration.
+ *
+ * Spacing follows a 4px scale: 4 / 8 / 12 / 16 / 24.
+ * Radii follow a small scale too: 6 (controls), 10 (rows), 14 (cards), 18
+ * (bubbles and the composer). Mixing arbitrary radii is most of what makes an
+ * interface look assembled rather than designed.
+ *
+ * Dimming never compounds. A rule that already sets a recessive colour is not
+ * also given an opacity by its children, because the two multiply and the
+ * result is far fainter than either value suggests. Where something must be
+ * dimmed it is dimmed once, with an explicit colour.
+ */
+
+/* ---- Shell ---- */
+
+.astral-window {
+	background-color: @window_bg_color;
+}
+
+.astral-header {
+	box-shadow: none;
+	border-bottom: 1px solid alpha(@astral_border, 0.55);
+	min-height: 46px;
+	background-color: @window_bg_color;
+}
+
+.astral-header button.flat {
+	min-width: 32px;
+	min-height: 32px;
+	border-radius: 8px;
+	color: @astral_muted;
+}
+
+.astral-header button.flat:hover {
+	background-color: @astral_surface;
+	color: @window_fg_color;
+}
+
+/*
+ * Keyboard focus. GTK's default focus ring is nearly invisible against a warm
+ * dark palette, and an interface you cannot tab through is one a lot of people
+ * simply cannot use. Every interactive thing below opts into the same ring.
+ */
+button:focus-visible,
+.sidebar-item:focus-visible,
+.character-card:focus-visible,
+.message-action:focus-visible {
+	outline: 2px solid @accent_bg_color;
+	outline-offset: 1px;
+}
+
+/*
+ * Text areas are deliberately NOT in the list above. An entry already draws
+ * its own focus border, and a text view always sits inside something that
+ * shows focus for it — the composer card, or a frame in a settings form. Given
+ * a ring of their own they draw a second box just inside the first, which is
+ * what typing in the composer looked like: a rounded rectangle wrapped around
+ * another rounded rectangle.
+ *
+ * So the container carries the indication instead.
+ */
+.composer textview:focus-visible,
+frame textview:focus-visible {
+	outline: none;
+}
+
+frame:focus-within {
+	border-color: @accent_bg_color;
+}
+
+/* ---- Sidebar ---- */
+
+.astral-sidebar {
+	background-color: @sidebar_bg_color;
+	border-right: 1px solid alpha(@astral_border, 0.7);
+}
+
+.sidebar-head {
+	padding: 10px 10px 6px 10px;
+}
+
+/* "New chat" — the one filled affordance in the sidebar. Everything else there
+   is flat, so this reads as the primary action without shouting. */
+.new-chat-button {
+	border-radius: 10px;
+	padding: 9px 12px;
+	background-color: @astral_surface;
+	border: 1px solid @astral_border;
+	box-shadow: none;
+	font-weight: 600;
+	font-size: 0.92em;
+	transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.new-chat-button:hover {
+	background-color: alpha(@accent_bg_color, 0.22);
+	border-color: alpha(@accent_bg_color, 0.7);
+}
+
+.sidebar-nav {
+	padding: 2px 8px;
+}
+
+/* Nav entries and chat rows share one shape, so the panel reads as a single
+   column rather than two stacked widgets. */
+.sidebar-item {
+	border-radius: 10px;
+	padding: 7px 10px;
+	min-height: 32px;
+	font-size: 0.92em;
+	color: @astral_muted;
+	background: none;
+	box-shadow: none;
+	border: none;
+	transition: background-color 100ms ease, color 100ms ease;
+}
+
+.sidebar-item:hover {
+	background-color: @astral_surface;
+	color: @sidebar_fg_color;
+}
+
+/* The open chat. An earlier version marked it with a slightly lighter fill,
+   which on this palette was almost exactly the hover state — so you could not
+   tell what you were pointing at from what you were reading. The accent bar
+   is unambiguous at a glance down the list. */
+.sidebar-item.selected {
+	background-color: alpha(@accent_bg_color, 0.20);
+	color: @sidebar_fg_color;
+	font-weight: 600;
+	box-shadow: inset 3px 0 0 @accent_bg_color;
+}
+
+.sidebar-item image {
+	color: @astral_faint;
+}
+
+.sidebar-item:hover image,
+.sidebar-item.selected image {
+	color: @sidebar_fg_color;
+}
+
+/* Section captions ("Today", "Previous 7 days"). Small, wide-tracked, quiet —
+   they group the list without becoming entries in it. */
+.sidebar-section {
+	font-size: 0.72em;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: @astral_faint;
+	padding: 16px 12px 4px 12px;
+}
+
+.sidebar-empty {
+	font-size: 0.86em;
+	color: @astral_faint;
+	padding: 10px 12px;
+}
+
+/* The dot marking a chat row, tinted per character from code. */
+.chat-dot {
+	border-radius: 9999px;
+	min-width: 7px;
+	min-height: 7px;
+	background-color: @astral_faint;
+}
+
+.chat-row-title {
+	font-size: 0.92em;
+}
+
+/* Profile pill, bottom-left. */
+.sidebar-foot {
+	padding: 8px 10px 10px 10px;
+	border-top: 1px solid alpha(@astral_border, 0.55);
+}
+
+.profile-pill {
+	border-radius: 10px;
+	padding: 7px 8px;
+	background: none;
+	box-shadow: none;
+	border: none;
+}
+
+.profile-pill:hover {
+	background-color: @astral_surface;
+}
+
+.profile-name {
+	font-size: 0.9em;
+	font-weight: 600;
+}
+
+.profile-sub {
+	font-size: 0.76em;
+	color: @astral_faint;
+}
+
+/* ---- Avatars ---- */
+
+.avatar {
+	border-radius: 9px;
+	font-weight: 700;
+	font-size: 0.82em;
+	color: #ffffff;
+}
+
+.avatar.avatar-user {
+	border-radius: 9999px;
+	background-color: @accent_bg_color;
+}
+
+/* ---- Chat transcript ---- */
+
+.chat-view {
+	background-color: @view_bg_color;
+}
+
+/* Width is governed by an AdwClamp in code, which sets a maximum the column
+   can shrink below — CSS cannot express that, and a fixed width here would
+   reintroduce the clipping it was added to fix. */
+.chat-column {
+	padding: 20px 16px 8px 16px;
+}
+
+.message-row {
+	margin-bottom: 14px;
+}
+
+/* A run from one speaker sits closer together, so the group reads as one turn
+   in the conversation rather than as separate messages. */
+.message-row.grouped {
+	margin-bottom: 4px;
+}
+
+.message-name {
+	font-weight: 700;
+	font-size: 0.82em;
+	color: @astral_muted;
+	margin-bottom: 3px;
+	margin-left: 2px;
+}
+
+/*
+ * The bubble. Both sides get one, tinted differently and tucked to opposite
+ * corners — the asymmetric radius is what makes a bubble read as belonging to
+ * the avatar beside it rather than floating free.
+ *
+ * The fills are a measured 1.33:1 and 1.39:1 against the canvas. That sounds
+ * like very little, and it is, but it is four times the separation the first
+ * version had (1.15:1) and it is the difference between a transcript you can
+ * parse at a glance and one flat wash of warm grey.
+ */
+.bubble {
+	border-radius: 18px;
+	padding: 10px 14px;
+}
+
+.bubble-char {
+	background-color: @astral_surface;
+	border: 1px solid alpha(@astral_border, 0.85);
+	border-top-left-radius: 6px;
+}
+
+.bubble-user {
+	background-color: @astral_user_bubble;
+	border: 1px solid alpha(@accent_bg_color, 0.45);
+	border-top-right-radius: 6px;
+}
+
+/*
+ * Roleplay is read in long stretches, so line spacing matters more here than
+ * anywhere else in the app — and it is easy to get backwards. line-height in
+ * GTK multiplies the font's own line box, which for the default UI font is
+ * already generous: measured, 1.0 renders at 28px and the 1.55 this used to
+ * carry rendered at 43.6px. At that spacing a paragraph stops reading as a
+ * block and becomes a stack of disconnected stripes, which is most of why the
+ * transcript felt hard to read.
+ *
+ * 1.10 measures 31px — a little air, without the lines drifting apart.
+ */
+.message-body {
+	font-size: 1.0em;
+	line-height: 1.10;
+	color: @window_fg_color;
+}
+
+/* A model's reasoning, shown collapsed. Recessive and monospaced: it is
+   machinery, not narration. */
+.thinking-toggle {
+	font-size: 0.78em;
+	color: @astral_faint;
+	background: none;
+	border: none;
+	box-shadow: none;
+	padding: 1px 6px;
+	border-radius: 6px;
+	min-height: 20px;
+}
+
+.thinking-toggle:hover {
+	background-color: alpha(@window_fg_color, 0.08);
+	color: @astral_muted;
+}
+
+.thinking-body {
+	font-family: monospace;
+	font-size: 0.82em;
+	color: @astral_faint;
+	border-left: 2px solid @astral_border;
+	padding: 3px 0 3px 10px;
+	margin: 3px 0;
+}
+
+/* Footer: time and throughput, with actions that appear on hover. */
+.message-meta {
+	font-size: 0.72em;
+	color: @astral_faint;
+	margin: 0 4px;
+}
+
+/*
+ * Per-message actions. Hidden until the row is hovered keeps the transcript
+ * clean, but hover is not available to a keyboard — so focus-within reveals
+ * them too, and tabbing through a message can reach copy and regenerate.
+ */
+.message-action {
+	min-width: 24px;
+	min-height: 24px;
+	padding: 0;
+	border-radius: 6px;
+	background: none;
+	box-shadow: none;
+	border: none;
+	color: @astral_faint;
+	opacity: 0;
+	transition: opacity 120ms ease, background-color 120ms ease;
+}
+
+.message-row:hover .message-action,
+.message-row:focus-within .message-action {
+	opacity: 1;
+}
+
+.message-action:hover {
+	background-color: @astral_surface_hover;
+	color: @window_fg_color;
+}
+
+/* ---- Composer ---- */
+
+.composer-wrap {
+	padding: 4px 16px 16px 16px;
+	background-color: @view_bg_color;
+}
+
+/* Sits a level above the canvas, so the place you type is visibly the
+   foreground rather than part of the transcript. */
+.composer {
+	background-color: @astral_composer_bg;
+	border: 1px solid @astral_border;
+	border-radius: 18px;
+	padding: 6px 8px 4px 8px;
+	transition: border-color 140ms ease;
+}
+
+.composer:focus-within {
+	border-color: @accent_bg_color;
+}
+
+/* The entry is a bare TextView inside the rounded card — the card draws the
+   border, so the text area itself must draw nothing at all. */
+.composer scrolledwindow {
+	background: none;
+	background-color: transparent;
+}
+
+.composer textview,
+.composer textview text {
+	background: none;
+	background-color: transparent;
+	color: @window_fg_color;
+	font-size: 1em;
+	padding: 3px 6px;
+}
+
+.composer-tools {
+	padding: 0 2px;
+}
+
+.composer-model {
+	font-size: 0.8em;
+	color: @astral_faint;
+	padding: 4px 8px;
+	border-radius: 7px;
+	background: none;
+	border: none;
+	box-shadow: none;
+}
+
+.composer-model:hover {
+	background-color: @astral_surface_hover;
+	color: @astral_muted;
+}
+
+/* Send — circular, clay, and visibly inert until there is something to send. */
+.send-button {
+	min-width: 32px;
+	min-height: 32px;
+	padding: 0;
+	border-radius: 9999px;
+	background-color: @accent_bg_color;
+	color: @accent_fg_color;
+	box-shadow: none;
+	border: none;
+	transition: background-color 120ms ease;
+}
+
+.send-button:hover {
+	background-color: shade(@accent_bg_color, 1.12);
+}
+
+.send-button:disabled {
+	background-color: alpha(@window_fg_color, 0.10);
+	color: @astral_faint;
+}
+
+.send-button.stopping {
+	background-color: @astral_surface_hover;
+	color: @window_fg_color;
+}
+
+.composer-hint {
+	font-size: 0.75em;
+	color: @astral_faint;
+	margin-top: 5px;
+}
+
+/* Actions offered by the current kind of chat, just above the input. A pill
+   rather than a button: it is an offer, not the primary action, and the send
+   button has to stay the loudest thing down here. */
+.chat-actions {
+	margin-bottom: 8px;
+}
+
+.chat-action-chip {
+	font-size: 0.85em;
+	padding: 6px 14px;
+	border-radius: 9999px;
+	background-color: alpha(@accent_bg_color, 0.18);
+	border: 1px solid alpha(@accent_bg_color, 0.55);
+	color: @accent_color;
+	box-shadow: none;
+	transition: background-color 120ms ease;
+}
+
+.chat-action-chip:hover {
+	background-color: alpha(@accent_bg_color, 0.30);
+}
+
+.chat-action-chip:disabled {
+	background-color: @astral_surface;
+	border-color: @astral_border;
+	color: @astral_faint;
+}
+
+/* ---- Welcome screen ---- */
+
+.welcome-page {
+	background-color: @view_bg_color;
+}
+
+.welcome-title {
+	font-size: 1.9em;
+	font-weight: 600;
+	margin-top: 10px;
+}
+
+.welcome-subtitle {
+	color: @astral_muted;
+	margin-top: 6px;
+	margin-bottom: 22px;
+}
+
+.welcome-section {
+	font-size: 0.74em;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: @astral_faint;
+	margin: 18px 4px 8px 4px;
+}
+
+/* Character cards on the home screen and in the picker. */
+.character-card {
+	padding: 12px;
+	border-radius: 14px;
+	background-color: @astral_surface;
+	border: 1px solid @astral_border;
+	box-shadow: none;
+	transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.character-card:hover {
+	border-color: @accent_bg_color;
+	background-color: alpha(@accent_bg_color, 0.12);
+}
+
+.character-card-name {
+	font-weight: 700;
+	font-size: 0.96em;
+}
+
+.character-card-desc {
+	font-size: 0.84em;
+	font-weight: normal;
+	color: @astral_muted;
+}
+
+.character-card-tag {
+	font-size: 0.72em;
+	padding: 2px 8px;
+	border-radius: 9999px;
+	background-color: alpha(@window_fg_color, 0.10);
+	color: @astral_muted;
+}
+
+/* ---- Setup card (Ollama unreachable / model missing) ---- */
+
+.setup-title {
+	font-weight: 700;
+	font-size: 1.05em;
+}
+
+.setup-body {
+	color: @astral_muted;
+	font-size: 0.9em;
+}
+
+.setup-cmd {
+	font-family: monospace;
+	font-size: 0.84em;
+	color: @window_fg_color;
+	background-color: @astral_elevated;
+	border: 1px solid @astral_border;
+	border-radius: 8px;
+	padding: 9px 11px;
+}
+
+/* Ollama status dot — intentional semantic colours, the one place in the app
+   where a colour is not from the palette. */
+.status-dot {
+	border-radius: 9999px;
+	min-width: 8px;
+	min-height: 8px;
+}
+
+.status-dot.online {
+	background-color: #7fa65a;
+}
+
+.status-dot.offline {
+	background-color: #c0564a;
+}
+
+/* ---- Dialogs & settings ---- */
+
+.settings-group {
+	background-color: @astral_surface;
+	border: 1px solid @astral_border;
+	border-radius: 14px;
+	padding: 14px;
+}
+
+.settings-heading {
+	font-weight: 700;
+	font-size: 0.78em;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: @astral_faint;
+}
+
+.settings-hint {
+	font-size: 0.84em;
+	color: @astral_muted;
+}
+
+.field-label {
+	font-weight: 600;
+	font-size: 0.9em;
+}
+
+.dim-label {
+	color: @astral_muted;
+}
+
+.keycap {
+	font-family: monospace;
+	font-size: 0.78em;
+	padding: 2px 7px;
+	border-radius: 6px;
+	background-color: @astral_elevated;
+	border: 1px solid @astral_border;
+	color: @astral_muted;
+}
+
+/* ---- Character accents ---- */
+
+/*
+ * Eight tints drawn from the palette's secondary accents, assigned to a
+ * character on import so the cast is colour-coded without anyone choosing.
+ * The two palest swatches (heather, cactus) are deepened here: at their
+ * published values white initials on them fail contrast, and an avatar whose
+ * letter cannot be read is not doing its job.
+ */
+
+.accent-0 { background-color: #c86a4b; } /* clay */
+.accent-1 { background-color: #b35a77; } /* fig */
+.accent-2 { background-color: #5b89ba; } /* sky */
+.accent-3 { background-color: #6b7e50; } /* olive */
+.accent-4 { background-color: #b35637; } /* deep */
+.accent-5 { background-color: #9e7852; } /* kraft, deepened */
+.accent-6 { background-color: #7a7897; } /* heather, deepened */
+.accent-7 { background-color: #5f8378; } /* cactus, deepened */

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Astral
+GenericName=Local AI Roleplay
+Comment=Roleplay with characters using any model you run locally through Ollama
+Exec=@BIN@
+Icon=io.github.astral
+Terminal=false
+Categories=Network;Chat;
+Keywords=ai;chat;roleplay;ollama;llm;character;
+StartupNotify=true
+StartupWMClass=io.github.astral

@@ -1,0 +1,46 @@
+Astral
+Copyright (c) 2026 The Astral Authors
+
+This product includes software and assets developed by third parties.
+
+--------------------------------------------------------------------------------
+Material Symbols
+--------------------------------------------------------------------------------
+
+The icons in internal/app/icons/ are derived from Google's Material Symbols
+(Outlined, weight 400, grade 0, optical size 20), used under the Apache License
+2.0.
+
+    https://fonts.google.com/icons
+    https://www.apache.org/licenses/LICENSE-2.0
+
+They reached Astral by way of two sibling projects, Atlas Notes and Atlas
+Monitor, so that the three applications share one visual language. The sources
+are kept unmodified in assets/icons-src/; scripts/import-icons.sh produces the
+files that ship, and changes only the following:
+
+  * the filename, prefixed "astral-" and suffixed "-symbolic", so an icon
+    cannot collide with the system theme's own and lose to it during lookup;
+  * the nominal width and height, from 20px to 16px;
+  * the fill colour, from the preview grey the exporter emits to black, which
+    is what GTK expects to recolour.
+
+The path data itself is unchanged.
+
+Two icons in that directory are NOT from Material Symbols and were drawn for
+Astral, because the vendored set had no equivalent:
+
+  * astral-characters-symbolic.svg
+  * astral-stop-symbolic.svg
+
+They are drawn on the same 960-unit grid at the same optical weight so they sit
+with the rest, and are covered by Astral's own licence.
+
+--------------------------------------------------------------------------------
+Colour palette
+--------------------------------------------------------------------------------
+
+The warm neutrals and the clay accent follow Anthropic's published brand
+palette. The specific values in assets/dark.css and assets/light.css were
+derived from it and then adjusted for contrast; they are not a verbatim copy of
+any published token set.

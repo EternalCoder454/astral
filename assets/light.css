@@ -1,0 +1,69 @@
+/*
+ * Astral — light colour scheme. The mirror of dark.css; see that file for why
+ * the greys are warm and why the levels form a ladder.
+ *
+ * Light mode inverts the bubble relationship rather than copying it. Near
+ * white there is no luminance headroom left above the canvas, so a bubble
+ * cannot be made to sit *above* it the way the dark scheme does — which is why
+ * every light messaging app makes the incoming bubble slightly darker than the
+ * page instead. Astral does the same, and leans harder on the border: at 1.68:1
+ * against the canvas it is doing as much of the separating as the fill is.
+ */
+
+/* ---- Levels ---- */
+
+@define-color astral_sidebar  #f0ece0;
+@define-color astral_canvas   #fdfcf8;
+@define-color astral_surface  #eeeade;  /* bubbles: below the canvas, not above */
+@define-color astral_elevated #ffffff;
+@define-color astral_border   #cbc5b3;
+
+/* ---- Text ---- */
+
+@define-color astral_text  #16150f;
+@define-color astral_muted #524f47;  /* 8.0:1 on canvas */
+@define-color astral_faint #67645b;  /* 5.8:1 on canvas */
+
+/* ---- libadwaita's names ---- */
+
+@define-color window_bg_color #fdfcf8;
+@define-color window_fg_color #16150f;
+@define-color view_bg_color #fdfcf8;
+@define-color view_fg_color #16150f;
+
+@define-color headerbar_bg_color #fdfcf8;
+@define-color headerbar_fg_color #16150f;
+@define-color headerbar_border_color #cbc5b3;
+@define-color headerbar_backdrop_color #fdfcf8;
+
+@define-color sidebar_bg_color #f0ece0;
+@define-color sidebar_fg_color #16150f;
+@define-color sidebar_backdrop_color #f0ece0;
+@define-color sidebar_border_color #cbc5b3;
+
+@define-color card_bg_color #ffffff;
+@define-color card_fg_color #16150f;
+@define-color dialog_bg_color #fdfcf8;
+@define-color dialog_fg_color #16150f;
+@define-color popover_bg_color #ffffff;
+@define-color popover_fg_color #16150f;
+
+/* The filled clay is deepened here. The same hue at the dark scheme's
+   lightness puts white text at 3.1:1 on a light page, which is below the bar
+   for a button label; this is the same colour, taken down until it clears it. */
+@define-color accent_bg_color #c25f3d;
+@define-color accent_fg_color #ffffff;
+@define-color accent_color #a8471f;
+
+@define-color destructive_bg_color #b5342a;
+@define-color destructive_fg_color #ffffff;
+@define-color destructive_color #99291f;
+@define-color success_color #4d6334;
+@define-color warning_color #8a5a1c;
+@define-color error_color #99291f;
+
+/* ---- Astral's own ---- */
+
+@define-color astral_surface_hover #e4e0d2;
+@define-color astral_composer_bg #ffffff;
+@define-color astral_user_bubble #f0d9cf;  /* clay at 22% over the canvas */
