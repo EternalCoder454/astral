@@ -210,16 +210,20 @@ func TestLongScene(t *testing.T) {
 			collapses++
 			t.Logf("turn %d: the model collapsed into repeating itself", turn)
 		}
-		// Two thresholds, because they answer different questions. Under 75%
-		// is a reply with some unmarked narration in it, which is untidy.
-		// Under 40% is a reply that visibly is not doing the format at all,
-		// which is what someone actually complains about.
-		switch r := markedRatio(body); {
-		case r < 0.40:
-			badlyUnmarked++
+		// Judged on how much unmarked prose there is, not only on the ratio.
+		//
+		// The ratio alone was a bad instrument and gave 9, 4, 7, 7, 1 and 1
+		// on six runs of identical code. It is computed over narration only,
+		// so a reply that is nearly all dialogue is judged on a handful of
+		// characters: twenty characters of stray connective against no
+		// asterisked narration scores zero, and reads perfectly well. What
+		// varied between runs was how much dialogue the model happened to
+		// write, not how well it followed the format.
+		if bare := unmarkedProse(body); bare >= 40 {
 			unmarkedReplies++
-		case r < 0.75:
-			unmarkedReplies++
+			if markedRatio(body) < 0.40 {
+				badlyUnmarked++
+			}
 		}
 		if _, err := st.AddMessage(store.Message{ChatID: chat.ID,
 			Role: ollama.RoleAssistant, Content: body}); err != nil {
@@ -348,4 +352,28 @@ func markedRatio(s string) float64 {
 		return 1
 	}
 	return float64(starred) / float64(starred+bare)
+}
+
+// unmarkedProse counts the characters of a reply that are neither spoken nor
+// wrapped in asterisks, ignoring whitespace. It is the same measure the
+// application's own drift detector uses, so the test and the app agree on what
+// counts as unmarked.
+func unmarkedProse(s string) int {
+	var inStars, inQuotes bool
+	n := 0
+	for _, r := range s {
+		switch r {
+		case '"', '\u201c', '\u201d':
+			inQuotes = !inQuotes
+			continue
+		case '*':
+			inStars = !inStars
+			continue
+		}
+		if r == ' ' || r == '\n' || r == '\t' || inStars || inQuotes {
+			continue
+		}
+		n++
+	}
+	return n
 }
