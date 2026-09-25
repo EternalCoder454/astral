@@ -18,6 +18,9 @@ committed so the README has something to show.
 | `10-writing-styles.png` | Writing style presets. |
 | `11-settings.png` | Model, sampling and how long Ollama keeps the model loaded. |
 
+`REVIEW-PROMPT.md` beside these is a self-contained brief for having the
+interface critiqued: hand it to a reviewer along with the eleven images.
+
 All captured at 1240x820 in the dark scheme. A light scheme exists and inverts
 the bubble relationship, since near white there is no headroom to lift a
 surface above the page.
