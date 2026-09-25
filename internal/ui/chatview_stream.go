@@ -75,7 +75,9 @@ func (c *ChatView) Send() {
 		row.ID = id
 	}
 	c.setComposerText("")
-	c.scrollToBottom()
+	// Glide rather than snap: this is the one scroll the reader asked for by
+	// pressing send, and travelling to it shows where their message went.
+	c.glideToBottom()
 	c.notifyChanged()
 	// Housekeeping gives way: a recap the user cannot see is not worth making
 	// them wait behind. The interrupted pass runs again after this reply.
@@ -122,7 +124,7 @@ func (c *ChatView) ShowGreeting(text string) {
 		return
 	}
 	c.greeting = c.appendRow(ollama.RoleAssistant, text, "", 0, time.Now())
-	c.scrollToBottom()
+	c.glideToBottom()
 }
 
 func (c *ChatView) persona() chars.Persona {

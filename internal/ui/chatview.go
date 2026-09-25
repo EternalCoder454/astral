@@ -103,6 +103,12 @@ type ChatView struct {
 	streamGen int
 
 	scrollPending bool
+	// scrollAnim glides the transcript to a new message. One object, re-aimed;
+	// see motion.go.
+	scrollAnim *adw.TimedAnimation
+	// settled says the transcript on screen is the one that was stored, so a
+	// row added from here is new and should arrive rather than appear.
+	settled bool
 
 	// attachPath is an image queued for the next message, and attachBtn is
 	// the control that queues it. Only a design chat offers this: a vision
@@ -468,6 +474,7 @@ func (c *ChatView) Clear() {
 	c.rows = nil
 	c.live = nil
 	c.greeting = nil
+	c.settled = false
 	c.older = nil
 	if c.earlierBtn != nil {
 		c.column.Remove(c.earlierBtn)
@@ -508,6 +515,7 @@ func (c *ChatView) LoadChat(ch store.Chat, ca chars.Character, msgs []store.Mess
 		}
 	}
 	c.scrollToBottom()
+	c.settled = true
 	c.focusComposer()
 }
 
@@ -556,6 +564,7 @@ func (c *ChatView) appendRow(role, text, thinking string, id int64, when time.Ti
 	// A run of messages from one speaker reads as a single turn in the
 	// conversation, so only the first carries a name and an avatar.
 	row := c.newRow(role, text, thinking, id, when, c.lastRole() == role)
+	c.markArriving(row)
 	c.column.Append(row.Widget())
 	c.rows = append(c.rows, row)
 	return row
@@ -696,6 +705,7 @@ func (c *ChatView) scrollToBottom() {
 		return
 	}
 	c.scrollPending = true
+	c.stopGlide()
 	coreglib.IdleAdd(func() bool {
 		c.scrollPending = false
 		adj := c.scroll.VAdjustment()

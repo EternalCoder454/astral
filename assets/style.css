@@ -831,3 +831,62 @@ frame:focus-within {
 	color: @astral_faint;
 	margin: 12px 4px 2px 4px;
 }
+
+/* ---- Movement ---- */
+
+/*
+ * Animation here is to say what changed and where it came from, not to
+ * decorate. Two things move: a message that has just arrived, and a control
+ * that has just been pressed. Everything else is a colour transition, which
+ * the sections above already carry.
+ *
+ * Durations are short on purpose. Anything over about 250ms in a window you
+ * type into stops reading as responsiveness and starts reading as lag, and a
+ * transcript is a place where a new line has to be legible the instant it
+ * lands. libadwaita's own animations are also switched off wholesale by the
+ * desktop's "enable animations" setting, and the Go side follows it, so these
+ * are the only motion left when someone has turned that off.
+ */
+
+/* A new turn fades up into place. The travel is small: the point is to show
+   that the row is new and which direction the transcript grew, not to slide
+   anything across the screen. Rows built when a chat is opened do not get
+   this, because forty rows animating at once looks like a fault. */
+@keyframes astral-arrive {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.message-row.arriving {
+	animation: astral-arrive 200ms ease-out;
+}
+
+/* Press feedback. A button that shrinks under the pointer confirms the click
+   landed, which matters most for send: the reply itself takes a second or two
+   to start, and without this the window looks like it ignored you. */
+.send-button {
+	transition: background-color 120ms ease, transform 90ms ease;
+}
+
+.send-button:active {
+	transform: scale(0.92);
+}
+
+.launch-row:active,
+.character-card:active,
+.sidebar-item:active {
+	transform: scale(0.99);
+}
+
+.launch-row,
+.character-card,
+.sidebar-item {
+	transition: background-color 120ms ease, border-color 120ms ease,
+		transform 90ms ease;
+}

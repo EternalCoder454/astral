@@ -6,8 +6,7 @@ heading, a few plain lines each. The detailed history is in the git log.
 ## 0.2.0
 - Worlds are now somewhere you can play: open one to see who lives there and start a scene with them
 - Scene direction: tell a scene where to go next, and it steers without saying it out loud
-- A new look: deep ink and dusk rose, in both the dark and light themes
-- Descriptions and actions read as descriptions, whether or not the model remembered to mark them
+- A new look in both themes, and descriptions now read as descriptions whether or not the model marks them
 - Long scenes stop losing the character: the context window is now divided properly
 - Replies that collapse into repeating themselves are caught and stopped
 - A smaller model can take over the background work, which makes your next reply arrive sooner

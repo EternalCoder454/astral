@@ -91,12 +91,17 @@ ws2_32 xinput1
 EOF
 )
 report=$(mktemp)
+# Bundled names are indexed in lower case and imports are matched against that.
+# Windows does not care about case and neither does the loader, but the check
+# has to run the same way on a filesystem that does: libtiff imports
+# "liblerc.dll" and the file on disk is "libLerc.dll".
+have=$(find "$out" -maxdepth 1 -name '*.dll' -printf '%f\n' | tr 'A-Z' 'a-z')
 while read -r pe; do
   objdump -p "$pe" \
     | sed -n 's/^\tDLL Name: //p' \
     | tr 'A-Z' 'a-z' \
     | while read -r dep; do
-        [ -f "$out/$dep" ] && continue
+        case $'\n'"$have"$'\n' in *$'\n'"$dep"$'\n'*) continue;; esac
         base=${dep%.dll}; base=${base%.drv}
         for sys in $system_dlls; do
           case "$base" in "$sys"*) continue 2;; esac
