@@ -137,6 +137,10 @@ It installs for you alone and asks for no administrator rights.
 You still need [Ollama](https://ollama.com) running, and at least one model
 pulled. Astral tells you if it cannot find either.
 
+GTK links Vulkan on Windows, so Astral needs a graphics driver that provides
+it. Any current Intel, AMD or NVIDIA driver does. A virtual machine running on
+Microsoft's basic display adapter does not, and Astral will not start there.
+
 Windows builds are made on a Windows runner with the same GTK and libadwaita
 that GTK itself is packaged with there. libadwaita is a GNOME library and
 Windows is not a platform GNOME supports, so treat this as the less-travelled
