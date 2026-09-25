@@ -14,6 +14,7 @@ import (
 	"astral/internal/chars"
 	"astral/internal/ollama"
 	"astral/internal/store"
+	"astral/internal/world"
 )
 
 // onSendClicked is both Send and Stop: the button changes meaning while a
@@ -194,7 +195,12 @@ func (c *ChatView) buildRequest() []ollama.Message {
 	if c.char.Name == "" {
 		return system(chars.AssistantSystem)
 	}
-	return chars.BuildMessages(c.char, c.persona(), c.recap, hist)
+	return chars.BuildMessages(c.char, chars.Scene{
+		Persona: c.persona(),
+		Lore:    c.loreFor(hist),
+		Recap:   c.recap,
+		History: hist,
+	})
 }
 
 func (c *ChatView) options() ollama.Options {
@@ -351,6 +357,92 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 		c.scrollToBottom()
 	}
 	c.maybeCompact()
+	c.maybeLearn()
+}
+
+// maybeLearn teaches the world's lorebook from the scene.
+//
+// Like compaction it runs after a reply rather than before the next one, so it
+// costs reading time rather than waiting time, and it only runs every few
+// turns because most turns establish nothing that outlives them.
+func (c *ChatView) maybeLearn() {
+	if c.learning || c.chat.ID == 0 || c.world.ID == 0 || c.char.Name == "" {
+		return
+	}
+	chatID := c.chat.ID
+	fresh, err := c.store.MessagesAfter(chatID, c.chat.LoreUpto)
+	if err != nil || len(fresh) < world.LearnEveryTurns*2 {
+		return
+	}
+	upto := fresh[len(fresh)-1].ID
+	turns := make([]ollama.Message, 0, len(fresh))
+	for _, m := range fresh {
+		turns = append(turns, ollama.Message{Role: m.Role, Content: m.Content})
+	}
+
+	c.learning = true
+	client, model := c.client, c.activeModel()
+	w, existing := c.world, c.lore
+	charName := c.char.Name
+	userName := c.cfg.PersonaName
+	if userName == "" {
+		userName = chars.DefaultPersonaName
+	}
+	opts := c.options()
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), learnTimeout)
+		defer cancel()
+		learned, err := world.Learn(ctx, client, model, w, existing, turns, charName, userName, opts)
+
+		coreglib.IdleAdd(func() bool {
+			c.learning = false
+			if err != nil {
+				// Quiet: the scene is unaffected, and the next pass tries
+				// again. Interrupting a reply to report that background
+				// note-taking failed would be the wrong trade.
+				log.Printf("astral: learning lore for world %d: %v", w.ID, err)
+				return false
+			}
+			// Marked as taught either way. A pass that found nothing is a
+			// normal outcome, and re-examining the same turns would find
+			// nothing again at the same cost.
+			if err := c.store.SetChatLoreUpto(chatID, upto); err != nil {
+				log.Printf("astral: recording lore progress: %v", err)
+			}
+			if c.chat.ID == chatID {
+				c.chat.LoreUpto = upto
+			}
+
+			kept, held := 0, 0
+			for _, e := range learned {
+				if _, err := c.store.SaveLoreEntry(e); err != nil {
+					// A hand-written entry refusing an automatic update is
+					// the intended behaviour, not a failure.
+					if err != store.ErrWouldOverwriteManual {
+						log.Printf("astral: saving lore %q: %v", e.Name, err)
+					}
+					continue
+				}
+				if e.Enabled {
+					kept++
+				} else {
+					held++
+				}
+			}
+			if kept+held > 0 {
+				log.Printf("astral: learned %d lore entries (%d applied, %d held for review)",
+					kept+held, kept, held)
+				if entries, err := c.store.LoreEntries(w.ID); err == nil {
+					c.lore = entries
+				}
+				if c.OnLoreLearned != nil {
+					c.OnLoreLearned(kept, held)
+				}
+			}
+			return false
+		})
+	}()
 }
 
 // maybeCompact folds the older half of an overlong scene into the recap.

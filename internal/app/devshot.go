@@ -98,6 +98,8 @@ func (a *App) runDevView() {
 			a.newDesignerChat()
 		case "styles":
 			a.showStyles()
+		case "worlds":
+			a.showWorlds()
 		case "styledesigner":
 			a.newStyleDesignerChat()
 		case "assistant":

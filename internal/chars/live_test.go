@@ -53,7 +53,7 @@ func TestLiveRoleplayTurn(t *testing.T) {
 		{Role: ollama.RoleAssistant, Content: Greeting(c, persona)},
 		{Role: ollama.RoleUser, Content: "I set the lantern down. \"You said the coastline was settled.\""},
 	}
-	msgs := BuildMessages(c, persona, "", history)
+	msgs := BuildMessages(c, Scene{Persona: persona, History: history})
 	if msgs[0].Role != ollama.RoleSystem {
 		t.Fatalf("first message is %q, want the system framing", msgs[0].Role)
 	}
@@ -140,7 +140,7 @@ func TestLiveInstructionsAreObeyed(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 		defer cancel()
 		noThink := false
-		msg, _, err := client.Chat(ctx, model, BuildMessages(c, persona, "", history),
+		msg, _, err := client.Chat(ctx, model, BuildMessages(c, Scene{Persona: persona, History: history}),
 			ollama.Options{Temperature: 0.85, NumCtx: 8192}, &noThink, nil)
 		return strings.TrimSpace(msg.Content), err
 	}
@@ -204,7 +204,7 @@ func TestLiveWritingStyleAndCost(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 		defer cancel()
 		noThink := false
-		msg, st, err := client.Chat(ctx, model, BuildMessages(c, p, "", history),
+		msg, st, err := client.Chat(ctx, model, BuildMessages(c, Scene{Persona: p, History: history}),
 			ollama.Options{Temperature: 0.85, NumCtx: 8192}, &noThink, nil)
 		return strings.TrimSpace(msg.Content), st, err
 	}

@@ -227,6 +227,32 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 		func() string { return c.PortraitPath },
 		func(p string) { c.PortraitPath = p }))
 
+	// Which setting this character belongs to. A scene inherits the lorebook
+	// from here, and it is where anything learned while playing them goes.
+	worlds, _ := a.store.Worlds()
+	worldNames := []string{"None"}
+	worldIDs := []int64{0}
+	selected := uint(0)
+	for i, w := range worlds {
+		worldNames = append(worldNames, w.Name)
+		worldIDs = append(worldIDs, w.ID)
+		if w.ID == c.WorldID {
+			selected = uint(i + 1)
+		}
+	}
+	worldDrop := gtk.NewDropDownFromStrings(worldNames)
+	worldDrop.SetSelected(selected)
+	worldDrop.NotifyProperty("selected", func() {
+		if i := int(worldDrop.Selected()); i >= 0 && i < len(worldIDs) {
+			c.WorldID = worldIDs[i]
+		}
+	})
+	hint := "The setting they live in. Its lorebook is sent when the conversation touches it, and anything learned while playing them is written there."
+	if len(worlds) == 0 {
+		hint = "No worlds yet. Create one under Worlds (Ctrl+W) to give this character a setting with a lorebook."
+	}
+	idCard.Append(labelledField("World", hint, worldDrop))
+
 	f.tags = gtk.NewEntry()
 	f.tags.SetText(strings.Join(c.Tags, ", "))
 	f.tags.SetPlaceholderText("fantasy, detective, slow-burn")

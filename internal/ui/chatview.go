@@ -17,6 +17,7 @@ import (
 	"astral/internal/chars"
 	"astral/internal/ollama"
 	"astral/internal/store"
+	"astral/internal/world"
 )
 
 // flushInterval is how often streamed tokens are drained into the label.
@@ -48,6 +49,10 @@ const transcriptMaxWidth = 950
 // Nothing is hidden from the model by this. The context sent on each turn is
 // read from the database (see history), not from the rows on screen.
 const renderWindow = 120
+
+// learnTimeout bounds the background lorebook pass. Like compaction it is not
+// blocking anything, so it can afford to be patient.
+const learnTimeout = 5 * time.Minute
 
 // compactTimeout bounds the background summarization. Generous: it is not
 // blocking anything, and a large model folding twenty turns into a record has
@@ -120,6 +125,13 @@ type ChatView struct {
 	recapUpto  int64
 	compacting bool
 
+	// The setting this scene takes place in, and its lorebook. Loaded once
+	// when a chat opens rather than per turn: a lorebook is small enough to
+	// hold, and matching against it is a string scan rather than a query.
+	world    world.World
+	lore     []world.Entry
+	learning bool
+
 	// older holds the part of a long transcript that has not been built as
 	// widgets yet, newest last. See renderWindow.
 	older      []store.Message
@@ -143,6 +155,9 @@ type ChatView struct {
 	// OnAttachImage asks the app to choose an image. The app calls
 	// AttachImage with the result.
 	OnAttachImage func()
+	// OnLoreLearned reports a finished learning pass: how many entries were
+	// applied, and how many were held back for review.
+	OnLoreLearned func(applied, held int)
 }
 
 // NewChatView builds the centre panel.
@@ -363,6 +378,7 @@ func (c *ChatView) Clear() {
 	c.chat = store.Chat{}
 	c.char = chars.Character{}
 	c.recap, c.recapUpto = "", 0
+	c.world, c.lore = world.World{}, nil
 }
 
 // LoadChat displays a conversation and its character.
@@ -370,6 +386,7 @@ func (c *ChatView) LoadChat(ch store.Chat, ca chars.Character, msgs []store.Mess
 	c.Clear()
 	c.chat, c.char = ch, ca
 	c.recap, c.recapUpto = ch.Summary, ch.SummaryUpto
+	c.loadLore(ca)
 	c.mode = Roleplay
 	switch ch.Kind {
 	case store.KindDesigner, store.KindAssistant, store.KindStyleDesigner:
@@ -736,3 +753,45 @@ func (c *ChatView) SetCanAttachImages(can bool) {
 		c.AttachImage("")
 	}
 }
+
+// loadLore reads the character's world and its lorebook.
+func (c *ChatView) loadLore(ca chars.Character) {
+	c.world, c.lore = world.World{}, nil
+	if ca.WorldID == 0 || c.store == nil {
+		return
+	}
+	w, err := c.store.World(ca.WorldID)
+	if err != nil {
+		// A world deleted out from under a character is not an error worth
+		// interrupting a scene for: it simply has no setting any more.
+		return
+	}
+	entries, err := c.store.LoreEntries(ca.WorldID)
+	if err != nil {
+		log.Printf("astral: reading lore for world %d: %v", ca.WorldID, err)
+		return
+	}
+	c.world, c.lore = w, entries
+}
+
+// loreFor renders the lore this part of the conversation has triggered.
+func (c *ChatView) loreFor(history []ollama.Message) string {
+	if len(c.lore) == 0 {
+		return ""
+	}
+	turns := make([]string, 0, len(history))
+	for _, m := range history {
+		turns = append(turns, m.Content)
+	}
+	// The character's own description is scanned too. A scene that has only
+	// just opened has almost no transcript, and without this the setting would
+	// not appear until someone happened to name part of it out loud.
+	turns = append([]string{c.char.Description + " " + c.char.Scenario}, turns...)
+	return world.Render(c.world, world.Match(c.lore, world.RecentText(turns), world.BudgetChars))
+}
+
+// Lore exposes the loaded lorebook, for the auto-update pass.
+func (c *ChatView) Lore() (world.World, []world.Entry) { return c.world, c.lore }
+
+// SetLore replaces the loaded lorebook after the model has updated it.
+func (c *ChatView) SetLore(entries []world.Entry) { c.lore = entries }

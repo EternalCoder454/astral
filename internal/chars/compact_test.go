@@ -194,9 +194,11 @@ func TestRecapIsBounded(t *testing.T) {
 
 // The recap has to reach the model, before the transcript and marked as fact.
 func TestRecapAppearsBeforeTheTranscript(t *testing.T) {
-	msgs := BuildMessages(testChar(), Persona{Name: "Wren"},
-		"Vesper admitted she has never left the city.",
-		[]ollama.Message{{Role: ollama.RoleUser, Content: "Tell me more."}})
+	msgs := BuildMessages(testChar(), Scene{
+		Persona: Persona{Name: "Wren"},
+		Recap:   "Vesper admitted she has never left the city.",
+		History: []ollama.Message{{Role: ollama.RoleUser, Content: "Tell me more."}},
+	})
 
 	var recapAt, turnAt = -1, -1
 	for i, m := range msgs {

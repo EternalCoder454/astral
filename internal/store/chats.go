@@ -31,8 +31,11 @@ type Chat struct {
 	// chat's context, and SummaryUpto is the last message id it covers.
 	Summary     string
 	SummaryUpto int64
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// LoreUpto is the last message the lorebook has been taught from, so a
+	// scene reopened tomorrow does not learn today's turns a second time.
+	LoreUpto  int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
 
 	// Filled in by Chats() for the sidebar, not stored.
 	CharacterName string
@@ -91,12 +94,12 @@ func (s *Store) Chat(id int64) (Chat, error) {
 	var created, updated int64
 	err := s.db.QueryRow(`
 		SELECT c.id, c.character_id, c.title, c.model, c.kind, c.summary, c.summary_upto,
-		       c.created_at, c.updated_at, COALESCE(ch.name, ''), COALESCE(ch.accent, 0)
+		       c.lore_upto, c.created_at, c.updated_at, COALESCE(ch.name, ''), COALESCE(ch.accent, 0)
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
 		WHERE c.id = ?`, id).
 		Scan(&c.ID, &c.CharacterID, &c.Title, &c.Model, &c.Kind, &c.Summary, &c.SummaryUpto,
-			&created, &updated, &c.CharacterName, &c.Accent)
+			&c.LoreUpto, &created, &updated, &c.CharacterName, &c.Accent)
 	if err == sql.ErrNoRows {
 		return c, fmt.Errorf("no chat with id %d", id)
 	}
@@ -164,6 +167,14 @@ func (s *Store) SetChatSummary(id int64, summary string, uptoID int64) error {
 	defer s.writeMu.Unlock()
 	_, err := s.db.Exec(`UPDATE chats SET summary = ?, summary_upto = ? WHERE id = ?`,
 		summary, uptoID, id)
+	return err
+}
+
+// SetChatLoreUpto records how far the lorebook has been taught from a chat.
+func (s *Store) SetChatLoreUpto(id, uptoID int64) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err := s.db.Exec(`UPDATE chats SET lore_upto = ? WHERE id = ?`, uptoID, id)
 	return err
 }
 

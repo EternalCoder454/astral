@@ -40,6 +40,19 @@ the structure of a scene.
 to Astral's own framing rather than replacing it, and are restated at the end of
 the context on every turn, which is the position a model actually follows.
 
+**Worlds and lorebooks.** A world is a setting, and its lorebook is everything
+that is true there: people, places, organisations, how things work. Entries
+carry trigger words and are only sent when the conversation touches them, so a
+world can be far larger than the model can hold and still be consistent
+whenever part of it comes up.
+
+**The lorebook keeps itself.** Every few turns Astral asks the model what the
+scene has established permanently, and writes it down. Facts, not events: that
+Kestrel Bay is three days north and its ferries never run on time, not that
+someone put a lantern down. Entries the model was unsure of are stored switched
+off and wait for you to look at them, because an entry is permanent and reaches
+every later scene that mentions its subject.
+
 **Long scenes stay coherent.** When a story outgrows the model's context window,
 Astral folds the older turns into a running record of what happened rather than
 dropping them. Names, admissions, promises and unresolved threads survive. The
@@ -130,6 +143,28 @@ sees. That image is offered as the character's portrait when the card is built.
 Tell Astral who you are under **Settings, You**. Characters address you by that
 name, and it is what `{{user}}` expands to.
 
+## Worlds
+
+Create one under **Worlds** (Ctrl+W), then point a character at it in the
+character editor. Scenes played with that character inherit the lorebook, and
+anything learned while playing them is written there.
+
+Each entry has trigger words. The entry is sent when the recent conversation
+mentions one of them, so only the relevant slice of a world costs context on
+any given turn. Keep triggers specific: a common word matches everything and
+spends the budget other entries needed, which is why Astral rejects trigger
+words that are too short or too generic when the model proposes them.
+
+An entry can also be marked to always send, for the handful of facts that apply
+to every scene in the setting. Use it sparingly, since it costs its space on
+every single turn.
+
+Entries the model wrote are marked, with how confident it was. Below about
+three quarters confident they arrive switched off and appear under "Waiting for
+review" in the lorebook. Turning one on accepts it, and it then belongs to you:
+no later automatic pass will overwrite it. The same protection covers anything
+you write or edit by hand.
+
 ## Placeholders
 
 Every text field expands placeholders, so a character or style can refer to
@@ -207,6 +242,7 @@ Nothing leaves the machine. Astral talks to `localhost:11434` and nowhere else.
 ```
 internal/ollama/   streaming /api/chat client, model listing, readiness probe
 internal/imageconv/ decoding and normalising imported images
+internal/world/    worlds, lorebook matching, and the automatic learning pass
 internal/chars/    character model, card import and export, prompt assembly
 internal/store/    SQLite (characters, chats, messages) and settings
 internal/ui/       sidebar, transcript, composer, markup, icons

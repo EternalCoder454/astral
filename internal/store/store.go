@@ -132,10 +132,39 @@ CREATE TABLE IF NOT EXISTS characters (
 	tags          TEXT    NOT NULL DEFAULT '',
 	avatar_path   TEXT    NOT NULL DEFAULT '',
 	portrait_path TEXT    NOT NULL DEFAULT '',
+	world_id      INTEGER NOT NULL DEFAULT 0,
 	accent        INTEGER NOT NULL DEFAULT 0,
 	created_at    INTEGER NOT NULL DEFAULT 0,
 	updated_at    INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS worlds (
+	id          INTEGER PRIMARY KEY AUTOINCREMENT,
+	name        TEXT    NOT NULL,
+	description TEXT    NOT NULL DEFAULT '',
+	created_at  INTEGER NOT NULL DEFAULT 0,
+	updated_at  INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS lore_entries (
+	id         INTEGER PRIMARY KEY AUTOINCREMENT,
+	world_id   INTEGER NOT NULL REFERENCES worlds(id) ON DELETE CASCADE,
+	name       TEXT    NOT NULL,
+	"keys"     TEXT    NOT NULL DEFAULT '',
+	content    TEXT    NOT NULL DEFAULT '',
+	enabled    INTEGER NOT NULL DEFAULT 1,
+	constant   INTEGER NOT NULL DEFAULT 0,
+	auto       INTEGER NOT NULL DEFAULT 0,
+	priority   INTEGER NOT NULL DEFAULT 0,
+	confidence REAL    NOT NULL DEFAULT 0,
+	created_at INTEGER NOT NULL DEFAULT 0,
+	updated_at INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_lore_world ON lore_entries(world_id);
+-- Identity is (world, name): it is what the model has when it learns something
+-- more about a subject, and it is what turns re-learning into an update
+-- rather than a duplicate.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_lore_world_name ON lore_entries(world_id, name);
 
 CREATE TABLE IF NOT EXISTS chats (
 	id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,6 +174,7 @@ CREATE TABLE IF NOT EXISTS chats (
 	kind         TEXT    NOT NULL DEFAULT 'roleplay',
 	summary      TEXT    NOT NULL DEFAULT '',
 	summary_upto INTEGER NOT NULL DEFAULT 0,
+	lore_upto    INTEGER NOT NULL DEFAULT 0,
 	created_at   INTEGER NOT NULL DEFAULT 0,
 	updated_at   INTEGER NOT NULL DEFAULT 0
 );
@@ -183,6 +213,15 @@ func (s *Store) migrate() error {
 	// columns no longer exist. Both failures are the correct outcome, which is
 	// why both errors are ignored.
 	s.db.Exec(`ALTER TABLE characters ADD COLUMN instructions TEXT NOT NULL DEFAULT ''`)
+	// How far the lorebook has been taught from this chat.
+	s.db.Exec(`ALTER TABLE chats ADD COLUMN lore_upto INTEGER NOT NULL DEFAULT 0`)
+
+	// How sure the model was, on entries it wrote itself.
+	s.db.Exec(`ALTER TABLE lore_entries ADD COLUMN confidence REAL NOT NULL DEFAULT 0`)
+
+	// Which world a character belongs to, added with lorebooks.
+	s.db.Exec(`ALTER TABLE characters ADD COLUMN world_id INTEGER NOT NULL DEFAULT 0`)
+
 	// The larger image shown beside a scene, added after avatars.
 	s.db.Exec(`ALTER TABLE characters ADD COLUMN portrait_path TEXT NOT NULL DEFAULT ''`)
 

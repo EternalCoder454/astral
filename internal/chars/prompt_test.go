@@ -80,7 +80,7 @@ func TestInstructionsAddToFramingRatherThanReplacingIt(t *testing.T) {
 }
 
 func TestExampleTurnsBecomeRealMessages(t *testing.T) {
-	msgs := BuildMessages(testChar(), Persona{Name: "Wren"}, "", nil)
+	msgs := BuildMessages(testChar(), Scene{Persona: Persona{Name: "Wren"}, History: nil})
 	if msgs[0].Role != ollama.RoleSystem {
 		t.Fatalf("first message is %q, want system", msgs[0].Role)
 	}
@@ -104,7 +104,7 @@ func TestExampleTurnsBecomeRealMessages(t *testing.T) {
 func TestExampleTurnsDropOddTrailingUser(t *testing.T) {
 	c := testChar()
 	c.MesExample = "<START>\n{{user}}: Hello.\n{{char}}: \"Is it.\"\n{{user}}: Dangling."
-	msgs := BuildMessages(c, Persona{Name: "Wren"}, "", nil)
+	msgs := BuildMessages(c, Scene{Persona: Persona{Name: "Wren"}, History: nil})
 	last := msgs[len(msgs)-1]
 	if last.Role == ollama.RoleUser {
 		t.Errorf("trailing user example was kept: %q", last.Content)
@@ -121,7 +121,7 @@ func TestClosingReminderGoesAfterTheTranscript(t *testing.T) {
 		{Role: ollama.RoleUser, Content: "Hi"},
 		{Role: ollama.RoleAssistant, Content: "\"Hello.\""},
 	}
-	msgs := BuildMessages(c, Persona{Name: "Wren"}, "", history)
+	msgs := BuildMessages(c, Scene{Persona: Persona{Name: "Wren"}, History: history})
 
 	last := msgs[len(msgs)-1]
 	if last.Role != ollama.RoleSystem {
@@ -141,8 +141,10 @@ func TestClosingReminderGoesAfterTheTranscript(t *testing.T) {
 // Even with no instructions, the reminder still restates who they are: drifting
 // out of character is the failure mode that needs no help to appear.
 func TestClosingReminderWithoutInstructions(t *testing.T) {
-	msgs := BuildMessages(testChar(), Persona{Name: "Wren"}, "",
-		[]ollama.Message{{Role: ollama.RoleUser, Content: "Hi"}})
+	msgs := BuildMessages(testChar(), Scene{
+		Persona: Persona{Name: "Wren"},
+		History: []ollama.Message{{Role: ollama.RoleUser, Content: "Hi"}},
+	})
 	last := msgs[len(msgs)-1]
 	if last.Role != ollama.RoleSystem || !strings.Contains(last.Content, "Vesper") {
 		t.Errorf("no closing reminder without instructions: %+v", last)
@@ -173,7 +175,7 @@ func TestHistoryIsCarriedInOrder(t *testing.T) {
 		{Role: ollama.RoleAssistant, Content: "two"},
 		{Role: ollama.RoleUser, Content: "three"},
 	}
-	msgs := BuildMessages(testChar(), Persona{Name: "Wren"}, "", history)
+	msgs := BuildMessages(testChar(), Scene{Persona: Persona{Name: "Wren"}, History: history})
 	var got []string
 	for _, m := range msgs {
 		if m.Content == "one" || m.Content == "two" || m.Content == "three" {
@@ -213,7 +215,7 @@ func TestGlobalAndCharacterInstructionsLayer(t *testing.T) {
 
 	// Both must also reach the closing reminder, which is the placement that
 	// actually gets obeyed deep into a scene.
-	msgs := BuildMessages(c, p, "", []ollama.Message{{Role: ollama.RoleUser, Content: "Hi"}})
+	msgs := BuildMessages(c, Scene{Persona: p, History: []ollama.Message{{Role: ollama.RoleUser, Content: "Hi"}}})
 	last := msgs[len(msgs)-1].Content
 	for _, want := range []string{"Keep replies under three paragraphs.", "Vesper never swears."} {
 		if !strings.Contains(last, want) {
@@ -235,7 +237,7 @@ func TestExamplesStopOnceTheSceneIsUnderway(t *testing.T) {
 	c := testChar()
 	p := Persona{Name: "Wren"}
 
-	short := BuildMessages(c, p, "", make([]ollama.Message, 2))
+	short := BuildMessages(c, Scene{Persona: p, History: make([]ollama.Message, 2)})
 	if !containsContent(short, "Hello.") {
 		t.Error("examples were dropped while the scene was still new")
 	}
@@ -244,7 +246,7 @@ func TestExamplesStopOnceTheSceneIsUnderway(t *testing.T) {
 	for i := range long {
 		long[i] = ollama.Message{Role: ollama.RoleUser, Content: "turn"}
 	}
-	if containsContent(BuildMessages(c, p, "", long), "Hello.") {
+	if containsContent(BuildMessages(c, Scene{Persona: p, History: long}), "Hello.") {
 		t.Errorf("examples were still sent after %d turns", exampleCutoff)
 	}
 }

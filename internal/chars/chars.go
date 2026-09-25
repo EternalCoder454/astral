@@ -47,9 +47,12 @@ type Character struct {
 	// 28px, a portrait is the whole figure.
 	AvatarPath   string
 	PortraitPath string
-	Accent       int // index into the palette's secondary accents
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	// WorldID is the setting this character belongs to, or 0 for none. A scene
+	// inherits its lorebook from here.
+	WorldID   int64
+	Accent    int // index into the palette's secondary accents
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // Initial is the letter drawn in the character's avatar when it has no image.
@@ -362,17 +365,48 @@ func trimHistory(history []ollama.Message, budget int) []ollama.Message {
 	return history[start:]
 }
 
-// BuildMessages assembles the full request: system framing, the recap of
-// anything compacted away, the card's example turns, the live transcript, and
-// finally the closing reminder. history is the conversation so far, oldest
-// first, and recap is the running record of what came before it (empty until
-// a scene has outgrown the context window — see compact.go).
-func BuildMessages(c Character, p Persona, recap string, history []ollama.Message) []ollama.Message {
+// Scene is everything a turn needs besides the character: who you are, what
+// is true in this world, what has already happened, and the conversation so
+// far.
+//
+// It is a struct rather than four parameters because it has grown twice
+// already, and each time every call site and test had to be rewritten for
+// something that was only ever additive.
+type Scene struct {
+	Persona Persona
+	// Lore is the block of world facts the conversation has triggered, from
+	// internal/world. Empty when a character has no world.
+	Lore string
+	// Recap is the running record of turns compacted out of the context, from
+	// compact.go. Empty until a scene has outgrown the window.
+	Recap string
+	// History is the conversation so far, oldest first.
+	History []ollama.Message
+}
+
+// BuildMessages assembles the full request: system framing, the world's lore,
+// the recap of anything compacted away, the card's example turns, the live
+// transcript, and finally the closing reminder.
+func BuildMessages(c Character, sc Scene) []ollama.Message {
+	p := sc.Persona
+	recap := sc.Recap
+	history := sc.History
 	userName := p.Name
 	if userName == "" {
 		userName = DefaultPersonaName
 	}
 	msgs := []ollama.Message{{Role: ollama.RoleSystem, Content: BuildSystem(c, p)}}
+
+	// Lore first: it is the setting, and it is true before anything in the
+	// scene happened. It is also the part that changes least between turns,
+	// which keeps the front of the prompt stable and the server's cached
+	// prefix usable.
+	if lore := strings.TrimSpace(sc.Lore); lore != "" {
+		msgs = append(msgs, ollama.Message{
+			Role:    ollama.RoleSystem,
+			Content: Substitute(lore, c.Name, userName),
+		})
+	}
 
 	// The recap sits before the transcript, in the position the turns it
 	// replaces used to occupy, so the scene still reads in order.

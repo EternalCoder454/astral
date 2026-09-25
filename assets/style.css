@@ -593,6 +593,13 @@ frame:focus-within {
 	color: @astral_muted;
 }
 
+/* A lore entry the model was unsure of, waiting to be looked at. */
+.review-badge {
+	background-color: alpha(@accent_bg_color, 0.26);
+	color: @accent_color;
+	border: 1px solid alpha(@accent_bg_color, 0.5);
+}
+
 /* ---- Setup card (Ollama unreachable / model missing) ---- */
 
 .setup-title {

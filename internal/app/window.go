@@ -149,6 +149,18 @@ func (a *App) buildCenter() {
 	a.chat.OnPickModel = a.showModelPicker
 	a.chat.OnBuildCharacter = a.buildCharacterFromChat
 	a.chat.OnBuildStyle = a.buildStyleFromChat
+	a.chat.OnLoreLearned = func(applied, held int) {
+		// Worth saying, because the lorebook changed without being asked and
+		// anything held back needs a decision. Kept to one line.
+		switch {
+		case held > 0 && applied > 0:
+			a.toast(fmt.Sprintf("Learned %d things about this world. %d need a look.", applied+held, held))
+		case held > 0:
+			a.toast(fmt.Sprintf("%d possible lore entries need a look.", held))
+		default:
+			a.toast(fmt.Sprintf("Learned %d things about this world.", applied))
+		}
+	}
 	a.chat.OnAttachImage = func() {
 		a.pickImage("Attach a reference image", "reference", func(path string) {
 			a.chat.AttachImage(path)
@@ -218,6 +230,7 @@ func (a *App) buildMainMenu() *gio.Menu {
 	section.Append("Design a Character", "win.design-character")
 	section.Append("Characters", "win.characters")
 	section.Append("Writing Styles", "win.styles")
+	section.Append("Worlds", "win.worlds")
 	section.Append("Import Character…", "win.import-character")
 	menu.AppendSection("", section)
 
@@ -258,6 +271,7 @@ func (a *App) registerActions() {
 	add("characters", a.showCharacters)
 	add("design-character", a.newDesignerChat)
 	add("styles", a.showStyles)
+	add("worlds", a.showWorlds)
 	add("import-character", a.actionImportCharacter)
 	add("settings", a.showSettings)
 	add("model", a.showModelPicker)
@@ -272,6 +286,7 @@ func (a *App) registerActions() {
 		"<Control>n":     "win.new-chat",
 		"<Control>k":     "win.characters",
 		"<Control>j":     "win.styles",
+		"<Control>w":     "win.worlds",
 		"<Control>comma": "win.settings",
 		"<Control>m":     "win.model",
 		"F9":             "win.toggle-sidebar",

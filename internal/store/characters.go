@@ -14,7 +14,7 @@ import (
 // with every query.
 const characterColumns = `id, name, description, personality, scenario, first_mes,
 	mes_example, instructions, alt_greetings, creator, notes,
-	version, tags, avatar_path, portrait_path, accent, created_at, updated_at`
+	version, tags, avatar_path, portrait_path, world_id, accent, created_at, updated_at`
 
 // scanCharacter reads one row in characterColumns order.
 func scanCharacter(sc interface{ Scan(...any) error }) (chars.Character, error) {
@@ -23,7 +23,7 @@ func scanCharacter(sc interface{ Scan(...any) error }) (chars.Character, error) 
 	var created, updated int64
 	err := sc.Scan(&c.ID, &c.Name, &c.Description, &c.Personality, &c.Scenario,
 		&c.FirstMes, &c.MesExample, &c.Instructions, &altJSON,
-		&c.Creator, &c.Notes, &c.Version, &tagsJSON, &c.AvatarPath, &c.PortraitPath, &c.Accent,
+		&c.Creator, &c.Notes, &c.Version, &tagsJSON, &c.AvatarPath, &c.PortraitPath, &c.WorldID, &c.Accent,
 		&created, &updated)
 	if err != nil {
 		return c, err
@@ -111,12 +111,12 @@ func (s *Store) SaveCharacter(c chars.Character) (int64, error) {
 		res, err := s.db.Exec(`
 			INSERT INTO characters (name, description, personality, scenario, first_mes,
 				mes_example, instructions, alt_greetings, creator, notes,
-				version, tags, avatar_path, portrait_path, accent, created_at, updated_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+				version, tags, avatar_path, portrait_path, world_id, accent, created_at, updated_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			c.Name, c.Description, c.Personality, c.Scenario, c.FirstMes,
 			c.MesExample, c.Instructions, encodeList(c.AltGreetings),
 			c.Creator, c.Notes, c.Version, encodeList(c.Tags), c.AvatarPath,
-			c.PortraitPath, c.Accent, unix(c.CreatedAt), unix(now))
+			c.PortraitPath, c.WorldID, c.Accent, unix(c.CreatedAt), unix(now))
 		if err != nil {
 			return 0, err
 		}
@@ -126,12 +126,12 @@ func (s *Store) SaveCharacter(c chars.Character) (int64, error) {
 		UPDATE characters SET name=?, description=?, personality=?, scenario=?,
 			first_mes=?, mes_example=?, instructions=?,
 			alt_greetings=?, creator=?, notes=?, version=?, tags=?, avatar_path=?,
-			portrait_path=?, accent=?, updated_at=?
+			portrait_path=?, world_id=?, accent=?, updated_at=?
 		WHERE id=?`,
 		c.Name, c.Description, c.Personality, c.Scenario, c.FirstMes,
 		c.MesExample, c.Instructions, encodeList(c.AltGreetings),
 		c.Creator, c.Notes, c.Version, encodeList(c.Tags), c.AvatarPath,
-		c.PortraitPath, c.Accent, unix(now), c.ID)
+		c.PortraitPath, c.WorldID, c.Accent, unix(now), c.ID)
 	return c.ID, err
 }
 

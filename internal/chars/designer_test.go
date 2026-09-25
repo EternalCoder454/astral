@@ -134,7 +134,7 @@ func TestDesignedCharacterProducesAUsablePrompt(t *testing.T) {
 		t.Fatal(err)
 	}
 	persona := Persona{Name: "Wren"}
-	msgs := BuildMessages(c, persona, "", nil)
+	msgs := BuildMessages(c, Scene{Persona: persona, History: nil})
 	sys := msgs[0].Content
 	for _, want := range []string{"Odile Marchetti", "dry, patient", "twenty minutes after closing"} {
 		if !strings.Contains(sys, want) {
