@@ -147,9 +147,10 @@ func (a *App) seedPortrait(name string) string {
 	img := make([]byte, 0, w*h*3)
 	for y := 0; y < h; y++ {
 		t := float64(y) / float64(h)
-		r := byte(60 + 160*(1-t))
-		g := byte(40 + 90*(1-t))
-		b := byte(36 + 60*(1-t))
+		// Dusk rose at the top fading into the canvas ink at the bottom.
+		r := byte(27 + 174*(1-t))
+		g := byte(30 + 90*(1-t))
+		b := byte(50 + 77*(1-t))
 		for x := 0; x < w; x++ {
 			img = append(img, r, g, b)
 		}

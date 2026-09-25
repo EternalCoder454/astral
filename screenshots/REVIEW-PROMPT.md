@@ -14,7 +14,7 @@ It is a single-user, offline, personal application. There are no accounts, no
 sharing, no collaboration, and no network beyond the local model server.
 
 Built with GTK4 and libadwaita, so it follows GNOME conventions, but with a
-deliberately warm custom palette rather than the default GNOME grey. A light
+deliberately moody custom palette rather than the default GNOME grey. A light
 theme exists; every screenshot here is the dark one.
 
 ## Who uses it

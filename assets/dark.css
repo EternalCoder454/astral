@@ -1,83 +1,91 @@
 /*
  * Astral — dark colour scheme (the default).
  *
- * These are libadwaita's own named colours, redefined to Anthropic's palette so
- * every stock Adwaita widget — popovers, dialogs, switches, dropdowns — comes
- * out warm instead of the platform's neutral grey. Structure lives in
- * style.css and refers to these names only, so the two schemes share one
- * stylesheet and swapping them is swapping this file.
+ * These are libadwaita's own named colours, redefined so every stock Adwaita
+ * widget — popovers, dialogs, switches, dropdowns — comes out in Astral's
+ * palette instead of the platform's neutral grey. Structure lives in style.css
+ * and refers to these names only, so the two schemes share one stylesheet and
+ * swapping them is swapping this file.
  *
- * The greys are warm on purpose: these are brown-blacks, not neutral ones.
- * That single degree of warmth is most of what separates this from a generic
- * dark theme, and it is why the clay accent sits in the palette rather than on
- * top of it.
+ * This is deep ink: a blue-violet dark, with a dusk rose accent. It replaced a
+ * warm brown-black and a clay accent, which read as a developer tool rather
+ * than as something you write fiction in.
  *
- * The levels are a real ladder, not four shades of the same thing. An earlier
- * version had the chat canvas at #262624 and message bubbles at #30302e — a
- * contrast ratio of 1.15:1, which is to say invisible. Bubbles did not read as
- * objects, the transcript was one flat wash, and the result was hard to read
- * even though the text itself was at 12:1. Every pair below was checked
- * numerically: text is at least 4.5:1 against whatever sits behind it, and
- * each surface is at least 1.28:1 against the one underneath.
+ * The levels are a real ladder, not four shades of the same thing. That is
+ * harder here than it was in the browns, because ink this dark compresses:
+ * the first attempt at this palette put the canvas 1.09:1 above the sidebar
+ * and the bubbles 1.12:1 above the canvas, which is to say invisible, and is
+ * exactly the mistake the previous scheme's notes warned about.
+ *
+ * So the ladder was solved rather than chosen. Every pair below was computed,
+ * with the palette that shipped before it as the floor: nothing here is worse
+ * than what it replaced, and thirteen of the fourteen measured pairs are
+ * better. Body text is at least 9.5:1 on every surface it can land on, and
+ * each surface is at least 1.18:1 above the one underneath.
  */
 
 /* ---- Levels, darkest first ---- */
 
-@define-color astral_sidebar  #10100e;  /* navigation: the floor */
-@define-color astral_canvas   #262420;  /* the chat area */
-@define-color astral_surface  #3b3832;  /* bubbles and cards, lifted off it */
-@define-color astral_elevated #434039;  /* composer, popovers, dialogs */
-@define-color astral_border   #575146;
+@define-color astral_sidebar  #03050d;  /* navigation: the floor */
+@define-color astral_canvas   #1b1e32;  /* the chat area */
+@define-color astral_surface  #2f3350;  /* bubbles and cards, lifted off it */
+@define-color astral_elevated #393e5d;  /* composer, popovers, dialogs */
+@define-color astral_border   #51577d;
 
 /* ---- Text ---- */
 
-@define-color astral_text  #f7f6f1;
-@define-color astral_muted #c8c4b9;  /* secondary text, 8.9:1 on canvas */
-@define-color astral_faint #aea99d;  /* timestamps and captions, 6.6:1 */
+@define-color astral_text  #f5f4fb;
+@define-color astral_muted #cac8db;  /* secondary text, 10.0:1 on canvas */
+@define-color astral_faint #b1aec6;  /* timestamps and captions, 7.6:1 */
 
 /* ---- libadwaita's names ---- */
 
-@define-color window_bg_color #262420;
-@define-color window_fg_color #f7f6f1;
-@define-color view_bg_color #262420;
-@define-color view_fg_color #f7f6f1;
+@define-color window_bg_color #1b1e32;
+@define-color window_fg_color #f5f4fb;
+@define-color view_bg_color #1b1e32;
+@define-color view_fg_color #f5f4fb;
 
-@define-color headerbar_bg_color #262420;
-@define-color headerbar_fg_color #f7f6f1;
-@define-color headerbar_border_color #575146;
-@define-color headerbar_backdrop_color #262420;
+@define-color headerbar_bg_color #1b1e32;
+@define-color headerbar_fg_color #f5f4fb;
+@define-color headerbar_border_color #51577d;
+@define-color headerbar_backdrop_color #1b1e32;
 
-@define-color sidebar_bg_color #10100e;
-@define-color sidebar_fg_color #f7f6f1;
-@define-color sidebar_backdrop_color #10100e;
-@define-color sidebar_border_color #575146;
+@define-color sidebar_bg_color #03050d;
+@define-color sidebar_fg_color #f5f4fb;
+@define-color sidebar_backdrop_color #03050d;
+@define-color sidebar_border_color #51577d;
 
-@define-color card_bg_color #3b3832;
-@define-color card_fg_color #f7f6f1;
-@define-color dialog_bg_color #2f2d28;
-@define-color dialog_fg_color #f7f6f1;
-@define-color popover_bg_color #434039;
-@define-color popover_fg_color #f7f6f1;
+@define-color card_bg_color #2f3350;
+@define-color card_fg_color #f5f4fb;
+@define-color dialog_bg_color #252943;
+@define-color dialog_fg_color #f5f4fb;
+@define-color popover_bg_color #393e5d;
+@define-color popover_fg_color #f5f4fb;
 
-/* Clay. accent_color is the accent used as *text*, lightened here because the
-   brand clay does not carry a reading contrast against a dark canvas. */
-@define-color accent_bg_color #d97757;
-@define-color accent_fg_color #ffffff;
-@define-color accent_color #eda488;
+/* Dusk rose.
+ *
+ * accent_fg_color is ink, not white. White on this rose is 3.24:1, which fails
+ * to read on a filled button; the ink is 5.7:1. The previous scheme had the
+ * same problem with white on clay at 3.12:1 and simply carried it.
+ *
+ * accent_color is the accent used as *text*, lightened because the rose itself
+ * only reaches 5.1:1 on the canvas and 3.8:1 on a bubble. */
+@define-color accent_bg_color #c9787f;
+@define-color accent_fg_color #1b1119;
+@define-color accent_color #e3a8ad;
 
-@define-color destructive_bg_color #c0392b;
+@define-color destructive_bg_color #b34a52;
 @define-color destructive_fg_color #ffffff;
-@define-color destructive_color #ef8b80;
-@define-color success_color #a9c488;
-@define-color warning_color #e8b57a;
-@define-color error_color #ef8b80;
+@define-color destructive_color #ef9aa0;
+@define-color success_color #8fc9a5;
+@define-color warning_color #e0b981;
+@define-color error_color #ef9aa0;
 
 /* ---- Astral's own ---- */
 
-@define-color astral_surface_hover #47443c;
-@define-color astral_composer_bg #434039;
-/* Clay at 38% over the canvas. It was 22%, which put the two bubbles 1.05:1
-   apart: the sides of the conversation were distinguished by hue and alignment
-   alone, and at a glance the transcript read as one column. 38% is 1.39:1
-   against the character's bubble, with body text still at 7.8:1 on it. */
-@define-color astral_user_bubble #6a4435;
+@define-color astral_surface_hover #383d5e;
+@define-color astral_composer_bg #393e5d;
+/* Dusk rose at 40% over the canvas. The two bubbles have to be told apart at a
+   glance or the transcript reads as one column: this is 1.41:1 against the
+   character's bubble, with body text still at 8.0:1 on it. */
+@define-color astral_user_bubble #614251;

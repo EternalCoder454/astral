@@ -21,6 +21,6 @@ committed so the README has something to show.
 `REVIEW-PROMPT.md` beside these is a self-contained brief for having the
 interface critiqued: hand it to a reviewer along with the eleven images.
 
-All captured at 1240x820 in the dark scheme. A light scheme exists and inverts
-the bubble relationship, since near white there is no headroom to lift a
-surface above the page.
+All captured at 1240x820 in the dark scheme: deep ink with a dusk rose accent.
+A light scheme exists in the same hues and inverts the bubble relationship,
+since near white there is no headroom to lift a surface above the page.

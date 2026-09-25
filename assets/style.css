@@ -604,7 +604,7 @@ frame:focus-within {
 	border-radius: 9999px;
 	background-color: alpha(@window_fg_color, 0.14);
 	border: 1px solid alpha(@window_fg_color, 0.10);
-	color: #ddd9cf;
+	color: @astral_muted;
 }
 
 /* A lore entry the model was unsure of, waiting to be looked at. */
@@ -645,11 +645,11 @@ frame:focus-within {
 }
 
 .status-dot.online {
-	background-color: #7fa65a;
+	background-color: @success_color;
 }
 
 .status-dot.offline {
-	background-color: #c0564a;
+	background-color: @destructive_bg_color;
 }
 
 /* ---- Dialogs & settings ---- */
@@ -727,14 +727,14 @@ frame:focus-within {
  * letter cannot be read is not doing its job.
  */
 
-.accent-0 { background-color: #c86a4b; } /* clay */
-.accent-1 { background-color: #b35a77; } /* fig */
-.accent-2 { background-color: #5b89ba; } /* sky */
-.accent-3 { background-color: #6b7e50; } /* olive */
-.accent-4 { background-color: #b35637; } /* deep */
-.accent-5 { background-color: #9e7852; } /* kraft, deepened */
-.accent-6 { background-color: #7a7897; } /* heather, deepened */
-.accent-7 { background-color: #5f8378; } /* cactus, deepened */
+.accent-0 { background-color: #a85661; } /* dusk rose, the accent itself */
+.accent-1 { background-color: #8a5b96; } /* plum */
+.accent-2 { background-color: #5566ab; } /* indigo */
+.accent-3 { background-color: #3d7f86; } /* teal */
+.accent-4 { background-color: #5c7f5a; } /* moss */
+.accent-5 { background-color: #8e6234; } /* amber */
+.accent-6 { background-color: #5e6c8f; } /* slate */
+.accent-7 { background-color: #964f5e; } /* wine */
 
 /* A scene direction that is actually set, as against the invitation to set
    one. The two are the same control and have to read as different states. */
@@ -753,14 +753,14 @@ frame:focus-within {
    yet, and a red light in a header bar reads as an error that has already
    cost you something. */
 .offline-chip {
-	background-color: alpha(#e8a33d, 0.20);
-	border: 1px solid alpha(#e8a33d, 0.55);
+	background-color: alpha(@warning_color, 0.20);
+	border: 1px solid alpha(@warning_color, 0.55);
 	border-radius: 9px;
-	color: #f0c98a;
+	color: @warning_color;
 }
 
 .offline-chip:hover {
-	background-color: alpha(#e8a33d, 0.32);
+	background-color: alpha(@warning_color, 0.32);
 }
 
 /* "+ New thing" at the end of a list. Outlined rather than filled: it is a

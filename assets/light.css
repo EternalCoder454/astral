@@ -1,69 +1,70 @@
 /*
  * Astral — light colour scheme. The mirror of dark.css; see that file for why
- * the greys are warm and why the levels form a ladder.
+ * this is ink and rose rather than the warm browns it replaced, and why the
+ * levels are solved rather than chosen.
  *
  * Light mode inverts the bubble relationship rather than copying it. Near
  * white there is no luminance headroom left above the canvas, so a bubble
  * cannot be made to sit *above* it the way the dark scheme does — which is why
  * every light messaging app makes the incoming bubble slightly darker than the
- * page instead. Astral does the same, and leans harder on the border: at 1.68:1
- * against the canvas it is doing as much of the separating as the fill is.
+ * page instead. Astral does the same, and leans harder on the border.
  */
 
 /* ---- Levels ---- */
 
-@define-color astral_sidebar  #f0ece0;
-@define-color astral_canvas   #fdfcf8;
-@define-color astral_surface  #eeeade;  /* bubbles: below the canvas, not above */
+@define-color astral_sidebar  #e9e8f2;
+@define-color astral_canvas   #faf9fd;
+@define-color astral_surface  #eceaf5;  /* bubbles: below the canvas, not above */
 @define-color astral_elevated #ffffff;
-@define-color astral_border   #cbc5b3;
+@define-color astral_border   #c2bfd4;
 
 /* ---- Text ---- */
 
-@define-color astral_text  #16150f;
-@define-color astral_muted #524f47;  /* 8.0:1 on canvas */
-@define-color astral_faint #67645b;  /* 5.8:1 on canvas */
+@define-color astral_text  #151728;
+@define-color astral_muted #454863;  /* 8.5:1 on canvas */
+@define-color astral_faint #5c5f78;  /* 6.2:1 on canvas */
 
 /* ---- libadwaita's names ---- */
 
-@define-color window_bg_color #fdfcf8;
-@define-color window_fg_color #16150f;
-@define-color view_bg_color #fdfcf8;
-@define-color view_fg_color #16150f;
+@define-color window_bg_color #faf9fd;
+@define-color window_fg_color #151728;
+@define-color view_bg_color #faf9fd;
+@define-color view_fg_color #151728;
 
-@define-color headerbar_bg_color #fdfcf8;
-@define-color headerbar_fg_color #16150f;
-@define-color headerbar_border_color #cbc5b3;
-@define-color headerbar_backdrop_color #fdfcf8;
+@define-color headerbar_bg_color #faf9fd;
+@define-color headerbar_fg_color #151728;
+@define-color headerbar_border_color #c2bfd4;
+@define-color headerbar_backdrop_color #faf9fd;
 
-@define-color sidebar_bg_color #f0ece0;
-@define-color sidebar_fg_color #16150f;
-@define-color sidebar_backdrop_color #f0ece0;
-@define-color sidebar_border_color #cbc5b3;
+@define-color sidebar_bg_color #e9e8f2;
+@define-color sidebar_fg_color #151728;
+@define-color sidebar_backdrop_color #e9e8f2;
+@define-color sidebar_border_color #c2bfd4;
 
 @define-color card_bg_color #ffffff;
-@define-color card_fg_color #16150f;
-@define-color dialog_bg_color #fdfcf8;
-@define-color dialog_fg_color #16150f;
+@define-color card_fg_color #151728;
+@define-color dialog_bg_color #faf9fd;
+@define-color dialog_fg_color #151728;
 @define-color popover_bg_color #ffffff;
-@define-color popover_fg_color #16150f;
+@define-color popover_fg_color #151728;
 
-/* The filled clay is deepened here. The same hue at the dark scheme's
-   lightness puts white text at 3.1:1 on a light page, which is below the bar
-   for a button label; this is the same colour, taken down until it clears it. */
-@define-color accent_bg_color #c25f3d;
+/* The rose is deepened here. The same hue at the dark scheme's lightness puts
+   white text at 3.2:1 on a light page, below the bar for a button label; this
+   is the same colour taken down until it clears it, and it doubles as the
+   accent used for text. */
+@define-color accent_bg_color #a34a56;
 @define-color accent_fg_color #ffffff;
-@define-color accent_color #a8471f;
+@define-color accent_color #98404c;
 
-@define-color destructive_bg_color #b5342a;
+@define-color destructive_bg_color #b03a38;
 @define-color destructive_fg_color #ffffff;
-@define-color destructive_color #99291f;
-@define-color success_color #4d6334;
+@define-color destructive_color #a3312f;
+@define-color success_color #3f6b4e;
 @define-color warning_color #8a5a1c;
-@define-color error_color #99291f;
+@define-color error_color #a3312f;
 
 /* ---- Astral's own ---- */
 
-@define-color astral_surface_hover #e4e0d2;
+@define-color astral_surface_hover #e2e0ee;
 @define-color astral_composer_bg #ffffff;
-@define-color astral_user_bubble #e7c0b1;  /* clay at 38%, see dark.css */
+@define-color astral_user_bubble #e6c5cb;  /* rose at 40%, see dark.css */

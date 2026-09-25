@@ -36,8 +36,8 @@ func NewOrb(size int) *Orb {
 // than read from the theme: the orb is the one element that should look the
 // same in both schemes, because it is the logo.
 const (
-	orbR, orbG, orbB = 0.851, 0.467, 0.341 // #d97757
-	litR, litG, litB = 0.961, 0.820, 0.745 // warm highlight
+	orbR, orbG, orbB = 0.788, 0.471, 0.498 // #c9787f, the dusk rose accent
+	litR, litG, litB = 0.937, 0.776, 0.792 // the same hue, lifted, for the highlight
 )
 
 func (o *Orb) draw(_ *gtk.DrawingArea, cr *cairo.Context, w, h int) {
