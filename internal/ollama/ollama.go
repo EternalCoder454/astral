@@ -67,10 +67,18 @@ type Options struct {
 	TopP          float64
 	TopK          int
 	RepeatPenalty float64
-	NumCtx        int
-	NumPredict    int
-	Seed          int
-	Stop          []string
+	// RepeatLastN is how many recent tokens the repetition penalty considers.
+	//
+	// Ollama's default is 64, which is the length of a sentence. A model that
+	// collapses into a cycle repeats a block far longer than that, so by the
+	// time the cycle comes round again its first copy has already left the
+	// window and the penalty never sees it. The collapse that prompted this
+	// ran about 225 tokens per cycle.
+	RepeatLastN int
+	NumCtx      int
+	NumPredict  int
+	Seed        int
+	Stop        []string
 }
 
 // toMap renders only the options that were actually set. Ollama treats an
@@ -89,6 +97,9 @@ func (o Options) toMap() map[string]any {
 	}
 	if o.RepeatPenalty > 0 {
 		m["repeat_penalty"] = o.RepeatPenalty
+	}
+	if o.RepeatLastN > 0 {
+		m["repeat_last_n"] = o.RepeatLastN
 	}
 	if o.NumCtx > 0 {
 		m["num_ctx"] = o.NumCtx

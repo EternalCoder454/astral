@@ -38,7 +38,11 @@ const (
 	DefaultTemperature   = 0.85
 	DefaultTopP          = 0.92
 	DefaultRepeatPenalty = 1.08
-	DefaultNumCtx        = 8192
+	// DefaultRepeatLastN covers a cycle long enough to be pathological while
+	// staying short of the whole scene. Wider would start penalising a
+	// character's own name, which recurs legitimately on every turn.
+	DefaultRepeatLastN = 384
+	DefaultNumCtx      = 8192
 )
 
 // Config holds user settings persisted to ~/.config/astral/config.json.
@@ -99,8 +103,12 @@ type Config struct {
 	TopP          float64 `json:"top_p"`
 	TopK          int     `json:"top_k"`
 	RepeatPenalty float64 `json:"repeat_penalty"`
-	NumCtx        int     `json:"num_ctx"`
-	NumPredict    int     `json:"num_predict"`
+	// RepeatLastN is the window the repetition penalty looks back over, in
+	// tokens. See ollama.Options.RepeatLastN for why the server's own default
+	// of 64 is too short to catch a collapse.
+	RepeatLastN int `json:"repeat_last_n"`
+	NumCtx      int `json:"num_ctx"`
+	NumPredict  int `json:"num_predict"`
 
 	// Think enables a reasoning model's scratchpad. Off by default: in
 	// roleplay it mostly buys a long visible deliberation before a reply that
@@ -161,6 +169,7 @@ func DefaultConfig() Config {
 		Temperature:   DefaultTemperature,
 		TopP:          DefaultTopP,
 		RepeatPenalty: DefaultRepeatPenalty,
+		RepeatLastN:   DefaultRepeatLastN,
 		NumCtx:        DefaultNumCtx,
 		ShowStats:     false,
 	}
@@ -221,6 +230,9 @@ func (c *Config) normalize() {
 	}
 	if c.RepeatPenalty < 0 || c.RepeatPenalty > 3 {
 		c.RepeatPenalty = DefaultRepeatPenalty
+	}
+	if c.RepeatLastN <= 0 {
+		c.RepeatLastN = DefaultRepeatLastN
 	}
 	if c.NumCtx < 512 {
 		c.NumCtx = DefaultNumCtx

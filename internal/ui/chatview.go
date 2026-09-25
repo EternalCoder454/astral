@@ -124,6 +124,10 @@ type ChatView struct {
 	// chars.NarrationPrefill.
 	prefilled bool
 
+	// collapsed records that this reply was stopped because the model began
+	// cycling the same text. See looping.go.
+	collapsed bool
+
 	// warnedSpill stops the "your housekeeping model did not fit" notice from
 	// repeating: it is true of the configuration, not of the turn, so saying
 	// it once is saying it.

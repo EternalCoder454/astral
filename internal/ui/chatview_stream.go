@@ -279,6 +279,7 @@ func (c *ChatView) options() ollama.Options {
 		TopP:          c.cfg.TopP,
 		TopK:          c.cfg.TopK,
 		RepeatPenalty: c.cfg.RepeatPenalty,
+		RepeatLastN:   c.cfg.RepeatLastN,
 		NumCtx:        c.cfg.NumCtx,
 		NumPredict:    predict,
 	}
@@ -313,6 +314,7 @@ func (c *ChatView) startStream() {
 	// already begun inside an asterisk span settles it, because the next token
 	// is narration whether or not the model meant to mark any.
 	c.prefilled = false
+	c.collapsed = false
 	if len(msgs) > 0 && msgs[len(msgs)-1].Role == ollama.RoleSystem && c.wantsPrefill(msgs) {
 		msgs = append(msgs, ollama.Message{Role: ollama.RoleAssistant, Content: chars.NarrationPrefill})
 		c.prefilled = true
@@ -386,6 +388,11 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 		return
 	}
 
+	if c.collapsed {
+		c.fail("The model started repeating itself, so this reply was stopped. " +
+			"Delete it and try again, or lower the temperature in Settings.")
+	}
+
 	// A stopped reply keeps what had already arrived: it is usually most of a
 	// paragraph, and discarding it would throw away the model's work for the
 	// sake of tidiness.
@@ -425,6 +432,15 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 			meta += " · "
 		}
 		meta += "cut off at the reply limit"
+	}
+	if c.collapsed {
+		// On the message as well as in a toast. The toast goes away and the
+		// reply does not, and a month later this is the only thing that
+		// explains why one turn in the transcript trails off into nonsense.
+		if meta != "" {
+			meta += " · "
+		}
+		meta += "stopped: the model began repeating itself"
 	}
 	row.SetMeta(meta)
 
@@ -701,6 +717,15 @@ func (c *ChatView) drainPending() {
 		// correct formatting. It is rendered once, at the end.
 		c.live.AppendText(text)
 		c.live.SetMeta("")
+
+		// A model that has begun cycling will not stop on its own, and every
+		// further token is both wasted and destined for the transcript that
+		// becomes the next turn's prompt. Stopping here costs one wasted
+		// reply instead of poisoning the scene.
+		if !c.collapsed && Looping(c.live.Text()) {
+			c.collapsed = true
+			c.Stop()
+		}
 	}
 	if stick {
 		c.scrollToBottom()
