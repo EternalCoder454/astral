@@ -1,0 +1,84 @@
+# Build Astral for Windows and package it as an installer.
+#
+# Astral is Go with cgo against GTK4 and libadwaita, so it cannot be
+# cross-compiled from Linux in any way worth relying on: the toolchain, the
+# libraries and pkg-config all have to be the target's. It is built on a
+# Windows runner under MSYS2 instead, which is the same environment GTK itself
+# is packaged for on Windows.
+#
+# libadwaita is a GNOME library and Windows is not a platform GNOME supports.
+# It builds and it runs, and that is the whole of the promise being made here.
+
+name: windows
+
+on:
+  push:
+    branches: [beta, release]
+    paths-ignore: ["**.md", "screenshots/**"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-go
+            mingw-w64-x86_64-gtk4
+            mingw-w64-x86_64-libadwaita
+            mingw-w64-x86_64-adwaita-icon-theme
+
+      - name: Report the toolchain
+        run: |
+          go version
+          pkg-config --modversion gtk4 libadwaita-1
+
+      - name: Build
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          VERSION=$(sed -n 's/^var version = "\(.*\)"/\1/p' internal/app/version.go)
+          echo "version: $VERSION"
+          echo "ASTRAL_VERSION=$VERSION" >> "$GITHUB_ENV"
+          # -H windowsgui keeps a console window from opening behind the app.
+          go build -v \
+            -ldflags "-s -w -H windowsgui -X 'astral/internal/app.version=$VERSION'" \
+            -o dist/astral.exe .
+
+      - name: Gather the runtime
+        run: |
+          bash packaging/windows-bundle.sh dist
+
+      - name: Upload the unpacked build
+        uses: actions/upload-artifact@v4
+        with:
+          name: astral-windows-portable
+          path: dist/
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+          }
+          & $iscc /DAppVersion=$env:ASTRAL_VERSION packaging\astral.iss
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: astral-windows-installer
+          path: packaging/output/*.exe

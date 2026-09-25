@@ -136,9 +136,15 @@ func NarrationDrifted(history []ollama.Message) bool {
 			bad++
 		}
 	}
-	// Every recent reply, not merely most: one slip is noise, and escalating
-	// the prompt on noise would leave the firmer wording switched on forever.
-	return checked > 0 && bad == checked
+	// Most of the recent replies, not all of them.
+	//
+	// It was all of them, on the reasoning that one slip is noise and
+	// escalating on noise would leave the firmer wording switched on forever.
+	// Measured over a twenty-turn scene that was too strict by half: thirteen
+	// replies came back under-marked and this reported drift on six, because
+	// the bad replies were interleaved with good ones and a single good reply
+	// reset it. Intermittent drift is still drift, and it is the common shape.
+	return checked >= 2 && bad*2 > checked
 }
 
 // unmarkedProse returns how many characters of a reply sit outside both

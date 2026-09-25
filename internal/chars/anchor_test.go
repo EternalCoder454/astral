@@ -185,7 +185,10 @@ func TestNarrationDrifted(t *testing.T) {
 	}{
 		{"marked throughout", []ollama.Message{marked, marked, marked}, false},
 		{"unmarked throughout", []ollama.Message{unmarked, unmarked, unmarked}, true},
-		{"one slip is noise", []ollama.Message{marked, unmarked, marked}, false},
+		{"one slip among three is not drift", []ollama.Message{marked, unmarked, marked}, false},
+		// Two of three is the shape a real scene drifts in: bad replies
+		// interleaved with good ones, never three bad in a row.
+		{"two of three is drift", []ollama.Message{unmarked, marked, unmarked}, true},
 		// A reply that is entirely dialogue is correct and has no asterisks.
 		// Nagging about it would leave the firmer wording switched on forever.
 		{"all dialogue is not drift", []ollama.Message{allDialogue, allDialogue, allDialogue}, false},

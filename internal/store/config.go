@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"astral/internal/chars"
@@ -131,16 +132,36 @@ type Config struct {
 	ShowStats bool `json:"show_stats"`
 }
 
+// Where Astral keeps things.
+//
+// XDG is honoured first, because the tests set those variables to redirect a
+// run into a temporary directory and because it is what a Linux user expects.
+// Past that it defers to the standard library, which already knows the right
+// answer on each platform: %AppData% on Windows, ~/Library/Application Support
+// on macOS, ~/.config elsewhere. Hard-coding ~/.local/share worked on the one
+// platform it was written for and put a dotted directory in the middle of a
+// Windows home folder on another.
+
 func dataDir() string {
 	if x := os.Getenv("XDG_DATA_HOME"); x != "" {
 		return filepath.Join(x, AppName)
 	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "share", AppName)
+	if runtime.GOOS == "linux" {
+		home, _ := os.UserHomeDir()
+		return filepath.Join(home, ".local", "share", AppName)
+	}
+	// No UserDataDir in the standard library. The config directory is the
+	// right neighbourhood on the platforms that have no separate one.
+	base, err := os.UserConfigDir()
+	if err != nil {
+		home, _ := os.UserHomeDir()
+		base = home
+	}
+	return filepath.Join(base, AppName, "data")
 }
 
-// DataDir is the per-user data directory ($XDG_DATA_HOME/astral or
-// ~/.local/share/astral). The database and character avatars live under it.
+// DataDir is the per-user data directory. The database and character images
+// live under it.
 func DataDir() string { return dataDir() }
 
 // AvatarDir is where imported character portraits are kept.
@@ -150,14 +171,18 @@ func configDir() string {
 	if x := os.Getenv("XDG_CONFIG_HOME"); x != "" {
 		return filepath.Join(x, AppName)
 	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", AppName)
+	base, err := os.UserConfigDir()
+	if err != nil {
+		home, _ := os.UserHomeDir()
+		return filepath.Join(home, ".config", AppName)
+	}
+	return filepath.Join(base, AppName)
 }
 
 // ConfigPath is the absolute path of config.json.
 func ConfigPath() string { return filepath.Join(configDir(), "config.json") }
 
-// DefaultDBPath is ~/.local/share/astral/astral.db.
+// DefaultDBPath is the database inside DataDir.
 func DefaultDBPath() string { return filepath.Join(dataDir(), "astral.db") }
 
 // The update channels, which are the repository's two branches. Release is
