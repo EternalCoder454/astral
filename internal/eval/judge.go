@@ -77,7 +77,14 @@ This IS deciding for them:
 This is NOT deciding for them, and is correct writing:
   "%[2]s watched %[1]s shake the rain off."   (describing what was already established)
   "Sit down," she said to %[1]s.               (speaking to them)
+  "Sit."                                       (an order, which %[1]s may still refuse)
+  "Come here. Now."                            (still an order, still refusable)
   "%[2]s wondered whether %[1]s would answer." (her own thoughts about them)
+  "%[2]s held out the chart to %[1]s."         (her action, directed at them)
+
+An order is not an outcome. %[2]s may tell %[1]s to do anything at all; what
+she may not do is settle whether it was done. "Sit." is correct writing.
+"Sit," she said, and %[1]s sat. is not, because of the second half.
 
 Passage:
 ---

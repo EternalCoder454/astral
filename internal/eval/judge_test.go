@@ -82,6 +82,19 @@ func TestJudgeAgreesOnClearCases(t *testing.T) {
 			false,
 		},
 		{
+			// The false positive this line exists to catch: an order is not
+			// an outcome, and a judge that reads "Sit." as the user sitting
+			// flags every well-written commanding character.
+			"gives the user an order without settling it",
+			`*The chair came out from under the table with her foot.* "Sit. And do not touch the dividers."`,
+			false,
+		},
+		{
+			"an order the passage then carries out",
+			`*The chair came out from under the table with her foot.* "Sit." *Christian sat.*`,
+			true,
+		},
+		{
 			"speaks to the user and wonders about them",
 			`*A pin went into the table rather than the map.* "Sit down, Christian." *She wondered whether he would say anything at all this time.*`,
 			false,
