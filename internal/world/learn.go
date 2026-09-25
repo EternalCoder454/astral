@@ -56,6 +56,8 @@ For each subject, give:
 - content: the facts, in plain declarative sentences. Under sixty words. If you are updating an existing entry, restate it in full including what was already there.
 - confidence: how certain you are that the scene actually established this, from 0 to 1. Be honest and be strict. Use 0.9 or above only when it was stated outright. Use 0.5 or below when you are inferring it, when it might have been figurative, or when a character might have been lying.
 
+Do not write an entry about the world as a whole. Its name and description are already sent with every entry, so an entry about the setting itself is the same text twice, and it will match every turn.
+
 If nothing in the exchange established anything permanent, return an empty list. That is a normal and common answer.`
 
 var learnSchema = json.RawMessage(`{
@@ -158,7 +160,7 @@ func Learn(ctx context.Context, client *ollama.Client, model string, w World, ex
 		if name == "" || content == "" {
 			continue
 		}
-		keys := cleanKeys(append(e.Keys, name))
+		keys := cleanKeys(append(e.Keys, name), turns)
 		if len(keys) == 0 {
 			continue // an entry nothing can trigger is dead weight
 		}
@@ -206,19 +208,49 @@ var commonKeys = map[string]bool{
 	"world": true, "story": true, "scene": true, "character": true,
 }
 
+// keySaturation is the share of the examined messages a key may appear in
+// before it is rejected as a trigger.
+//
+// A key is only useful if it tells one turn apart from another. Playing a
+// thirty-turn scene on a storm-lashed coast produced entries triggering on
+// "tide" and "the coast", which is every other sentence: they would fire
+// constantly, spend the lore budget other entries needed, and tell the model
+// nothing it had not just read.
+const keySaturation = 0.5
+
 // cleanKeys trims, deduplicates and rejects keys that would fire on anything.
-func cleanKeys(keys []string) []string {
+//
+// The static list below cannot carry this on its own, because what counts as a
+// common word depends on the setting: "tide" is a specific noun in most
+// stories and wallpaper in this one. So the scene it was learned from is
+// measured too, which needs no list and works in any world.
+func cleanKeys(keys []string, scene []ollama.Message) []string {
 	seen := map[string]bool{}
 	out := make([]string, 0, len(keys))
 	for _, k := range keys {
 		k = strings.Join(strings.Fields(k), " ")
 		low := strings.ToLower(k)
 		switch {
-		case len(low) < minKeyLen, seen[low], commonKeys[low]:
+		case len(low) < minKeyLen, seen[low], commonKeys[low], saturated(low, scene):
 			continue
 		}
 		seen[low] = true
 		out = append(out, k)
 	}
 	return out
+}
+
+// saturated reports whether a key appears in so many of the examined messages
+// that it cannot discriminate between them.
+func saturated(low string, scene []ollama.Message) bool {
+	if len(scene) < 4 {
+		return false // too little to judge by; the static list still applies
+	}
+	hits := 0
+	for _, m := range scene {
+		if strings.Contains(strings.ToLower(m.Content), low) {
+			hits++
+		}
+	}
+	return float64(hits) > float64(len(scene))*keySaturation
 }

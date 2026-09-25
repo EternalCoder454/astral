@@ -25,6 +25,8 @@ type settingsForm struct {
 	theme    *gtk.DropDown
 	fontMode *gtk.DropDown
 	showStat *gtk.CheckButton
+	updates  *gtk.CheckButton
+	channel  *gtk.DropDown
 	think    *gtk.CheckButton
 
 	temperature *gtk.Scale
@@ -261,6 +263,37 @@ func (a *App) buildAppearancePage(f *settingsForm) *gtk.Box {
 	f.showStat.SetActive(a.cfg.ShowStats)
 	card.Append(f.showStat)
 	page.Append(outer)
+
+	upOuter, upCard := groupCard("Updates")
+
+	f.updates = gtk.NewCheckButton()
+	f.updates.SetChild(wrappingLabel("Check for a new version when Astral starts"))
+	f.updates.SetActive(a.cfg.CheckUpdates)
+	upCard.Append(f.updates)
+
+	f.channel = gtk.NewDropDownFromStrings([]string{"Release", "Beta"})
+	if a.cfg.UpdateChannel == store.ChannelBeta {
+		f.channel.SetSelected(1)
+	}
+	upCard.Append(labelledField("Channel",
+		"Release is the tested one. Beta is ahead of it and may be rough.",
+		f.channel))
+
+	check := gtk.NewButtonWithLabel("Check now")
+	check.SetHAlign(gtk.AlignStart)
+	check.ConnectClicked(func() {
+		a.applySettings(f)
+		a.checkForUpdateNow()
+	})
+	upCard.Append(check)
+
+	ver := gtk.NewLabel("Astral " + version)
+	ver.SetXAlign(0)
+	ver.SetSelectable(true) // so it can be copied into a bug report
+	ver.AddCSSClass("settings-hint")
+	upCard.Append(ver)
+	page.Append(upOuter)
+
 	return page
 }
 
@@ -288,6 +321,11 @@ func (a *App) applySettings(f *settingsForm) {
 	a.cfg.Theme = themeFromIndex(int(f.theme.Selected()))
 	a.cfg.FontRendering = fontFromIndex(int(f.fontMode.Selected()))
 	a.cfg.ShowStats = f.showStat.Active()
+	a.cfg.CheckUpdates = f.updates.Active()
+	a.cfg.UpdateChannel = store.ChannelRelease
+	if f.channel.Selected() == 1 {
+		a.cfg.UpdateChannel = store.ChannelBeta
+	}
 	a.cfg.Think = f.think.Active()
 	a.cfg.Temperature = f.temperature.Value()
 	a.cfg.TopP = f.topP.Value()

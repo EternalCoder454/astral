@@ -26,7 +26,7 @@ import (
 // anchorFormat is the markup rule, restated with the example that makes it
 // unambiguous. The example matters more than the rule: a model shown the shape
 // reproduces it, where a model told about it often does not.
-const anchorFormat = `FORMAT — every sentence is one of exactly two things, and there is no third kind: spoken aloud in "double quotes", or everything else in *single asterisks*. Never write an unmarked sentence; every paragraph starts with a quote or an asterisk. Put a blank line between beats rather than running them together. Example:
+const anchorFormat = `FORMAT. Every sentence is one of exactly two things, and there is no third kind: spoken aloud in "double quotes", or everything else in *single asterisks*. Never write an unmarked sentence; every paragraph starts with a quote or an asterisk. Put a blank line between beats rather than running them together. Example:
 *She did not look up from the chart.* "You're late."
 
 *A pin went into the table rather than the map.* "Sit."`
@@ -35,7 +35,7 @@ const anchorFormat = `FORMAT — every sentence is one of exactly two things, an
 // already slipped. Restating it more forcefully only where it is being
 // disobeyed keeps the usual case cheap, and stops as soon as the model
 // complies.
-const anchorFormatFirm = `FORMAT — your recent replies have been getting this wrong, so correct it now. Every sentence is one of exactly two things and there is no third kind: spoken aloud in "double quotes", or everything else — narration, action, body language, thought — wrapped in *single asterisks*. Go paragraph by paragraph: each one must start with a quote or an asterisk, and no sentence may be left unmarked. Example:
+const anchorFormatFirm = `FORMAT. Your recent replies have been getting this wrong, so correct it now. Every sentence is one of exactly two things and there is no third kind: spoken aloud in "double quotes", or everything else — narration, action, body language, thought — wrapped in *single asterisks*. Go paragraph by paragraph: each one must start with a quote or an asterisk, and no sentence may be left unmarked. Example:
 *She did not look up from the chart. The rain had found the window again, and she let it.* "You're late."
 *A pin went into the table rather than the map, a small and deliberate violence.* "Sit. You're dripping on the Sever."`
 
@@ -69,9 +69,9 @@ func Anchor(c Character, sc Scene, userName string) string {
 		// The single most useful sentence in the block. Without it the model
 		// reads twenty of its own replies as the house style and writes a
 		// twenty-first to match, whatever the instructions say.
-		b.WriteString("STYLE — this has changed. The messages above were written to a different style; do not imitate them. From this reply on, write like this:\n")
+		b.WriteString("STYLE. This has changed. The messages above were written to a different style; do not imitate them. From this reply on, write like this:\n")
 	} else {
-		b.WriteString("STYLE — follow this exactly, even where the messages above do not:\n")
+		b.WriteString("STYLE. Follow this exactly, even where the messages above do not:\n")
 	}
 	b.WriteString(Substitute(sc.Persona.Style.Resolved(), c.Name, userName))
 
@@ -89,7 +89,7 @@ func Anchor(c Character, sc Scene, userName string) string {
 	// narration, this turn — announcing the thing instead of playing it — and
 	// will treat the whole direction as something to finish within one reply.
 	if d := strings.TrimSpace(sc.Direction); d != "" {
-		b.WriteString("\n\nDIRECTION — where the user wants this scene to go. Your next reply " +
+		b.WriteString("\n\nDIRECTION. Where the user wants this scene to go. Your next reply " +
 			"must take a visible step toward it: have the character say or do something that " +
 			"moves it along, in this reply, not a later one. Do not state the direction itself " +
 			"and do not have anyone name it outright, and do not resolve the whole thing at " +

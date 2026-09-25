@@ -159,7 +159,7 @@ Do not summarize the scene, do not skip ahead in time, and do not end the scene 
 
 FORMATTING. Every sentence you write is one of exactly two things, and there is no third kind:
 1. Spoken aloud, in "double quotes". Nothing else goes inside quotes.
-2. Everything else — narration, action, body language, sensory detail, %s's own thoughts — inside *single asterisks*.
+2. Everything else, meaning narration, action, body language, sensory detail and %s's own thoughts, inside *single asterisks*.
 Never write an unmarked sentence. Every paragraph must start with either a quote or an asterisk.
 Put a blank line between beats. A reply is two or more short paragraphs, never one unbroken block.
 Example of a full reply:

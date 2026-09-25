@@ -135,6 +135,7 @@ func (a *App) activate() {
 	a.refreshSidebar()
 	a.restoreLastChat()
 	a.probeModels()
+	a.maybeCheckForUpdate()
 	a.runDevView()
 }
 

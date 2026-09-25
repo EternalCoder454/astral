@@ -80,6 +80,13 @@ type Config struct {
 	// safe thing to do.
 	ActiveStyle string `json:"active_style"`
 
+	// UpdateChannel is the branch update checks follow: release or beta.
+	UpdateChannel string `json:"update_channel"`
+	// CheckUpdates asks GitHub on launch whether a newer version has been
+	// published. It reads one text file and sends nothing about this machine
+	// or anything in it.
+	CheckUpdates bool `json:"check_updates"`
+
 	// KeepAlive is how long Ollama holds the model in memory between turns.
 	// Ollama's own default is five minutes, which a thinking pause routinely
 	// exceeds, and the next message then pays a full model reload.
@@ -153,6 +160,13 @@ func ConfigPath() string { return filepath.Join(configDir(), "config.json") }
 // DefaultDBPath is ~/.local/share/astral/astral.db.
 func DefaultDBPath() string { return filepath.Join(dataDir(), "astral.db") }
 
+// The update channels, which are the repository's two branches. Release is
+// what a normal install follows; beta is ahead of it and may be rough.
+const (
+	ChannelRelease = "release"
+	ChannelBeta    = "beta"
+)
+
 // DefaultConfig returns a Config populated with sensible defaults.
 func DefaultConfig() Config {
 	return Config{
@@ -165,6 +179,8 @@ func DefaultConfig() Config {
 		PortraitOpen:  true,
 		FontRendering: FontRenderingAuto,
 		KeepAlive:     "30m",
+		UpdateChannel: ChannelRelease,
+		CheckUpdates:  true,
 		ActiveStyle:   chars.DefaultStyleName,
 		Temperature:   DefaultTemperature,
 		TopP:          DefaultTopP,
@@ -233,6 +249,9 @@ func (c *Config) normalize() {
 	}
 	if c.RepeatLastN <= 0 {
 		c.RepeatLastN = DefaultRepeatLastN
+	}
+	if c.UpdateChannel != ChannelBeta && c.UpdateChannel != ChannelRelease {
+		c.UpdateChannel = ChannelRelease
 	}
 	if c.NumCtx < 512 {
 		c.NumCtx = DefaultNumCtx
