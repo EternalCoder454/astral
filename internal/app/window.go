@@ -152,6 +152,7 @@ func (a *App) buildContent() *adw.ToolbarView {
 func (a *App) buildSidebar() {
 	a.sidebar = ui.NewSidebar()
 	a.sidebar.OnNewChat = a.actionNewChat
+	a.sidebar.OnHome = a.goHome
 	a.sidebar.OnCharacters = a.showCharacters
 	a.sidebar.OnWorlds = a.showWorlds
 	a.sidebar.OnSettings = a.showSettings
@@ -217,6 +218,20 @@ func (a *App) showWelcome() {
 	if a.sidebar != nil {
 		a.sidebar.Select(0)
 	}
+}
+
+// goHome leaves the open scene for the welcome screen.
+//
+// The chat is not closed, only left: it stays in the sidebar and reopens where
+// it was. What does have to happen is that the portrait panel goes with it,
+// since it belongs to a character nobody is playing at the moment.
+func (a *App) goHome() {
+	if a.chat != nil {
+		a.chat.Stop()
+	}
+	a.showPortraitFor(chars.Character{})
+	a.cfg.LastChat = 0
+	a.showWelcome()
 }
 
 // setTitle puts the open scene in the header bar.

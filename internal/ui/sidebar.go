@@ -21,6 +21,7 @@ type Sidebar struct {
 	profile     *gtk.Button
 	profileMenu *gtk.Popover
 	charsBtn    *gtk.Button
+	homeBtn     *gtk.Button
 
 	selected int64
 	rows     map[int64]*gtk.Button
@@ -36,6 +37,8 @@ type Sidebar struct {
 	OnNewChat    func()
 	OnOpenChat   func(id int64)
 	OnCharacters func()
+	// OnHome returns to the welcome screen.
+	OnHome func()
 	// OnWorlds opens the list of settings.
 	OnWorlds   func()
 	OnSettings func()
@@ -69,6 +72,17 @@ func NewSidebar() *Sidebar {
 
 	nav := gtk.NewBox(gtk.OrientationVertical, 1)
 	nav.AddCSSClass("sidebar-nav")
+
+	// The way back. The welcome screen holds the cast, the worlds and the
+	// greeting, and until now it could only be reached by having no chat open
+	// — which, once you had opened one, meant not at all.
+	s.homeBtn = gtk.NewButton()
+	s.homeBtn.AddCSSClass("sidebar-item")
+	s.homeBtn.SetChild(rowContent(IconHome, "Home"))
+	s.homeBtn.SetTooltipText("Your cast and your worlds")
+	s.homeBtn.ConnectClicked(func() { fire(s.OnHome) })
+	nav.Append(s.homeBtn)
+
 	s.charsBtn = gtk.NewButton()
 	s.charsBtn.AddCSSClass("sidebar-item")
 	s.charsBtn.SetChild(rowContent(IconCharacters, "Characters"))

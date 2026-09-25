@@ -782,3 +782,52 @@ frame:focus-within {
 	border-style: solid;
 	color: @astral_text;
 }
+
+/* ---- The "new chat" launcher ---- */
+
+/* Icon, label, and a short note only where it earns one. This replaced five
+   stacked title-and-paragraph cards, which read as a form to be studied rather
+   than a menu to be picked from. */
+.launch-row {
+	padding: 9px 12px;
+	border-radius: 10px;
+	background-color: transparent;
+	border: 1px solid transparent;
+	box-shadow: none;
+	transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.launch-row:hover {
+	background-color: @astral_surface;
+	border-color: @astral_border;
+}
+
+/* The one thing this dialog is usually opened to do. It carries the accent at
+   rest rather than only on hover, so the eye lands on it first. */
+.launch-row-primary {
+	background-color: alpha(@accent_bg_color, 0.16);
+	border-color: alpha(@accent_bg_color, 0.5);
+}
+
+.launch-row-primary:hover {
+	background-color: alpha(@accent_bg_color, 0.26);
+	border-color: alpha(@accent_bg_color, 0.75);
+}
+
+.launch-row-title {
+	font-weight: 600;
+}
+
+.launch-row-note {
+	font-size: 0.84em;
+	color: @astral_faint;
+}
+
+.launch-heading {
+	font-size: 0.74em;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: @astral_faint;
+	margin: 12px 4px 2px 4px;
+}

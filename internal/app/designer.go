@@ -28,28 +28,50 @@ const buildTimeout = 6 * time.Minute
 func (a *App) showNewChat() {
 	d := adw.NewDialog()
 	d.SetTitle("New chat")
-	d.SetContentWidth(460)
+	d.SetContentWidth(420)
 
-	page := gtk.NewBox(gtk.OrientationVertical, 10)
-	page.SetMarginTop(16)
-	page.SetMarginBottom(16)
-	page.SetMarginStart(16)
-	page.SetMarginEnd(16)
+	page := gtk.NewBox(gtk.OrientationVertical, 4)
+	page.SetMarginTop(12)
+	page.SetMarginBottom(12)
+	page.SetMarginStart(12)
+	page.SetMarginEnd(12)
 
-	add := func(title, subtitle string, onClick func()) {
+	// Icon, label, and a short line only where it earns one.
+	//
+	// This was five stacked cards of title-plus-paragraph, which read as a
+	// form to be studied rather than a menu to be picked from. Most of those
+	// paragraphs were explaining labels that should not have needed
+	// explaining: "Just chat" had a line telling you it meant a plain
+	// conversation, which is what a clearer label says by itself.
+	add := func(icon, title, note string, primary bool, onClick func()) {
 		btn := gtk.NewButton()
-		btn.AddCSSClass("character-card")
-		box := gtk.NewBox(gtk.OrientationVertical, 3)
+		btn.AddCSSClass("launch-row")
+		if primary {
+			btn.AddCSSClass("launch-row-primary")
+		}
+
+		row := gtk.NewBox(gtk.OrientationHorizontal, 12)
+		img := gtk.NewImageFromIconName(icon)
+		img.SetPixelSize(18)
+		img.SetVAlign(gtk.AlignCenter)
+		row.Append(img)
+
+		col := gtk.NewBox(gtk.OrientationVertical, 1)
+		col.SetHExpand(true)
+		col.SetVAlign(gtk.AlignCenter)
 		t := gtk.NewLabel(title)
 		t.SetXAlign(0)
-		t.AddCSSClass("character-card-name")
-		box.Append(t)
-		sub := gtk.NewLabel(subtitle)
-		sub.SetXAlign(0)
-		sub.SetWrap(true)
-		sub.AddCSSClass("character-card-desc")
-		box.Append(sub)
-		btn.SetChild(box)
+		t.AddCSSClass("launch-row-title")
+		col.Append(t)
+		if note != "" {
+			n := gtk.NewLabel(note)
+			n.SetXAlign(0)
+			n.AddCSSClass("launch-row-note")
+			col.Append(n)
+		}
+		row.Append(col)
+
+		btn.SetChild(row)
 		btn.ConnectClicked(func() {
 			d.Close()
 			onClick()
@@ -57,31 +79,27 @@ func (a *App) showNewChat() {
 		page.Append(btn)
 	}
 
-	// Playing comes first when there is anyone to play with. It is the thing
-	// this dialog is most often opened to do, and it was listed under the one
-	// that takes twenty minutes and an interview.
-	n, _ := a.store.CountCharacters()
-	if n > 0 {
-		add("Play a scene",
-			"Pick someone from your cast and start roleplaying.",
-			a.showCharacters)
+	heading := func(text string) {
+		l := gtk.NewLabel(text)
+		l.SetXAlign(0)
+		l.AddCSSClass("launch-heading")
+		page.Append(l)
 	}
 
-	add("Design a character",
-		"Describe what you want and the model interviews you, then writes the character for you.",
-		a.newDesignerChat)
+	// Playing comes first, and looks like it: it is what this dialog is most
+	// often opened to do.
+	// With no cast there is nothing to play, so the plain conversation takes
+	// the emphasis instead of offering a route that leads nowhere.
+	cast, _ := a.store.CountCharacters()
+	if cast > 0 {
+		add(ui.IconCharacters, "Play a scene", "with someone from your cast", true, a.showCharacters)
+	}
+	add(ui.IconChat, "General chat", "", cast == 0, a.newAssistantChat)
 
-	add("Just chat",
-		"A plain conversation with the model. No character, no roleplay.",
-		a.newAssistantChat)
-
-	add("Design a writing style",
-		"Change how the prose sounds, sparse, overwritten, screenplay-terse. The model interviews you the same way.",
-		a.newStyleDesignerChat)
-
-	add("Import a character card",
-		"Load a .png or .json card you already have.",
-		a.actionImportCharacter)
+	heading("Make something")
+	add(ui.IconDesigner, "New character", "the model interviews you", false, a.newDesignerChat)
+	add(ui.IconEdit, "New writing style", "changes how the prose sounds", false, a.newStyleDesignerChat)
+	add(ui.IconFolder, "Import a character", "from a .png or .json card", false, a.actionImportCharacter)
 
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(adw.NewHeaderBar())

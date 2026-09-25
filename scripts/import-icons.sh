@@ -38,7 +38,7 @@ map=(
     left_panel_open:panel-left
     chat:chat
     characters:characters
-    assistant:designer
+    auto_awesome:designer
     settings:settings
     folder:folder
     add:add
@@ -46,6 +46,7 @@ map=(
     history:history
     info:info
     public:worlds
+    home:home
 )
 
 mkdir -p "$out_dir"

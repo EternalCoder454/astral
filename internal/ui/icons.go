@@ -24,6 +24,7 @@ const (
 	IconHistory    = "astral-history-symbolic"
 	IconInfo       = "astral-info-symbolic"
 	IconWorlds     = "astral-worlds-symbolic"
+	IconHome       = "astral-home-symbolic"
 )
 
 // AllIcons is every name the app uses, so the dev harness can check that none
@@ -32,5 +33,5 @@ var AllIcons = []string{
 	IconSend, IconStop, IconCopy, IconRegenerate, IconTrash, IconEdit,
 	IconMenu, IconPanelLeft, IconChat, IconCharacters, IconDesigner,
 	IconSettings, IconFolder, IconAdd, IconSearch, IconHistory, IconInfo,
-	IconWorlds,
+	IconWorlds, IconHome,
 }
