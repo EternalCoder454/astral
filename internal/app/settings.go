@@ -59,6 +59,7 @@ func (a *App) showSettingsPage(page string) {
 	stack.AddTitled(scrolled(a.buildModelPage(f)), "model", "Model")
 	stack.AddTitled(scrolled(a.buildPersonaPage(f)), "persona", "You")
 	stack.AddTitled(scrolled(a.buildAppearancePage(f)), "appearance", "Appearance")
+	stack.AddTitled(scrolled(a.buildUpdatesPage(f)), "updates", "Updates")
 
 	side := gtk.NewStackSidebar()
 	side.SetStack(stack)
@@ -97,7 +98,7 @@ func (a *App) showSettingsPage(page string) {
 	scope.SetMarginStart(14)
 	scope.SetMarginEnd(14)
 	scope.SetXAlign(0)
-	save.SetTooltipText("Save the changes on all three pages")
+	save.SetTooltipText("Save the changes on every page")
 
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(header)
@@ -202,6 +203,44 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	return page
 }
 
+// buildUpdatesPage is version and updates. Its own page rather than a card on
+// Appearance, where it first landed: an update is not a matter of how the app
+// looks, and the version number is the thing anyone reporting a problem is
+// asked for, so it should be somewhere you would think to look for it.
+func (a *App) buildUpdatesPage(f *settingsForm) *gtk.Box {
+	page := settingsPage()
+	upOuter, upCard := groupCard("Updates")
+
+	f.updates = gtk.NewCheckButton()
+	f.updates.SetChild(wrappingLabel("Check for a new version when Astral starts"))
+	f.updates.SetActive(a.cfg.CheckUpdates)
+	upCard.Append(f.updates)
+
+	f.channel = gtk.NewDropDownFromStrings([]string{"Release", "Beta"})
+	if a.cfg.UpdateChannel == store.ChannelBeta {
+		f.channel.SetSelected(1)
+	}
+	upCard.Append(labelledField("Channel",
+		"Release is the tested one. Beta is ahead of it and may be rough.",
+		f.channel))
+
+	check := gtk.NewButtonWithLabel("Check now")
+	check.SetHAlign(gtk.AlignStart)
+	check.ConnectClicked(func() {
+		a.applySettings(f)
+		a.checkForUpdateNow()
+	})
+	upCard.Append(check)
+
+	ver := gtk.NewLabel("Astral " + version)
+	ver.SetXAlign(0)
+	ver.SetSelectable(true) // so it can be copied into a bug report
+	ver.AddCSSClass("settings-hint")
+	upCard.Append(ver)
+	page.Append(upOuter)
+	return page
+}
+
 func (a *App) buildPersonaPage(f *settingsForm) *gtk.Box {
 	page := settingsPage()
 	outer, card := groupCard("Who you play as")
@@ -263,37 +302,6 @@ func (a *App) buildAppearancePage(f *settingsForm) *gtk.Box {
 	f.showStat.SetActive(a.cfg.ShowStats)
 	card.Append(f.showStat)
 	page.Append(outer)
-
-	upOuter, upCard := groupCard("Updates")
-
-	f.updates = gtk.NewCheckButton()
-	f.updates.SetChild(wrappingLabel("Check for a new version when Astral starts"))
-	f.updates.SetActive(a.cfg.CheckUpdates)
-	upCard.Append(f.updates)
-
-	f.channel = gtk.NewDropDownFromStrings([]string{"Release", "Beta"})
-	if a.cfg.UpdateChannel == store.ChannelBeta {
-		f.channel.SetSelected(1)
-	}
-	upCard.Append(labelledField("Channel",
-		"Release is the tested one. Beta is ahead of it and may be rough.",
-		f.channel))
-
-	check := gtk.NewButtonWithLabel("Check now")
-	check.SetHAlign(gtk.AlignStart)
-	check.ConnectClicked(func() {
-		a.applySettings(f)
-		a.checkForUpdateNow()
-	})
-	upCard.Append(check)
-
-	ver := gtk.NewLabel("Astral " + version)
-	ver.SetXAlign(0)
-	ver.SetSelectable(true) // so it can be copied into a bug report
-	ver.AddCSSClass("settings-hint")
-	upCard.Append(ver)
-	page.Append(upOuter)
-
 	return page
 }
 
