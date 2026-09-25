@@ -26,7 +26,7 @@ import (
 // anchorFormat is the markup rule, restated with the example that makes it
 // unambiguous. The example matters more than the rule: a model shown the shape
 // reproduces it, where a model told about it often does not.
-const anchorFormat = `FORMAT. Every sentence is one of exactly two things, and there is no third kind: spoken aloud in "double quotes", or everything else in *single asterisks*. Never write an unmarked sentence; every paragraph starts with a quote or an asterisk. Put a blank line between beats rather than running them together. Example:
+const anchorFormat = `FORMAT. Every sentence is one of exactly two things, and there is no third kind: spoken aloud in "double quotes", or everything else in *single asterisks*. This holds for every paragraph of this reply, and for this reply even where the messages above did not do it. Never write an unmarked sentence; every paragraph starts with a quote or an asterisk. Put a blank line between beats rather than running them together. Example:
 *She did not look up from the chart.* "You're late."
 
 *A pin went into the table rather than the map.* "Sit."`
