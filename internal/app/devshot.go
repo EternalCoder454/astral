@@ -135,6 +135,16 @@ func (a *App) runDevView() {
 			if id, err := strconv.ParseInt(arg, 10, 64); err == nil {
 				_ = a.openChat(id)
 			}
+		case "scene":
+			// The most recent chat, whatever its id. Relying on the saved
+			// last_chat instead silently opens the welcome screen whenever
+			// that id belongs to a different database, which is exactly what
+			// a seeded capture is.
+			if chats, err := a.store.Chats(); err == nil && len(chats) > 0 {
+				if err := a.openChat(chats[0].ID); err != nil {
+					log.Printf("astral: scene: %v", err)
+				}
+			}
 		case "demo":
 			a.devDemoScene()
 		case "rowmenu":

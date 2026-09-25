@@ -8,6 +8,10 @@ with them. Everything runs on your own machine through
 
 It is a GTK4 desktop application for Linux, built with libadwaita.
 
+![A roleplay scene in Astral](screenshots/01-chat.png)
+
+More in [`screenshots/`](screenshots/INDEX.md).
+
 ## What it does
 
 **Characters.** Write one yourself, import a character card you already have,
