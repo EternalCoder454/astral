@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
+	"astral/internal/imageconv"
 	"astral/internal/store"
 	"astral/internal/ui"
 )
@@ -80,12 +80,25 @@ func (a *App) importImage(src, prefix string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not read that file: %w", err)
 	}
-	if err := os.MkdirAll(store.AvatarDir(), 0o755); err != nil {
+
+	// WebP and friends become PNG here. Ollama's vision path expects PNG or
+	// JPEG, and showing a WebP needs a gdk-pixbuf loader that is a separate
+	// package on most systems, so converting once at import is cheaper than
+	// finding out at either point of use. PNG and JPEG pass through untouched.
+	//
+	// This also validates: a truncated download fails now, with something
+	// worth reading, rather than becoming a broken preview later.
+	was := imageconv.Format(data)
+	data, ext, err := imageconv.Normalize(data)
+	if err != nil {
 		return "", err
 	}
-	ext := strings.ToLower(filepath.Ext(src))
-	if ext == "" {
-		ext = ".png"
+	if was != "" && was != "png" && was != "jpeg" {
+		a.toast(fmt.Sprintf("Converted that %s image to PNG.", was))
+	}
+
+	if err := os.MkdirAll(store.AvatarDir(), 0o755); err != nil {
+		return "", err
 	}
 	// Stamped, so replacing an image does not fight the old one for the same
 	// filename while GTK still has the decoded texture cached against it.

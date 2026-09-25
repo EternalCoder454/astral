@@ -3,6 +3,7 @@ package app
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
 	"astral/internal/chars"
+	"astral/internal/imageconv"
 	"astral/internal/ollama"
 	"astral/internal/store"
 	"astral/internal/ui"
@@ -80,7 +82,11 @@ func (a *App) runDevView() {
 	// A delay rather than an idle callback: some of these surfaces are dialogs
 	// presented over the window, and they need the window mapped first.
 	coreglib.TimeoutAdd(400, func() bool {
-		name, arg, _ := strings.Cut(strings.ToLower(devView), "=")
+		// Split first, then lowercase only the name: the argument can be a
+		// filesystem path, and lowercasing the whole value turned one into a
+		// path that does not exist.
+		name, arg, _ := strings.Cut(devView, "=")
+		name = strings.ToLower(name)
 		switch name {
 		case "welcome":
 			a.showWelcome()
@@ -116,12 +122,48 @@ func (a *App) runDevView() {
 			a.devMeasure()
 		case "icons":
 			a.devIcons()
+		case "image":
+			a.devImage(arg)
 		case "load":
 			n, _ := strconv.Atoi(arg)
 			a.devLoad(n)
 		}
 		return false
 	})
+}
+
+// devImage runs a file through the import path and reports what came out, so
+// the conversion can be checked end to end rather than only in a unit test.
+func (a *App) devImage(src string) {
+	if src == "" {
+		log.Printf("astral: image: no path given")
+		return
+	}
+	before, err := os.ReadFile(src)
+	if err != nil {
+		log.Printf("astral: image: %v", err)
+		return
+	}
+	dst, err := a.importImage(src, "devtest")
+	if err != nil {
+		log.Printf("astral: image: import failed: %v", err)
+		return
+	}
+	after, err := os.ReadFile(dst)
+	if err != nil {
+		log.Printf("astral: image: could not read result: %v", err)
+		return
+	}
+	log.Printf("astral: image: %s (%s, %d bytes) -> %s (%s, %d bytes)",
+		filepath.Base(src), imageconv.Format(before), len(before),
+		filepath.Base(dst), imageconv.Format(after), len(after))
+
+	// And it has to actually render, which is the point of converting it.
+	if thumb := ui.NewImageThumb(dst, 64); thumb != nil {
+		log.Printf("astral: image: renders as a thumbnail")
+	} else {
+		log.Printf("astral: image: FAILED to render")
+	}
 }
 
 // devLoad seeds a chat with n messages and times opening it. Building the

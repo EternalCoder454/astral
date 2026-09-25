@@ -21,6 +21,12 @@ If the model you are using can see images, you can also attach a reference
 picture while designing a character and have it write the description from
 what is actually in the image.
 
+PNG, JPEG, WebP, GIF, BMP and TIFF are all accepted. Anything that is not
+already PNG or JPEG is converted on import, because those are what a vision
+model reads and what displays without an extra system package. Images with
+transparency become PNG, and everything else becomes JPEG, so a photograph does
+not grow tenfold on its way in.
+
 **Scenes.** Pick a character and start playing. Astral keeps the transcript,
 remembers which model a scene was started with, and reopens where you left off.
 
@@ -200,6 +206,7 @@ Nothing leaves the machine. Astral talks to `localhost:11434` and nowhere else.
 
 ```
 internal/ollama/   streaming /api/chat client, model listing, readiness probe
+internal/imageconv/ decoding and normalising imported images
 internal/chars/    character model, card import and export, prompt assembly
 internal/store/    SQLite (characters, chats, messages) and settings
 internal/ui/       sidebar, transcript, composer, markup, icons
@@ -220,7 +227,8 @@ Environment variables for development:
 
 Views available to `ASTRAL_DEV_VIEW`: `welcome`, `newchat`, `designer`,
 `styledesigner`, `assistant`, `characters`, `styles`, `settings`, `shortcuts`,
-`about`, `model`, `rowmenu`, `demo`, `icons`, `measure`, and `load=N`.
+`about`, `model`, `rowmenu`, `demo`, `icons`, `measure`, `load=N`, and
+`image=PATH`.
 
 Any of these also makes the process non unique, so it will not hand off to a
 copy you already have open. Point `XDG_DATA_HOME` at a temporary directory to
