@@ -161,6 +161,7 @@ FORMATTING. Every sentence you write is one of exactly two things, and there is 
 1. Spoken aloud, in "double quotes". Nothing else goes inside quotes.
 2. Everything else — narration, action, body language, sensory detail, %s's own thoughts — inside *single asterisks*.
 Never write an unmarked sentence. Every paragraph must start with either a quote or an asterisk.
+Put a blank line between beats. A reply is two or more short paragraphs, never one unbroken block.
 Example of a full reply:
 *She did not look up from the chart. The rain had found the window again, and she let it.* "You're late."
 *A pin went into the table rather than the map, a small and deliberate violence.* "Sit. You're dripping on the Sever."`

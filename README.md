@@ -85,6 +85,19 @@ the position a model weights most.
 **Any model you have.** The picker lists whatever Ollama has installed, with
 parameter size and quantization. Nothing is hardcoded to one model.
 
+**A smaller model for the bookkeeping.** The scene recap and the lorebook pass
+are not prose, and they run in the background after a reply, so whatever they
+use is what your next message waits behind. Point them at a small model in
+Settings and Ollama holds it in memory beside the one playing the scene. If it
+stops fitting there and starts running on the CPU, Astral says so, because that
+is the one hardware problem that otherwise just looks like the app getting
+slower.
+
+**Scene direction.** One line per chat saying where you want it to go: "she is
+about to work out that he lied", "wind this down". It is sent at the very end
+of the context, which is the position a model weights most, and it steers
+without being said out loud in the story.
+
 **Readable transcripts.** Narration, action and thought are set in a grey
 italic. Speech is left plain and weighted. A long scene can be skimmed for what
 was actually said out loud.
