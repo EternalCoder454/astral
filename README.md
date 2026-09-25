@@ -128,6 +128,22 @@ sudo pacman -S go gtk4 libadwaita
 
 ## Install
 
+### Windows
+
+Download the installer from the
+[releases page](https://github.com/EternalCoder454/astral/releases) and run it.
+It installs for you alone and asks for no administrator rights.
+
+You still need [Ollama](https://ollama.com) running, and at least one model
+pulled. Astral tells you if it cannot find either.
+
+Windows builds are made on a Windows runner with the same GTK and libadwaita
+that GTK itself is packaged with there. libadwaita is a GNOME library and
+Windows is not a platform GNOME supports, so treat this as the less-travelled
+path of the two.
+
+### Linux
+
 ```bash
 git clone https://github.com/EternalCoder454/astral.git
 cd astral
