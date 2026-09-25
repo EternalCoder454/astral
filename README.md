@@ -155,6 +155,25 @@ make uninstall
 Astral is single instance. If a copy is already open when you install a new
 build, that copy keeps running the old one. Quit it and open it again.
 
+## Updates
+
+Astral checks once on launch whether a newer version has been published, and
+says so if there is one. It reads a single text file from this repository and
+sends nothing about your machine, your characters or your scenes. Switch it off
+under **Settings, Appearance**, along with the channel:
+
+- **Release** is the tested one, and the default.
+- **Beta** is ahead of it and may be rough.
+
+Updating fetches the branch into a clone under your data directory, rebuilds,
+and restarts. It never touches a checkout you are working in. Building from
+source rather than downloading a binary is slower, and means what you end up
+running was built against the GTK and libadwaita on your own machine, which is
+the thing that actually breaks when a binary is carried between distributions.
+
+`WHATSNEW.md` is what the update dialog shows: one heading per version, a few
+plain lines each. The git log is the technical history.
+
 ## First run
 
 Start Ollama and pull a model:
