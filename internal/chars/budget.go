@@ -37,6 +37,16 @@ const DefaultReplyTokens = 1024
 // between a token estimate and a tokenizer.
 const safetyTokens = 256
 
+// blockFramingChars is the fixed text wrapped around the recap and the lore:
+// the sentences saying what each block is, that it is notes rather than prose,
+// and how to treat it. Around two hundred characters each.
+//
+// It is not part of either block's budget, and it is in every prompt that
+// carries them, so it comes off the top. Lengthening that wording without this
+// is how the worst case went seventeen tokens over an 8k window, which
+// TestWorstCaseNowFits caught.
+const blockFramingChars = 460
+
 // Budget is how many characters each part of a prompt may spend.
 type Budget struct {
 	// History is the verbatim transcript, and takes whatever is left after
@@ -91,7 +101,10 @@ func Plan(numCtx, numPredict, fixedChars int) Budget {
 	if usable < 0 {
 		usable = 0
 	}
-	total := int(float64(usable) * charsPerToken)
+	total := int(float64(usable)*charsPerToken) - blockFramingChars
+	if total < 0 {
+		total = 0
+	}
 
 	b := Budget{}
 	// The system prompt is not negotiable, so it is served first and

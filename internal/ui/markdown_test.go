@@ -26,14 +26,24 @@ func TestMarkupGolden(t *testing.T) {
 		{"fence dropped", "```\ncode\n```", Plain, "<tt>code</tt>"},
 		{"no inline markup inside fence", "```\n**x**\n```", Plain, "<tt>**x**</tt>"},
 
-		// Roleplay mode: everything internal is italic and stepped back;
-		// speech and sounds are left completely plain.
+		// Roleplay mode splits on quotation marks, not on asterisks. What is
+		// inside quotes is speech; everything else is narration and is styled
+		// as narration whether or not the model marked it, because measured
+		// over long scenes it frequently does not.
 		{"rp narration", "*he smiles*", Roleplay, `<span alpha="66%"><i>he smiles</i></span>`},
 		{"rp underscore narration", "_he waits_", Roleplay, `<span alpha="66%"><i>he waits</i></span>`},
 		{"rp speech is weighted", `"hello"`, Roleplay, `"<span weight="600">hello</span>"`},
-		{"rp sound is untouched", "thud", Roleplay, "thud"},
+		// The point of the whole change: a reply that forgot its asterisks
+		// reads exactly like one that remembered.
+		{"rp unmarked narration is still narration", "He did not look up.", Roleplay,
+			`<span alpha="66%"><i>He did not look up.</i></span>`},
 		{"rp mixed line", `*She looked up.* "Fine."`, Roleplay,
 			`<span alpha="66%"><i>She looked up.</i></span> "<span weight="600">Fine.</span>"`},
+		{"rp unmarked mixed line", `She looked up. "Fine."`, Roleplay,
+			`<span alpha="66%"><i>She looked up.</i></span> "<span weight="600">Fine.</span>"`},
+		// The space between them stays outside both tags.
+		{"rp speech then narration", `"Sit." She did not.`, Roleplay,
+			`"<span weight="600">Sit.</span>" <span alpha="66%"><i>She did not.</i></span>`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

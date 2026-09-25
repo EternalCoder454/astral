@@ -103,36 +103,78 @@ func mdLine(line string, mode Prose) string {
 
 // mdInline applies the inline rules to already-escaped text.
 //
-// Order matters twice over. Code goes first so its contents are not re-marked,
-// then bold before italic — otherwise the single-asterisk rule eats half of a
-// **pair**.
-//
-// Quotes must then run BEFORE italic. The italic rule emits an alpha span, and
-// that attribute's value is itself wrapped in quote characters: a quote rule
-// running afterwards matches the `"66%"` inside a tag this function just
-// produced and rewrites the middle of it. That is not a hypothetical — it
-// shipped once, and the fix is this ordering.
+// Order matters: code goes first so its contents are not re-marked, then bold
+// before italic, or the single-asterisk rule eats half of a **pair**.
 func mdInline(s string, mode Prose) string {
+	if mode == Roleplay {
+		return mdRoleplay(s)
+	}
 	s = mdCode.ReplaceAllString(s, "<tt>$1</tt>")
 	s = mdBold.ReplaceAllString(s, "<b>$1</b>")
-	if mode == Roleplay {
-		// Speech carries the line: full strength and weighted.
-		s = mdQuote.ReplaceAllStringFunc(s, quoteSpan)
-		// Narration, action and thought step back behind it.
-		//
-		// How far back is the whole question. An earlier version put this at
-		// 92%, which reads beautifully in isolation and is nearly useless in
-		// practice: almost all of a roleplay reply is narration, so at that
-		// level a message is one undifferentiated block and the eye has
-		// nothing to catch on. 66% keeps it at 5.7:1 — comfortably legible —
-		// while leaving speech 1.9x brighter, which is what makes a scene
-		// skimmable.
-		s = mdItalic.ReplaceAllString(s, `<span alpha="66%"><i>$1</i></span>`)
-		s = mdUnder.ReplaceAllString(s, `<span alpha="66%"><i>$1</i></span>`)
-		return s
-	}
 	s = mdItalic.ReplaceAllString(s, "<i>$1</i>")
 	return s
+}
+
+// mdRoleplay renders one line of roleplay prose.
+//
+// It splits on quotation marks rather than on asterisks, which is the change
+// that makes the transcript stop depending on the model. In this genre
+// everything outside quotes is narration by definition, whether or not the
+// model remembered to wrap it in asterisks — and measured over twenty-turn
+// scenes it often does not: around seventy per cent of replies came back
+// carrying unmarked narration, however the prompt was worded, because the
+// recap and the lorebook in the context are themselves flat unmarked prose.
+//
+// Three attempts to fix that in the prompt did not measurably work. So the
+// renderer stopped asking. Speech is what sits inside quotes; everything else
+// is narration and is styled as narration, and a reply that forgot its
+// asterisks now reads exactly like one that remembered.
+//
+// It also retires a hazard rather than working around it. The previous version
+// ran regexps over its own output, which meant the quote rule could match the
+// `"66%"` inside an alpha tag the italic rule had just written and rewrite the
+// middle of it. That shipped once. A single pass over the source, splitting
+// before any tag exists, cannot do it at all.
+func mdRoleplay(s string) string {
+	var b strings.Builder
+	b.Grow(len(s) + 48)
+	last := 0
+	for _, loc := range mdQuote.FindAllStringIndex(s, -1) {
+		b.WriteString(mdNarration(s[last:loc[0]]))
+		b.WriteString(quoteSpan(s[loc[0]:loc[1]]))
+		last = loc[1]
+	}
+	b.WriteString(mdNarration(s[last:]))
+	return b.String()
+}
+
+// mdNarration styles a run of text that sits outside quotation marks.
+//
+// How far the colour steps back is the whole question. An earlier version put
+// it at 92%, which reads beautifully in isolation and is nearly useless in
+// practice: almost all of a roleplay reply is narration, so at that level a
+// message is one undifferentiated block and the eye has nothing to catch on.
+// 66% keeps it at 5.7:1, comfortably legible, while leaving speech 1.9x
+// brighter, which is what makes a scene skimmable.
+func mdNarration(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return s // whitespace between two quoted lines needs no tag
+	}
+	// The spaces on either side stay outside the tag. Italicising the gap
+	// between a piece of narration and the speech after it is invisible in
+	// most fonts and wrong in the ones where it is not.
+	lead := s[:len(s)-len(strings.TrimLeft(s, " \t"))]
+	trail := s[len(strings.TrimRight(s, " \t")):]
+	s = s[len(lead) : len(s)-len(trail)]
+
+	inner := mdCode.ReplaceAllString(s, "<tt>$1</tt>")
+	inner = mdBold.ReplaceAllString(inner, "<b>$1</b>")
+	// The asterisks were the author saying "this is narration", and all of
+	// this is narration, so the markers come out rather than nesting a second
+	// identical span inside the first.
+	inner = mdItalic.ReplaceAllString(inner, "$1")
+	inner = mdUnder.ReplaceAllString(inner, "$1")
+	return lead + `<span alpha="66%"><i>` + inner + `</i></span>` + trail
 }
 
 // quoteSpan re-emits a matched quotation with its quote characters intact and

@@ -449,11 +449,21 @@ func BuildMessages(c Character, sc Scene) []ollama.Message {
 	// The recap sits before the transcript, in the position the turns it
 	// replaces used to occupy, so the scene still reads in order. It changes
 	// only when a compaction runs, which is rare enough to belong here.
+	//
+	// It says outright that it is not an example of how to write, and so does
+	// the lore below, because both are thousands of characters of flat
+	// declarative prose with no asterisks in them and the model reads
+	// everything in its context as a model for what to produce. Measured over
+	// twenty-turn scenes, which are the only ones that have a recap at all,
+	// around seventy per cent of replies came back with unmarked narration;
+	// short scenes with no recap and little lore measured none.
 	if r := strings.TrimSpace(truncateTo(sc.Recap, budget.Recap)); r != "" {
 		msgs = append(msgs, ollama.Message{
 			Role: ollama.RoleSystem,
-			Content: "Earlier in this scene (a record of what happened before the messages below; " +
-				"treat all of it as established fact):\n" + Substitute(r, c.Name, userName),
+			Content: "Earlier in this scene. These are notes, not prose: they are written plainly " +
+				"on purpose and are not an example of how to write. Treat all of it as " +
+				"established fact, and do not copy the way it is written.\n" +
+				Substitute(r, c.Name, userName),
 		})
 	}
 
@@ -478,7 +488,9 @@ func BuildMessages(c Character, sc Scene) []ollama.Message {
 		msgs = append(msgs, ollama.Message{
 			Role: ollama.RoleSystem,
 			Content: "Reference for this world. These are established facts, true throughout, " +
-				"not something that has just been said:\n" + Substitute(lore, c.Name, userName),
+				"not something that has just been said. Like the record above they are " +
+				"notes rather than prose, and are not an example of how to write.\n" +
+				Substitute(lore, c.Name, userName),
 		})
 	}
 	if a := Anchor(c, sc, userName); a != "" {
