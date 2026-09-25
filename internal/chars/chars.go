@@ -41,7 +41,12 @@ type Character struct {
 	Notes        string
 	Version      string
 	Tags         []string
+	// AvatarPath is the small square shown beside every message and in lists.
+	// PortraitPath is the larger image shown alongside a scene. They are
+	// separate because the crops want different things: an avatar is a face at
+	// 28px, a portrait is the whole figure.
 	AvatarPath   string
+	PortraitPath string
 	Accent       int // index into the palette's secondary accents
 	CreatedAt    time.Time
 	UpdatedAt    time.Time

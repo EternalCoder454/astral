@@ -2,7 +2,10 @@ package ui
 
 import (
 	"context"
+	"encoding/base64"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -27,7 +30,8 @@ func (c *ChatView) onSendClicked() {
 // Send commits the composer's contents as a user turn and asks for a reply.
 func (c *ChatView) Send() {
 	text := strings.TrimSpace(c.composerText())
-	if text == "" || c.busy {
+	// An image on its own is a complete message: "look at this" needs no words.
+	if (text == "" && c.attachPath == "") || c.busy {
 		return
 	}
 	if c.activeModel() == "" {
@@ -37,6 +41,27 @@ func (c *ChatView) Send() {
 	if err := c.ensureChat(text); err != nil {
 		c.fail("Could not start this chat: " + err.Error())
 		return
+	}
+
+	// An attached image rides with this turn only. The base64 is not stored:
+	// it would be megabytes per message in the database, and what actually
+	// needs to survive is the model's description of the picture, which is in
+	// the reply.
+	if c.attachPath != "" {
+		data, err := os.ReadFile(c.attachPath)
+		if err != nil {
+			c.fail("Could not read that image: " + err.Error())
+		} else {
+			c.pendingImage = base64.StdEncoding.EncodeToString(data)
+			c.lastImage = c.attachPath
+			note := "[attached an image: " + filepath.Base(c.attachPath) + "]"
+			if text == "" {
+				text = note + " Describe what you see, in detail."
+			} else {
+				text = text + "\n\n" + note
+			}
+		}
+		c.AttachImage("")
 	}
 
 	row := c.appendRow(ollama.RoleUser, text, "", 0, time.Now())
@@ -188,6 +213,18 @@ func (c *ChatView) startStream() {
 	msgs := c.buildRequest()
 	if len(msgs) == 0 {
 		return
+	}
+
+	// The image goes on the most recent user turn, which is the one it was
+	// attached to.
+	if c.pendingImage != "" {
+		for i := len(msgs) - 1; i >= 0; i-- {
+			if msgs[i].Role == ollama.RoleUser {
+				msgs[i].Images = []string{c.pendingImage}
+				break
+			}
+		}
+		c.pendingImage = ""
 	}
 
 	c.live = c.appendRow(ollama.RoleAssistant, "", "", 0, time.Now())

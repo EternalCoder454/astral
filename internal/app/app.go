@@ -46,6 +46,11 @@ type App struct {
 	title   *adw.WindowTitle
 	sideBtn *gtk.ToggleButton
 
+	// The character portrait, on the far side of the chat.
+	portraitSplit *adw.OverlaySplitView
+	portraitBox   *gtk.Box
+	portraitBtn   *gtk.ToggleButton
+
 	sidebar    *ui.Sidebar
 	chat       *ui.ChatView
 	welcome    *gtk.Widget
@@ -193,7 +198,7 @@ func (a *App) onModelsChanged() {
 		a.chat.SetConfig(a.cfg)
 	}
 	if a.sidebar != nil {
-		a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.Model)
+		a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.PersonaDescription)
 	}
 	a.refreshWelcome()
 }
@@ -222,7 +227,7 @@ func (a *App) refreshSidebar() {
 	if a.chat != nil {
 		a.sidebar.Select(a.chat.Chat().ID)
 	}
-	a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.Model)
+	a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.PersonaDescription)
 }
 
 // restoreLastChat reopens whatever you were reading when you closed the app.
@@ -254,6 +259,8 @@ func (a *App) openChat(id int64) error {
 		return err
 	}
 	a.chat.LoadChat(ch, ca, msgs)
+	a.showPortraitFor(ca)
+	a.refreshAttachAvailability()
 	a.showChat()
 	a.sidebar.Select(id)
 	a.setTitle(ch, ca)
@@ -266,6 +273,7 @@ func (a *App) openChat(id int64) error {
 func (a *App) newChat(ca chars.Character) {
 	a.chat.Clear()
 	a.chat.LoadChat(store.Chat{Model: a.cfg.Model, CharacterID: ca.ID}, ca, nil)
+	a.showPortraitFor(ca)
 	if g := chars.Greeting(ca, a.persona()); g != "" {
 		a.chat.ShowGreeting(g)
 	}

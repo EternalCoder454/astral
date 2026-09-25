@@ -114,6 +114,43 @@ func (a *App) startPlainChat(kind, title, opening string) {
 	a.sidebar.Select(0)
 	a.setTitle(store.Chat{Title: title}, chars.Character{})
 	a.chat.FocusComposer()
+	a.refreshAttachAvailability()
+}
+
+// refreshAttachAvailability decides whether the attach control is offered.
+//
+// Only a character design chat, and only when the model can actually see: a
+// text-only model handed an image either ignores it, which looks like the
+// feature is broken, or rejects the whole request and loses the message with
+// it. Asking costs one small call and is done off the UI thread.
+func (a *App) refreshAttachAvailability() {
+	if a.chat == nil {
+		return
+	}
+	if a.chat.Chat().Kind != store.KindDesigner {
+		a.chat.SetCanAttachImages(false)
+		return
+	}
+	model := a.cfg.Model
+	if ch := a.chat.Chat(); ch.Model != "" {
+		model = ch.Model
+	}
+	if model == "" {
+		a.chat.SetCanAttachImages(false)
+		return
+	}
+	client := a.client
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer cancel()
+		can, err := client.CanSee(ctx, model)
+		coreglib.IdleAdd(func() bool {
+			if a.chat.Chat().Kind == store.KindDesigner {
+				a.chat.SetCanAttachImages(err == nil && can)
+			}
+			return false
+		})
+	}()
 }
 
 // buildCharacterFromChat turns the open design conversation into a character.
@@ -156,8 +193,15 @@ func (a *App) buildCharacterFromChat() {
 				return false
 			}
 			c.Accent = ui.AccentFor(c.Name)
+			// A picture used as reference during the design is almost
+			// certainly the picture of this character, so it is offered as the
+			// portrait. Still editable before saving.
+			if img := a.chat.LastImage(); img != "" {
+				c.PortraitPath = img
+				c.AvatarPath = img
+			}
 			// Opened for review, and on save it offers to play the scene it
-			// was just designed for — which is the whole point of having made
+			// was just designed for, which is the whole point of having made
 			// it.
 			a.editCharacterWith(c, func(saved chars.Character) {
 				a.confirmStartScene(saved)

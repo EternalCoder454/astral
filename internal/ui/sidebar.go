@@ -15,10 +15,11 @@ import (
 // Sidebar is the left panel: a new-chat button, the way through to the cast,
 // and the conversation list grouped by when you last touched it.
 type Sidebar struct {
-	widget   *gtk.Box
-	listBox  *gtk.Box
-	profile  *gtk.Button
-	charsBtn *gtk.Button
+	widget      *gtk.Box
+	listBox     *gtk.Box
+	profile     *gtk.Button
+	profileMenu *gtk.Popover
+	charsBtn    *gtk.Button
 
 	selected int64
 	rows     map[int64]*gtk.Button
@@ -35,6 +36,12 @@ type Sidebar struct {
 	OnOpenChat   func(id int64)
 	OnCharacters func()
 	OnSettings   func()
+	// OnPersona opens the persona editor from the profile menu.
+	OnPersona func()
+	// OnAbout opens the about dialog from the profile menu.
+	OnAbout func()
+	// OnStyles opens the writing styles list.
+	OnStyles     func()
 	OnRenameChat func(id int64)
 	OnDeleteChat func(id int64)
 }
@@ -76,14 +83,28 @@ func NewSidebar() *Sidebar {
 	scroll.SetVExpand(true)
 	s.widget.Append(scroll)
 
-	// Profile pill.
-	foot := gtk.NewBox(gtk.OrientationVertical, 0)
+	// Profile row: who you are on the left, settings on the right. They were
+	// one button, which meant the only way to reach settings was to click
+	// something labelled with your own name.
+	foot := gtk.NewBox(gtk.OrientationHorizontal, 4)
 	foot.AddCSSClass("sidebar-foot")
+
 	s.profile = gtk.NewButton()
 	s.profile.AddCSSClass("profile-pill")
-	s.profile.SetTooltipText("Settings (Ctrl+,)")
-	s.profile.ConnectClicked(func() { fire(s.OnSettings) })
+	s.profile.SetHExpand(true)
+	s.profile.SetTooltipText("Your persona")
+	s.profile.ConnectClicked(func() { s.profileMenu.Popup() })
 	foot.Append(s.profile)
+
+	s.profileMenu = s.buildProfileMenu()
+
+	gear := gtk.NewButtonFromIconName(IconSettings)
+	gear.AddCSSClass("profile-gear")
+	gear.SetTooltipText("Settings (Ctrl+,)")
+	gear.SetVAlign(gtk.AlignCenter)
+	gear.ConnectClicked(func() { fire(s.OnSettings) })
+	foot.Append(gear)
+
 	s.widget.Append(foot)
 	s.SetProfile("", "")
 
@@ -93,25 +114,62 @@ func NewSidebar() *Sidebar {
 // Widget returns the panel's root widget.
 func (s *Sidebar) Widget() gtk.Widgetter { return s.widget }
 
-// SetProfile fills the bottom pill with who you are playing as and which model
-// is loaded.
-func (s *Sidebar) SetProfile(name, model string) {
+// buildProfileMenu is the popover the profile pill opens. It is about you,
+// not about the app: the app's own settings are the gear beside it.
+func (s *Sidebar) buildProfileMenu() *gtk.Popover {
+	box := gtk.NewBox(gtk.OrientationVertical, 2)
+	box.SetMarginTop(4)
+	box.SetMarginBottom(4)
+	box.SetMarginStart(4)
+	box.SetMarginEnd(4)
+
+	add := func(icon, label string, fn func()) {
+		b := gtk.NewButton()
+		b.AddCSSClass("sidebar-item")
+		b.SetChild(rowContent(icon, label))
+		b.ConnectClicked(func() {
+			s.profileMenu.Popdown()
+			fire(fn)
+		})
+		box.Append(b)
+	}
+	add(IconEdit, "Edit your persona", func() { fire(s.OnPersona) })
+	add(IconDesigner, "Writing styles", func() { fire(s.OnStyles) })
+	add(IconInfo, "About Astral", func() { fire(s.OnAbout) })
+
+	pop := gtk.NewPopover()
+	pop.SetChild(box)
+	pop.SetParent(s.profile)
+	pop.SetPosition(gtk.PosTop)
+	pop.SetHasArrow(true)
+	return pop
+}
+
+// SetProfile fills the bottom pill with who you are playing as.
+//
+// The model used to be shown here too, which meant it was on screen twice:
+// once under your name, where it has nothing to do with you, and again on the
+// composer where it is actually actionable. This one is gone.
+func (s *Sidebar) SetProfile(name, subtitle string) {
 	if name == "" {
 		name = "You"
 	}
-	if model == "" {
-		model = "No model selected"
+	if subtitle == "" {
+		subtitle = "Set up your persona"
 	}
 	box := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	box.Append(NewUserAvatar(firstLetter(name), 26))
 	col := gtk.NewBox(gtk.OrientationVertical, 0)
 	col.SetVAlign(gtk.AlignCenter)
+	col.SetHExpand(true)
 	n := gtk.NewLabel(name)
 	n.SetXAlign(0)
+	n.SetEllipsize(3)
 	n.AddCSSClass("profile-name")
 	col.Append(n)
-	m := gtk.NewLabel(Snippet(model, 24))
+	m := gtk.NewLabel(Snippet(subtitle, 28))
 	m.SetXAlign(0)
+	m.SetEllipsize(3)
 	m.AddCSSClass("profile-sub")
 	col.Append(m)
 	box.Append(col)

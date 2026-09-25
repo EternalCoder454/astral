@@ -193,6 +193,22 @@ frame:focus-within {
 	background-color: @astral_surface;
 }
 
+.profile-gear {
+	min-width: 32px;
+	min-height: 32px;
+	padding: 0;
+	border-radius: 9px;
+	background: none;
+	border: none;
+	box-shadow: none;
+	color: @astral_faint;
+}
+
+.profile-gear:hover {
+	background-color: @astral_surface;
+	color: @sidebar_fg_color;
+}
+
 .profile-name {
 	font-size: 0.9em;
 	font-weight: 600;
@@ -215,6 +231,36 @@ frame:focus-within {
 .avatar.avatar-user {
 	border-radius: 9999px;
 	background-color: @accent_bg_color;
+}
+
+/* ---- Portrait panel ---- */
+
+.portrait-panel {
+	background-color: @sidebar_bg_color;
+	border-left: 1px solid alpha(@astral_border, 0.7);
+	padding: 16px 12px;
+}
+
+.portrait-image {
+	border-radius: 14px;
+}
+
+.portrait-name {
+	font-weight: 700;
+	font-size: 1.05em;
+	margin-top: 4px;
+}
+
+.portrait-desc {
+	font-size: 0.85em;
+	color: @astral_muted;
+}
+
+/* An avatar that is a real image rather than a letter. The rounding lives on
+   the wrapper because a GtkPicture paints its own contents and would draw
+   straight over a radius set on itself. */
+.avatar-image {
+	background-color: @astral_surface;
 }
 
 /* ---- Chat transcript ---- */
@@ -441,6 +487,21 @@ frame:focus-within {
 	font-size: 0.75em;
 	color: @astral_faint;
 	margin-top: 5px;
+}
+
+/* A reference image queued for the next message. */
+.attach-chip {
+	padding: 4px 6px 4px 12px;
+	border-radius: 9999px;
+	background-color: @astral_surface;
+	border: 1px solid @astral_border;
+	color: @astral_muted;
+	font-size: 0.82em;
+	margin-bottom: 8px;
+}
+
+.attach-chip .message-action {
+	opacity: 1;
 }
 
 /* Actions offered by the current kind of chat, just above the input. A pill

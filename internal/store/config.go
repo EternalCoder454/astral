@@ -48,10 +48,12 @@ type Config struct {
 	Theme    string `json:"theme"`
 	LastChat int64  `json:"last_chat"`
 
-	WindowWidth   int    `json:"window_width"`
-	WindowHeight  int    `json:"window_height"`
-	SidebarWidth  int    `json:"sidebar_width"`
-	SidebarOpen   bool   `json:"sidebar_open"`
+	WindowWidth  int  `json:"window_width"`
+	WindowHeight int  `json:"window_height"`
+	SidebarWidth int  `json:"sidebar_width"`
+	SidebarOpen  bool `json:"sidebar_open"`
+	// PortraitOpen remembers whether the character portrait panel was showing.
+	PortraitOpen  bool   `json:"portrait_open"`
 	FontRendering string `json:"font_rendering"`
 
 	// PersonaName / PersonaDescription are who the user plays as. Empty is
@@ -133,6 +135,7 @@ func DefaultConfig() Config {
 		WindowHeight:  780,
 		SidebarWidth:  270,
 		SidebarOpen:   true,
+		PortraitOpen:  true,
 		FontRendering: FontRenderingAuto,
 		KeepAlive:     "30m",
 		ActiveStyle:   chars.DefaultStyleName,

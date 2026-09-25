@@ -215,6 +215,18 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 		"A few traits, usually comma-separated — wry, guarded, quick to anger.",
 		persFrame))
 
+	// Two images, because the crops want different things: the avatar is a
+	// face at 28px beside every message, the portrait is the whole figure
+	// beside the scene.
+	idCard.Append(a.imageField("Avatar", "Shown beside every message and in lists. A face works best.",
+		c.Name+"-avatar",
+		func() string { return c.AvatarPath },
+		func(p string) { c.AvatarPath = p }))
+	idCard.Append(a.imageField("Portrait", "The larger image shown beside the scene while you play.",
+		c.Name+"-portrait",
+		func() string { return c.PortraitPath },
+		func(p string) { c.PortraitPath = p }))
+
 	f.tags = gtk.NewEntry()
 	f.tags.SetText(strings.Join(c.Tags, ", "))
 	f.tags.SetPlaceholderText("fantasy, detective, slow-burn")

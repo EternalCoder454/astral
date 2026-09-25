@@ -69,6 +69,8 @@ type MessageOpts struct {
 	// makes a long exchange look like a conversation rather than a list.
 	Grouped bool
 	When    time.Time
+	// Avatar, when set, is used in place of the letter tile.
+	Avatar gtk.Widgetter
 }
 
 // MessageRow is one turn in the transcript, laid out as a chat bubble: the
@@ -232,6 +234,10 @@ func (m *MessageRow) buildAvatar(o MessageOpts, fromUser bool) gtk.Widgetter {
 		spacer := gtk.NewBox(gtk.OrientationHorizontal, 0)
 		spacer.SetSizeRequest(avatarSize, 1)
 		return spacer
+	}
+	if o.Avatar != nil {
+		gtk.BaseWidget(o.Avatar).SetVAlign(gtk.AlignStart)
+		return o.Avatar
 	}
 	var avatar *gtk.Label
 	if fromUser {

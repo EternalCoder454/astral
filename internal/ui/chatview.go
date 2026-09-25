@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -97,6 +98,21 @@ type ChatView struct {
 
 	scrollPending bool
 
+	// attachPath is an image queued for the next message, and attachBtn is
+	// the control that queues it. Only a design chat offers this: a vision
+	// model reading a reference picture is how a description gets written
+	// from something you have rather than something you can describe.
+	attachPath string
+	attachBtn  *gtk.Button
+	attachChip *gtk.Box
+	attachName *gtk.Label
+	// lastImage is the most recent image sent in this chat, offered as the
+	// character's portrait when the card is built.
+	lastImage string
+	// pendingImage is the base64 of an attachment waiting to go out with the
+	// turn that is being assembled.
+	pendingImage string
+
 	// recap is the running record of everything compacted out of this chat's
 	// context, and recapUpto is the last message id it covers. Turns newer
 	// than that are still sent word-for-word.
@@ -124,6 +140,9 @@ type ChatView struct {
 	OnBuildCharacter func()
 	// OnBuildStyle is the same for a writing-style design chat.
 	OnBuildStyle func()
+	// OnAttachImage asks the app to choose an image. The app calls
+	// AttachImage with the result.
+	OnAttachImage func()
 }
 
 // NewChatView builds the centre panel.
@@ -174,6 +193,23 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 
 	// Actions offered by the current kind of chat, directly above the input
 	// where they are in the way of nothing and still impossible to miss.
+	// The queued attachment, shown above the input so it is impossible to send
+	// an image by accident or to forget one is waiting.
+	c.attachChip = gtk.NewBox(gtk.OrientationHorizontal, 6)
+	c.attachChip.AddCSSClass("attach-chip")
+	c.attachChip.SetHAlign(gtk.AlignCenter)
+	c.attachChip.SetVisible(false)
+	c.attachName = gtk.NewLabel("")
+	c.attachName.SetEllipsize(3)
+	c.attachChip.Append(gtk.NewImageFromIconName(IconFolder))
+	c.attachChip.Append(c.attachName)
+	drop := gtk.NewButtonFromIconName(IconTrash)
+	drop.AddCSSClass("message-action")
+	drop.SetTooltipText("Remove the attached image")
+	drop.ConnectClicked(func() { c.AttachImage("") })
+	c.attachChip.Append(drop)
+	wrap.Append(c.attachChip)
+
 	c.actionBar = gtk.NewBox(gtk.OrientationHorizontal, 6)
 	c.actionBar.AddCSSClass("chat-actions")
 	c.actionBar.SetHAlign(gtk.AlignCenter)
@@ -201,6 +237,17 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 
 	tools := gtk.NewBox(gtk.OrientationHorizontal, 6)
 	tools.AddCSSClass("composer-tools")
+
+	c.attachBtn = gtk.NewButtonFromIconName(IconFolder)
+	c.attachBtn.AddCSSClass("composer-model")
+	c.attachBtn.SetTooltipText("Attach a reference image for the model to look at")
+	c.attachBtn.SetVisible(false)
+	c.attachBtn.ConnectClicked(func() {
+		if c.OnAttachImage != nil {
+			c.OnAttachImage()
+		}
+	})
+	tools.Append(c.attachBtn)
 
 	c.modelBtn = gtk.NewButton()
 	c.modelBtn.AddCSSClass("composer-model")
@@ -401,7 +448,7 @@ func (c *ChatView) appendRow(role, text, thinking string, id int64, when time.Ti
 // above the transcript rather than appended to it.
 func (c *ChatView) newRow(role, text, thinking string, id int64, when time.Time, grouped bool) *MessageRow {
 	name, initial, accent := c.speaker(role)
-	row := NewMessageRow(MessageOpts{
+	opts := MessageOpts{
 		Role:        role,
 		DisplayName: name,
 		Initial:     initial,
@@ -409,7 +456,14 @@ func (c *ChatView) newRow(role, text, thinking string, id int64, when time.Time,
 		Mode:        c.mode,
 		Grouped:     grouped,
 		When:        when,
-	})
+	}
+	// A fresh widget per row: a GtkPicture cannot be parented twice, so the
+	// image is loaded again rather than shared. It is cheap, and GTK caches
+	// the decoded texture behind the filename.
+	if role != ollama.RoleUser && !grouped && c.char.AvatarPath != "" {
+		opts.Avatar = NewCharacterAvatar(c.char, avatarSize)
+	}
+	row := NewMessageRow(opts)
 	row.ID = id
 	row.SetMarkdown(text)
 	row.SetThinking(thinking)
@@ -652,4 +706,33 @@ func (c *ChatView) DevShowTyping() {
 	row := c.appendRow(ollama.RoleAssistant, "", "", 0, time.Now())
 	row.BeginStreaming(c.streamWidth())
 	c.scrollToBottom()
+}
+
+// AttachImage queues an image to go with the next message, or clears the queue
+// when path is empty.
+func (c *ChatView) AttachImage(path string) {
+	c.attachPath = path
+	if c.attachChip == nil {
+		return
+	}
+	if path == "" {
+		c.attachChip.SetVisible(false)
+		return
+	}
+	c.attachName.SetText(filepath.Base(path))
+	c.attachChip.SetVisible(true)
+}
+
+// LastImage is the most recent image sent in this chat, if any.
+func (c *ChatView) LastImage() string { return c.lastImage }
+
+// SetCanAttachImages shows or hides the attach control. The app decides, since
+// it is the one that knows whether the model can see.
+func (c *ChatView) SetCanAttachImages(can bool) {
+	if c.attachBtn != nil {
+		c.attachBtn.SetVisible(can)
+	}
+	if !can {
+		c.AttachImage("")
+	}
 }

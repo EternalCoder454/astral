@@ -131,6 +131,7 @@ CREATE TABLE IF NOT EXISTS characters (
 	version       TEXT    NOT NULL DEFAULT '',
 	tags          TEXT    NOT NULL DEFAULT '',
 	avatar_path   TEXT    NOT NULL DEFAULT '',
+	portrait_path TEXT    NOT NULL DEFAULT '',
 	accent        INTEGER NOT NULL DEFAULT 0,
 	created_at    INTEGER NOT NULL DEFAULT 0,
 	updated_at    INTEGER NOT NULL DEFAULT 0
@@ -182,6 +183,9 @@ func (s *Store) migrate() error {
 	// columns no longer exist. Both failures are the correct outcome, which is
 	// why both errors are ignored.
 	s.db.Exec(`ALTER TABLE characters ADD COLUMN instructions TEXT NOT NULL DEFAULT ''`)
+	// The larger image shown beside a scene, added after avatars.
+	s.db.Exec(`ALTER TABLE characters ADD COLUMN portrait_path TEXT NOT NULL DEFAULT ''`)
+
 	// The running recap of a long scene, and the last message it covers.
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN summary TEXT NOT NULL DEFAULT ''`)
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN summary_upto INTEGER NOT NULL DEFAULT 0`)

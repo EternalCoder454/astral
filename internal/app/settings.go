@@ -38,7 +38,11 @@ type settingsForm struct {
 // settings change what the model does mid-scene, and having a stray scroll
 // over a slider quietly alter the temperature of a conversation you are in the
 // middle of is not a trade worth making for one fewer click.
-func (a *App) showSettings() {
+func (a *App) showSettings() { a.showSettingsPage("") }
+
+// showSettingsPage opens settings on a particular page, so a menu entry can
+// land somewhere specific instead of wherever the dialog opens by default.
+func (a *App) showSettingsPage(page string) {
 	d := adw.NewDialog()
 	d.SetTitle("Settings")
 	d.SetContentWidth(660)
@@ -72,6 +76,10 @@ func (a *App) showSettings() {
 		d.Close()
 	})
 	header.PackEnd(save)
+
+	if page != "" {
+		stack.SetVisibleChildName(page)
+	}
 
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(header)
@@ -256,7 +264,7 @@ func (a *App) applySettings(f *settingsForm) {
 		a.chat.SetConfig(a.cfg)
 	}
 	if a.sidebar != nil {
-		a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.Model)
+		a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.PersonaDescription)
 	}
 	a.probeModels()
 }
@@ -314,7 +322,7 @@ func (a *App) showModelPicker() {
 		}
 		a.chat.SetModel(picked)
 		a.chat.SetConfig(a.cfg)
-		a.sidebar.SetProfile(a.cfg.PersonaName, picked)
+		a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.PersonaDescription)
 		a.refreshWelcome()
 	})
 	d.Present(a.win)

@@ -49,6 +49,10 @@ const (
 type Message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+	// Images are base64-encoded, one per attachment, and only meaningful on a
+	// user turn sent to a model with the vision capability. Ollama takes the
+	// raw base64 without a data: prefix.
+	Images []string `json:"images,omitempty"`
 	// Thinking carries a reasoning model's scratchpad. It is sent back on
 	// subsequent turns only when the model asked for it; for most models it is
 	// empty and omitted.
@@ -420,6 +424,60 @@ func (c *Client) Models(ctx context.Context) ([]Model, error) {
 		})
 	}
 	return out, nil
+}
+
+type showResponse struct {
+	Capabilities []string `json:"capabilities"`
+	Details      struct {
+		Family   string   `json:"family"`
+		Families []string `json:"families"`
+	} `json:"details"`
+}
+
+// CanSee reports whether a model accepts images.
+//
+// Asking beforehand is worth a round trip: a text-only model handed an image
+// either ignores it silently, which looks like the feature is broken, or
+// rejects the whole request, which loses the message with it.
+func (c *Client) CanSee(ctx context.Context, model string) (bool, error) {
+	if model == "" {
+		return false, fmt.Errorf("no model selected")
+	}
+	body, err := json.Marshal(map[string]string{"model": model})
+	if err != nil {
+		return false, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/api/show", bytes.NewReader(body))
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("cannot reach Ollama at %s: %w", c.BaseURL, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("ollama returned %s", resp.Status)
+	}
+	var sr showResponse
+	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
+		return false, err
+	}
+	for _, cap := range sr.Capabilities {
+		if strings.EqualFold(cap, "vision") {
+			return true, nil
+		}
+	}
+	// Older Ollama builds predate the capabilities list and only name the
+	// families. A vision model carries a projector family alongside its own.
+	for _, f := range append(sr.Details.Families, sr.Details.Family) {
+		switch strings.ToLower(f) {
+		case "clip", "mllama", "qwen2vl", "gemma3", "llava":
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // Probe reports whether the server is reachable and which models it has. It is

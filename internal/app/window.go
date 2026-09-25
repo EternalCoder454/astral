@@ -38,6 +38,17 @@ func (a *App) buildWindow() {
 	// OverlaySplitView rather than a Paned: the sidebar is a fixed-width
 	// navigation column that collapses, not a pane you drag — and on a narrow
 	// window it slides over the chat instead of squeezing it.
+	// The portrait sits on the far side of the chat, inside the main split so
+	// hiding the navigation does not take it with it.
+	a.portraitSplit = adw.NewOverlaySplitView()
+	a.portraitSplit.SetSidebarPosition(gtk.PackEnd)
+	a.portraitSplit.SetSidebar(a.buildPortraitPanel())
+	a.portraitSplit.SetContent(a.stack)
+	a.portraitSplit.SetSidebarWidthFraction(0.22)
+	a.portraitSplit.SetMaxSidebarWidth(320)
+	a.portraitSplit.SetMinSidebarWidth(180)
+	a.portraitSplit.SetShowSidebar(false)
+
 	a.split = adw.NewOverlaySplitView()
 	a.split.SetSidebar(a.sidebar.Widget())
 	a.split.SetContent(a.buildContent())
@@ -88,6 +99,18 @@ func (a *App) buildContent() *adw.ToolbarView {
 	newBtn.ConnectClicked(a.actionNewChat)
 	header.PackStart(newBtn)
 
+	a.portraitBtn = gtk.NewToggleButton()
+	a.portraitBtn.SetIconName(ui.IconCharacters)
+	a.portraitBtn.SetTooltipText("Show or hide the character portrait")
+	a.portraitBtn.AddCSSClass("flat")
+	a.portraitBtn.SetVisible(false)
+	a.portraitBtn.ConnectToggled(func() {
+		open := a.portraitBtn.Active()
+		a.portraitSplit.SetShowSidebar(open)
+		a.cfg.PortraitOpen = open
+	})
+	header.PackEnd(a.portraitBtn)
+
 	menuBtn := gtk.NewMenuButton()
 	menuBtn.SetIconName(ui.IconMenu)
 	menuBtn.SetTooltipText("Main menu")
@@ -98,7 +121,7 @@ func (a *App) buildContent() *adw.ToolbarView {
 
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(header)
-	tv.SetContent(a.stack)
+	tv.SetContent(a.portraitSplit)
 	return tv
 }
 
@@ -108,6 +131,9 @@ func (a *App) buildSidebar() {
 	a.sidebar.OnNewChat = a.actionNewChat
 	a.sidebar.OnCharacters = a.showCharacters
 	a.sidebar.OnSettings = a.showSettings
+	a.sidebar.OnPersona = func() { a.showSettingsPage("persona") }
+	a.sidebar.OnStyles = a.showStyles
+	a.sidebar.OnAbout = a.showAbout
 	a.sidebar.OnOpenChat = func(id int64) {
 		if err := a.openChat(id); err != nil {
 			a.toast("Could not open that chat: " + err.Error())
@@ -123,6 +149,11 @@ func (a *App) buildCenter() {
 	a.chat.OnPickModel = a.showModelPicker
 	a.chat.OnBuildCharacter = a.buildCharacterFromChat
 	a.chat.OnBuildStyle = a.buildStyleFromChat
+	a.chat.OnAttachImage = func() {
+		a.pickImage("Attach a reference image", "reference", func(path string) {
+			a.chat.AttachImage(path)
+		})
+	}
 
 	a.stack = gtk.NewStack()
 	a.stack.SetTransitionType(gtk.StackTransitionTypeCrossfade)

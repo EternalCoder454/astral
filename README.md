@@ -15,6 +15,12 @@ or describe what you want and let the model interview you and write the card
 for you. A character carries a description, a personality, the scenario a scene
 opens in, and an opening message.
 
+**Pictures.** A character can have two images: a small avatar shown beside
+every message, and a larger portrait displayed beside the scene while you play.
+If the model you are using can see images, you can also attach a reference
+picture while designing a character and have it write the description from
+what is actually in the image.
+
 **Scenes.** Pick a character and start playing. Astral keeps the transcript,
 remembers which model a scene was started with, and reopens where you left off.
 
@@ -110,6 +116,10 @@ Then open Astral and press **New chat**. You will be offered four ways in:
 * **Play a scene.** Pick someone from your cast.
 * **Just chat.** A plain conversation with the model, no character.
 * **Import a character card.** Load a `.png` or `.json` card you already have.
+
+While designing a character, a paperclip appears next to the model name if the
+model supports vision. Attach a picture and the model will describe what it
+sees. That image is offered as the character's portrait when the card is built.
 
 Tell Astral who you are under **Settings, You**. Characters address you by that
 name, and it is what `{{user}}` expands to.
