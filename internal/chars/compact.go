@@ -41,7 +41,7 @@ const (
 // continues it, which is not what it is for.
 const compactSystem = `You maintain a running record of a roleplay scene, so the story can continue after older messages are dropped from the model's memory.
 
-Write a factual record, not prose. No scene-setting, no dialogue, no style — this is notes, and it will be read by a model that needs to know what is true.
+Write a factual record, not prose. No scene-setting, no dialogue, no style. This is notes, and it will be read by a model that needs to know what is true.
 
 Preserve, in this order of importance:
 - Names, and who anyone is to anyone else.

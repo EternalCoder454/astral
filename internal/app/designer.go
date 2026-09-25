@@ -73,7 +73,7 @@ func (a *App) showNewChat() {
 		a.newAssistantChat)
 
 	add("Design a writing style",
-		"Change how the prose sounds — sparse, overwritten, screenplay-terse. The model interviews you the same way.",
+		"Change how the prose sounds, sparse, overwritten, screenplay-terse. The model interviews you the same way.",
 		a.newStyleDesignerChat)
 
 	add("Import a character card",
@@ -161,7 +161,7 @@ func (a *App) refreshAttachAvailability() {
 func (a *App) buildCharacterFromChat() {
 	history := a.chat.History()
 	if len(history) < 2 {
-		a.toast("Talk it through a little first — then I can build the character.")
+		a.toast("Talk it through a little first, then I can build the character.")
 		return
 	}
 	model := a.cfg.Model

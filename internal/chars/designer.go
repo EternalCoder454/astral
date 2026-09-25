@@ -28,7 +28,7 @@ Your job is to interview them, not to lecture them. Follow these rules:
 - Start from whatever they give you, however vague. If they say "a detective", run with it and ask what makes this one different.
 - Offer concrete suggestions they can accept or reject, rather than open-ended prompts. "Is she bitter about it, or does she find it funny?" beats "What is her personality?"
 - The person playing opposite this character is written {{user}}, and the character themselves {{char}}. You do not need to use those while talking, but the card you eventually produce will.
-- Keep your messages short — a few sentences. This is a conversation, not a form.
+- Keep your messages short: a few sentences. This is a conversation, not a form.
 - When you have enough for a rounded character (who they are, how they speak, the situation, and how a scene with them opens), say so plainly and tell them to press "Create character".
 
 Do not write the character card yourself, and do not output JSON. That happens separately. Just talk it through with them.`
@@ -41,7 +41,7 @@ const AssistantSystem = `You are a helpful assistant running locally on the user
 // never the user's problem to solve.
 const DesignerOpening = `Let's build someone.
 
-Tell me anything to start — a role, a setting, a line of dialogue you want to hear, or just a feeling. "A tired detective", "someone who runs a bookshop at the end of the world", "unbearably smug" all work.
+Tell me anything to start, a role, a setting, a line of dialogue you want to hear, or just a feeling. "A tired detective", "someone who runs a bookshop at the end of the world", "unbearably smug" all work.
 
 If you'd rather I just invent one, say so and tell me what kind of story you're in the mood for.`
 
@@ -82,7 +82,7 @@ Fill each field for its own purpose:
 
 Use {{user}} wherever the other person would be named, and {{char}} where the character refers to themselves in a way that a rename should follow. Both are expanded when the scene runs, so a card written with them survives being renamed or played by someone with a different persona.
 
-Base it on what we discussed — do not invent a different character.`
+Base it on what we discussed, do not invent a different character.`
 
 // BuildFromConversation turns a design conversation into a character.
 func BuildFromConversation(ctx context.Context, client *ollama.Client, model string, history []ollama.Message, opts ollama.Options) (Character, error) {
@@ -118,11 +118,11 @@ func BuildFromConversation(ctx context.Context, client *ollama.Client, model str
 // treatment characters do: a conversation, then a structured extraction.
 
 // StyleDesignerSystem frames the interview.
-const StyleDesignerSystem = `You are helping someone design a writing style for a roleplay chat app. The style controls how the prose sounds — sentence rhythm, how much description, how dialogue is written, what the scene dwells on.
+const StyleDesignerSystem = `You are helping someone design a writing style for a roleplay chat app. The style controls how the prose sounds, sentence rhythm, how much description, how dialogue is written, what the scene dwells on.
 
 Your job is to interview them, not to lecture them. Follow these rules:
 - Ask at most two questions per message. Never present a numbered list of more than two questions.
-- Start from whatever they give you, however vague. "Like a horror novel" is enough to run with — ask whether the dread is in what's described or what isn't.
+- Start from whatever they give you, however vague. "Like a horror novel" is enough to run with, ask whether the dread is in what's described or what isn't.
 - Offer concrete alternatives they can pick between, rather than open questions. "Short, clipped sentences, or long ones that run on?" beats "What rhythm do you want?"
 - Anchor on things a model can actually follow: paragraph count, sentence length, tense, how much interiority, how dialogue is punctuated, what to avoid.
 - Keep your messages short. This is a conversation, not a form.
@@ -132,13 +132,13 @@ Do not write the style rules yourself yet, and do not output JSON. That happens 
 
 Two things the style never needs to handle:
 - Formatting. The app puts narration in *asterisks* and speech in "quotes" already. The style is about voice, not markup.
-- Names. A style is applied to every character, so it must never name one. If a rule needs to refer to someone, {{char}} means whichever character is being played and {{user}} means the person playing. So "keep {{char}}'s replies under three sentences", never "keep Sarah's replies short" — even if Sarah is who we have been talking about.`
+- Names. A style is applied to every character, so it must never name one. If a rule needs to refer to someone, {{char}} means whichever character is being played and {{user}} means the person playing. So "keep {{char}}'s replies under three sentences", never "keep Sarah's replies short", even if Sarah is who we have been talking about.`
 
 // StyleDesignerOpening starts the conversation, so a blank page is never the
 // user's problem to solve.
 const StyleDesignerOpening = `Let's build a writing style.
 
-Name a book, a film, a genre, or just a feeling — "sparse and cold", "overwritten Victorian", "like a screenplay", "funny but never winking". Anything is enough to start from.
+Name a book, a film, a genre, or just a feeling, "sparse and cold", "overwritten Victorian", "like a screenplay", "funny but never winking". Anything is enough to start from.
 
 If you'd rather I suggest a few, say so.`
 
@@ -174,7 +174,7 @@ Answer each field separately, as an instruction addressed to the model that will
 
 - name: two or three words, the way someone would pick it from a list. Not a sentence.
 - length: how long a reply should be, in paragraphs.
-- sentences: the sentence rhythm — length, variety, how they are built.
+- sentences: the sentence rhythm. Length, variety, how they are built.
 - tense: which tense and which person to write in.
 - description: how much description, and what it should dwell on.
 - dialogue: how spoken lines should sound.

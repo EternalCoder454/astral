@@ -214,7 +214,7 @@ func (a *App) setTitle(ch store.Chat, ca chars.Character) {
 		return
 	}
 	if t := a.title.Title(); t != "" && t != "Astral" {
-		a.win.SetTitle(t + " — Astral")
+		a.win.SetTitle(t + " · Astral")
 	} else {
 		a.win.SetTitle("Astral")
 	}

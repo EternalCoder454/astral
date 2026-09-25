@@ -105,7 +105,13 @@ func (a *App) styleRow(st chars.WritingStyle, active bool, parent *adw.Dialog) *
 	row.Append(use)
 
 	// The default is the fallback every character relies on, so it has no edit
-	// or delete. Everything else does.
+	// or delete. It still reserves their width, or its card would stretch
+	// wider than the rest and leave the column ragged.
+	if style.Name == chars.DefaultStyleName {
+		spacer := gtk.NewBox(gtk.OrientationVertical, 0)
+		spacer.SetSizeRequest(34, 1)
+		row.Append(spacer)
+	}
 	if style.Name != chars.DefaultStyleName {
 		side := gtk.NewBox(gtk.OrientationVertical, 4)
 		side.SetVAlign(gtk.AlignCenter)
@@ -174,7 +180,7 @@ func (a *App) editStyle(st chars.WritingStyle, isNew bool) {
 	}
 	frame, view := multilineField(body, 10)
 	card.Append(labelledField("How the prose should sound",
-		"One instruction per line, in the imperative — sentence length, paragraph count, tense, how much interiority, what to avoid.\n\n"+
+		"One instruction per line, in the imperative, sentence length, paragraph count, tense, how much interiority, what to avoid.\n\n"+
 			"Write {{char}} for whichever character is being played and {{user}} for you; a style applies to everyone, so it should not name anyone.\n\n"+
 			"Do not mention asterisks or quotes: Astral handles formatting, and repeating it here only competes with it.",
 		frame))
@@ -196,7 +202,7 @@ func (a *App) editStyle(st chars.WritingStyle, isNew bool) {
 			nameEntry.GrabFocus()
 			return
 		case name == chars.DefaultStyleName:
-			a.toast("“Default” is the built-in style — pick another name.")
+			a.toast("“Default” is the built-in style, pick another name.")
 			nameEntry.GrabFocus()
 			return
 		case strings.TrimSpace(textOf(view)) == "":
@@ -236,7 +242,7 @@ func (a *App) newStyleDesignerChat() {
 func (a *App) buildStyleFromChat() {
 	history := a.chat.History()
 	if len(history) < 2 {
-		a.toast("Talk it through a little first — then I can build the style.")
+		a.toast("Talk it through a little first, then I can build the style.")
 		return
 	}
 	model := a.cfg.Model

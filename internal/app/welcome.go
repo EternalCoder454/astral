@@ -181,21 +181,28 @@ func (a *App) buildEmptyCast() *gtk.Box {
 	t.AddCSSClass("setup-title")
 	card.Append(t)
 
-	b := gtk.NewLabel("Import a character card — the .png or .json files used by SillyTavern all work — or write one from scratch.")
+	b := gtk.NewLabel("Let the model build one with you: describe what you want and it asks the rest. " +
+		"You can also import a character card you already have, or write one yourself.")
 	b.SetXAlign(0)
 	b.SetWrap(true)
 	b.AddCSSClass("setup-body")
 	card.Append(b)
 
+	// The designer is the prominent offer. Facing eight empty text boxes is
+	// where most people give up, and being asked "who are they?" is a far
+	// easier way in.
 	row := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	row.SetHAlign(gtk.AlignStart)
+	design := gtk.NewButtonWithLabel("Design one with the model")
+	design.AddCSSClass("suggested-action")
+	design.ConnectClicked(a.newDesignerChat)
+	row.Append(design)
 	imp := gtk.NewButtonWithLabel("Import a card…")
 	imp.ConnectClicked(a.actionImportCharacter)
 	row.Append(imp)
-	create := gtk.NewButtonWithLabel("Create a character")
-	create.AddCSSClass("suggested-action")
-	create.ConnectClicked(func() { a.editCharacter(chars.Character{}) })
-	row.Append(create)
+	write := gtk.NewButtonWithLabel("Write one")
+	write.ConnectClicked(func() { a.editCharacter(chars.Character{}) })
+	row.Append(write)
 	card.Append(row)
 	return outer
 }
@@ -257,7 +264,7 @@ func (a *App) buildSetupCard() *gtk.Box {
 		cmd = "ollama serve"
 	case len(a.models) == 0:
 		title.SetText("No models installed")
-		body.SetText("Ollama is running but has nothing to run. Pull a model to get started — this one is a good balance of quality and size for roleplay.")
+		body.SetText("Ollama is running but has nothing to run. Pull a model to get started, this one is a good balance of quality and size for roleplay.")
 		cmd = "ollama pull qwen3:8b"
 	case a.cfg.Model != "" && !ollama.HasModel(a.models, a.cfg.Model):
 		// Configured, but no longer there. Naming it matters: the difference
@@ -288,7 +295,7 @@ func (a *App) buildSetupCard() *gtk.Box {
 		copyBtn.ConnectClicked(func() {
 			if d := gtk.BaseWidget(a.win).Display(); d != nil {
 				d.Clipboard().SetText(cmd)
-				a.toast("Copied — paste it into a terminal.")
+				a.toast("Copied, paste it into a terminal.")
 			}
 		})
 		row.Append(copyBtn)

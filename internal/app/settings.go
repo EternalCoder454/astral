@@ -100,7 +100,7 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	f.model.SetSelected(uint(indexOf(f.models, a.cfg.Model)))
 	hint := "Every model Ollama has on this machine."
 	if len(f.models) == 0 {
-		hint = "Nothing installed yet — run `ollama pull qwen3:8b`, then reopen this."
+		hint = "Nothing installed yet. Run `ollama pull qwen3:8b`, then reopen this."
 	}
 	card.Append(labelledField("Default model", hint, f.model))
 
@@ -133,7 +133,7 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 
 	f.repeat = newSlider(1, 1.5, 0.01, a.cfg.RepeatPenalty)
 	sCard.Append(labelledField("Repetition penalty",
-		"Pushes back when a model starts reusing the same phrases — a common failure in long scenes.",
+		"Pushes back when a model starts reusing the same phrases, a common failure in long scenes.",
 		f.repeat))
 
 	f.numCtx = gtk.NewEntry()
@@ -145,7 +145,7 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	f.keepAlive = gtk.NewEntry()
 	f.keepAlive.SetText(a.cfg.KeepAlive)
 	sCard.Append(labelledField("Keep the model loaded for",
-		"How long Ollama holds the model in memory after a reply — \"30m\", \"2h\", or \"-1\" to never unload. Ollama's own default of five minutes means a thinking pause costs you a full model reload on the next message.",
+		"How long Ollama holds the model in memory after a reply, \"30m\", \"2h\", or \"-1\" to never unload. Ollama's own default of five minutes means a thinking pause costs you a full model reload on the next message.",
 		f.keepAlive))
 
 	f.think = gtk.NewCheckButton()
@@ -171,7 +171,7 @@ func (a *App) buildPersonaPage(f *settingsForm) *gtk.Box {
 	frame, view := multilineField(a.cfg.PersonaDescription, 5)
 	f.personaDesc = view
 	card.Append(labelledField("About you",
-		"Optional. Who you are in the scene — appearance, role, anything the character should already know. Left empty, the model will invent it as it goes.\n\n"+
+		"Optional. Who you are in the scene, appearance, role, anything the character should already know. Left empty, the model will invent it as it goes.\n\n"+
 			"{{user}} becomes your name and {{char}} becomes whichever character you are playing with.",
 		frame))
 	page.Append(outer)
@@ -193,7 +193,7 @@ func (a *App) buildPersonaPage(f *settingsForm) *gtk.Box {
 	giFrame, giView := multilineField(a.cfg.GlobalInstructions, 5)
 	f.globalInstrs = giView
 	insCard.Append(labelledField("Always apply these",
-		"Rules that hold for every scene, whoever you are playing with — \"keep replies under three paragraphs\", \"never fade to black\", \"British spelling\".\n\n"+
+		"Rules that hold for every scene, whoever you are playing with, \"keep replies under three paragraphs\", \"never fade to black\", \"British spelling\".\n\n"+
 			"Write {{char}} and {{user}} rather than names: these apply to every character.\n\n"+
 			"A character's own instructions are applied after these, so a specific one wins where the two disagree. One instruction per line works best.",
 		giFrame))

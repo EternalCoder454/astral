@@ -36,7 +36,7 @@ func (c *ChatView) Send() {
 		return
 	}
 	if c.activeModel() == "" {
-		c.fail("Choose a model first — click the model name under the message box.")
+		c.fail("Choose a model first, click the model name under the message box.")
 		return
 	}
 	if err := c.ensureChat(text); err != nil {

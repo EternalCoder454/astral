@@ -212,7 +212,7 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	persFrame, persView := multilineField(c.Personality, 2)
 	f.personality = persView
 	idCard.Append(labelledField("Personality",
-		"A few traits, usually comma-separated — wry, guarded, quick to anger.",
+		"A few traits, usually comma-separated, wry, guarded, quick to anger.",
 		persFrame))
 
 	// Two images, because the crops want different things: the avatar is a
@@ -274,7 +274,7 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	exFrame, exView := multilineField(c.MesExample, 4)
 	f.mesExample = exView
 	sceneCard.Append(labelledField("Example dialogue",
-		"Optional. Use <START> between exchanges, and prefix lines with {{user}}: and {{char}}: — Astral turns these into real example turns.",
+		"Optional. Use <START> between exchanges, and prefix lines with {{user}}: and {{char}}:, Astral turns these into real example turns.",
 		exFrame))
 	page.Append(sceneOuter)
 
@@ -283,7 +283,7 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	insFrame, insView := multilineField(c.Instructions, 5)
 	f.instructions = insView
 	insCard.Append(labelledField("How this character should be played",
-		"Your own rules for them — \"keep replies to one paragraph\", \"never break the fourth wall\", \"{{char}} always lies about her past\".\n\n"+
+		"Your own rules for them, \"keep replies to one paragraph\", \"never break the fourth wall\", \"{{char}} always lies about her past\".\n\n"+
 			"These are added to Astral's roleplay framing rather than replacing it, and they are repeated at the end of the context on every turn, which is the position a model actually obeys. One instruction per line works best.",
 		insFrame))
 	page.Append(insOuter)

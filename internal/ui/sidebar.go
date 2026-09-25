@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
@@ -154,9 +155,7 @@ func (s *Sidebar) SetProfile(name, subtitle string) {
 	if name == "" {
 		name = "You"
 	}
-	if subtitle == "" {
-		subtitle = "Set up your persona"
-	}
+
 	box := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	box.Append(NewUserAvatar(firstLetter(name), 26))
 	col := gtk.NewBox(gtk.OrientationVertical, 0)
@@ -167,11 +166,19 @@ func (s *Sidebar) SetProfile(name, subtitle string) {
 	n.SetEllipsize(3)
 	n.AddCSSClass("profile-name")
 	col.Append(n)
-	m := gtk.NewLabel(Snippet(subtitle, 28))
-	m.SetXAlign(0)
-	m.SetEllipsize(3)
-	m.AddCSSClass("profile-sub")
-	col.Append(m)
+	// A subtitle only when there is something worth saying. The persona
+	// description was shown here, which meant the pill read "Name: Christian
+	// Appeara..." — the first few words of a prose field, truncated mid-word.
+	// A prompt to set one up is useful; a fragment of one is not.
+	if strings.TrimSpace(subtitle) == "" {
+		m := gtk.NewLabel("Set up your persona")
+		m.SetXAlign(0)
+		m.SetEllipsize(3)
+		m.AddCSSClass("profile-sub")
+		col.Append(m)
+	} else {
+		n.SetVAlign(gtk.AlignCenter)
+	}
 	box.Append(col)
 	s.profile.SetChild(box)
 }
@@ -312,7 +319,7 @@ func (s *Sidebar) chatRow(ch store.Chat) *gtk.Button {
 
 	tip := title
 	if ch.CharacterName != "" {
-		tip = fmt.Sprintf("%s — with %s", title, ch.CharacterName)
+		tip = fmt.Sprintf("%s, with %s", title, ch.CharacterName)
 	}
 	btn.SetTooltipText(tip)
 

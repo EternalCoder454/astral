@@ -20,7 +20,7 @@ import (
 type Character struct {
 	ID          int64
 	Name        string
-	Description string // who they are, appearance, voice — sent every turn
+	Description string // who they are, appearance, voice, sent every turn
 	Personality string // traits, usually comma-separated
 	Scenario    string // the situation the roleplay opens in
 	FirstMes    string // the opening message, in the character's voice
@@ -146,10 +146,10 @@ func Substitute(s, charName, userName string) string {
 const framingStructure = `You are roleplaying as %s. Stay in character at all times.
 
 WHAT TO WRITE
-Write %s's words and actions only. Never write, decide, or narrate %s's words, thoughts, or actions — wait for them.
+Write %s's words and actions only. Never write, decide, or narrate %s's words, thoughts, or actions, wait for them.
 Do not summarize the scene, do not skip ahead in time, and do not end the scene on your own.
 
-FORMATTING — this matters, follow it exactly:
+FORMATTING. Follow this exactly:
 - Put everything internal in *single asterisks*: narration, actions, body language, sensory detail, and the character's own thoughts.
 - Write spoken words and sounds plainly, in "double quotes", with no asterisks around them.
 - Example: *She set the cup down harder than she meant to, and hated that he noticed.* "It's fine."`
@@ -167,7 +167,7 @@ const DefaultStyleName = "Default"
 const defaultStyleInstructions = `Length: Two to four paragraphs.
 Sentences: Vary the rhythm. Let a short sentence land after a long one rather than running everything at the same length.
 Tense and person: Third person, past tense.
-Description: Be specific and physical. Concrete detail — what something weighs, smells like, sounds like — beats adjectives. Show the character's state through what they do, not by naming the emotion.
+Description: Be specific and physical. Concrete detail (what something weighs, smells like, sounds like) beats adjectives. Show the character's state through what they do, not by naming the emotion.
 Dialogue: Write it like a person actually talking. Real speech is shorter than written prose: it contracts, trails off, interrupts itself, and leaves things unsaid. Nobody delivers a monologue in conversation.
 Avoid: Lines that sound like a novel's narration rather than speech. Naming an emotion instead of showing it. Filling a reply with description when something should happen.`
 

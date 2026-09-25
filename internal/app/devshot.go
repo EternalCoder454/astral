@@ -209,7 +209,7 @@ func (a *App) devLoad(n int) {
 	build := time.Since(buildStart)
 
 	a.showChat()
-	log.Printf("astral: load: %d messages — read %v, build %v, total %v",
+	log.Printf("astral: load: %d messages, read %v, build %v, total %v",
 		n, read.Round(time.Microsecond), build.Round(time.Millisecond),
 		(read + build).Round(time.Millisecond))
 
@@ -300,9 +300,9 @@ func (a *App) devMeasure() {
 			log.Printf("astral: measure:   bubble %d = %dpx%s", i, b, flag)
 		}
 		if overflow == 0 {
-			log.Printf("astral: measure: OK — every bubble fits inside the view")
+			log.Printf("astral: measure: OK, every bubble fits inside the view")
 		} else {
-			log.Printf("astral: measure: FAIL — %d bubble(s) wider than the view", overflow)
+			log.Printf("astral: measure: FAIL, %d bubble(s) wider than the view", overflow)
 		}
 		return false
 	})
@@ -319,9 +319,9 @@ func (a *App) devDemoScene() {
 	}
 	a.chat.Clear()
 	a.chat.LoadChat(store.Chat{Model: a.cfg.Model, CharacterID: 0}, c, []store.Message{
-		{Role: ollama.RoleAssistant, Content: "*The map room smells of cold iron and older paper.* Vesper does not look up as you enter — she is busy pinning a coastline that will not exist for another two hundred years.\n\n\"You're late,\" *she says, without accusation.* \"The tide came in early. It does that, when someone's been reading ahead.\""},
+		{Role: ollama.RoleAssistant, Content: "*The map room smells of cold iron and older paper.* Vesper does not look up as you enter, she is busy pinning a coastline that will not exist for another two hundred years.\n\n\"You're late,\" *she says, without accusation.* \"The tide came in early. It does that, when someone's been reading ahead.\""},
 		{Role: ollama.RoleUser, Content: "I set the lantern down on the edge of the table. \"You said the coastline was settled.\""},
-		{Role: ollama.RoleAssistant, Content: "*She finally turns, and there is chalk dust on her knuckles.*\n\n\"I said it was **drawn**. Those aren't the same thing, and you knew that when you asked.\" *A pin goes into the table rather than the map — a small, deliberate violence.* \"Something is redrawing it from the other end. I'd like to know what, before it reaches the part we're standing on.\""},
+		{Role: ollama.RoleAssistant, Content: "*She finally turns, and there is chalk dust on her knuckles.*\n\n\"I said it was **drawn**. Those aren't the same thing, and you knew that when you asked.\" *A pin goes into the table rather than the map, a small, deliberate violence.* \"Something is redrawing it from the other end. I'd like to know what, before it reaches the part we're standing on.\""},
 	})
 	a.showChat()
 	a.setTitle(store.Chat{Title: "The tide came in early"}, c)

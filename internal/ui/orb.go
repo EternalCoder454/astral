@@ -47,20 +47,20 @@ func (o *Orb) draw(_ *gtk.DrawingArea, cr *cairo.Context, w, h int) {
 	}
 	cx, cy := float64(w)/2, float64(h)/2
 	R := s * 0.34     // outer ring radius
-	coreR := s * 0.16 // nucleus radius
+	coreR := s * 0.23 // nucleus radius
 
 	// Halo: concentric translucent fills, fading outward.
 	const haloN = 5
 	for i := haloN; i >= 1; i-- {
 		f := float64(i) / haloN
-		cr.SetSourceRGBA(orbR, orbG, orbB, 0.05*(1-f*0.85))
+		cr.SetSourceRGBA(orbR, orbG, orbB, 0.11*(1-f*0.8))
 		cr.Arc(cx, cy, coreR+(R*1.15-coreR)*f, 0, 2*math.Pi)
 		cr.Fill()
 	}
 
 	// Outer ring.
-	cr.SetSourceRGBA(orbR, orbG, orbB, 0.50)
-	cr.SetLineWidth(s * 0.022)
+	cr.SetSourceRGBA(orbR, orbG, orbB, 0.65)
+	cr.SetLineWidth(s * 0.026)
 	cr.Arc(cx, cy, R, 0, 2*math.Pi)
 	cr.Stroke()
 
@@ -79,18 +79,18 @@ func (o *Orb) draw(_ *gtk.DrawingArea, cr *cairo.Context, w, h int) {
 		}
 	}
 	cr.ClosePath()
-	cr.SetSourceRGBA(litR, litG, litB, 0.45)
+	cr.SetSourceRGBA(litR, litG, litB, 0.78)
 	cr.Fill()
 
 	// A bright core, offset a touch so the sphere reads as lit from one side.
 	hx, hy := cx+coreR*0.12, cy-coreR*0.10
 	for i := 3; i >= 1; i-- {
 		f := float64(i) / 3
-		cr.SetSourceRGBA(1, 1, 1, 0.12*(1-0.55*f))
+		cr.SetSourceRGBA(1, 1, 1, 0.16*(1-0.55*f))
 		cr.Arc(hx, hy, coreR*(0.35+0.5*f), 0, 2*math.Pi)
 		cr.Fill()
 	}
 	cr.SetSourceRGBA(1, 1, 1, 0.92)
-	cr.Arc(hx, hy, coreR*0.32, 0, 2*math.Pi)
+	cr.Arc(hx, hy, coreR*0.26, 0, 2*math.Pi)
 	cr.Fill()
 }
