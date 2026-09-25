@@ -37,8 +37,8 @@ type Sidebar struct {
 	OnOpenChat   func(id int64)
 	OnCharacters func()
 	// OnWorlds opens the list of settings.
-	OnWorlds func()
-	OnSettings   func()
+	OnWorlds   func()
+	OnSettings func()
 	// OnPersona opens the persona editor from the profile menu.
 	OnPersona func()
 	// OnAbout opens the about dialog from the profile menu.

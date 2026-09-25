@@ -18,23 +18,10 @@ import (
 // subsequent turn, and only the recent transcript is sent word-for-word. The
 // scene keeps its history; it just stops paying full price for it.
 
-const (
-	// CompactThresholdChars is the transcript size above which a scene is
-	// compacted. Measured in characters because counting real tokens would
-	// mean shipping a tokenizer per model; four characters per token is the
-	// usual rough ratio, so this is on the order of 5k tokens.
-	CompactThresholdChars = 20000
-
-	// KeepVerbatimChars is how much of the recent transcript stays
-	// word-for-word after a compaction. The gap between this and the
-	// threshold is what one compaction reclaims — wide enough that it does
-	// not have to run again on the very next turn.
-	KeepVerbatimChars = 12000
-
-	// recapBudgetChars bounds the recap itself. A recap that grows without
-	// limit just becomes the problem it was introduced to solve.
-	recapBudgetChars = 2400
-)
+// The thresholds are no longer constants. They come from Plan, which divides
+// the context window between the parts of a prompt, because a fixed 20,000
+// characters is either wasteful in a 32k window or a silent overflow in a 4k
+// one. See budget.go.
 
 // compactSystem frames the summarizer. It is deliberately not asked for prose:
 // a recap written as narration reads like part of the scene and the model
@@ -63,7 +50,7 @@ Write in past tense, third person, as short declarative statements. Use the char
 // result replaces it — this is a rolling summary, so detail from much earlier
 // in the scene survives by being carried forward through each pass rather than
 // by keeping the original turns.
-func Compact(ctx context.Context, client *ollama.Client, model, previous string, aged []ollama.Message, c Character, p Persona, opts ollama.Options) (string, error) {
+func Compact(ctx context.Context, client *ollama.Client, model, previous string, aged []ollama.Message, c Character, p Persona, opts ollama.Options, budget Budget) (string, error) {
 	if len(aged) == 0 {
 		return previous, nil
 	}
@@ -111,7 +98,11 @@ func Compact(ctx context.Context, client *ollama.Client, model, previous string,
 	// Low temperature: this is bookkeeping. A summary that invents a detail is
 	// worse than no summary, because it becomes fact for the rest of the scene.
 	opts.Temperature = 0.2
-	opts.NumPredict = 0
+	// The recap is bounded afterwards anyway, so the reply limit only has to
+	// stop a model that will not stop on its own. Leaving it unset let a
+	// verbose model spend minutes writing a record that was then cut to a
+	// fraction of its length.
+	opts.NumPredict = recapReplyTokens
 
 	noThink := false
 	reply, _, err := client.Chat(ctx, model, msgs, opts, &noThink, nil)
@@ -122,25 +113,37 @@ func Compact(ctx context.Context, client *ollama.Client, model, previous string,
 	if out == "" {
 		return previous, fmt.Errorf("the model returned an empty record")
 	}
-	return truncateRecap(out), nil
+	return truncateRecap(out, budget.Recap), nil
 }
+
+// recapReplyTokens caps the summariser's own reply. The prompt asks for under
+// four hundred words, which is well inside this; the limit is only there so a
+// model that ignores the word count cannot run for minutes producing text that
+// is about to be truncated anyway.
+const recapReplyTokens = 700
 
 // truncateRecap bounds the recap, cutting at a sentence end so it does not
 // stop mid-fact.
-func truncateRecap(s string) string {
-	if len(s) <= recapBudgetChars {
+func truncateRecap(s string, budget int) string {
+	if budget <= 0 {
+		budget = DefaultBudget().Recap
+	}
+	if len(s) <= budget {
 		return s
 	}
-	cut := s[:recapBudgetChars]
-	if i := strings.LastIndexAny(cut, ".!?"); i > recapBudgetChars/2 {
+	cut := s[:budget]
+	if i := strings.LastIndexAny(cut, ".!?"); i > budget/2 {
 		return cut[:i+1]
 	}
 	return strings.TrimSpace(cut)
 }
 
-// NeedsCompaction reports whether a transcript has outgrown the threshold.
-func NeedsCompaction(history []ollama.Message) bool {
-	return totalChars(history) > CompactThresholdChars
+// NeedsCompaction reports whether a transcript has outgrown its budget.
+func NeedsCompaction(history []ollama.Message, b Budget) bool {
+	if b.Compact <= 0 {
+		b = DefaultBudget()
+	}
+	return totalChars(history) > b.Compact
 }
 
 // SplitForCompaction divides a transcript into the part to be folded into the
@@ -149,14 +152,17 @@ func NeedsCompaction(history []ollama.Message) bool {
 // The split lands on a turn boundary, and never leaves the recent half empty:
 // a scene whose most recent single turn is larger than the whole budget still
 // has to be answerable.
-func SplitForCompaction(history []ollama.Message) (aged, recent []ollama.Message) {
-	if !NeedsCompaction(history) {
+func SplitForCompaction(history []ollama.Message, b Budget) (aged, recent []ollama.Message) {
+	if b.Compact <= 0 {
+		b = DefaultBudget()
+	}
+	if !NeedsCompaction(history, b) {
 		return nil, history
 	}
 	kept := 0
 	split := len(history)
 	for i := len(history) - 1; i >= 0; i-- {
-		if kept+len(history[i].Content) > KeepVerbatimChars && split < len(history) {
+		if kept+len(history[i].Content) > b.Keep && split < len(history) {
 			break
 		}
 		kept += len(history[i].Content)

@@ -366,18 +366,19 @@ func TestLiveCompactionKeepsTheFacts(t *testing.T) {
 	// scale: summarising seven turns can easily produce more text than it
 	// consumed, which is fine, because seven turns are never compacted.
 	filler := `*She moved another pin, measured the gap with her thumb, and wrote a figure in the margin that she immediately crossed out.* "The scale is wrong again." *The lamp guttered; neither of them moved to trim it.*`
-	for totalChars(aged) < CompactThresholdChars/2 {
+	for totalChars(aged) < DefaultBudget().Compact/2 {
 		aged = append(aged,
 			ollama.Message{Role: ollama.RoleUser, Content: `*I watched her work, and said nothing useful.*`},
 			ollama.Message{Role: ollama.RoleAssistant, Content: filler})
 	}
-	if totalChars(aged) < CompactThresholdChars/2 {
+	if totalChars(aged) < DefaultBudget().Compact/2 {
 		t.Fatalf("test sample is only %d chars, not representative", totalChars(aged))
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 	defer cancel()
-	recap, err := Compact(ctx, client, model, "", aged, c, p, ollama.Options{NumCtx: 8192})
+	budget := Plan(8192, 0, len(BuildSystem(c, p)))
+	recap, err := Compact(ctx, client, model, "", aged, c, p, ollama.Options{NumCtx: 8192}, budget)
 	if err != nil {
 		if ctx.Err() != nil {
 			t.Skipf("model did not finish in time: %v", err)
@@ -407,8 +408,8 @@ func TestLiveCompactionKeepsTheFacts(t *testing.T) {
 			t.Errorf("the recap lost %s:\n%s", what, recap)
 		}
 	}
-	if len(recap) > recapBudgetChars {
-		t.Errorf("the recap is %d chars, over its own %d budget", len(recap), recapBudgetChars)
+	if len(recap) > budget.Recap {
+		t.Errorf("the recap is %d chars, over its own %d budget", len(recap), budget.Recap)
 	}
 	if len(recap) >= totalChars(aged)/2 {
 		t.Errorf("the recap (%d chars) barely compacts the turns it replaces (%d)",

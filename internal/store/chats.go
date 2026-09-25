@@ -33,7 +33,12 @@ type Chat struct {
 	SummaryUpto int64
 	// LoreUpto is the last message the lorebook has been taught from, so a
 	// scene reopened tomorrow does not learn today's turns a second time.
-	LoreUpto  int64
+	LoreUpto int64
+	// StyleName is the writing style the transcript was written under. When
+	// the active style no longer matches it, the prompt says so — otherwise
+	// the model reads a scene full of its own prose in the old style and
+	// writes a continuation to match, whatever the new style asks for.
+	StyleName string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
@@ -94,12 +99,13 @@ func (s *Store) Chat(id int64) (Chat, error) {
 	var created, updated int64
 	err := s.db.QueryRow(`
 		SELECT c.id, c.character_id, c.title, c.model, c.kind, c.summary, c.summary_upto,
-		       c.lore_upto, c.created_at, c.updated_at, COALESCE(ch.name, ''), COALESCE(ch.accent, 0)
+		       c.lore_upto, c.style_name, c.created_at, c.updated_at,
+		       COALESCE(ch.name, ''), COALESCE(ch.accent, 0)
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
 		WHERE c.id = ?`, id).
 		Scan(&c.ID, &c.CharacterID, &c.Title, &c.Model, &c.Kind, &c.Summary, &c.SummaryUpto,
-			&c.LoreUpto, &created, &updated, &c.CharacterName, &c.Accent)
+			&c.LoreUpto, &c.StyleName, &created, &updated, &c.CharacterName, &c.Accent)
 	if err == sql.ErrNoRows {
 		return c, fmt.Errorf("no chat with id %d", id)
 	}
@@ -167,6 +173,15 @@ func (s *Store) SetChatSummary(id int64, summary string, uptoID int64) error {
 	defer s.writeMu.Unlock()
 	_, err := s.db.Exec(`UPDATE chats SET summary = ?, summary_upto = ? WHERE id = ?`,
 		summary, uptoID, id)
+	return err
+}
+
+// SetChatStyle records the writing style a scene is being written under, so a
+// later change to it can be noticed and announced to the model.
+func (s *Store) SetChatStyle(id int64, name string) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err := s.db.Exec(`UPDATE chats SET style_name = ? WHERE id = ?`, name, id)
 	return err
 }
 

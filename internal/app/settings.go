@@ -7,6 +7,7 @@ import (
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
+	"astral/internal/chars"
 	"astral/internal/store"
 )
 
@@ -30,6 +31,7 @@ type settingsForm struct {
 	topP        *gtk.Scale
 	repeat      *gtk.Scale
 	numCtx      *gtk.Entry
+	numPredict  *gtk.Entry
 }
 
 // showSettings opens the settings dialog.
@@ -155,6 +157,18 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 		"How much of the scene the model can see at once. Larger remembers more and uses more memory.",
 		f.numCtx))
 
+	// The reply limit was already referenced by the "the model spent its whole
+	// limit thinking, raise it in Settings" message, and by the budget that
+	// reserves room for a reply, but there was nowhere in Settings to raise it.
+	f.numPredict = gtk.NewEntry()
+	f.numPredict.SetText(fmt.Sprintf("%d", a.cfg.NumPredict))
+	f.numPredict.SetPlaceholderText(fmt.Sprintf("%d", chars.DefaultReplyTokens))
+	sCard.Append(labelledField("Reply limit (tokens)",
+		fmt.Sprintf("The longest a single reply may run. Leave at 0 for the default of %d, which is about four paragraphs. "+
+			"This is reserved out of the context size above, so raising it leaves less room for the scene.",
+			chars.DefaultReplyTokens),
+		f.numPredict))
+
 	f.keepAlive = gtk.NewEntry()
 	f.keepAlive.SetText(a.cfg.KeepAlive)
 	sCard.Append(labelledField("Keep the model loaded for",
@@ -260,6 +274,9 @@ func (a *App) applySettings(f *settingsForm) {
 	a.cfg.RepeatPenalty = f.repeat.Value()
 	if n := atoiOr(f.numCtx.Text(), a.cfg.NumCtx); n > 0 {
 		a.cfg.NumCtx = n
+	}
+	if n := atoiOr(f.numPredict.Text(), a.cfg.NumPredict); n >= 0 {
+		a.cfg.NumPredict = n
 	}
 
 	if err := store.SaveConfig(a.cfg); err != nil {

@@ -76,6 +76,9 @@ func (c *ChatView) Send() {
 	c.setComposerText("")
 	c.scrollToBottom()
 	c.notifyChanged()
+	// Housekeeping gives way: a recap the user cannot see is not worth making
+	// them wait behind. The interrupted pass runs again after this reply.
+	c.bg.yield()
 	c.startStream()
 }
 
@@ -195,22 +198,87 @@ func (c *ChatView) buildRequest() []ollama.Message {
 	if c.char.Name == "" {
 		return system(chars.AssistantSystem)
 	}
-	return chars.BuildMessages(c.char, chars.Scene{
-		Persona: c.persona(),
-		Lore:    c.loreFor(hist),
+	p := c.persona()
+	sc := chars.Scene{
+		Persona: p,
 		Recap:   c.recap,
 		History: hist,
-	})
+		Budget:  c.budget(c.char, p),
+		// The transcript is the strongest style signal in the context: by turn
+		// twenty it holds twenty worked examples of how this scene sounds. If
+		// the style has been changed since, saying nothing means the model
+		// imitates what it can see and the new style changes almost nothing.
+		StyleChanged: c.styleChangedSince(),
+		// Likewise for markup. The first reply that drops the asterisks
+		// becomes precedent for every reply after it, so the rule is restated
+		// more firmly exactly while that is happening.
+		NarrationDrifted: chars.NarrationDrifted(hist),
+	}
+	sc.Lore = c.loreFor(hist, sc.Budget.Lore)
+	return chars.BuildMessages(c.char, sc)
+}
+
+// budget divides this chat's context window between the parts of its prompt.
+//
+// The system prompt is measured rather than estimated: a rich character card
+// and a bare one differ by thousands of characters, and the difference has to
+// come out of the transcript rather than out of the window.
+func (c *ChatView) budget(ca chars.Character, p chars.Persona) chars.Budget {
+	numCtx := c.cfg.NumCtx
+	if numCtx <= 0 {
+		numCtx = chars.DefaultNumCtx
+	}
+	return chars.Plan(numCtx, c.cfg.NumPredict, len(chars.BuildSystem(ca, p)))
+}
+
+// styleChangedSince reports whether the active writing style differs from the
+// one this scene has been written in so far.
+//
+// A new chat has no recorded style and is not a change: there is no transcript
+// to contradict. The record is updated once the turn is under way, so the
+// notice appears on exactly the first reply after a change rather than on
+// every reply from then on.
+func (c *ChatView) styleChangedSince() bool {
+	if c.chat.ID == 0 || len(c.rows) < 2 {
+		return false
+	}
+	was := c.chat.StyleName
+	return was != "" && was != c.cfg.Style().Name
+}
+
+// recordStyle notes which style this scene is being written in.
+func (c *ChatView) recordStyle() {
+	if c.chat.ID == 0 {
+		return
+	}
+	name := c.cfg.Style().Name
+	if c.chat.StyleName == name {
+		return
+	}
+	if err := c.store.SetChatStyle(c.chat.ID, name); err != nil {
+		log.Printf("astral: recording the style for chat %d: %v", c.chat.ID, err)
+		return
+	}
+	c.chat.StyleName = name
 }
 
 func (c *ChatView) options() ollama.Options {
+	// The reply limit is always sent, even when the user has not set one.
+	// Unset, Ollama generates until it stops or fills the window — and the
+	// budget above reserves a fixed amount of room for the reply, so a reply
+	// that ignores that reservation puts the prompt back over the window and
+	// the oldest tokens, which are the framing, get dropped again.
+	predict := c.cfg.NumPredict
+	if predict <= 0 {
+		predict = chars.DefaultReplyTokens
+	}
 	return ollama.Options{
 		Temperature:   c.cfg.Temperature,
 		TopP:          c.cfg.TopP,
 		TopK:          c.cfg.TopK,
 		RepeatPenalty: c.cfg.RepeatPenalty,
 		NumCtx:        c.cfg.NumCtx,
-		NumPredict:    c.cfg.NumPredict,
+		NumPredict:    predict,
 	}
 }
 
@@ -220,6 +288,10 @@ func (c *ChatView) startStream() {
 	if len(msgs) == 0 {
 		return
 	}
+	// Recorded after the request is built, so the "the style has changed"
+	// notice reaches the model on the first reply after a change and is gone
+	// by the second. Repeating it forever would be its own kind of drift.
+	c.recordStyle()
 
 	// The image goes on the most recent user turn, which is the one it was
 	// attached to.
@@ -231,6 +303,17 @@ func (c *ChatView) startStream() {
 			}
 		}
 		c.pendingImage = ""
+	}
+
+	// A scene whose own replies have stopped marking narration will keep not
+	// marking it, however firmly the prompt asks: the transcript is the
+	// strongest instruction in the context. Handing the model a reply that has
+	// already begun inside an asterisk span settles it, because the next token
+	// is narration whether or not the model meant to mark any.
+	c.prefilled = false
+	if len(msgs) > 0 && msgs[len(msgs)-1].Role == ollama.RoleSystem && c.wantsPrefill(msgs) {
+		msgs = append(msgs, ollama.Message{Role: ollama.RoleAssistant, Content: chars.NarrationPrefill})
+		c.prefilled = true
 	}
 
 	c.live = c.appendRow(ollama.RoleAssistant, "", "", 0, time.Now())
@@ -305,6 +388,9 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	// paragraph, and discarding it would throw away the model's work for the
 	// sake of tidiness.
 	if text := strings.TrimSpace(msg.Content); text != "" {
+		if c.prefilled {
+			text = chars.RestorePrefill(text)
+		}
 		row.SetMarkdown(text)
 	}
 	if msg.Thinking != "" {
@@ -356,6 +442,9 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	if c.atBottom() {
 		c.scrollToBottom()
 	}
+	// Compaction first, and only one of the two can run: a scene that has
+	// outgrown its window needs the recap before it needs new lore, because
+	// without it the next turn starts dropping the oldest messages unread.
 	c.maybeCompact()
 	c.maybeLearn()
 }
@@ -366,7 +455,7 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 // costs reading time rather than waiting time, and it only runs every few
 // turns because most turns establish nothing that outlives them.
 func (c *ChatView) maybeLearn() {
-	if c.learning || c.chat.ID == 0 || c.world.ID == 0 || c.char.Name == "" {
+	if c.bg.running || c.chat.ID == 0 || c.world.ID == 0 || c.char.Name == "" {
 		return
 	}
 	chatID := c.chat.ID
@@ -380,7 +469,10 @@ func (c *ChatView) maybeLearn() {
 		turns = append(turns, ollama.Message{Role: m.Role, Content: m.Content})
 	}
 
-	c.learning = true
+	ctx, ok := c.bg.take("lorebook", learnTimeout)
+	if !ok {
+		return
+	}
 	client, model := c.client, c.activeModel()
 	w, existing := c.world, c.lore
 	charName := c.char.Name
@@ -391,13 +483,14 @@ func (c *ChatView) maybeLearn() {
 	opts := c.options()
 
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), learnTimeout)
-		defer cancel()
 		learned, err := world.Learn(ctx, client, model, w, existing, turns, charName, userName, opts)
 
 		coreglib.IdleAdd(func() bool {
-			c.learning = false
+			c.bg.done()
 			if err != nil {
+				if ctx.Err() != nil {
+					return false // the user's turn took the lane; try again later
+				}
 				// Quiet: the scene is unaffected, and the next pass tries
 				// again. Interrupting a reply to report that background
 				// note-taking failed would be the wrong trade.
@@ -452,7 +545,7 @@ func (c *ChatView) maybeLearn() {
 // If you send again before it finishes, that turn simply goes out with the
 // transcript as it stands.
 func (c *ChatView) maybeCompact() {
-	if c.compacting || c.chat.ID == 0 || c.char.Name == "" {
+	if c.bg.running || c.chat.ID == 0 || c.char.Name == "" {
 		return
 	}
 	chatID := c.chat.ID
@@ -464,25 +557,30 @@ func (c *ChatView) maybeCompact() {
 	for _, m := range stored {
 		wire = append(wire, ollama.Message{Role: m.Role, Content: m.Content})
 	}
-	aged, _ := chars.SplitForCompaction(wire)
+	budget := c.budget(c.char, c.persona())
+	aged, _ := chars.SplitForCompaction(wire, budget)
 	if len(aged) == 0 {
 		return
 	}
 	// The recap will cover everything up to and including this message.
 	upto := stored[len(aged)-1].ID
 
-	c.compacting = true
+	ctx, ok := c.bg.take("recap", compactTimeout)
+	if !ok {
+		return
+	}
 	client, model := c.client, c.activeModel()
 	prev, char, persona, opts := c.recap, c.char, c.persona(), c.options()
 
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), compactTimeout)
-		defer cancel()
-		next, err := chars.Compact(ctx, client, model, prev, aged, char, persona, opts)
+		next, err := chars.Compact(ctx, client, model, prev, aged, char, persona, opts, budget)
 
 		coreglib.IdleAdd(func() bool {
-			c.compacting = false
+			c.bg.done()
 			if err != nil {
+				if ctx.Err() != nil {
+					return false // the user's turn took the lane; try again later
+				}
 				// Not surfaced: the scene still works without it, and the next
 				// turn will try again. Failing loudly here would interrupt
 				// reading a reply to report a background housekeeping problem.
@@ -670,4 +768,18 @@ func (c *ChatView) fail(msg string) {
 	if c.OnError != nil {
 		c.OnError(msg)
 	}
+}
+
+// wantsPrefill reports whether this turn should hand the model a reply that has
+// already started inside a narration span.
+//
+// Only a roleplay scene, only a character, and only when the recent replies
+// have actually drifted. A prefill costs the model a little freedom over how
+// to open a reply, which is not worth spending on a scene that is behaving.
+func (c *ChatView) wantsPrefill(msgs []ollama.Message) bool {
+	if c.char.Name == "" || c.chat.Kind == store.KindDesigner ||
+		c.chat.Kind == store.KindAssistant || c.chat.Kind == store.KindStyleDesigner {
+		return false
+	}
+	return chars.NarrationDrifted(c.history())
 }

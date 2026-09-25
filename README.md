@@ -39,6 +39,13 @@ ornate, present tense, screenplay terse. Switch between them, write your own, or
 have the model build one with you. A style changes the voice without touching
 the structure of a scene.
 
+The style is restated at the end of the context on every turn, not stated once
+at the front, because by turn twenty the strongest instruction a model can see
+is the transcript: twenty replies it wrote itself in the old style. Switching
+styles mid-scene also says so outright, so the model stops imitating what came
+before. Measured on a 24B model, the same opening under a terse style and a
+lavish one returned 33 words and 305.
+
 **Instructions.** Rules you set, either for one character or for every scene.
 "Keep replies to two paragraphs." "Never break the fourth wall." These are added
 to Astral's own framing rather than replacing it, and are restated at the end of
@@ -61,6 +68,19 @@ every later scene that mentions its subject.
 Astral folds the older turns into a running record of what happened rather than
 dropping them. Names, admissions, promises and unresolved threads survive. The
 recent transcript stays word for word.
+
+**The context window is divided, not guessed at.** The character card, the
+lorebook, the recap and the transcript all share one window, so Astral measures
+the fixed parts and gives the rest to the scene, reserving room for the reply.
+Nothing silently overflows. If a character's description is too long to fit on
+its own, it says so rather than letting the server quietly drop the framing.
+
+**The prompt is ordered for the cache.** Ollama reuses the work it has already
+done for however much of a prompt is unchanged since last time, so everything
+stable goes first and everything that moves goes last. Lore is matched against
+what was recently said, so it changes most turns; moving it after the transcript
+took the reusable share of a long scene's prompt from 12% to 89%, and put it in
+the position a model weights most.
 
 **Any model you have.** The picker lists whatever Ollama has installed, with
 parameter size and quantization. Nothing is hardcoded to one model.

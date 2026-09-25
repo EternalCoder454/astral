@@ -127,7 +127,7 @@ func TestClosingReminderGoesAfterTheTranscript(t *testing.T) {
 	if last.Role != ollama.RoleSystem {
 		t.Fatalf("last message role = %q, want system", last.Role)
 	}
-	for _, want := range []string{"Vesper", "Keep replies to one paragraph.", "never write for Wren"} {
+	for _, want := range []string{"Vesper", "Keep replies to one paragraph.", "narrate Wren's"} {
 		if !strings.Contains(last.Content, want) {
 			t.Errorf("closing reminder missing %q:\n%s", want, last.Content)
 		}
@@ -316,7 +316,7 @@ func TestTrimHistoryKeepsAnOversizedFinalTurn(t *testing.T) {
 // depends on the model following it.
 func TestFramingSpecifiesTheWritingStyle(t *testing.T) {
 	sys := BuildSystem(testChar(), Persona{Name: "Wren"})
-	for _, want := range []string{"*single asterisks*", "double quotes", "no asterisks"} {
+	for _, want := range []string{"*single asterisks*", "double quotes", "Never write an unmarked sentence"} {
 		if !strings.Contains(sys, want) {
 			t.Errorf("framing does not state %q:\n%s", want, sys)
 		}

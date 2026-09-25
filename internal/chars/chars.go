@@ -109,6 +109,14 @@ func Substitute(s, charName, userName string) string {
 	if s == "" {
 		return ""
 	}
+	// Every placeholder form starts with one of two bytes, and ordinary
+	// roleplay prose contains neither. Checking first matters because the work
+	// avoided is not the replacement but the Replacer: it builds a trie over
+	// fourteen patterns, and this is called once per message, so a forty-turn
+	// scene was building forty tries per turn to change nothing.
+	if !strings.ContainsAny(s, "{<") {
+		return s
+	}
 	if charName == "" {
 		charName = "the character"
 	}
@@ -149,10 +157,13 @@ WHAT TO WRITE
 Write %s's words and actions only. Never write, decide, or narrate %s's words, thoughts, or actions, wait for them.
 Do not summarize the scene, do not skip ahead in time, and do not end the scene on your own.
 
-FORMATTING. Follow this exactly:
-- Put everything internal in *single asterisks*: narration, actions, body language, sensory detail, and the character's own thoughts.
-- Write spoken words and sounds plainly, in "double quotes", with no asterisks around them.
-- Example: *She set the cup down harder than she meant to, and hated that he noticed.* "It's fine."`
+FORMATTING. Every sentence you write is one of exactly two things, and there is no third kind:
+1. Spoken aloud, in "double quotes". Nothing else goes inside quotes.
+2. Everything else — narration, action, body language, sensory detail, %s's own thoughts — inside *single asterisks*.
+Never write an unmarked sentence. Every paragraph must start with either a quote or an asterisk.
+Example of a full reply:
+*She did not look up from the chart. The rain had found the window again, and she let it.* "You're late."
+*A pin went into the table rather than the map, a small and deliberate violence.* "Sit. You're dripping on the Sever."`
 
 // framingClose is stated after the style, so the style cannot talk its way
 // past it.
@@ -205,14 +216,14 @@ func BuildSystem(c Character, p Persona) string {
 	sub := func(s string) string { return Substitute(s, c.Name, userName) }
 
 	var b strings.Builder
-	b.WriteString(strings.TrimSpace(sprintf3(framingStructure, c.Name)))
+	b.WriteString(strings.TrimSpace(fillName(framingStructure, c.Name)))
 	b.WriteString("\n\nHOW TO WRITE IT\n")
 	// Substituted like everything else. A style is written once and applied to
 	// every character, so "{{char}} never uses contractions" is exactly the
 	// sort of thing it should be able to say — and it reached the model as the
 	// literal text "{{char}}" until this was fixed.
 	b.WriteString(sub(p.Style.Resolved()))
-	b.WriteString("\n")
+	b.WriteString("\n\n")
 	b.WriteString(framingClose)
 
 	section := func(heading, body string) {
@@ -254,18 +265,15 @@ func allInstructions(c Character, p Persona) string {
 	return strings.Join(parts, "\n")
 }
 
-// sprintf3 fills the framing template, which uses the character's name three
-// times. A tiny helper rather than fmt.Sprintf so the template cannot silently
-// acquire a fourth verb and start printing %!s(MISSING) into a system prompt.
-func sprintf3(tmpl, name string) string {
+// fillName puts the character's name everywhere the framing template asks for
+// it. A tiny helper rather than fmt.Sprintf so the template can gain or lose a
+// slot without anyone having to remember to change a count, and so a mismatch
+// can never print %!s(MISSING) into a system prompt.
+func fillName(tmpl, name string) string {
 	if name == "" {
 		name = "the character"
 	}
-	out := tmpl
-	for i := 0; i < 3; i++ {
-		out = strings.Replace(out, "%s", name, 1)
-	}
-	return out
+	return strings.ReplaceAll(tmpl, "%s", name)
 }
 
 // exampleTurns parses a card's mes_example into real messages. The spec's
@@ -328,12 +336,9 @@ func hasPrefixFold(s, prefix string) bool {
 // re-read of the context, so this should happen exactly once in a scene.
 const exampleCutoff = 6
 
-// historyBudgetChars caps how much transcript is sent, measured in characters
-// because counting real tokens would mean shipping a tokenizer per model.
-// Four characters per token is the usual rough ratio, so this is on the order
-// of 6k tokens — comfortably inside the 8k default context with room left for
-// the system prompt and the reply.
-const historyBudgetChars = 24000
+// DefaultNumCtx is the context window assumed when a caller has no
+// configuration to hand. It matches the application's own default.
+const DefaultNumCtx = 8192
 
 // trimHistory keeps the most recent turns that fit in the budget.
 //
@@ -341,6 +346,13 @@ const historyBudgetChars = 24000
 // happens then is worse than forgetting: the server drops the *front* of the
 // prompt, which is the system framing and the character themselves, so the
 // model keeps the small talk and loses who it is playing.
+//
+// It is the fallback, not the plan. Dropping turns off the front moves every
+// token after them, so a scene that trims on every turn also re-reads its
+// whole prompt on every turn — the same cache cost that moving lore to the end
+// was meant to avoid. Compaction is what keeps this rare: Budget.Compact sits
+// at three quarters of Budget.History, so a scene is normally folded into its
+// recap well before there is anything here to cut.
 func trimHistory(history []ollama.Message, budget int) []ollama.Message {
 	total := 0
 	for _, m := range history {
@@ -382,35 +394,56 @@ type Scene struct {
 	Recap string
 	// History is the conversation so far, oldest first.
 	History []ollama.Message
+	// Budget divides the context window between the parts of this prompt. The
+	// zero value means DefaultBudget, so a caller with no configuration to
+	// hand still gets a plan rather than an unbounded prompt.
+	Budget Budget
+	// StyleChanged says the transcript was written under a different writing
+	// style. The anchor then tells the model not to imitate it, which is the
+	// difference between switching styles mid-scene and merely hoping.
+	StyleChanged bool
+	// NarrationDrifted says the recent replies have stopped marking narration
+	// with asterisks, so the format rule is restated more firmly.
+	NarrationDrifted bool
 }
 
-// BuildMessages assembles the full request: system framing, the world's lore,
-// the recap of anything compacted away, the card's example turns, the live
-// transcript, and finally the closing reminder.
+// BuildMessages assembles the full request.
+//
+// The order is chosen for the server's prefix cache as much as for the model.
+// Ollama reuses the keys and values it already computed for however much of a
+// prompt is byte-identical to the last one, so everything that does not change
+// between turns has to come first and everything that does has to come last.
+//
+// Lore used to come first, on the reasoning that the setting is true before
+// the scene starts. But lore is matched against what was recently said, so it
+// changes whenever the conversation moves to a different subject — which is
+// most turns. Measured on a twenty-turn scene, a changed lore block dropped
+// the reusable prefix from 96%% to 12%%: nineteen thousand characters of
+// prompt, re-read from scratch, every time the subject changed.
+//
+// So lore moved to the end. It costs nothing there, because everything after
+// the last cached token is re-read anyway, and it is better obeyed in the
+// bargain: the end of the context is the part a model weights most.
 func BuildMessages(c Character, sc Scene) []ollama.Message {
 	p := sc.Persona
-	recap := sc.Recap
 	history := sc.History
 	userName := p.Name
 	if userName == "" {
 		userName = DefaultPersonaName
 	}
-	msgs := []ollama.Message{{Role: ollama.RoleSystem, Content: BuildSystem(c, p)}}
-
-	// Lore first: it is the setting, and it is true before anything in the
-	// scene happened. It is also the part that changes least between turns,
-	// which keeps the front of the prompt stable and the server's cached
-	// prefix usable.
-	if lore := strings.TrimSpace(sc.Lore); lore != "" {
-		msgs = append(msgs, ollama.Message{
-			Role:    ollama.RoleSystem,
-			Content: Substitute(lore, c.Name, userName),
-		})
+	budget := sc.Budget
+	system := BuildSystem(c, p)
+	if budget == (Budget{}) {
+		budget = Plan(DefaultNumCtx, 0, len(system))
 	}
 
+	// --- stable prefix: identical from turn to turn, so cached ---
+	msgs := []ollama.Message{{Role: ollama.RoleSystem, Content: system}}
+
 	// The recap sits before the transcript, in the position the turns it
-	// replaces used to occupy, so the scene still reads in order.
-	if r := strings.TrimSpace(recap); r != "" {
+	// replaces used to occupy, so the scene still reads in order. It changes
+	// only when a compaction runs, which is rare enough to belong here.
+	if r := strings.TrimSpace(truncateTo(sc.Recap, budget.Recap)); r != "" {
 		msgs = append(msgs, ollama.Message{
 			Role: ollama.RoleSystem,
 			Content: "Earlier in this scene (a record of what happened before the messages below; " +
@@ -425,43 +458,43 @@ func BuildMessages(c Character, sc Scene) []ollama.Message {
 	if len(history) < exampleCutoff {
 		msgs = append(msgs, exampleTurns(c, userName)...)
 	}
-	history = trimHistory(history, historyBudgetChars)
+
+	// The transcript is append-only, which is the best possible shape for a
+	// prefix cache: every turn adds to the end and disturbs nothing before it.
+	history = trimHistory(history, budget.History)
 	for _, m := range history {
 		m.Content = Substitute(m.Content, c.Name, userName)
 		msgs = append(msgs, m)
 	}
-	// A closing reminder, after the transcript. This position matters more
-	// than any other: a model weights the end of its context far above the
-	// middle, so by turn thirty a system prompt thousands of tokens back is
-	// competing with everything that has happened since. Restating the two
-	// things that actually drift — who they are, and what you asked for — is
-	// the cheapest anti-drift measure there is.
-	if r := closingReminder(c, p, userName); r != "" {
-		msgs = append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: r})
+
+	// --- volatile suffix: re-read every turn either way ---
+	if lore := strings.TrimSpace(truncateTo(sc.Lore, budget.Lore)); lore != "" {
+		msgs = append(msgs, ollama.Message{
+			Role: ollama.RoleSystem,
+			Content: "Reference for this world. These are established facts, true throughout, " +
+				"not something that has just been said:\n" + Substitute(lore, c.Name, userName),
+		})
+	}
+	if a := Anchor(c, sc, userName); a != "" {
+		msgs = append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: a})
 	}
 	return msgs
 }
 
-// closingReminder builds the end-of-context nudge.
-func closingReminder(c Character, p Persona, userName string) string {
-	name := c.Name
-	if name == "" {
-		return ""
+// truncateTo bounds a block to a character budget, cutting at a line break so
+// a lore entry or a recap does not stop mid-fact.
+func truncateTo(s string, budget int) string {
+	if budget <= 0 || len(s) <= budget {
+		if budget <= 0 && s != "" {
+			return "" // no room planned for this part at all
+		}
+		return s
 	}
-	var b strings.Builder
-	b.WriteString("[Reminder: you are ")
-	b.WriteString(name)
-	b.WriteString(". Stay in character, write only ")
-	b.WriteString(name)
-	b.WriteString("'s words and actions, and never write for ")
-	b.WriteString(userName)
-	b.WriteString(".")
-	if ins := allInstructions(c, p); ins != "" {
-		b.WriteString("\n\nFollow these instructions exactly:\n")
-		b.WriteString(Substitute(ins, c.Name, userName))
+	cut := s[:budget]
+	if i := strings.LastIndexByte(cut, '\n'); i > budget/2 {
+		return cut[:i]
 	}
-	b.WriteString("]")
-	return b.String()
+	return cut
 }
 
 // Greeting is the character's opening line, with placeholders expanded.

@@ -175,6 +175,7 @@ CREATE TABLE IF NOT EXISTS chats (
 	summary      TEXT    NOT NULL DEFAULT '',
 	summary_upto INTEGER NOT NULL DEFAULT 0,
 	lore_upto    INTEGER NOT NULL DEFAULT 0,
+	style_name   TEXT    NOT NULL DEFAULT '',
 	created_at   INTEGER NOT NULL DEFAULT 0,
 	updated_at   INTEGER NOT NULL DEFAULT 0
 );
@@ -228,6 +229,7 @@ func (s *Store) migrate() error {
 	// The running recap of a long scene, and the last message it covers.
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN summary TEXT NOT NULL DEFAULT ''`)
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN summary_upto INTEGER NOT NULL DEFAULT 0`)
+	s.db.Exec(`ALTER TABLE chats ADD COLUMN style_name TEXT NOT NULL DEFAULT ''`)
 
 	s.db.Exec(`
 		UPDATE characters SET instructions = TRIM(

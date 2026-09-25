@@ -27,18 +27,24 @@ func turns(n, size int) []ollama.Message {
 	return out
 }
 
+// testBudget is the plan these tests measure against: Astral's defaults with a
+// middling character card.
+func testBudget() Budget { return Plan(8192, 0, 4000) }
+
 func TestNeedsCompaction(t *testing.T) {
-	if NeedsCompaction(turns(4, 100)) {
+	b := testBudget()
+	if NeedsCompaction(turns(4, 100), b) {
 		t.Error("a short scene was marked for compaction")
 	}
-	if !NeedsCompaction(turns(40, 1000)) {
+	if !NeedsCompaction(turns(40, 1000), b) {
 		t.Error("a long scene was not marked for compaction")
 	}
 }
 
 func TestSplitForCompactionKeepsTheRecentHalf(t *testing.T) {
+	b := testBudget()
 	history := turns(60, 1000)
-	aged, recent := SplitForCompaction(history)
+	aged, recent := SplitForCompaction(history, b)
 
 	if len(aged) == 0 {
 		t.Fatal("nothing was aged out of a scene well over the threshold")
@@ -61,14 +67,14 @@ func TestSplitForCompactionKeepsTheRecentHalf(t *testing.T) {
 	for _, m := range recent {
 		kept += len(m.Content)
 	}
-	if kept > KeepVerbatimChars+1000 {
-		t.Errorf("kept %d chars verbatim, well over the %d budget", kept, KeepVerbatimChars)
+	if kept > b.Keep+1000 {
+		t.Errorf("kept %d chars verbatim, well over the %d budget", kept, b.Keep)
 	}
 }
 
 func TestSplitLeavesShortScenesAlone(t *testing.T) {
 	history := turns(4, 100)
-	aged, recent := SplitForCompaction(history)
+	aged, recent := SplitForCompaction(history, testBudget())
 	if len(aged) != 0 || len(recent) != len(history) {
 		t.Errorf("a short scene was split: %d aged, %d recent", len(aged), len(recent))
 	}
@@ -79,9 +85,9 @@ func TestSplitLeavesShortScenesAlone(t *testing.T) {
 func TestSplitSurvivesOneEnormousTurn(t *testing.T) {
 	history := []ollama.Message{
 		{Role: ollama.RoleUser, Content: strings.Repeat("a", 5000)},
-		{Role: ollama.RoleAssistant, Content: strings.Repeat("b", CompactThresholdChars+5000)},
+		{Role: ollama.RoleAssistant, Content: strings.Repeat("b", testBudget().Compact+5000)},
 	}
-	aged, recent := SplitForCompaction(history)
+	aged, recent := SplitForCompaction(history, testBudget())
 	if len(recent) == 0 {
 		t.Fatal("recent half is empty")
 	}
@@ -117,7 +123,7 @@ func TestCompactCarriesThePreviousRecord(t *testing.T) {
 	out, err := Compact(context.Background(), ollama.NewClient(srv.URL), "m",
 		"Vesper met Wren at the map room.",
 		[]ollama.Message{{Role: ollama.RoleUser, Content: "I looked at the coastline."}},
-		Character{Name: "Vesper"}, Persona{Name: "Wren"}, ollama.Options{})
+		Character{Name: "Vesper"}, Persona{Name: "Wren"}, ollama.Options{}, testBudget())
 	if err != nil {
 		t.Fatalf("Compact: %v", err)
 	}
@@ -147,7 +153,7 @@ func TestCompactCarriesThePreviousRecord(t *testing.T) {
 
 func TestCompactWithNothingAgedIsANoOp(t *testing.T) {
 	out, err := Compact(context.Background(), ollama.NewClient("http://127.0.0.1:1"), "m",
-		"previous", nil, Character{Name: "V"}, Persona{Name: "Z"}, ollama.Options{})
+		"previous", nil, Character{Name: "V"}, Persona{Name: "Z"}, ollama.Options{}, testBudget())
 	if err != nil || out != "previous" {
 		t.Errorf("out=%q err=%v, want the previous record untouched", out, err)
 	}
@@ -163,7 +169,7 @@ func TestCompactKeepsThePreviousRecordOnFailure(t *testing.T) {
 
 	out, err := Compact(context.Background(), ollama.NewClient(srv.URL), "m", "previous",
 		[]ollama.Message{{Role: ollama.RoleUser, Content: "hi"}},
-		Character{Name: "V"}, Persona{Name: "Z"}, ollama.Options{})
+		Character{Name: "V"}, Persona{Name: "Z"}, ollama.Options{}, testBudget())
 	if err == nil {
 		t.Error("a server error was not reported")
 	}
@@ -179,12 +185,12 @@ func TestRecapIsBounded(t *testing.T) {
 
 	out, err := Compact(context.Background(), ollama.NewClient(srv.URL), "m", "",
 		[]ollama.Message{{Role: ollama.RoleUser, Content: "hi"}},
-		Character{Name: "V"}, Persona{Name: "Z"}, ollama.Options{})
+		Character{Name: "V"}, Persona{Name: "Z"}, ollama.Options{}, testBudget())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out) > recapBudgetChars {
-		t.Errorf("recap is %d chars, over the %d budget", len(out), recapBudgetChars)
+	if len(out) > testBudget().Recap {
+		t.Errorf("recap is %d chars, over the %d budget", len(out), testBudget().Recap)
 	}
 	// Cut at a sentence end, not mid-fact.
 	if !strings.HasSuffix(strings.TrimSpace(out), ".") {

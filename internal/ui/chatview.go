@@ -67,14 +67,14 @@ type ChatView struct {
 	client *ollama.Client
 	store  *store.Store
 
-	widget    *gtk.Box
-	scroll    *gtk.ScrolledWindow
-	clamp     *adw.Clamp
-	column    *gtk.Box
-	composer  *gtk.TextView
-	actionBar *gtk.Box
-	sendBtn   *gtk.Button
-	modelBtn  *gtk.Button
+	widget      *gtk.Box
+	scroll      *gtk.ScrolledWindow
+	clamp       *adw.Clamp
+	column      *gtk.Box
+	composer    *gtk.TextView
+	actionBar   *gtk.Box
+	sendBtn     *gtk.Button
+	modelBtn    *gtk.Button
 	hint        *gtk.Label
 	placeholder *gtk.Label
 
@@ -119,19 +119,31 @@ type ChatView struct {
 	// turn that is being assembled.
 	pendingImage string
 
+	// prefilled records that this turn's request ended in a partial assistant
+	// message, so the reply has to be joined back onto it. See
+	// chars.NarrationPrefill.
+	prefilled bool
+
 	// recap is the running record of everything compacted out of this chat's
 	// context, and recapUpto is the last message id it covers. Turns newer
 	// than that are still sent word-for-word.
-	recap      string
-	recapUpto  int64
-	compacting bool
+	recap     string
+	recapUpto int64
 
 	// The setting this scene takes place in, and its lorebook. Loaded once
 	// when a chat opens rather than per turn: a lorebook is small enough to
 	// hold, and matching against it is a string scan rather than a query.
-	world    world.World
-	lore     []world.Entry
-	learning bool
+	world world.World
+	lore  []world.Entry
+
+	// Background model work: compaction and the lorebook pass. They share one
+	// lane, and the user's own turn takes it from them.
+	//
+	// They used to have a flag each, which meant both could be generating at
+	// once — two large requests against one model, on top of whatever the user
+	// did next. Ollama serves them in turn, so the visible effect was the next
+	// reply waiting behind a recap the user never asked for and cannot see.
+	bg bgWork
 
 	// older holds the part of a long transcript that has not been built as
 	// widgets yet, newest last. See renderWindow.
@@ -468,6 +480,7 @@ func (c *ChatView) LoadChat(ch store.Chat, ca chars.Character, msgs []store.Mess
 	c.refreshModelChip()
 	c.refreshPlaceholder()
 	c.refreshActions()
+	c.warnIfCardTooLarge(ca)
 
 	// Only the tail is built; the rest waits behind the button below.
 	if len(msgs) > renderWindow {
@@ -849,8 +862,8 @@ func (c *ChatView) loadLore(ca chars.Character) {
 }
 
 // loreFor renders the lore this part of the conversation has triggered.
-func (c *ChatView) loreFor(history []ollama.Message) string {
-	if len(c.lore) == 0 {
+func (c *ChatView) loreFor(history []ollama.Message, budget int) string {
+	if len(c.lore) == 0 || budget <= 0 {
 		return ""
 	}
 	turns := make([]string, 0, len(history))
@@ -861,7 +874,7 @@ func (c *ChatView) loreFor(history []ollama.Message) string {
 	// just opened has almost no transcript, and without this the setting would
 	// not appear until someone happened to name part of it out loud.
 	turns = append([]string{c.char.Description + " " + c.char.Scenario}, turns...)
-	return world.Render(c.world, world.Match(c.lore, world.RecentText(turns), world.BudgetChars))
+	return world.Render(c.world, world.Match(c.lore, world.RecentText(turns), budget))
 }
 
 // Lore exposes the loaded lorebook, for the auto-update pass.
@@ -869,3 +882,68 @@ func (c *ChatView) Lore() (world.World, []world.Entry) { return c.world, c.lore 
 
 // SetLore replaces the loaded lorebook after the model has updated it.
 func (c *ChatView) SetLore(entries []world.Entry) { c.lore = entries }
+
+// bgWork is the single lane the background model calls share.
+//
+// Only one runs at a time, and the user's next turn cancels whatever is in it.
+// Cancelling is safe because both passes are idempotent: each records how far
+// it got only on success, so an interrupted one simply does the same work after
+// the next reply. Waiting, by contrast, is not free — it is the user watching
+// a cursor while the model finishes a summary for them.
+type bgWork struct {
+	running bool
+	cancel  context.CancelFunc
+	// what names the pass in flight, for the log when it is cut short.
+	what string
+}
+
+// take claims the lane, returning a context for the work and whether it was
+// free. A caller that is refused does nothing: it will be offered the lane
+// again after the next reply.
+func (b *bgWork) take(what string, timeout time.Duration) (context.Context, bool) {
+	if b.running {
+		return nil, false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	b.running, b.cancel, b.what = true, cancel, what
+	return ctx, true
+}
+
+// done releases the lane.
+func (b *bgWork) done() {
+	if b.cancel != nil {
+		b.cancel()
+	}
+	b.running, b.cancel, b.what = false, nil, ""
+}
+
+// yield gives the lane up for something the user is waiting on.
+func (b *bgWork) yield() {
+	if !b.running {
+		return
+	}
+	log.Printf("astral: interrupting the %s pass, the user sent a message", b.what)
+	b.done()
+}
+
+// warnIfCardTooLarge says so when a character's own card does not fit the
+// context window.
+//
+// This is worth interrupting for because the symptom is otherwise invisible
+// and looks like the model misbehaving: the server drops the front of an
+// oversized prompt, which is the framing and the writing style, and the scene
+// quietly stops following rules nobody can see it was given.
+func (c *ChatView) warnIfCardTooLarge(ca chars.Character) {
+	if ca.Name == "" {
+		return
+	}
+	b := c.budget(ca, c.persona())
+	if !b.Overflows {
+		return
+	}
+	fixed := len(chars.BuildSystem(ca, c.persona()))
+	c.fail(fmt.Sprintf(
+		"%s's description is too long for the context size. It needs about %d tokens on its own, "+
+			"and the window is %d. Shorten the card, or raise the context size in Settings.",
+		ca.Name, fixed/4, c.cfg.NumCtx))
+}
