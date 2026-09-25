@@ -81,6 +81,20 @@ type Config struct {
 	// exceeds, and the next message then pays a full model reload.
 	KeepAlive string `json:"keep_alive"`
 
+	// HousekeepingModel writes the recap and reads the scene for lore. Empty
+	// means use whichever model is playing the scene.
+	//
+	// Those two jobs are bookkeeping, not prose, and a much smaller model does
+	// them about as well. Measured on a nine-fact scene, a 4B matched a 27B on
+	// both and ran them in roughly half the time. The point is not only the
+	// time: they run in the background after a reply, so whatever they use is
+	// the thing the next message queues behind.
+	//
+	// It has to be small enough to sit in memory beside the scene's model.
+	// Ollama keeps both loaded rather than swapping, which is what makes this
+	// worth doing at all — but only while both fit. See ollama.Running.
+	HousekeepingModel string `json:"housekeeping_model"`
+
 	Temperature   float64 `json:"temperature"`
 	TopP          float64 `json:"top_p"`
 	TopK          int     `json:"top_k"`

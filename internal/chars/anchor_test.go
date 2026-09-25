@@ -246,3 +246,44 @@ func TestRestorePrefill(t *testing.T) {
 		}
 	}
 }
+
+func TestDirectionReachesTheAnchor(t *testing.T) {
+	c := Character{Name: "Vesper"}
+	sc := Scene{
+		Persona:   Persona{Name: "Wren"},
+		History:   []ollama.Message{{Role: ollama.RoleUser, Content: "Hi"}},
+		Direction: "{{char}} is about to realise {{user}} lied about the manifest.",
+	}
+	msgs := BuildMessages(c, sc)
+	anchor := msgs[len(msgs)-1].Content
+
+	// Placeholders expand here like everywhere else: a direction is written in
+	// the same box as everything else and should behave the same.
+	if !strings.Contains(anchor, "Vesper is about to realise Wren lied") {
+		t.Errorf("direction missing or unsubstituted:\n%s", anchor)
+	}
+	// The two failure modes the wording exists to prevent: doing nothing, and
+	// quoting the instruction back as prose instead of playing it.
+	for _, want := range []string{"must take a visible step", "Do not state the direction itself"} {
+		if !strings.Contains(anchor, want) {
+			t.Errorf("direction framing missing %q:\n%s", want, anchor)
+		}
+	}
+	// It must come after the standing instructions, which is the position that
+	// makes it the last thing read.
+	sc.Persona.GlobalInstructions = "Keep replies short."
+	anchor = BuildMessages(c, sc)[len(BuildMessages(c, sc))-1].Content
+	if strings.Index(anchor, "DIRECTION") < strings.Index(anchor, "Keep replies short.") {
+		t.Error("the direction is placed before the standing instructions")
+	}
+}
+
+func TestNoDirectionSaysNothing(t *testing.T) {
+	msgs := BuildMessages(Character{Name: "Vesper"}, Scene{
+		Persona: Persona{Name: "Wren"},
+		History: []ollama.Message{{Role: ollama.RoleUser, Content: "Hi"}},
+	})
+	if a := msgs[len(msgs)-1].Content; strings.Contains(a, "DIRECTION") {
+		t.Errorf("an empty direction still wrote a heading:\n%s", a)
+	}
+}

@@ -39,6 +39,11 @@ type Chat struct {
 	// the model reads a scene full of its own prose in the old style and
 	// writes a continuation to match, whatever the new style asks for.
 	StyleName string
+	// Note is the direction for this scene: where you want it to go next.
+	// Unlike a character's instructions, which are standing rules, this is
+	// about the next few turns and is expected to be rewritten or cleared as
+	// the scene moves.
+	Note      string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
@@ -99,13 +104,13 @@ func (s *Store) Chat(id int64) (Chat, error) {
 	var created, updated int64
 	err := s.db.QueryRow(`
 		SELECT c.id, c.character_id, c.title, c.model, c.kind, c.summary, c.summary_upto,
-		       c.lore_upto, c.style_name, c.created_at, c.updated_at,
+		       c.lore_upto, c.style_name, c.note, c.created_at, c.updated_at,
 		       COALESCE(ch.name, ''), COALESCE(ch.accent, 0)
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
 		WHERE c.id = ?`, id).
 		Scan(&c.ID, &c.CharacterID, &c.Title, &c.Model, &c.Kind, &c.Summary, &c.SummaryUpto,
-			&c.LoreUpto, &c.StyleName, &created, &updated, &c.CharacterName, &c.Accent)
+			&c.LoreUpto, &c.StyleName, &c.Note, &created, &updated, &c.CharacterName, &c.Accent)
 	if err == sql.ErrNoRows {
 		return c, fmt.Errorf("no chat with id %d", id)
 	}
@@ -173,6 +178,14 @@ func (s *Store) SetChatSummary(id int64, summary string, uptoID int64) error {
 	defer s.writeMu.Unlock()
 	_, err := s.db.Exec(`UPDATE chats SET summary = ?, summary_upto = ? WHERE id = ?`,
 		summary, uptoID, id)
+	return err
+}
+
+// SetChatNote stores the direction for a scene.
+func (s *Store) SetChatNote(id int64, note string) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err := s.db.Exec(`UPDATE chats SET note = ? WHERE id = ?`, note, id)
 	return err
 }
 

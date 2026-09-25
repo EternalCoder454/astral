@@ -158,6 +158,7 @@ func (a *App) buildCenter() {
 	a.chat.OnError = a.toast
 	a.chat.OnPickModel = a.showModelPicker
 	a.chat.OnBuildCharacter = a.buildCharacterFromChat
+	a.chat.OnEditDirection = a.editDirection
 	a.chat.OnBuildStyle = a.buildStyleFromChat
 	a.chat.OnLoreLearned = func(applied, held int) {
 		// Worth saying, because the lorebook changed without being asked and

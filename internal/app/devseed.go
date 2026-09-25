@@ -123,6 +123,12 @@ func (a *App) runDevSeed() {
 			log.Printf("astral: seed message: %v", err)
 		}
 	}
+	// A direction, so the chip beside the composer is shown in the state that
+	// matters rather than the empty one.
+	if err := a.store.SetChatNote(chat.ID,
+		"{{char}} is close to admitting she has never seen the coastline she was expelled for."); err != nil {
+		log.Printf("astral: seed note: %v", err)
+	}
 	a.cfg.LastChat = chat.ID
 	log.Printf("astral: seed: world %d, 3 characters, chat %d", wid, chat.ID)
 }

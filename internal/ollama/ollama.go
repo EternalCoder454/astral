@@ -144,6 +144,12 @@ type Stats struct {
 	PromptTokens int           // tokens in the prompt
 	Elapsed      time.Duration // total wall-clock time
 	TokPerSec    float64       // generation speed
+	// PromptTokPerSec is how fast the prompt itself was read. It is the number
+	// behind the wait before the first word appears, and it is the one the
+	// prompt's shape can actually move: a cached prefix is not re-read, so the
+	// tokens counted here are only the ones that changed since last turn.
+	PromptTokPerSec float64
+	PromptElapsed   time.Duration
 	// DoneReason is why generation stopped. "length" means the reply hit the
 	// token limit rather than finishing, which is worth telling the user:
 	// otherwise a reply that stops mid-sentence looks like the model's fault.
@@ -184,13 +190,14 @@ type chatResponse struct {
 		Content  string `json:"content"`
 		Thinking string `json:"thinking"`
 	} `json:"message"`
-	Done            bool   `json:"done"`
-	DoneReason      string `json:"done_reason"`
-	Error           string `json:"error,omitempty"`
-	EvalCount       int    `json:"eval_count"`
-	EvalDuration    int64  `json:"eval_duration"`
-	PromptEvalCount int    `json:"prompt_eval_count"`
-	TotalDuration   int64  `json:"total_duration"`
+	Done               bool   `json:"done"`
+	DoneReason         string `json:"done_reason"`
+	Error              string `json:"error,omitempty"`
+	EvalCount          int    `json:"eval_count"`
+	EvalDuration       int64  `json:"eval_duration"`
+	PromptEvalCount    int    `json:"prompt_eval_count"`
+	PromptEvalDuration int64  `json:"prompt_eval_duration"`
+	TotalDuration      int64  `json:"total_duration"`
 }
 
 func statsFrom(cr chatResponse) Stats {
@@ -202,6 +209,10 @@ func statsFrom(cr chatResponse) Stats {
 	}
 	if cr.EvalDuration > 0 {
 		st.TokPerSec = float64(cr.EvalCount) / (float64(cr.EvalDuration) / 1e9)
+	}
+	st.PromptElapsed = time.Duration(cr.PromptEvalDuration)
+	if cr.PromptEvalDuration > 0 {
+		st.PromptTokPerSec = float64(cr.PromptEvalCount) / (float64(cr.PromptEvalDuration) / 1e9)
 	}
 	return st
 }
@@ -502,4 +513,90 @@ func HasModel(models []Model, name string) bool {
 		}
 	}
 	return false
+}
+
+type psResponse struct {
+	Models []struct {
+		Name      string `json:"name"`
+		Model     string `json:"model"`
+		Size      int64  `json:"size"`
+		SizeVRAM  int64  `json:"size_vram"`
+		ExpiresAt string `json:"expires_at"`
+	} `json:"models"`
+}
+
+// Loaded is a model currently held in memory by the server.
+type Loaded struct {
+	Name string
+	// Size is what the model occupies in total, SizeVRAM how much of that is
+	// on the GPU. They are equal for a model that fits.
+	Size     int64
+	SizeVRAM int64
+}
+
+// OnGPU reports the share of the model that is on the GPU, 0 to 1.
+func (l Loaded) OnGPU() float64 {
+	if l.Size <= 0 {
+		return 0
+	}
+	return float64(l.SizeVRAM) / float64(l.Size)
+}
+
+// Spilled reports whether a meaningful part of the model was pushed out of
+// video memory and is running on the CPU instead.
+//
+// This is the failure mode that turns a second, smaller model from a saving
+// into a cost. Ollama keeps both models resident rather than swapping between
+// them, which is what makes a separate housekeeping model worth having — but
+// only while both fit. Measured on a 24GB card: a 27B at an 8k or 16k window
+// left room for a 4B entirely on the GPU, and the same 27B at 32k pushed that
+// 4B to 18% CPU, where it is several times slower than the model it was meant
+// to be faster than.
+//
+// The threshold is generous because a few percent on the CPU costs little, and
+// because the numbers the server reports are approximate.
+func (l Loaded) Spilled() bool { return l.OnGPU() < 0.95 }
+
+// Running returns the models the server currently holds in memory.
+func (c *Client) Running(ctx context.Context) ([]Loaded, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/ps", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("cannot reach Ollama at %s: %w", c.BaseURL, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ollama returned %s", resp.Status)
+	}
+	var pr psResponse
+	if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+		return nil, err
+	}
+	out := make([]Loaded, 0, len(pr.Models))
+	for _, m := range pr.Models {
+		name := m.Name
+		if name == "" {
+			name = m.Model
+		}
+		if name == "" {
+			continue
+		}
+		out = append(out, Loaded{Name: name, Size: m.Size, SizeVRAM: m.SizeVRAM})
+	}
+	return out, nil
+}
+
+// FindLoaded returns the named model among those loaded, tolerating the
+// ":latest" suffix the way HasModel does.
+func FindLoaded(loaded []Loaded, name string) (Loaded, bool) {
+	want := strings.TrimSuffix(name, ":latest")
+	for _, l := range loaded {
+		if strings.TrimSuffix(l.Name, ":latest") == want {
+			return l, true
+		}
+	}
+	return Loaded{}, false
 }

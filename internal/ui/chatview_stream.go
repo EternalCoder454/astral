@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -209,6 +210,7 @@ func (c *ChatView) buildRequest() []ollama.Message {
 		// the style has been changed since, saying nothing means the model
 		// imitates what it can see and the new style changes almost nothing.
 		StyleChanged: c.styleChangedSince(),
+		Direction:    c.chat.Note,
 		// Likewise for markup. The first reply that drops the asterisks
 		// becomes precedent for every reply after it, so the rule is restated
 		// more firmly exactly while that is happening.
@@ -442,6 +444,7 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	if c.atBottom() {
 		c.scrollToBottom()
 	}
+	c.checkModelFits(c.activeModel())
 	// Compaction first, and only one of the two can run: a scene that has
 	// outgrown its window needs the recap before it needs new lore, because
 	// without it the next turn starts dropping the oldest messages unread.
@@ -473,7 +476,7 @@ func (c *ChatView) maybeLearn() {
 	if !ok {
 		return
 	}
-	client, model := c.client, c.activeModel()
+	client, model := c.client, c.housekeepingModel()
 	w, existing := c.world, c.lore
 	charName := c.char.Name
 	userName := c.cfg.PersonaName
@@ -523,6 +526,7 @@ func (c *ChatView) maybeLearn() {
 					held++
 				}
 			}
+			c.checkModelFits(model)
 			if kept+held > 0 {
 				log.Printf("astral: learned %d lore entries (%d applied, %d held for review)",
 					kept+held, kept, held)
@@ -569,7 +573,7 @@ func (c *ChatView) maybeCompact() {
 	if !ok {
 		return
 	}
-	client, model := c.client, c.activeModel()
+	client, model := c.client, c.housekeepingModel()
 	prev, char, persona, opts := c.recap, c.char, c.persona(), c.options()
 
 	go func() {
@@ -596,8 +600,9 @@ func (c *ChatView) maybeCompact() {
 			if c.chat.ID == chatID {
 				c.recap, c.recapUpto = next, upto
 			}
-			log.Printf("astral: compacted %d turns of chat %d into a %d-character recap",
-				len(aged), chatID, len(next))
+			log.Printf("astral: compacted %d turns of chat %d into a %d-character recap using %s",
+				len(aged), chatID, len(next), model)
+			c.checkModelFits(model)
 			return false
 		})
 	}()
@@ -782,4 +787,73 @@ func (c *ChatView) wantsPrefill(msgs []ollama.Message) bool {
 		return false
 	}
 	return chars.NarrationDrifted(c.history())
+}
+
+// housekeepingModel is the model that writes the recap and reads the scene for
+// lore. It falls back to whichever model is playing the scene, which is what
+// an empty setting means and also what happens when the configured one has
+// been deleted since it was chosen.
+func (c *ChatView) housekeepingModel() string {
+	m := strings.TrimSpace(c.cfg.HousekeepingModel)
+	if m == "" {
+		return c.activeModel()
+	}
+	return m
+}
+
+// checkModelFits says so, once, when a model did not fit in video memory and
+// is running partly on the CPU.
+//
+// This is the one hardware problem that hides. A model that half fits does not
+// fail, it just gets several times slower, and nothing on screen connects that
+// to the context size someone raised a week ago. Measured on a 24GB card: a
+// 27B at a 32k window left no room for a 4B beside it, and the 4B dropped to
+// 18% CPU, where it was slower than the model it was meant to be faster than.
+//
+// It is also the check behind having a separate housekeeping model at all.
+// That is only worth doing while Ollama can hold both at once — it keeps them
+// resident rather than swapping — and the saving is real right up to the point
+// where one of them spills.
+//
+// What does not change speed, incidentally, is the context size on its own.
+// Measured across 4k to 64k with the same prompt, prompt and generation rates
+// were flat within noise while video memory moved by four gigabytes. A window
+// costs memory, not time; what costs time is the prompt actually sent.
+func (c *ChatView) checkModelFits(model string) {
+	if c.warnedSpill || model == "" {
+		return
+	}
+	scene := model == c.activeModel()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		loaded, err := c.client.Running(ctx)
+		if err != nil {
+			return
+		}
+		l, ok := ollama.FindLoaded(loaded, model)
+		if !ok || !l.Spilled() {
+			return
+		}
+		coreglib.IdleAdd(func() bool {
+			if c.warnedSpill {
+				return false
+			}
+			c.warnedSpill = true
+			if scene {
+				c.fail(fmt.Sprintf(
+					"%s only fits %.0f%% in video memory, so it is running partly on the CPU and "+
+						"is much slower than it could be. Lower the context size in Settings, "+
+						"or use a smaller model.",
+					shortModel(model), 100*l.OnGPU()))
+			} else {
+				c.fail(fmt.Sprintf(
+					"%s only fits %.0f%% in video memory beside %s, so the background work is "+
+						"running partly on the CPU. Use a smaller background model, or lower "+
+						"the context size.",
+					shortModel(model), 100*l.OnGPU(), shortModel(c.activeModel())))
+			}
+			return false
+		})
+	}()
 }

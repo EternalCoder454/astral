@@ -32,6 +32,8 @@ type settingsForm struct {
 	repeat      *gtk.Scale
 	numCtx      *gtk.Entry
 	numPredict  *gtk.Entry
+
+	housekeeping *gtk.DropDown
 }
 
 // showSettings opens the settings dialog.
@@ -126,6 +128,22 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 		a.toast("Checking Ollama…")
 	})
 	card.Append(refresh)
+
+	// The recap and the lorebook pass are bookkeeping, not prose, and a much
+	// smaller model does them about as well in a fraction of the time. They
+	// also run in the background after a reply, so whatever they use is what
+	// the next message has to queue behind.
+	f.housekeeping = gtk.NewDropDownFromStrings(f.housekeepingLabels(a))
+	// Not indexOf: it answers 0 for a miss, which is the right fallback for the
+	// scene's model (use the first installed one) and the wrong one here, where
+	// row 0 already means something and an unset value would silently select a
+	// background model nobody chose.
+	f.housekeeping.SetSelected(uint(housekeepingRow(f.models, a.cfg.HousekeepingModel)))
+	card.Append(labelledField("Background model",
+		"Writes the scene recap and keeps the lorebook. A small model is the point: "+
+			"Ollama holds it in memory beside the one playing the scene, so it has to be "+
+			"small enough to fit there. Astral says so if it stops fitting.",
+		f.housekeeping))
 
 	f.baseURL = gtk.NewEntry()
 	f.baseURL.SetText(a.cfg.BaseURL)
@@ -256,6 +274,12 @@ func (a *App) applySettings(f *settingsForm) {
 	if i := int(f.model.Selected()); i >= 0 && i < len(f.models) {
 		a.cfg.Model = f.models[i]
 	}
+	// Row zero is "same as the scene", which is what an empty setting means.
+	if i := int(f.housekeeping.Selected()) - 1; i >= 0 && i < len(f.models) {
+		a.cfg.HousekeepingModel = f.models[i]
+	} else {
+		a.cfg.HousekeepingModel = ""
+	}
 	if u := strings.TrimSpace(f.baseURL.Text()); u != "" {
 		a.cfg.BaseURL = u
 	}
@@ -374,6 +398,32 @@ func (f *settingsForm) modelLabels(a *App) []string {
 		return []string{"No models found"}
 	}
 	out := make([]string, 0, len(a.models))
+	for _, m := range a.models {
+		out = append(out, m.Label())
+	}
+	return out
+}
+
+// housekeepingRow is which row the configured background model sits on, where
+// row 0 is "same as the scene". An unset or uninstalled model lands there too:
+// falling back to the scene's own model is always correct, where guessing at
+// another one is not.
+func housekeepingRow(models []string, want string) int {
+	if strings.TrimSpace(want) == "" {
+		return 0
+	}
+	for i, m := range models {
+		if m == want {
+			return i + 1
+		}
+	}
+	return 0
+}
+
+// housekeepingLabels is the model list with a "same as the scene" row in
+// front, which is both the default and what an empty setting means.
+func (f *settingsForm) housekeepingLabels(a *App) []string {
+	out := []string{"Same as the scene's model"}
 	for _, m := range a.models {
 		out = append(out, m.Label())
 	}

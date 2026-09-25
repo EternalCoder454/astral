@@ -78,6 +78,23 @@ func Anchor(c Character, sc Scene, userName string) string {
 		b.WriteString("\n\nThe user's own instructions, which outrank everything else here:\n")
 		b.WriteString(Substitute(ins, c.Name, userName))
 	}
+
+	// Last of all, and so weighted most. A direction is about where the scene
+	// is going rather than how it is written, which is why it sits apart from
+	// the instructions above it.
+	//
+	// The wording works hard on two failure modes. A model handed "she is
+	// about to realise he lied" will otherwise write exactly that sentence, in
+	// narration, this turn — announcing the thing instead of playing it — and
+	// will treat the whole direction as something to finish within one reply.
+	if d := strings.TrimSpace(sc.Direction); d != "" {
+		b.WriteString("\n\nDIRECTION — where the user wants this scene to go. Your next reply " +
+			"must take a visible step toward it: have the character say or do something that " +
+			"moves it along, in this reply, not a later one. Do not state the direction itself " +
+			"and do not have anyone name it outright, and do not resolve the whole thing at " +
+			"once. One step, now:\n")
+		b.WriteString(Substitute(d, c.Name, userName))
+	}
 	b.WriteString("]")
 	return b.String()
 }

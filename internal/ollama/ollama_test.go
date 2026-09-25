@@ -286,3 +286,44 @@ func TestChatSendsKeepAlive(t *testing.T) {
 		t.Errorf("keep_alive was sent when unset: %v", req["keep_alive"])
 	}
 }
+
+func TestLoadedSpilled(t *testing.T) {
+	tests := []struct {
+		name          string
+		size, vram    int64
+		wantSpilled   bool
+		wantOnGPUNear float64
+	}{
+		{"entirely on the GPU", 3_300_000_000, 3_300_000_000, false, 1.0},
+		{"a rounding error off", 3_300_000_000, 3_290_000_000, false, 0.997},
+		{"18 percent on the CPU", 4_900_000_000, 4_018_000_000, true, 0.82},
+		{"entirely on the CPU", 4_900_000_000, 0, true, 0},
+		// A server that reports nothing must not be read as a spill: the
+		// warning it would raise is worse than the information it carries.
+		{"no sizes reported", 0, 0, true, 0},
+	}
+	for _, tt := range tests {
+		l := Loaded{Name: "m", Size: tt.size, SizeVRAM: tt.vram}
+		if got := l.Spilled(); got != tt.wantSpilled {
+			t.Errorf("%s: Spilled() = %v, want %v", tt.name, got, tt.wantSpilled)
+		}
+		if got := l.OnGPU(); got < tt.wantOnGPUNear-0.01 || got > tt.wantOnGPUNear+0.01 {
+			t.Errorf("%s: OnGPU() = %.3f, want about %.3f", tt.name, got, tt.wantOnGPUNear)
+		}
+	}
+}
+
+func TestFindLoaded(t *testing.T) {
+	loaded := []Loaded{
+		{Name: "huihui_ai/qwen3.5-abliterated:4b", Size: 10, SizeVRAM: 10},
+		{Name: "llama3.2:latest", Size: 10, SizeVRAM: 10},
+	}
+	for _, want := range []string{"huihui_ai/qwen3.5-abliterated:4b", "llama3.2", "llama3.2:latest"} {
+		if _, ok := FindLoaded(loaded, want); !ok {
+			t.Errorf("FindLoaded(%q) did not find it", want)
+		}
+	}
+	if _, ok := FindLoaded(loaded, "qwen3.5-abliterated:4b"); ok {
+		t.Error("FindLoaded matched on a partial name, which would confuse two models")
+	}
+}

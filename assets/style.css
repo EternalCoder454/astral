@@ -734,3 +734,15 @@ frame:focus-within {
 .accent-5 { background-color: #9e7852; } /* kraft, deepened */
 .accent-6 { background-color: #7a7897; } /* heather, deepened */
 .accent-7 { background-color: #5f8378; } /* cactus, deepened */
+
+/* A scene direction that is actually set, as against the invitation to set
+   one. The two are the same control and have to read as different states. */
+.chat-action-chip.direction-set {
+	background-color: alpha(@accent_bg_color, 0.20);
+	border-color: alpha(@accent_bg_color, 0.55);
+	color: @astral_text;
+}
+
+.chat-action-chip.direction-set:hover {
+	background-color: alpha(@accent_bg_color, 0.30);
+}

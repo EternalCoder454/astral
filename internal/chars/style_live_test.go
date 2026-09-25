@@ -256,3 +256,85 @@ func TestLiveDriftEscalationRecovers(t *testing.T) {
 			"was marked: the transcript's own precedent is still winning", 100*m.markedRatio)
 	}
 }
+
+// A direction has two ways to fail and they pull in opposite directions. It
+// can be ignored, which makes the control useless; or it can be obeyed too
+// literally, with the model narrating the instruction itself — "she was about
+// to realise he had lied" — which is worse than ignoring it, because it hands
+// the reader the thing the scene was supposed to play out.
+//
+// So arrival is measured over several turns rather than one. The prompt tells
+// the model to move one step and not to get there in a single reply, and an
+// earlier version of this test then asserted that it had got there in a single
+// reply. It had not, and it was right not to: it stood the character up, put
+// the charts in her arms and had her say "the tide waits for no one". The test
+// was wrong, not the feature.
+func TestLiveDirectionSteersWithoutAnnouncing(t *testing.T) {
+	client, model := liveClient(t)
+	c := Character{
+		Name:        "Vesper Quill",
+		Description: "A cartographer of places that have not happened yet.",
+		Scenario:    "Her map room, late, during a storm.",
+	}
+	hist := []ollama.Message{
+		{Role: ollama.RoleUser, Content: "I push the door open and shake the rain off my coat."},
+		{Role: ollama.RoleAssistant, Content: `*She did not look up from the chart.* "You're late."`},
+		{Role: ollama.RoleUser, Content: "\"The ferry was late, not me.\""},
+	}
+
+	// A target that cannot happen by accident. An earlier version aimed the
+	// scene at the harbour, and the control group promptly went to the harbour
+	// on its own: a storm, a ferry and a cartographer drift seawards without
+	// anyone asking. A sister who has never been mentioned does not.
+	const direction = "Get {{char}} talking about her sister."
+	arrived := []string{"sister", "sibling"}
+
+	// Passive user turns. If the scene reaches the harbour anyway, it is the
+	// direction doing the work and not the person playing.
+	passive := []string{"I watch her.", "I say nothing.", "I wait."}
+
+	play := func(dir string) (string, int) {
+		turns := append([]ollama.Message{}, hist...)
+		for i, u := range passive {
+			if i > 0 {
+				turns = append(turns, ollama.Message{Role: ollama.RoleUser, Content: u})
+			}
+			sc := styleScene(DefaultStyle(), turns)
+			sc.Direction = dir
+			reply := liveReply(t, client, model, c, sc)
+			turns = append(turns, ollama.Message{Role: ollama.RoleAssistant, Content: reply})
+			low := strings.ToLower(reply)
+			for _, w := range arrived {
+				if strings.Contains(low, w) {
+					return reply, i + 1
+				}
+			}
+		}
+		return "", 0
+	}
+
+	withReply, withTurn := play(direction)
+	t.Logf("model: %s", model)
+	if withTurn == 0 {
+		t.Errorf("after %d turns the direction was never taken up, so it did nothing", len(passive))
+	} else {
+		t.Logf("direction taken up on turn %d of %d", withTurn, len(passive))
+		t.Logf("--- that reply ---\n%s", withReply)
+	}
+
+	// The control group. Without the direction the scene should stay put, or
+	// the test is measuring the scenario rather than the direction.
+	if _, plainTurn := play(""); plainTurn != 0 {
+		t.Logf("NOTE: the same thing happened on turn %d with no direction at all, "+
+			"so this fixture does not isolate the direction well", plainTurn)
+	}
+
+	// Announcing it: quoting the instruction back as prose instead of playing
+	// it. A long verbatim run from the direction is the giveaway.
+	low := strings.ToLower(withReply)
+	for _, phrase := range []string{"get vesper quill talking about", "get {{char}} talking about"} {
+		if strings.Contains(low, phrase) {
+			t.Errorf("the reply quotes the direction back rather than playing it: %q", phrase)
+		}
+	}
+}

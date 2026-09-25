@@ -15,7 +15,7 @@ func benchScene() (Character, Scene) {
 	}
 	c := Character{
 		Name: "Vesper Quill", Description: long.String(), Personality: "wry, guarded",
-		Scenario: "The map room, past midnight.",
+		Scenario:   "The map room, past midnight.",
 		MesExample: "<START>\n{{user}}: Hello.\n{{char}}: *She did not look up.* \"Is it.\"",
 	}
 	p := Persona{Name: "Christian", Description: "A courier.", Style: DefaultStyle()}

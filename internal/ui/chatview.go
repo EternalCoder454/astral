@@ -124,6 +124,11 @@ type ChatView struct {
 	// chars.NarrationPrefill.
 	prefilled bool
 
+	// warnedSpill stops the "your housekeeping model did not fit" notice from
+	// repeating: it is true of the configuration, not of the turn, so saying
+	// it once is saying it.
+	warnedSpill bool
+
 	// recap is the running record of everything compacted out of this chat's
 	// context, and recapUpto is the last message id it covers. Turns newer
 	// than that are still sent word-for-word.
@@ -168,6 +173,10 @@ type ChatView struct {
 	// OnAttachImage asks the app to choose an image. The app calls
 	// AttachImage with the result.
 	OnAttachImage func()
+	// OnEditDirection is the direction chip being clicked. The dialog lives in
+	// the app layer, like the other editors.
+	OnEditDirection func()
+
 	// OnLoreLearned reports a finished learning pass: how many entries were
 	// applied, and how many were held back for review.
 	OnLoreLearned func(applied, held int)
@@ -737,6 +746,15 @@ func (c *ChatView) refreshActions() {
 			}
 		}
 	default:
+		// A roleplay scene gets the direction chip instead. It lives above the
+		// composer rather than behind a menu because a direction is something
+		// you set while reading a reply and change a turn later, and anything
+		// that takes two clicks to reach does not get used that way.
+		if c.char.Name != "" {
+			c.actionBar.Append(c.directionChip())
+			c.actionBar.SetVisible(true)
+			return
+		}
 		c.actionBar.SetVisible(false)
 		return
 	}
@@ -746,6 +764,54 @@ func (c *ChatView) refreshActions() {
 	btn.ConnectClicked(fire)
 	c.actionBar.Append(btn)
 	c.actionBar.SetVisible(true)
+}
+
+// directionChip is the scene-direction control: what it currently says, or an
+// invitation to say something.
+func (c *ChatView) directionChip() *gtk.Button {
+	btn := gtk.NewButton()
+	btn.AddCSSClass("chat-action-chip")
+	if note := strings.TrimSpace(c.chat.Note); note != "" {
+		// Shown expanded. The model is sent the raw form, because a direction
+		// written once should keep working if the scene changes character,
+		// but a chip reading "{{char}} is close to admitting..." is a chip
+		// asking to be read twice.
+		userName := c.cfg.PersonaName
+		if userName == "" {
+			userName = chars.DefaultPersonaName
+		}
+		shown := chars.Substitute(note, c.char.Name, userName)
+		btn.SetLabel("Direction: " + Snippet(shown, 60))
+		btn.AddCSSClass("direction-set")
+		btn.SetTooltipText(shown + "\n\nClick to change or clear it.")
+	} else {
+		btn.SetLabel("Set a direction")
+		btn.SetTooltipText("Tell the scene where to go next, without saying it out loud in the story")
+	}
+	btn.ConnectClicked(func() {
+		if c.OnEditDirection != nil {
+			c.OnEditDirection()
+		}
+	})
+	return btn
+}
+
+// Note returns this scene's direction.
+func (c *ChatView) Note() string { return c.chat.Note }
+
+// SetNote stores a new direction for this scene and refreshes the chip.
+//
+// It takes effect on the next turn, not this one: the reply being read was
+// written before the direction existed. Nothing is written for a chat that
+// does not exist yet, which is the case before the first message.
+func (c *ChatView) SetNote(note string) error {
+	note = strings.TrimSpace(note)
+	c.chat.Note = note
+	c.refreshActions()
+	if c.chat.ID == 0 {
+		return nil
+	}
+	return c.store.SetChatNote(c.chat.ID, note)
 }
 
 // History returns the conversation so far, for the designers' extraction step.
