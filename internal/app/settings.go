@@ -27,6 +27,7 @@ type settingsForm struct {
 	showStat *gtk.CheckButton
 	updates  *gtk.CheckButton
 	channel  *gtk.DropDown
+	phone    *gtk.CheckButton
 	think    *gtk.CheckButton
 
 	temperature *gtk.Scale
@@ -59,6 +60,7 @@ func (a *App) showSettingsPage(page string) {
 	stack.AddTitled(scrolled(a.buildModelPage(f)), "model", "Model")
 	stack.AddTitled(scrolled(a.buildPersonaPage(f)), "persona", "You")
 	stack.AddTitled(scrolled(a.buildAppearancePage(f)), "appearance", "Appearance")
+	stack.AddTitled(scrolled(a.buildPhonePage(f)), "phone", "Phone")
 	stack.AddTitled(scrolled(a.buildUpdatesPage(f)), "updates", "Updates")
 
 	side := gtk.NewStackSidebar()

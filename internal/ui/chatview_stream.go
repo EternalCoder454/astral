@@ -14,6 +14,7 @@ import (
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
+	"astral/internal/scene"
 	"astral/internal/store"
 	"astral/internal/world"
 )
@@ -190,40 +191,11 @@ func (c *ChatView) rowHistory() []ollama.Message {
 // either plain assistant talk or a design session, and each needs its own
 // system message rather than an empty one.
 func (c *ChatView) buildRequest() []ollama.Message {
-	hist := c.history()
-	system := func(content string) []ollama.Message {
-		return append([]ollama.Message{{Role: ollama.RoleSystem, Content: content}}, hist...)
-	}
-	switch c.chat.Kind {
-	case store.KindDesigner:
-		return system(chars.DesignerSystem)
-	case store.KindStyleDesigner:
-		return system(chars.StyleDesignerSystem)
-	case store.KindAssistant:
-		return system(chars.AssistantSystem)
-	}
-	if c.char.Name == "" {
-		return system(chars.AssistantSystem)
-	}
-	p := c.persona()
-	sc := chars.Scene{
-		Persona: p,
-		Recap:   c.recap,
-		History: hist,
-		Budget:  c.budget(c.char, p),
-		// The transcript is the strongest style signal in the context: by turn
-		// twenty it holds twenty worked examples of how this scene sounds. If
-		// the style has been changed since, saying nothing means the model
-		// imitates what it can see and the new style changes almost nothing.
-		StyleChanged: c.styleChangedSince(),
-		Direction:    c.chat.Note,
-		// Likewise for markup. The first reply that drops the asterisks
-		// becomes precedent for every reply after it, so the rule is restated
-		// more firmly exactly while that is happening.
-		NarrationDrifted: chars.NarrationDrifted(hist),
-	}
-	sc.Lore = c.loreFor(hist, sc.Budget.Lore)
-	return chars.BuildMessages(c.char, sc)
+	// Assembled by internal/scene, which the server the phone talks to uses
+	// too. Two clients that build their own prompts answer the same scene
+	// differently and throw away each other's cached prefix every time you
+	// switch between them, so there is one assembler and this calls it.
+	return scene.Build(c.store, c.cfg, c.chat, c.char, c.history())
 }
 
 // budget divides this chat's context window between the parts of its prompt.
@@ -237,21 +209,6 @@ func (c *ChatView) budget(ca chars.Character, p chars.Persona) chars.Budget {
 		numCtx = chars.DefaultNumCtx
 	}
 	return chars.Plan(numCtx, c.cfg.NumPredict, len(chars.BuildSystem(ca, p)))
-}
-
-// styleChangedSince reports whether the active writing style differs from the
-// one this scene has been written in so far.
-//
-// A new chat has no recorded style and is not a change: there is no transcript
-// to contradict. The record is updated once the turn is under way, so the
-// notice appears on exactly the first reply after a change rather than on
-// every reply from then on.
-func (c *ChatView) styleChangedSince() bool {
-	if c.chat.ID == 0 || len(c.rows) < 2 {
-		return false
-	}
-	was := c.chat.StyleName
-	return was != "" && was != c.cfg.Style().Name
 }
 
 // recordStyle notes which style this scene is being written in.
@@ -270,26 +227,9 @@ func (c *ChatView) recordStyle() {
 	c.chat.StyleName = name
 }
 
-func (c *ChatView) options() ollama.Options {
-	// The reply limit is always sent, even when the user has not set one.
-	// Unset, Ollama generates until it stops or fills the window — and the
-	// budget above reserves a fixed amount of room for the reply, so a reply
-	// that ignores that reservation puts the prompt back over the window and
-	// the oldest tokens, which are the framing, get dropped again.
-	predict := c.cfg.NumPredict
-	if predict <= 0 {
-		predict = chars.DefaultReplyTokens
-	}
-	return ollama.Options{
-		Temperature:   c.cfg.Temperature,
-		TopP:          c.cfg.TopP,
-		TopK:          c.cfg.TopK,
-		RepeatPenalty: c.cfg.RepeatPenalty,
-		RepeatLastN:   c.cfg.RepeatLastN,
-		NumCtx:        c.cfg.NumCtx,
-		NumPredict:    predict,
-	}
-}
+// options are the sampler settings, from internal/scene so that the window and
+// the phone send the same ones.
+func (c *ChatView) options() ollama.Options { return scene.Options(c.cfg) }
 
 // startStream asks the model for a reply and streams it into a fresh row.
 func (c *ChatView) startStream() {

@@ -1,0 +1,361 @@
+package serve
+
+import (
+	"context"
+	"embed"
+	"encoding/json"
+	"fmt"
+	"io/fs"
+	"log"
+	"net"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"astral/internal/chars"
+	"astral/internal/ollama"
+	"astral/internal/scene"
+	"astral/internal/store"
+)
+
+//go:embed web
+var webFiles embed.FS
+
+// Server is Astral on the network: the library on this machine, and the models
+// running on it, usable from a device that could not run them itself.
+type Server struct {
+	store  *store.Store
+	config func() store.Config
+	client func() *ollama.Client
+
+	pair pairing
+
+	mu   sync.Mutex
+	http *http.Server
+	port int
+}
+
+// New builds a server. Nothing listens until Start is called.
+//
+// config and client are read fresh on every request rather than captured,
+// because the model, the persona and the server address can all be changed in
+// settings while a phone is connected, and the phone should get what the window
+// would get.
+func New(st *store.Store, config func() store.Config, client func() *ollama.Client) *Server {
+	return &Server{store: st, config: config, client: client}
+}
+
+// Start begins listening. Starting an already-running server is not an error.
+func (s *Server) Start(port int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.http != nil {
+		return nil
+	}
+	if port <= 0 {
+		port = store.DefaultPhonePort
+	}
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return err
+	}
+	srv := &http.Server{
+		Handler: s.routes(),
+		// A generation can take minutes, so there is no write timeout, but a
+		// client that opens a connection and says nothing is not allowed to
+		// hold one open for ever.
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+	}
+	s.http, s.port = srv, port
+	go func() {
+		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
+			log.Printf("astral: phone access stopped: %v", err)
+		}
+	}()
+	return nil
+}
+
+// Stop closes the server and ends any pairing in progress.
+func (s *Server) Stop() {
+	s.mu.Lock()
+	srv := s.http
+	s.http = nil
+	s.mu.Unlock()
+	s.pair.close()
+	if srv == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	srv.Shutdown(ctx)
+}
+
+// Running reports whether the server is listening, and on what port.
+func (s *Server) Running() (int, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.port, s.http != nil
+}
+
+// OpenPairing starts a pairing and returns the code to show on screen.
+func (s *Server) OpenPairing() (string, error) { return s.pair.open() }
+
+// ClosePairing ends one early.
+func (s *Server) ClosePairing() { s.pair.close() }
+
+// PairingOpen returns the code being offered and how long it has left.
+func (s *Server) PairingOpen() (string, time.Duration, bool) { return s.pair.current() }
+
+func (s *Server) routes() http.Handler {
+	mux := http.NewServeMux()
+
+	// The one route that is deliberately open, because a device with no token
+	// has no other way to get one. It is rate limited by the pairing itself.
+	mux.HandleFunc("POST /api/pair", s.handlePair)
+
+	mux.Handle("GET /api/state", s.guard(s.handleState))
+	mux.Handle("GET /api/chats/{id}", s.guard(s.handleChat))
+	mux.Handle("POST /api/chats", s.guard(s.handleNewChat))
+	mux.Handle("POST /api/chats/{id}/send", s.guard(s.handleSend))
+	mux.Handle("DELETE /api/chats/{id}", s.guard(s.handleDeleteChat))
+
+	sub, err := fs.Sub(webFiles, "web")
+	if err != nil {
+		log.Printf("astral: the phone interface is missing from this build: %v", err)
+		return mux
+	}
+	mux.Handle("GET /", http.FileServer(http.FS(sub)))
+	return mux
+}
+
+// guard requires a paired device.
+func (s *Server) guard(h func(http.ResponseWriter, *http.Request, store.Device)) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		d, ok := s.store.DeviceByToken(strings.TrimSpace(token))
+		if !ok {
+			// 401 and nothing else. Which part was wrong is not the caller's
+			// business, and a device that has been revoked should look exactly
+			// like one that was never paired.
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "not paired"})
+			return
+		}
+		h(w, r, d)
+	})
+}
+
+func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Code string `json:"code"`
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unreadable request"})
+		return
+	}
+	if !s.pair.claim(body.Code) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "that code is not right, or it has expired"})
+		return
+	}
+	token, err := newToken()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not make a token"})
+		return
+	}
+	name := strings.TrimSpace(body.Name)
+	if len(name) > 60 {
+		name = name[:60]
+	}
+	if _, err := s.store.AddDevice(name, token); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"token": token})
+}
+
+// handleState is everything the home screen needs, in one round trip. A phone
+// on a home network is not slow, but it is a network, and five requests to draw
+// one screen is five chances to be waiting.
+func (s *Server) handleState(w http.ResponseWriter, r *http.Request, d store.Device) {
+	go s.store.TouchDevice(d.ID)
+	cfg := s.config()
+
+	type chatOut struct {
+		ID       int64  `json:"id"`
+		Title    string `json:"title"`
+		Who      string `json:"who"`
+		Accent   int    `json:"accent"`
+		Messages int    `json:"messages"`
+		Updated  int64  `json:"updated"`
+	}
+	out := struct {
+		Persona    string        `json:"persona"`
+		Model      string        `json:"model"`
+		Chats      []chatOut     `json:"chats"`
+		Characters []nameOut     `json:"characters"`
+		Worlds     []nameOut     `json:"worlds"`
+		Device     string        `json:"device"`
+		Since      time.Duration `json:"-"`
+	}{Persona: cfg.PersonaName, Model: cfg.Model, Device: d.Name}
+
+	chats, err := s.store.Chats()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	for _, c := range chats {
+		out.Chats = append(out.Chats, chatOut{
+			ID: c.ID, Title: c.Title, Who: c.CharacterName, Accent: c.Accent,
+			Messages: c.MessageCount, Updated: c.UpdatedAt.Unix(),
+		})
+	}
+	if cs, err := s.store.Characters(); err == nil {
+		for _, c := range cs {
+			out.Characters = append(out.Characters, nameOut{ID: c.ID, Name: c.Name, Note: c.Description, Accent: c.Accent})
+		}
+	}
+	if ws, err := s.store.Worlds(); err == nil {
+		for _, wd := range ws {
+			out.Worlds = append(out.Worlds, nameOut{ID: wd.ID, Name: wd.Name, Note: wd.Description})
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+type nameOut struct {
+	ID     int64  `json:"id"`
+	Name   string `json:"name"`
+	Note   string `json:"note"`
+	Accent int    `json:"accent"`
+}
+
+func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, d store.Device) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not a chat id"})
+		return
+	}
+	ch, err := s.store.Chat(id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such chat"})
+		return
+	}
+	msgs, err := s.store.Messages(id)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	type msgOut struct {
+		ID      int64  `json:"id"`
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	}
+	out := struct {
+		ID       int64    `json:"id"`
+		Title    string   `json:"title"`
+		Who      string   `json:"who"`
+		Accent   int      `json:"accent"`
+		Kind     string   `json:"kind"`
+		Messages []msgOut `json:"messages"`
+	}{ID: ch.ID, Title: ch.Title, Who: ch.CharacterName, Accent: ch.Accent, Kind: ch.Kind}
+	for _, m := range msgs {
+		out.Messages = append(out.Messages, msgOut{ID: m.ID, Role: m.Role, Content: m.Content})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request, d store.Device) {
+	var body struct {
+		CharacterID int64 `json:"character_id"`
+		WorldID     int64 `json:"world_id"`
+	}
+	json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&body)
+
+	cfg := s.config()
+	title, kind := "New chat", store.KindRoleplay
+	switch {
+	case body.CharacterID != 0:
+		if ca, err := s.store.Character(body.CharacterID); err == nil {
+			title = ca.Name
+		}
+	case body.WorldID != 0:
+		if wd, err := s.store.World(body.WorldID); err == nil {
+			title = wd.Name
+		}
+	default:
+		kind = store.KindAssistant
+		title = "General chat"
+	}
+	ch, err := s.store.NewChatIn(body.CharacterID, body.WorldID, title, cfg.Model, kind)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": ch.ID})
+}
+
+func (s *Server) handleDeleteChat(w http.ResponseWriter, r *http.Request, d store.Device) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not a chat id"})
+		return
+	}
+	if err := s.store.DeleteChat(id); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"ok": "deleted"})
+}
+
+// characterFor resolves who a chat is with: a character, the narrator of a
+// world, or nobody.
+func (s *Server) characterFor(ch store.Chat) chars.Character {
+	switch {
+	case ch.CharacterID != 0:
+		ca, _ := s.store.Character(ch.CharacterID)
+		return ca
+	case ch.WorldID != 0:
+		if wd, err := s.store.World(ch.WorldID); err == nil {
+			return scene.Narrator(wd)
+		}
+	}
+	return chars.Character{}
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
+}
+
+// Addresses lists the addresses this machine can be reached on, for showing
+// next to the pairing code. Loopback is left out: it is the one address a
+// phone cannot use.
+func Addresses(port int) []string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, a := range addrs {
+			ipnet, ok := a.(*net.IPNet)
+			if !ok || ipnet.IP.To4() == nil {
+				continue
+			}
+			out = append(out, fmt.Sprintf("http://%s:%d", ipnet.IP.String(), port))
+		}
+	}
+	return out
+}

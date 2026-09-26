@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The deep ink from the desktop palette, so the window behind the page
+         matches the page and there is no flash of white on launch. -->
+    <style name="Theme.Astral" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">#03050d</item>
+        <item name="android:statusBarColor">#03050d</item>
+        <item name="android:navigationBarColor">#03050d</item>
+    </style>
+</resources>

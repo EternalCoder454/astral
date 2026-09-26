@@ -240,6 +240,16 @@ func (s *Store) migrate() error {
 	// A scene set in a world with nobody in particular in it.
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN world_id INTEGER NOT NULL DEFAULT 0`)
 
+	// Devices allowed in over the network. See devices.go.
+	s.db.Exec(`CREATE TABLE IF NOT EXISTS devices (
+		id         INTEGER PRIMARY KEY AUTOINCREMENT,
+		name       TEXT    NOT NULL,
+		token_hash TEXT    NOT NULL,
+		created_at INTEGER NOT NULL DEFAULT 0,
+		last_seen  INTEGER NOT NULL DEFAULT 0
+	)`)
+	s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_token ON devices(token_hash)`)
+
 	s.db.Exec(`
 		UPDATE characters SET instructions = TRIM(
 			COALESCE(system_prompt, '') ||

@@ -146,6 +146,26 @@ that GTK itself is packaged with there. libadwaita is a GNOME library and
 Windows is not a platform GNOME supports, so treat this as the less-travelled
 path of the two.
 
+### Your phone
+
+Astral can serve its library and its models to another device on the same
+network. The phone is the screen; this machine stays the computer, because a
+27B model does not run on a phone.
+
+Open Settings, then Phone access, and switch it on. It shows an address to open
+on the phone and, when you press Start pairing, a code to type into it. The
+phone keeps a token after that and stays signed in. Paired devices are listed
+there and can be removed, which takes effect on the next request they make.
+
+Any phone browser works. The
+[Android app](https://github.com/EternalCoder454/astral/releases) is the same
+interface with an icon, a full screen and the address remembered. It is
+sideloaded: Android will ask you to allow installing it, because it does not
+come from a store.
+
+Nothing leaves your network. There is no account, no server belonging to anyone
+else, and with phone access switched off nothing is listening.
+
 ### Linux
 
 ```bash

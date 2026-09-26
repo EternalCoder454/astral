@@ -9,6 +9,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/pango"
 
 	"astral/internal/chars"
+	"astral/internal/scene"
 	"astral/internal/store"
 	"astral/internal/ui"
 	"astral/internal/world"
@@ -275,18 +276,9 @@ func (a *App) showWorldPicker() {
 // because it is not a character anyone wrote: it is rebuilt from the world each
 // time, so editing the world changes the scenes already running in it.
 func narratorFor(w world.World) chars.Character {
-	return chars.Character{
-		Name:    w.Name,
-		WorldID: w.ID,
-		Accent:  ui.AccentFor(w.Name),
-		Description: "You are this place itself, and everyone in it.\n\n" +
-			"There is no single character to play here. Narrate what {{user}} finds, " +
-			"and play whoever they meet: give those people names, voices and reasons " +
-			"of their own, and let them leave again. When nobody is speaking, the " +
-			"place is: weather, noise, what is happening two streets away.\n\n" +
-			"Never answer as {{user}} and never decide what they do.",
-		Scenario: strings.TrimSpace(w.Description),
-	}
+	ca := scene.Narrator(w)
+	ca.Accent = ui.AccentFor(w.Name)
+	return ca
 }
 
 // startWorldScene opens a scene set in a world, with no character required.

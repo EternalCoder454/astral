@@ -14,6 +14,7 @@ import (
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
+	"astral/internal/serve"
 	"astral/internal/store"
 	"astral/internal/ui"
 )
@@ -40,10 +41,13 @@ type App struct {
 	client *ollama.Client
 	theme  *themer
 
-	win     *adw.ApplicationWindow
-	split   *adw.OverlaySplitView
-	toasts  *adw.ToastOverlay
-	stack   *gtk.Stack
+	win    *adw.ApplicationWindow
+	split  *adw.OverlaySplitView
+	toasts *adw.ToastOverlay
+	stack  *gtk.Stack
+	// phone is the server another device on this network talks to. Nil until
+	// the setting is switched on; see phone.go.
+	phone   *serve.Server
 	title   *adw.WindowTitle
 	sideBtn *gtk.ToggleButton
 
@@ -133,13 +137,17 @@ func (a *App) activate() {
 	// not waiting on a network round trip to a server that may not be running.
 	a.runDevSeed()
 	a.refreshSidebar()
-	a.restoreLastChat()
+	a.showWelcome()
 	a.probeModels()
 	a.maybeCheckForUpdate()
+	if a.cfg.PhoneAccess {
+		a.startPhoneAccess()
+	}
 	a.runDevView()
 }
 
 func (a *App) shutdown() {
+	a.stopPhoneAccess()
 	a.rememberLayout()
 	if a.chat != nil {
 		a.chat.Stop()
@@ -271,17 +279,13 @@ func (a *App) refreshSidebar() {
 	a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.PersonaDescription)
 }
 
-// restoreLastChat reopens whatever you were reading when you closed the app.
-func (a *App) restoreLastChat() {
-	if a.store == nil || a.cfg.LastChat == 0 {
-		a.showWelcome()
-		return
-	}
-	if err := a.openChat(a.cfg.LastChat); err != nil {
-		// The chat was deleted since last launch, which is not worth a message.
-		a.showWelcome()
-	}
-}
+// Astral opens on Home, always.
+//
+// It used to reopen whatever you were reading when you closed it, which sounds
+// helpful and is not: you are dropped into the middle of a scene with no idea
+// how you got there, and the one thing you cannot do from a transcript is
+// decide what to do next. LastChat is still recorded, because the sidebar uses
+// it to mark where you were.
 
 // openChat loads a conversation into the centre panel.
 func (a *App) openChat(id int64) error {

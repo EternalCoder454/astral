@@ -941,29 +941,6 @@ func (c *ChatView) loadLore(ca chars.Character) {
 	c.world, c.lore = w, entries
 }
 
-// loreFor renders the lore this part of the conversation has triggered.
-func (c *ChatView) loreFor(history []ollama.Message, budget int) string {
-	if budget <= 0 {
-		return ""
-	}
-	// A world with no lore yet still has a name, a description and its rules,
-	// and those are the setting. Returning early on an empty lorebook meant a
-	// world you had just written reached the model as nothing at all until you
-	// went and filled in entries, which is not what anyone would expect of it.
-	if len(c.lore) == 0 {
-		return world.Render(c.world, nil)
-	}
-	turns := make([]string, 0, len(history))
-	for _, m := range history {
-		turns = append(turns, m.Content)
-	}
-	// The character's own description is scanned too. A scene that has only
-	// just opened has almost no transcript, and without this the setting would
-	// not appear until someone happened to name part of it out loud.
-	turns = append([]string{c.char.Description + " " + c.char.Scenario}, turns...)
-	return world.Render(c.world, world.Match(c.lore, world.RecentText(turns), budget))
-}
-
 // Lore exposes the loaded lorebook, for the auto-update pass.
 func (c *ChatView) Lore() (world.World, []world.Entry) { return c.world, c.lore }
 

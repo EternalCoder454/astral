@@ -1,0 +1,71 @@
+# Build the phone app.
+#
+# It is a WebView around the interface the PC serves, so there is very little
+# here: the whole of Astral is in the Go binary, and this is a window onto it.
+#
+# The APK is signed with the debug key on purpose. It is sideloaded onto one
+# person's own phone to talk to one person's own PC; there is no store to
+# publish to, and a signing identity invented for CI protects nobody.
+
+name: android
+
+on:
+  push:
+    branches: [beta, release]
+    paths:
+      - "packaging/android/**"
+      - "internal/serve/web/**"
+      - ".github/workflows/android.yml"
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packaging/android
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: gradle --no-daemon assembleRelease
+
+      - name: Name it after the version
+        id: name
+        run: |
+          VERSION=$(sed -n 's/^var version = "\(.*\)"/\1/p' ../../internal/app/version.go)
+          echo "version: $VERSION"
+          mkdir -p out
+          cp app/build/outputs/apk/release/app-release.apk "out/astral-$VERSION.apk"
+          echo "apk=packaging/android/out/astral-$VERSION.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the app
+        uses: actions/upload-artifact@v4
+        with:
+          name: astral-android
+          path: packaging/android/out/*.apk
+
+      - name: Attach it to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.name.outputs.apk }}
+          draft: true
+          generate_release_notes: false

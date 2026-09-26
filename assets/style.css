@@ -874,3 +874,13 @@ frame:focus-within {
 	transition: background-color 120ms ease, border-color 120ms ease,
 		transform 90ms ease;
 }
+
+/* The pairing code, which is read off this screen and typed into a phone, so
+   it is set large and spaced rather than left as body text. */
+.pair-code {
+	font-family: monospace;
+	font-size: 1.5em;
+	font-weight: 700;
+	letter-spacing: 0.22em;
+	color: @accent_color;
+}

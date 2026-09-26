@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#03050d">
+<title>Astral</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Pairing. Shown until this device has a token, and again if it is revoked. -->
+<section id="pair" class="screen pair" hidden>
+  <div class="pair-card">
+    <h1>Astral</h1>
+    <p class="muted">On your PC, open Settings, then Phone access, and start pairing. Type the code it shows.</p>
+    <input id="pair-code" inputmode="latin" autocapitalize="characters" autocomplete="off"
+           spellcheck="false" maxlength="8" placeholder="CODE" aria-label="Pairing code">
+    <input id="pair-name" type="text" autocomplete="off" placeholder="What to call this device" aria-label="Device name">
+    <button id="pair-go" class="primary">Pair</button>
+    <p id="pair-error" class="error" role="alert"></p>
+  </div>
+</section>
+
+<!-- Home -->
+<section id="home" class="screen" hidden>
+  <header class="topbar">
+    <h1 id="home-greeting">Astral</h1>
+    <span id="home-model" class="chip"></span>
+  </header>
+  <div class="scroll">
+    <h2 class="heading">Start something</h2>
+    <div id="home-start" class="rows"></div>
+    <h2 class="heading">Recent</h2>
+    <div id="home-recent" class="rows"></div>
+  </div>
+</section>
+
+<!-- The list of every conversation -->
+<section id="chats" class="screen" hidden>
+  <header class="topbar"><h1>Chats</h1></header>
+  <div class="scroll"><div id="chats-list" class="rows"></div></div>
+</section>
+
+<!-- The cast and the worlds -->
+<section id="cast" class="screen" hidden>
+  <header class="topbar"><h1>Cast</h1></header>
+  <div class="scroll">
+    <h2 class="heading">Characters</h2>
+    <div id="cast-characters" class="rows"></div>
+    <h2 class="heading">Worlds</h2>
+    <div id="cast-worlds" class="rows"></div>
+  </div>
+</section>
+
+<!-- One conversation -->
+<section id="chat" class="screen chat" hidden>
+  <header class="topbar">
+    <button id="chat-back" class="icon" aria-label="Back">‹</button>
+    <h1 id="chat-title">Chat</h1>
+  </header>
+  <div id="transcript" class="transcript"></div>
+  <form id="composer" class="composer">
+    <textarea id="composer-text" rows="1" placeholder="Say something" aria-label="Message"></textarea>
+    <button id="composer-send" class="send" aria-label="Send">↑</button>
+  </form>
+</section>
+
+<!-- The bottom bar. It is the only navigation on a phone, so it is always
+     reachable and never scrolls away. -->
+<nav id="tabs" class="tabs" hidden>
+  <button data-screen="home" class="tab is-on"><span class="tab-dot"></span>Home</button>
+  <button data-screen="chats" class="tab"><span class="tab-dot"></span>Chats</button>
+  <button data-screen="cast" class="tab"><span class="tab-dot"></span>Cast</button>
+</nav>
+
+<div id="toast" class="toast" role="status" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

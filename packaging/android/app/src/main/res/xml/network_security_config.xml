@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Astral talks to a PC on the same network over plain HTTP.
+
+  That is a deliberate choice and worth being clear about. There is no
+  certificate to trust for a machine whose address is whatever the router gave
+  it this week, and a self-signed one produces a warning screen that teaches
+  the exact habit nobody should have. What travels is a token and a roleplay
+  transcript, on a home network, and the alternative is a worse kind of
+  security theatre.
+
+  Cleartext is therefore allowed, and nothing here is sent anywhere else.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

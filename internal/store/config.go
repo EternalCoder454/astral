@@ -81,6 +81,13 @@ type Config struct {
 	// safe thing to do.
 	ActiveStyle string `json:"active_style"`
 
+	// PhoneAccess lets another device on this network use this machine's
+	// Astral. Off unless asked for: it opens a port, and nothing that opens a
+	// port should do it because a default said so.
+	PhoneAccess bool `json:"phone_access"`
+	// PhonePort is where it listens.
+	PhonePort int `json:"phone_port"`
+
 	// UpdateChannel is the branch update checks follow: release or beta.
 	UpdateChannel string `json:"update_channel"`
 	// CheckUpdates asks GitHub on launch whether a newer version has been
@@ -193,6 +200,11 @@ const (
 )
 
 // DefaultConfig returns a Config populated with sensible defaults.
+// DefaultPhonePort is where phone access listens. Written down here rather
+// than in the server so that the settings page and the server cannot disagree
+// about what to tell you to type into a phone.
+const DefaultPhonePort = 8765
+
 func DefaultConfig() Config {
 	return Config{
 		BaseURL:       "http://localhost:11434",
@@ -204,6 +216,7 @@ func DefaultConfig() Config {
 		PortraitOpen:  true,
 		FontRendering: FontRenderingAuto,
 		KeepAlive:     "30m",
+		PhonePort:     DefaultPhonePort,
 		UpdateChannel: ChannelRelease,
 		CheckUpdates:  true,
 		ActiveStyle:   chars.DefaultStyleName,
@@ -274,6 +287,9 @@ func (c *Config) normalize() {
 	}
 	if c.RepeatLastN <= 0 {
 		c.RepeatLastN = DefaultRepeatLastN
+	}
+	if c.PhonePort <= 0 || c.PhonePort > 65535 {
+		c.PhonePort = DefaultPhonePort
 	}
 	if c.UpdateChannel != ChannelBeta && c.UpdateChannel != ChannelRelease {
 		c.UpdateChannel = ChannelRelease

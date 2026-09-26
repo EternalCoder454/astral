@@ -1,0 +1,388 @@
+/*
+ * Astral on a phone.
+ *
+ * The same palette as the desktop window, because it is the same app seen from
+ * somewhere else: deep ink, dusk rose, and narration set back from speech so a
+ * scene can be skimmed for what happened.
+ *
+ * Laid out for a phone first and widened for anything larger, rather than the
+ * other way round. The bottom bar is the only navigation a thumb can reach on
+ * a tall screen, so it is fixed there and everything else scrolls under it.
+ */
+
+:root {
+	--sidebar: #03050d;
+	--canvas: #1b1e32;
+	--surface: #2f3350;
+	--elevated: #393e5d;
+	--border: #51577d;
+	--text: #f5f4fb;
+	--muted: #cac8db;
+	--faint: #b1aec6;
+	--accent: #c9787f;
+	--accent-ink: #1b1119;
+	--user-bubble: #614251;
+
+	--bar: 58px;
+	--gutter: 16px;
+	--radius: 14px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+	margin: 0;
+	height: 100%;
+	overflow: hidden;
+	background: var(--canvas);
+	color: var(--text);
+	font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	-webkit-text-size-adjust: 100%;
+}
+
+.screen {
+	position: fixed;
+	inset: 0 0 calc(var(--bar) + env(safe-area-inset-bottom)) 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.screen[hidden] { display: none; }
+
+.topbar {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: calc(env(safe-area-inset-top) + 12px) var(--gutter) 12px;
+	background: var(--sidebar);
+	border-bottom: 1px solid var(--border);
+}
+
+.topbar h1 {
+	margin: 0;
+	font-size: 1.12rem;
+	font-weight: 700;
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chip {
+	font-size: 0.74rem;
+	color: var(--muted);
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	padding: 3px 10px;
+	white-space: nowrap;
+	max-width: 45vw;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.scroll {
+	flex: 1;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+	padding: 12px var(--gutter) 24px;
+}
+
+.heading {
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	color: var(--faint);
+	margin: 18px 2px 8px;
+}
+
+.rows { display: flex; flex-direction: column; gap: 8px; }
+
+.row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	text-align: left;
+	padding: 13px 14px;
+	border-radius: var(--radius);
+	background: var(--surface);
+	border: 1px solid var(--border);
+	color: var(--text);
+	font: inherit;
+	/* Comfortably past the 44px a thumb needs, without the list feeling sparse. */
+	min-height: 56px;
+	transition: background-color 120ms ease, transform 90ms ease;
+}
+
+.row:active { transform: scale(0.99); background: var(--elevated); }
+
+.row-primary {
+	background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+	border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+.row-text { flex: 1; min-width: 0; }
+
+.row-title {
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.row-note {
+	font-size: 0.82rem;
+	color: var(--muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.avatar {
+	width: 34px;
+	height: 34px;
+	flex: none;
+	border-radius: 999px;
+	display: grid;
+	place-items: center;
+	font-weight: 700;
+	font-size: 0.9rem;
+	color: var(--accent-ink);
+	background: var(--accent);
+}
+
+/* ---- Transcript ---- */
+
+.chat .transcript {
+	flex: 1;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+	padding: 14px var(--gutter);
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.msg { max-width: 92%; }
+.msg.from-user { align-self: flex-end; }
+
+.bubble {
+	padding: 11px 14px;
+	border-radius: var(--radius);
+	background: var(--surface);
+	border: 1px solid var(--border);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.from-user .bubble {
+	background: var(--user-bubble);
+	border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+.who {
+	font-size: 0.72rem;
+	color: var(--faint);
+	margin: 0 0 4px 4px;
+}
+
+/* The reading grammar, the same as the window: speech carries weight, and
+   everything outside quotation marks is set back. */
+.speech { font-weight: 600; }
+.narration { opacity: 0.66; font-style: italic; }
+
+.dots::after {
+	content: "…";
+	animation: astral-dots 1.2s steps(4, end) infinite;
+}
+
+@keyframes astral-dots {
+	0% { opacity: 0.3; }
+	50% { opacity: 1; }
+	100% { opacity: 0.3; }
+}
+
+/* ---- Composer ---- */
+
+.composer {
+	display: flex;
+	align-items: flex-end;
+	gap: 8px;
+	padding: 10px var(--gutter) calc(10px + env(safe-area-inset-bottom) / 2);
+	background: var(--sidebar);
+	border-top: 1px solid var(--border);
+}
+
+.composer textarea {
+	flex: 1;
+	resize: none;
+	max-height: 40vh;
+	padding: 11px 13px;
+	border-radius: var(--radius);
+	background: var(--surface);
+	border: 1px solid var(--border);
+	color: var(--text);
+	font: inherit;
+	/* Under 16px, iOS zooms the page when the field is focused. */
+	font-size: 16px;
+}
+
+.composer textarea:focus { outline: none; border-color: var(--accent); }
+
+.send {
+	flex: none;
+	width: 44px;
+	height: 44px;
+	border-radius: 999px;
+	border: none;
+	background: var(--accent);
+	color: var(--accent-ink);
+	font-size: 1.25rem;
+	font-weight: 700;
+	transition: transform 90ms ease, opacity 120ms ease;
+}
+
+.send:active { transform: scale(0.92); }
+.send:disabled { opacity: 0.45; }
+
+/* ---- Bottom bar ---- */
+
+.tabs {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: calc(var(--bar) + env(safe-area-inset-bottom));
+	padding-bottom: env(safe-area-inset-bottom);
+	display: flex;
+	background: var(--sidebar);
+	border-top: 1px solid var(--border);
+	z-index: 10;
+}
+
+.tabs[hidden] { display: none; }
+
+.tab {
+	flex: 1;
+	border: none;
+	background: none;
+	color: var(--faint);
+	font: inherit;
+	font-size: 0.74rem;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	transition: color 120ms ease;
+}
+
+.tab-dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 999px;
+	background: currentColor;
+	opacity: 0.45;
+	transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.tab.is-on { color: var(--accent); }
+.tab.is-on .tab-dot { opacity: 1; transform: scale(1.6); }
+
+/* A chat fills the screen: the bar would only be a way to lose your place. */
+body.in-chat .tabs { display: none; }
+body.in-chat .screen { inset: 0; }
+
+/* ---- Pairing ---- */
+
+.pair { justify-content: center; align-items: center; padding: var(--gutter); }
+
+.pair-card {
+	width: 100%;
+	max-width: 360px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 22px;
+	border-radius: 18px;
+	background: var(--surface);
+	border: 1px solid var(--border);
+}
+
+.pair-card h1 { margin: 0; font-size: 1.5rem; }
+.pair-card input {
+	padding: 13px;
+	border-radius: var(--radius);
+	background: var(--canvas);
+	border: 1px solid var(--border);
+	color: var(--text);
+	font: inherit;
+	font-size: 16px;
+}
+
+#pair-code {
+	text-align: center;
+	letter-spacing: 0.35em;
+	text-transform: uppercase;
+	font-size: 1.3rem;
+	font-weight: 700;
+}
+
+.primary {
+	padding: 13px;
+	border: none;
+	border-radius: var(--radius);
+	background: var(--accent);
+	color: var(--accent-ink);
+	font: inherit;
+	font-weight: 700;
+	font-size: 1rem;
+	transition: transform 90ms ease;
+}
+
+.primary:active { transform: scale(0.98); }
+
+.muted { color: var(--muted); font-size: 0.9rem; margin: 0; }
+.error { color: #ffb4b4; font-size: 0.88rem; min-height: 1.2em; margin: 0; }
+
+.icon {
+	border: none;
+	background: none;
+	color: var(--text);
+	font-size: 1.6rem;
+	line-height: 1;
+	padding: 0 6px;
+	min-width: 40px;
+	min-height: 40px;
+}
+
+.toast {
+	position: fixed;
+	left: 50%;
+	transform: translateX(-50%);
+	bottom: calc(var(--bar) + env(safe-area-inset-bottom) + 14px);
+	background: var(--elevated);
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	padding: 9px 16px;
+	font-size: 0.88rem;
+	z-index: 20;
+	max-width: calc(100vw - 32px);
+}
+
+.toast[hidden] { display: none; }
+
+/* ---- Anything wider than a phone ---- */
+
+@media (min-width: 720px) {
+	:root { --gutter: 28px; }
+	.scroll, .transcript { max-width: 760px; margin: 0 auto; width: 100%; }
+	.composer { max-width: 760px; margin: 0 auto; width: 100%; }
+	.msg { max-width: 76%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	* { animation: none !important; transition: none !important; }
+}
