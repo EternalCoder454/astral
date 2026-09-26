@@ -5,7 +5,7 @@ heading, a few plain lines each. The detailed history is in the git log.
 
 ## 0.4.2
 - Nothing changes in the app. This build only marks a change to how Astral is built and tested
-- The test suite now runs in about ninety seconds instead of sixteen minutes, so a fix can reach a build the day it is written
+- Astral's tests now run in ninety seconds instead of sixteen minutes, so fixes reach a build sooner
 
 ## 0.4.1
 - The phone interface is themed in Material, so it looks like an Android app rather than a page
