@@ -371,7 +371,8 @@ func (c *ChatView) sceneBudget() chars.Budget {
 	if c.chat.Kind == store.KindAssistant || c.char.Name == "" {
 		return scene.PlainBudget(c.cfg)
 	}
-	return scene.GroupBudget(c.cfg, c.sceneCast(), c.persona())
+	cast := c.sceneCast()
+	return scene.GroupBudget(c.cfg, cast, c.persona(), scene.Relations(c.store, cast))
 }
 
 // warnIfCastTooLarge says so when the cast as a whole does not fit the window.
@@ -389,7 +390,7 @@ func (c *ChatView) warnIfCastTooLarge() {
 	if !b.Overflows {
 		return
 	}
-	fixed := len(chars.BuildGroupSystem(c.cast, c.persona()))
+	fixed := len(chars.BuildGroupSystem(c.cast, c.persona(), scene.Relations(c.store, c.cast)))
 	c.fail(fmt.Sprintf(
 		"These %d characters do not fit the context size together. Their descriptions need about "+
 			"%d tokens, and the window is %d. Use fewer of them, shorten a card, or raise the "+

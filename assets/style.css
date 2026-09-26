@@ -945,3 +945,9 @@ frame:focus-within {
 .sidebar-grip:hover {
 	background: alpha(@accent_color, 0.45);
 }
+
+/* A character's own page: their name, at the size a page title should be. */
+.character-page-name {
+	font-size: 1.45em;
+	font-weight: 700;
+}

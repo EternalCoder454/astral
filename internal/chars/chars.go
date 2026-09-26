@@ -415,6 +415,9 @@ type Scene struct {
 	// NarrationDrifted says the recent replies have stopped marking narration
 	// with asterisks, so the format rule is restated more firmly.
 	NarrationDrifted bool
+	// Relations are how the cast know each other, for the pairs that are both
+	// in the scene. Empty in a two-hander, which has no pairs.
+	Relations []Relation
 	// RollCall says the recent replies in a group scene have had every
 	// character speak once each, in cast order, which is what a scene with a
 	// cast degenerates into. The anchor argues against it only when it is

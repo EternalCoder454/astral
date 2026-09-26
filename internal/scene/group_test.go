@@ -169,7 +169,7 @@ func TestGroupBudgetAccountsForEveryCard(t *testing.T) {
 	for i := range cast {
 		cast[i].Description = strings.Repeat("a long description. ", 60)
 	}
-	group := GroupBudget(cfg, cast, p)
+	group := GroupBudget(cfg, cast, p, nil)
 	solo := Budget(cfg, cast[:1][0], p)
 	if group.History >= solo.History {
 		t.Errorf("three cards left %d characters for the transcript and one left %d: "+

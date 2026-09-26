@@ -1,6 +1,7 @@
 package scene
 
 import (
+	"log"
 	"strings"
 
 	"astral/internal/chars"
@@ -38,11 +39,16 @@ func BuildFor(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Cha
 	}
 
 	p := Persona(cfg)
+	// How the cast know each other, for the pairs both in the scene. Read here
+	// rather than passed in, so the window and the phone cannot disagree about
+	// whether a scene's people have met.
+	rels := Relations(st, cast)
 	sc := chars.Scene{
 		Persona:          p,
 		Recap:            ch.Summary,
 		History:          hist,
-		Budget:           GroupBudget(cfg, cast, p),
+		Relations:        rels,
+		Budget:           GroupBudget(cfg, cast, p, rels),
 		StyleChanged:     StyleChanged(cfg, ch, len(hist)),
 		Direction:        ch.Note,
 		NarrationDrifted: chars.NarrationDrifted(hist),
@@ -58,12 +64,35 @@ func BuildFor(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Cha
 // matters more than it does for one character: five cards' descriptions are
 // thousands of characters that have to come out of the transcript rather than out
 // of the window.
-func GroupBudget(cfg store.Config, cast []chars.Character, p chars.Persona) chars.Budget {
+func GroupBudget(cfg store.Config, cast []chars.Character, p chars.Persona, rels []chars.Relation) chars.Budget {
 	numCtx := cfg.NumCtx
 	if numCtx <= 0 {
 		numCtx = chars.DefaultNumCtx
 	}
-	return chars.Plan(numCtx, cfg.NumPredict, len(chars.BuildGroupSystem(cast, p)))
+	return chars.Plan(numCtx, cfg.NumPredict, len(chars.BuildGroupSystem(cast, p, rels)))
+}
+
+// Relations is how the members of a cast know each other, for the pairs where
+// both are in the scene.
+//
+// A relation with somebody who is not in the room is noise, and a two-hander has
+// no pairs at all, so this is empty for almost every conversation.
+func Relations(st *store.Store, cast []chars.Character) []chars.Relation {
+	if st == nil || len(cast) < 2 {
+		return nil
+	}
+	ids := make([]int64, 0, len(cast))
+	for _, c := range cast {
+		if c.ID != 0 {
+			ids = append(ids, c.ID)
+		}
+	}
+	rels, err := st.RelationsAmong(ids)
+	if err != nil {
+		log.Printf("astral: reading relations for a scene: %v", err)
+		return nil
+	}
+	return rels
 }
 
 // GroupLore is the world block for a scene with a cast: the setting, plus

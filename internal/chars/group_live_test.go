@@ -47,7 +47,7 @@ func livePersona() Persona {
 func liveTurn(t *testing.T, client *ollama.Client, model string, cast []Character, hist []ollama.Message) string {
 	t.Helper()
 	p := livePersona()
-	sc := Scene{Persona: p, History: hist, Budget: Plan(8192, 400, len(BuildGroupSystem(cast, p)))}
+	sc := Scene{Persona: p, History: hist, Budget: Plan(8192, 400, len(BuildGroupSystem(cast, p, nil)))}
 	msgs := BuildGroupMessages(cast, sc)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)

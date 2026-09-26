@@ -112,6 +112,16 @@ func (a *App) runDevView() {
 			if cs, err := a.store.Characters(); err == nil && len(cs) > 0 {
 				a.editCharacter(cs[0])
 			}
+		case "character":
+			if cs, err := a.store.Characters(); err == nil && len(cs) > 0 {
+				// A relation, so the page is captured with something in the part
+				// that is only interesting once it has content.
+				if len(cs) > 1 {
+					a.store.SetRelation(cs[0].ID, cs[1].ID,
+						"She trained her, and neither of them mentions it.")
+				}
+				a.showCharacter(cs[0])
+			}
 		case "portrait":
 			if cs, err := a.store.Characters(); err == nil && len(cs) > 0 {
 				for _, c := range cs {

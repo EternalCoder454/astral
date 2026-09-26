@@ -311,7 +311,7 @@ func (s *Server) housekeep(chatID int64, cast []chars.Character) {
 	// thinks it has room it does not have, and waits too long to compact. A
 	// conversation with nobody in it is measured against its own framing.
 	plain := ch.Kind == store.KindAssistant || len(cast) == 0 || cast[0].Name == ""
-	budget := scene.GroupBudget(cfg, cast, p)
+	budget := scene.GroupBudget(cfg, cast, p, scene.Relations(s.store, cast))
 	if plain {
 		budget = scene.PlainBudget(cfg)
 	}

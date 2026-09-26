@@ -257,6 +257,15 @@ func (s *Store) migrate() error {
 	// A scene set in a world with nobody in particular in it.
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN world_id INTEGER NOT NULL DEFAULT 0`)
 
+	// How two characters know each other, for the scenes they share. See
+	// relations.go.
+	s.db.Exec(`CREATE TABLE IF NOT EXISTS relations (
+		a_id INTEGER NOT NULL,
+		b_id INTEGER NOT NULL,
+		note TEXT    NOT NULL DEFAULT '',
+		PRIMARY KEY (a_id, b_id)
+	)`)
+
 	// Appearance and how they talk, which the card had no room for. Voice is the
 	// field a reply is judged by and there was nowhere to put it.
 	s.db.Exec(`ALTER TABLE characters ADD COLUMN appearance TEXT NOT NULL DEFAULT ''`)

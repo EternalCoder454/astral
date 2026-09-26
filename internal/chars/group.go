@@ -47,13 +47,46 @@ FORMATTING. Inside a beat, every sentence you write is one of exactly two things
 Never write an unmarked sentence. Every paragraph must start with the speaker's name, and what follows it is a quote or an asterisk.
 Put a blank line between beats.`
 
+// Relation is how two characters in a scene know each other.
+//
+// Names rather than ids, because this package does not know what a database row
+// is and the prompt needs names anyway. It is written about the pair rather than
+// from one side: "Vesper trained her, and neither of them mentions it" reads
+// correctly in both directions, where "my mentor" only reads in one.
+type Relation struct {
+	A, B string
+	Note string
+}
+
+// renderRelations is the block that tells a cast they have met before.
+//
+// Without it a group scene is five people introducing themselves, however long
+// they are supposed to have known each other: a card describes one person in
+// isolation, because that is what a card is, so the model invents whatever
+// history it needs on the spot and forgets it by the next turn.
+func renderRelations(rels []Relation) string {
+	var b strings.Builder
+	for _, r := range rels {
+		if strings.TrimSpace(r.Note) == "" || r.A == "" || r.B == "" {
+			continue
+		}
+		b.WriteString(r.A)
+		b.WriteString(" and ")
+		b.WriteString(r.B)
+		b.WriteString(": ")
+		b.WriteString(strings.TrimSpace(r.Note))
+		b.WriteString("\n")
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
 // BuildGroupSystem assembles the system message for a scene with a cast.
 //
 // Each character gets their own block, and their own instructions go inside it
 // rather than in the shared section at the end. A group's instructions cannot be
 // pooled: "she always lies about her past" belongs to one of them, and pooled it
 // becomes a scene where everybody lies.
-func BuildGroupSystem(cast []Character, p Persona) string {
+func BuildGroupSystem(cast []Character, p Persona, rels []Relation) string {
 	cast = trimCast(cast)
 	if len(cast) == 0 {
 		return AssistantSystem
@@ -112,6 +145,13 @@ func BuildGroupSystem(cast []Character, p Persona) string {
 			b.WriteString(", from the user, and to be followed exactly: ")
 			b.WriteString(one(v))
 		}
+	}
+
+	// After the people and before the scenario: it is about the people just
+	// described, and it is part of the situation the scene opens in.
+	if r := renderRelations(rels); r != "" {
+		b.WriteString("\n\n## How they know each other\n")
+		b.WriteString(r)
 	}
 
 	// One scenario for the scene, not one per character. Cards each carry
@@ -245,7 +285,7 @@ func BuildGroupMessages(cast []Character, sc Scene) []ollama.Message {
 		userName = DefaultPersonaName
 	}
 	allNames := strings.Join(CastNames(cast), ", ")
-	system := BuildGroupSystem(cast, p)
+	system := BuildGroupSystem(cast, p, sc.Relations)
 	budget := sc.Budget
 	if budget == (Budget{}) {
 		budget = Plan(DefaultNumCtx, 0, len(system))

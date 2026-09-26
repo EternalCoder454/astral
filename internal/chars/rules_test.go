@@ -43,7 +43,7 @@ func TestRulesReachAGroupScene(t *testing.T) {
 	p := Persona{Name: "Wren", GlobalInstructions: "1. Keep replies to two paragraphs."}
 	cast := threeHanded()
 
-	if sys := BuildGroupSystem(cast, p); !strings.Contains(sys, "Keep replies to two paragraphs.") {
+	if sys := BuildGroupSystem(cast, p, nil); !strings.Contains(sys, "Keep replies to two paragraphs.") {
 		t.Error("the rules never reach a group's system prompt")
 	}
 	if a := GroupAnchor(cast, Scene{Persona: p}, "Wren"); !strings.Contains(a, "Keep replies to two paragraphs.") {
@@ -131,7 +131,7 @@ func TestRulesExpandCharAndUser(t *testing.T) {
 		t.Errorf("the closing block left a placeholder in:\n%s", a)
 	}
 	// In a group {{char}} has no single referent, so it becomes the cast.
-	if g := BuildGroupSystem(threeHanded(), p); strings.Contains(g, "{{char}}") {
+	if g := BuildGroupSystem(threeHanded(), p, nil); strings.Contains(g, "{{char}}") {
 		t.Errorf("a group prompt left the placeholder in:\n%s", g)
 	}
 }

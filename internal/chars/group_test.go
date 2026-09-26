@@ -16,7 +16,7 @@ func threeHanded() []Character {
 }
 
 func TestGroupSystemNamesTheWholeCast(t *testing.T) {
-	got := BuildGroupSystem(threeHanded(), Persona{Name: "Wren"})
+	got := BuildGroupSystem(threeHanded(), Persona{Name: "Wren"}, nil)
 	for _, want := range []string{"Vesper", "Kestrel", "Ash", "Wren"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the system prompt never mentions %q", want)
@@ -36,7 +36,7 @@ func TestGroupSystemNamesTheWholeCast(t *testing.T) {
 func TestGroupSystemKeepsInstructionsWithTheirOwner(t *testing.T) {
 	// Pooling them is the bug worth guarding: "Ash never says the word no"
 	// applied to the whole cast is a scene where nobody can refuse anything.
-	got := BuildGroupSystem(threeHanded(), Persona{Name: "Wren"})
+	got := BuildGroupSystem(threeHanded(), Persona{Name: "Wren"}, nil)
 	i := strings.Index(got, "## Ash")
 	if i < 0 {
 		t.Fatal("no block for Ash")
@@ -54,7 +54,7 @@ func TestGroupSystemTakesOneScenario(t *testing.T) {
 	cast := threeHanded()
 	cast[0].Scenario = "The tide came in early."
 	cast[1].Scenario = "A funeral, three counties away."
-	got := BuildGroupSystem(cast, Persona{})
+	got := BuildGroupSystem(cast, Persona{}, nil)
 	if !strings.Contains(got, "The tide came in early.") {
 		t.Error("the first scenario did not reach the prompt")
 	}
@@ -64,7 +64,7 @@ func TestGroupSystemTakesOneScenario(t *testing.T) {
 }
 
 func TestGroupSystemArguesAgainstARollCall(t *testing.T) {
-	got := BuildGroupSystem(threeHanded(), Persona{})
+	got := BuildGroupSystem(threeHanded(), Persona{}, nil)
 	low := strings.ToLower(got)
 	if !strings.Contains(low, "not everyone speaks every turn") {
 		t.Error("nothing tells the model that silence is allowed")
@@ -77,7 +77,7 @@ func TestGroupSystemArguesAgainstARollCall(t *testing.T) {
 func TestGroupSystemExpandsPlaceholdersAgainstTheCast(t *testing.T) {
 	cast := threeHanded()
 	cast[0].Description = "{{char}} keeps {{user}} waiting."
-	got := BuildGroupSystem(cast, Persona{Name: "Wren"})
+	got := BuildGroupSystem(cast, Persona{Name: "Wren"}, nil)
 	if strings.Contains(got, "{{char}}") || strings.Contains(got, "{{user}}") {
 		t.Errorf("a placeholder reached the model:\n%s", got)
 	}
@@ -89,7 +89,7 @@ func TestGroupSystemExpandsPlaceholdersAgainstTheCast(t *testing.T) {
 
 func TestGroupFallsBackToTheTwoHanderWithOneCharacter(t *testing.T) {
 	one := []Character{{Name: "Vesper", Description: "A cartographer."}}
-	got := BuildGroupSystem(one, Persona{Name: "Wren"})
+	got := BuildGroupSystem(one, Persona{Name: "Wren"}, nil)
 	want := BuildSystem(one[0], Persona{Name: "Wren"})
 	if got != want {
 		t.Error("a cast of one should build exactly the ordinary scene prompt")

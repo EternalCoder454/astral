@@ -153,6 +153,15 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 	})
 	side.Append(edit)
 
+	info := gtk.NewButtonFromIconName(ui.IconInfo)
+	info.SetTooltipText("Everything about " + c.Name + ", and their scenes")
+	info.AddCSSClass("flat")
+	info.ConnectClicked(func() {
+		parent.Close()
+		a.showCharacter(character)
+	})
+	side.Append(info)
+
 	// The designer, pointed at somebody who already exists. The form next door
 	// edits the words; this argues about them, which is what you want when the
 	// problem is that the description is all adjectives.
