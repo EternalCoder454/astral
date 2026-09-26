@@ -1,15 +1,10 @@
 // Package eval also holds a judge: a model asked a narrow, closed question
 // about another model's output.
 //
-// Most of what matters in roleplay prose cannot be counted. Whether a reply
-// wrote the user's actions for them, whether it broke character, whether it
-// resolved a thread it was told to approach slowly — these are the complaints
-// people actually have, and a substring search answers none of them. A model
-// with a two-field schema answers all of them well enough to compare two
-// prompts against each other, which is the only thing being asked of it.
-//
-// It is a comparison instrument, not a grader. The number it gives is
-// meaningless on its own and useful only against the same question asked of a
+// Whether a reply wrote the user's actions, broke character, or resolved a
+// thread too fast are the complaints people actually have, and no substring
+// search answers them. A comparison instrument, not a grader: the number is
+// meaningless alone and useful only against the same question asked of a
 // different prompt.
 package eval
 

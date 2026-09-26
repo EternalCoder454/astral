@@ -154,17 +154,11 @@ const fitToContentHeight = 560
 
 // scrolledToFit is scrolled() for a dialog with no fixed height.
 //
-// A GtkScrolledWindow reports a natural height of nothing by default: it is
-// happy at any size and expects to be given one. A dialog that sets no content
-// height asks its child how tall it wants to be, gets that nothing back, and
-// presents as a title bar with one row under it and the rest of the form
-// clipped away. That shipped, twice, because the fix everywhere else was to
-// give the dialog a fixed height and these two were written without one.
-//
-// So this reports the height its content actually wants, up to a limit. Use it
-// for a dialog short enough to be sized by what is in it; use scrolled with an
-// explicit SetContentHeight for one that is not, and the test next door holds
-// that choice to being made.
+// A GtkScrolledWindow reports a natural height of nothing, so a dialog that
+// asks its child how tall to be gets nothing back and presents as a title bar
+// with the form clipped off under it. This reports the height the content
+// wants, up to a limit. Use it for a short dialog; use scrolled with an
+// explicit SetContentHeight otherwise, which the test next door requires.
 func scrolledToFit(child gtk.Widgetter) *gtk.ScrolledWindow {
 	s := scrolled(child)
 	s.SetPropagateNaturalHeight(true)
@@ -189,18 +183,12 @@ func groupCard(title string) (*gtk.Box, *gtk.Box) {
 
 // saveHeader is the Cancel and Save bar an editing dialog carries.
 //
-// onSave returns whether the dialog is finished: false leaves it open, which is
-// what a validation failure needs, having just put the reason in a toast that
-// nobody would see if the dialog closed underneath it. Writing that contract
-// into the signature is the point of the helper. Written out by hand three
-// times, it was three chances to close on a value that had not been accepted.
+// onSave returns whether the dialog is finished: false leaves it open, which a
+// validation failure needs, having just put the reason in a toast nobody would
+// see if the dialog closed underneath it. Putting that contract in the
+// signature is the point of the helper.
 //
-// The dialog closes after onSave returns rather than partway through it. That
-// is not observable: GTK draws nothing until the callback gives the main loop
-// back, so a save that navigates elsewhere and then closes looks the same as
-// one that closes and then navigates.
-// saveTip, where it is not empty, spells out what Save covers, for a dialog
-// where that is a fair question.
+// saveTip, where set, spells out what Save covers.
 func saveHeader(d *adw.Dialog, saveTip string, onSave func() bool) *adw.HeaderBar {
 	header := adw.NewHeaderBar()
 	header.SetShowEndTitleButtons(false)

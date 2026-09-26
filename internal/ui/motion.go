@@ -64,11 +64,9 @@ func (c *ChatView) glideToBottom() { c.scheduleScroll(true) }
 
 // scheduleScroll queues one scroll to the end of the transcript.
 //
-// Deferred to an idle callback, because the adjustment's upper bound is only
-// correct once GTK has laid out the row that was just added. Coalesced, because
-// streaming asks twenty times a second and each ask is a closure plus an idle
-// source that gotk4 keeps alive for the life of the process; one pending scroll
-// does the same job.
+// Deferred to idle: the adjustment's upper bound is only correct once GTK has
+// laid out the new row. Coalesced: streaming asks twenty times a second and
+// gotk4 keeps every idle closure for the life of the process.
 //
 // A snap overrides a glide that has not run yet, and stops one that is playing.
 // The only reason to ask for a snap is that more content has arrived, which is

@@ -8,17 +8,13 @@ import (
 	"time"
 )
 
-// A device is a phone, or anything else, that has been let in to this
-// machine's Astral over the network.
+// A device is a phone, or anything else, let in to this machine's Astral over
+// the network.
 //
-// The token is never stored. What is kept is its SHA-256, so the database
-// holds nothing that can be replayed against the server. That matters less
-// than it would elsewhere, because the same database holds every transcript
-// anyway, but a credential store that hands out live credentials is the wrong
-// thing to build whatever else is in the file.
-//
-// The tokens are 32 random bytes, so a plain hash is right: there is nothing
-// to brute force and a slow hash would only make every request slower.
+// Only the token's SHA-256 is stored, so the database holds nothing replayable
+// against the server. A plain hash is right because the tokens are 32 random
+// bytes: nothing to brute force, and a slow hash would only slow every
+// request.
 type Device struct {
 	ID        int64
 	Name      string

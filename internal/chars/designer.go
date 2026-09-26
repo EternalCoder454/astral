@@ -144,16 +144,9 @@ If you'd rather I suggest a few, say so.`
 
 // styleSchema decomposes a style into one required field per aspect.
 //
-// An earlier version asked for a single free-form "instructions" string and
-// told the model to put one rule per line. Models do not do that — they write
-// a paragraph. Measured against a real model it returned seven perfectly good
-// instructions run together on a single line, and asked less generously it
-// returned one sentence and stopped.
-//
-// Structured output only guarantees that required fields *exist*, so the way
-// to get six instructions is to ask for six things. Each field below is a
-// question the model has to answer separately, and the prose is assembled from
-// the answers rather than trusted to arrive pre-formatted.
+// Structured output only guarantees that required fields exist, so the way to
+// get six instructions is to ask for six things. Asked for one free-form
+// string with a rule per line, a model writes a paragraph.
 var styleSchema = json.RawMessage(`{
   "type": "object",
   "properties": {

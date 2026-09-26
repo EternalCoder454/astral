@@ -233,14 +233,9 @@ func statsFrom(cr chatResponse) Stats {
 // getting those onto the UI thread. It returns the assembled reply and the
 // throughput stats from the final chunk.
 //
-// think controls a reasoning model's scratchpad, and passing it explicitly
-// matters more than it looks. Left unspecified, a reasoning model thinks by
-// default: it spends its budget deliberating and, under any token limit, can
-// return a completed thought and an empty reply. Sending false turns that off
-// and the model answers directly.
-//
-// Not every model accepts the parameter, so a server that rejects it gets one
-// retry without it rather than an error the user cannot act on.
+// think must be passed explicitly: left unspecified, a reasoning model thinks
+// by default and, under a token limit, can return a completed thought and an
+// empty reply. A server that rejects the parameter gets one retry without it.
 func (c *Client) Chat(ctx context.Context, model string, msgs []Message, opts Options, think *bool, onDelta func(Delta)) (Message, Stats, error) {
 	if model == "" {
 		return Message{}, Stats{}, fmt.Errorf("no model selected")
@@ -554,18 +549,13 @@ func (l Loaded) OnGPU() float64 {
 }
 
 // Spilled reports whether a meaningful part of the model was pushed out of
-// video memory and is running on the CPU instead.
+// video memory onto the CPU.
 //
-// This is the failure mode that turns a second, smaller model from a saving
-// into a cost. Ollama keeps both models resident rather than swapping between
-// them, which is what makes a separate housekeeping model worth having — but
-// only while both fit. Measured on a 24GB card: a 27B at an 8k or 16k window
-// left room for a 4B entirely on the GPU, and the same 27B at 32k pushed that
-// 4B to 18% CPU, where it is several times slower than the model it was meant
-// to be faster than.
-//
-// The threshold is generous because a few percent on the CPU costs little, and
-// because the numbers the server reports are approximate.
+// This is what turns a second, smaller model from a saving into a cost. Ollama
+// keeps both resident rather than swapping, which is the point of a separate
+// housekeeping model, but only while both fit: measured on a 24GB card, a 27B
+// at 32k pushed a 4B to 18% CPU. The threshold is generous because a few
+// percent costs little and the reported numbers are approximate.
 func (l Loaded) Spilled() bool { return l.OnGPU() < 0.95 }
 
 // Running returns the models the server currently holds in memory.

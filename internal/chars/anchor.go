@@ -6,26 +6,20 @@ import (
 	"astral/internal/ollama"
 )
 
-// A model weights the end of its context far above the middle. By turn thirty
-// a system prompt thousands of tokens back is competing with everything that
-// has happened since — and losing, because the strongest instruction in the
-// context is not an instruction at all. It is the transcript: twenty replies
-// the model wrote itself, demonstrating what is acceptable here.
+// A model weights the end of its context above the middle, and by turn thirty
+// the strongest instruction in context is the transcript: twenty replies the
+// model wrote itself, demonstrating what is acceptable. A style stated once
+// near the front loses to that, and the first reply that drops its asterisks
+// becomes precedent for every reply after.
 //
-// That is why changing the writing style used to do so little. The style sat
-// once, near the front, while the scene below it held twenty worked examples
-// of the old one. And it is why narration drifts out of *asterisks*: the rule
-// is stated once at the top, and the first reply that ignores it becomes
-// precedent for every reply after.
-//
-// The anchor is the counterweight. It restates the three things that actually
-// drift — who is speaking, how the prose should sound, and how it is marked up
-// — in the last position before the model writes. It costs its own length in
-// tokens every turn, which is the price of the only position that works.
+// The anchor restates the three things that drift — who is speaking, how the
+// prose sounds, how it is marked — in the last position before the model
+// writes. It costs its own length every turn, which is the price of the only
+// position that works.
 
-// anchorFormat is the markup rule, restated with the example that makes it
-// unambiguous. The example matters more than the rule: a model shown the shape
-// reproduces it, where a model told about it often does not.
+// anchorFormat is the markup rule with an example, which matters more than the
+// rule: a model shown the shape reproduces it, one told about it often does
+// not.
 const anchorFormat = `FORMAT. Every sentence is one of exactly two things, and there is no third kind: spoken aloud in "double quotes", or everything else in *single asterisks*. This holds for every paragraph of this reply, and for this reply even where the messages above did not do it. Never write an unmarked sentence; every paragraph starts with a quote or an asterisk. Put a blank line between beats rather than running them together. Example:
 *She did not look up from the chart.* "You're late."
 
@@ -172,18 +166,12 @@ func unmarkedProse(s string) int {
 	return n
 }
 
-// NarrationPrefill is an assistant turn left open mid-narration.
+// NarrationPrefill is an assistant turn left open mid-narration, so the next
+// token the model writes is narration whether or not it meant to mark any.
 //
-// Appending it to the messages hands the model a reply that has already begun
-// inside an asterisk span, so the next token it writes is narration whether or
-// not it intended to mark any. It is the one measure that recovers a scene
-// whose own transcript has taught it otherwise: on a 24B roleplay finetune
-// with four unmarked replies behind it, the firmer wording alone recovered
-// nothing and this recovered all of it.
-//
-// It is used only when drift has been detected. A prefilled turn costs a
-// little of the model's freedom over how to open, and that is not a trade
-// worth making on a scene that is behaving.
+// It is the only thing measured to recover a scene whose own transcript taught
+// it otherwise, and it costs a little of the model's freedom over how to open,
+// so it is used only once drift is detected.
 const NarrationPrefill = "*"
 
 // RestorePrefill puts the prefill back on the front of a reply that continued

@@ -63,41 +63,27 @@ func Compact(ctx context.Context, client *ollama.Client, model, previous string,
 	// Low temperature: this is bookkeeping. A summary that invents a detail is
 	// worse than no summary, because it becomes fact for the rest of the scene.
 	opts.Temperature = 0.2
-	// repeat_last_n is deliberately left as it comes.
+	// repeat_last_n is left as it comes. Widening it against a summariser that
+	// circles does nothing: eighteen runs across two models gave 2143
+	// characters at the default against 2219 widened. What pays is dropping
+	// the repeats afterwards. TestMeasureCompaction is the instrument.
 	//
-	// Widening it to cover the whole record was the obvious answer to a
-	// summariser that circles, and it does nothing: eighteen runs across two
-	// models, nine a side, gave mean records of 2143 characters at the default
-	// and 2219 widened, with the same two runs in six circling either way.
-	// TestMeasureCompaction is the instrument. What actually pays is throwing
-	// the repeats away afterwards, and asking again when the answer is bad.
-	//
-	// The recap is bounded afterwards anyway, so the reply limit only has to
-	// stop a model that will not stop on its own. Leaving it unset let a
-	// verbose model spend minutes writing a record that was then cut to a
-	// fraction of its length.
+	// The reply limit only has to stop a model that will not stop on its own;
+	// the recap is bounded afterwards anyway.
 	opts.NumPredict = recapReplyTokens
 
 	out, err := askForRecord(ctx, client, model, compactSystem, prompt, opts)
 	if err != nil {
 		return previous, err
 	}
-	// A record that is not appreciably shorter than the turns it stands in for
-	// has not done its job, and it is about to be carried in the prompt for the
-	// rest of the scene. So ask once more.
+	// A record no shorter than the turns it replaces has not done its job, and
+	// it will be carried in the prompt for the rest of the scene. So ask again.
 	//
-	// This is a check on the outcome rather than on any one cause, which is the
-	// only kind available: a summariser can fill its budget by circling, which
-	// the deduplication catches, and it can fill it with things that did not
-	// happen, which nothing catches because every sentence is different. A
-	// measured run produced forty statements of the form "X did not mention Y".
-	// Ten runs of the same scene afterwards produced none, so the cause cannot
-	// be reproduced to order and no prompt rule against it can be shown to
-	// work. What can be decided is whether this particular answer is any good.
-	//
-	// The retry costs a second call only when the first answer was bad. Measured
-	// on the model that produced the bad one, that is roughly one run in five,
-	// and the other four came back between a fifth and a third of their input.
+	// A check on the outcome rather than the cause, because the causes cannot
+	// be reproduced to order: circling, which deduplication catches, and pages
+	// of things that did not happen, which nothing catches because every
+	// sentence differs. Whether this particular answer is any good can be
+	// decided. It costs a second call about one run in five.
 	if len(out)*2 >= totalChars(aged) {
 		again, err := askForRecord(ctx, client, model, compactSystem+"\n"+recordAgain, prompt, opts)
 		if err == nil && len(again) > 0 && len(again) < len(out) {
@@ -187,17 +173,13 @@ const (
 	markerFirst  = "What happened:"
 )
 
-// stripPromptEcho cuts a record at the point where the model started repeating
-// the instructions it was given.
+// stripPromptEcho cuts a record where the model started repeating its own
+// instructions.
 //
-// A small model asked to rewrite a record it has just been shown will sometimes
-// reproduce the whole prompt instead: the record, then "What happened next:",
-// then the transcript verbatim. Measured on a twenty-four turn scene with a 4B,
-// that is exactly what was stored, so the scene carried its own transcript in
-// the recap slot on every turn afterwards, at full length and in prose, which is
-// also the thing most likely to teach the next reply to write like a recap.
-//
-// Cutting at the first marker keeps the part that was a record.
+// A small model asked to rewrite a record it has just been shown will
+// sometimes reproduce the whole prompt: the record, the heading, then the
+// transcript. Stored, that carries the transcript in the recap slot every turn
+// afterwards, in prose. Cutting at the first marker keeps the record.
 func stripPromptEcho(s string) string {
 	cut := len(s)
 	for _, marker := range []string{markerRecord, markerNext, markerFirst} {
@@ -208,17 +190,12 @@ func stripPromptEcho(s string) string {
 	return strings.TrimSpace(s[:cut])
 }
 
-// dedupeRecap drops a statement the record has already made.
+// dedupeRecap drops a statement the record has already made. The recap is in
+// the prompt every later turn, so a sentence written twice is paid for until
+// the scene ends.
 //
-// This is the cheap half of the repetition problem. The sampler setting above
-// makes circling less likely; this makes the circling that still happens cost
-// nothing, because the recap is carried in the prompt on every later turn, so
-// a sentence written twice is paid for on every turn until the scene ends.
-//
-// Only exact repeats go, compared with case and spacing ignored. Two
-// statements of the same fact in different words are not touched: telling them
-// apart needs to understand them, and getting it wrong loses a fact, which is
-// the one thing a recap must not do.
+// Only exact repeats, case and spacing ignored. Telling apart two wordings of
+// one fact needs understanding them, and getting that wrong loses a fact.
 func dedupeRecap(s string) string {
 	parts := splitStatements(s)
 	if len(parts) < 2 {

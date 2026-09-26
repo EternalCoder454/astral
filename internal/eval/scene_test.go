@@ -1,13 +1,12 @@
 package eval
 
-// A long scene played end to end against a real model, through the same
-// functions the application calls.
+// A long scene played end to end against a real model, through the functions
+// the application calls.
 //
-// Everything else that talks to a model here tests one turn. This tests what
-// happens over thirty of them: the transcript outgrowing its budget, the recap
-// replacing the part that fell off, the lorebook filling itself, and the
-// prompt staying inside the context window while all three are happening at
-// once. Those interact, and nothing before this exercised the interaction.
+// Everything else here tests one turn. This tests thirty: the transcript
+// outgrowing its budget, the recap replacing what fell off, the lorebook
+// filling itself, and the prompt staying inside the window while all three
+// happen at once.
 //
 //	go test ./internal/eval/ -run TestLongScene -v -timeout 40m \
 //	    -models huihui_ai/qwen3-abliterated:30b -turns 30

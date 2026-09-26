@@ -2,32 +2,22 @@ package ui
 
 import "strings"
 
-// A model can collapse mid-reply and start cycling the same block of text
-// forever. It is not rare, it is not recoverable, and left alone it runs until
-// the token limit: a thousand words of "expanding extending enlarging
-// broadening widening" where a reply should have been.
-//
-// The waste is the smaller half of the problem. The wall of text is saved to
-// the transcript, and the transcript is the prompt for the next turn, so one
-// collapse poisons every reply after it, and the recap and the lorebook then
-// read it too. Catching it while it streams keeps it out of the record.
+// A model can collapse mid-reply and cycle the same block forever. It does not
+// recover, and the wall of text is saved to the transcript, which is the next
+// turn's prompt, so one collapse poisons every reply after it. Catching it
+// while it streams keeps it out of the record.
 
 const (
-	// loopWindow is how much of the tail must reappear earlier before a reply
-	// is called a collapse, in characters. About thirty words, repeated
-	// exactly.
+	// loopWindow is how much of the tail must reappear earlier, in characters.
 	//
-	// The test is "does the end of this text also occur earlier", which finds
-	// a cycle of any length: text that repeats with period p contains every
-	// window of length loopWindow twice, p characters apart. An earlier
-	// version compared the tail against the block immediately before it, and
-	// missed this entirely — the cycle that prompted all of this was nine
-	// hundred characters long, larger than the periods it thought to try.
+	// Asking whether the end also occurs earlier finds a cycle of any length,
+	// because text repeating with period p contains every window of this size
+	// twice. Comparing against the block immediately before instead only finds
+	// the periods you thought to try.
 	loopWindow = 180
 
-	// loopSearch bounds how far back the earlier occurrence may be, so that a
-	// passage legitimately quoted back at the end of a long reply is not read
-	// as a collapse. A model that has broken repeats itself immediately.
+	// loopSearch bounds how far back to look, so a passage legitimately quoted
+	// back at the end of a long reply is not read as a collapse.
 	loopSearch = 2600
 )
 
@@ -67,22 +57,16 @@ func loopFold(s string) string {
 	return b.String()
 }
 
-// Repetition is not the only way a reply comes apart. The other way has no
-// cycle in it at all: the model stops writing sentences and starts chaining
-// associations, one phrase suggesting the next, for as long as it is allowed.
+// The other way a reply comes apart has no cycle in it: the model stops
+// writing sentences and chains associations instead.
 //
 //	...mission accomplished goal achieved target met objective fulfilled
-//	purpose served function executed duty performed task finished work ended
-//	process terminated operation concluded...
+//	purpose served function executed duty performed task finished...
 //
-// Every phrase there is different, so Looping cannot see it: there is nothing
-// repeated to find. What it does have is the thing the prose it replaced always
-// has, and this does not: an end to the sentence. Thousands of characters went
-// by in the measured case without a single full stop.
-//
-// So that is what is counted. It is a blunt signal and deliberately so, because
-// the cost of a false positive is one stopped reply and the cost of a miss is a
-// wall of nonsense saved into the transcript that every later turn is built on.
+// Every phrase differs, so Looping finds nothing. What it lacks is an end to
+// the sentence, so that is what is counted. Blunt on purpose: a false positive
+// costs one reply, a miss costs a wall of nonsense in the transcript that every
+// later turn is built on.
 
 // rambleRun is how many characters may pass with no end to a sentence before a
 // reply is called broken.

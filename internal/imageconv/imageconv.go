@@ -1,13 +1,8 @@
 // Package imageconv normalizes the images a user brings in.
 //
-// Astral accepts whatever picture someone has to hand, which in practice means
-// WebP as often as anything else. Two things then go wrong. Ollama's vision
-// path expects PNG or JPEG, so a WebP reaches the model as bytes it cannot
-// read. And displaying one needs a gdk-pixbuf WebP loader, which is a separate
-// package that plenty of systems do not have installed.
-//
-// Rather than discover either of those at the point of use, anything that is
-// not already a format both halves understand is decoded once, at import, and
+// WebP is common and breaks twice over: Ollama's vision path expects PNG or
+// JPEG, and displaying one needs a gdk-pixbuf loader many systems lack. So
+// anything neither half understands is decoded once, at import, and
 // re-encoded as PNG.
 package imageconv
 

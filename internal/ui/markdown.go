@@ -127,28 +127,15 @@ func mdInline(s string, mode Prose) string {
 	return s
 }
 
-// mdRoleplay renders one line of roleplay prose.
+// mdRoleplay renders one line of roleplay prose, splitting on quotation marks
+// rather than asterisks: around seventy per cent of replies in a long scene
+// carry unmarked narration whatever the prompt says, so the renderer does not
+// ask. outside styles what sits between quotations, either as narration
+// wholesale or as written.
 //
-// It splits on quotation marks rather than on asterisks, which is the change
-// that makes the transcript stop depending on the model. In this genre
-// everything outside quotes is narration by definition, whether or not the
-// model remembered to wrap it in asterisks — and measured over twenty-turn
-// scenes it often does not: around seventy per cent of replies came back
-// carrying unmarked narration, however the prompt was worded, because the
-// recap and the lorebook in the context are themselves flat unmarked prose.
-//
-// Three attempts to fix that in the prompt did not measurably work. So the
-// renderer stopped asking. Speech is what sits inside quotes; everything else
-// is narration and is styled as narration, and a reply that forgot its
-// asterisks now reads exactly like one that remembered.
-//
-// It also retires a hazard rather than working around it. The previous version
-// ran regexps over its own output, which meant the quote rule could match the
-// `"66%"` inside an alpha tag the italic rule had just written and rewrite the
-// middle of it. That shipped once. A single pass over the source, splitting
-// before any tag exists, cannot do it at all.
-// outside renders a run of text that sits between quotations: either as
-// narration wholesale, or as written.
+// One pass over the source, splitting before any tag exists. Running the rules
+// over their own output lets the quote rule rewrite the `"66%"` inside an
+// alpha tag the italic rule just wrote.
 func mdRoleplay(s string, outside func(string) string) string {
 	var b strings.Builder
 	b.Grow(len(s) + 48)

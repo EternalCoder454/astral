@@ -808,21 +808,13 @@ func (c *ChatView) housekeepingModel() string {
 // checkModelFits says so, once, when a model did not fit in video memory and
 // is running partly on the CPU.
 //
-// This is the one hardware problem that hides. A model that half fits does not
-// fail, it just gets several times slower, and nothing on screen connects that
-// to the context size someone raised a week ago. Measured on a 24GB card: a
-// 27B at a 32k window left no room for a 4B beside it, and the 4B dropped to
-// 18% CPU, where it was slower than the model it was meant to be faster than.
+// The one hardware problem that hides: a model that half fits does not fail,
+// it gets several times slower, and nothing connects that to a context size
+// raised a week ago. Measured on a 24GB card, a 27B at 32k left no room for a
+// 4B beside it and the 4B fell to 18% CPU.
 //
-// It is also the check behind having a separate housekeeping model at all.
-// That is only worth doing while Ollama can hold both at once — it keeps them
-// resident rather than swapping — and the saving is real right up to the point
-// where one of them spills.
-//
-// What does not change speed, incidentally, is the context size on its own.
-// Measured across 4k to 64k with the same prompt, prompt and generation rates
-// were flat within noise while video memory moved by four gigabytes. A window
-// costs memory, not time; what costs time is the prompt actually sent.
+// Context size alone costs memory, not time: 4k to 64k measured flat within
+// noise while video memory moved four gigabytes.
 func (c *ChatView) checkModelFits(model string) {
 	if c.warnedSpill || model == "" {
 		return

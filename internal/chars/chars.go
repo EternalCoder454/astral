@@ -91,20 +91,13 @@ type Persona struct {
 // DefaultPersonaName is used when the user has not named themselves.
 const DefaultPersonaName = "User"
 
-// Substitute expands the placeholders. {{char}} and {{user}} are what the card
-// spec defines and what cards in circulation use; the single-brace spellings
-// are accepted too, because that is what people type when they have not read
-// a spec, and silently leaving "{char}" in a prompt is a poor reward for a
-// reasonable guess.
-//
-// Every free-text field goes through this — the character's description,
-// personality and scenario, your own persona, the instructions on both, and
-// the writing style — so a placeholder works wherever it occurs to you to
-// write one.
+// Substitute expands {{char}} and {{user}}, which the card spec defines, plus
+// the single-brace spellings people type when they have not read one. Every
+// free-text field goes through it.
 //
 // The double-brace forms are listed first so they win: a Replacer takes the
-// first pattern that matches at a position, and "{{char}}" would otherwise be
-// left with a stray brace by the single-brace rule.
+// first pattern matching at a position, so "{{char}}" would otherwise be left
+// with a stray brace.
 func Substitute(s, charName, userName string) string {
 	if s == "" {
 		return ""
@@ -341,19 +334,13 @@ const exampleCutoff = 6
 // configuration to hand. It matches the application's own default.
 const DefaultNumCtx = 8192
 
-// trimHistory keeps the most recent turns that fit in the budget.
+// trimHistory keeps the most recent turns that fit, so the server never drops
+// the front of the prompt instead, which is the framing and the character.
 //
-// Without it a long scene silently outgrows the context window, and what
-// happens then is worse than forgetting: the server drops the *front* of the
-// prompt, which is the system framing and the character themselves, so the
-// model keeps the small talk and loses who it is playing.
-//
-// It is the fallback, not the plan. Dropping turns off the front moves every
-// token after them, so a scene that trims on every turn also re-reads its
-// whole prompt on every turn — the same cache cost that moving lore to the end
-// was meant to avoid. Compaction is what keeps this rare: Budget.Compact sits
-// at three quarters of Budget.History, so a scene is normally folded into its
-// recap well before there is anything here to cut.
+// The fallback, not the plan: trimming moves every token after the cut, so a
+// scene that trims every turn re-reads its whole prompt every turn. Compaction
+// keeps it rare, folding a scene into its recap at three quarters of
+// Budget.History.
 func trimHistory(history []ollama.Message, budget int) []ollama.Message {
 	total := 0
 	for _, m := range history {
@@ -415,21 +402,14 @@ type Scene struct {
 
 // BuildMessages assembles the full request.
 //
-// The order is chosen for the server's prefix cache as much as for the model.
-// Ollama reuses the keys and values it already computed for however much of a
-// prompt is byte-identical to the last one, so everything that does not change
-// between turns has to come first and everything that does has to come last.
+// The order is for the server's prefix cache: Ollama reuses what it computed
+// for however much of the prompt is byte-identical to last turn, so what does
+// not change goes first and what does goes last.
 //
-// Lore used to come first, on the reasoning that the setting is true before
-// the scene starts. But lore is matched against what was recently said, so it
-// changes whenever the conversation moves to a different subject — which is
-// most turns. Measured on a twenty-turn scene, a changed lore block dropped
-// the reusable prefix from 96%% to 12%%: nineteen thousand characters of
-// prompt, re-read from scratch, every time the subject changed.
-//
-// So lore moved to the end. It costs nothing there, because everything after
-// the last cached token is re-read anyway, and it is better obeyed in the
-// bargain: the end of the context is the part a model weights most.
+// Lore goes last despite being true before the scene starts, because it is
+// matched against what was recently said and so changes most turns. Measured
+// on a twenty-turn scene, putting it first dropped the reusable prefix from
+// 96%% to 12%%. At the end it costs nothing and is better obeyed.
 func BuildMessages(c Character, sc Scene) []ollama.Message {
 	p := sc.Persona
 	history := sc.History

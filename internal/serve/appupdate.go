@@ -12,21 +12,14 @@ import (
 	"astral/internal/update"
 )
 
-// Updating the phone app.
+// Updating the phone app. Android will not update a sideloaded app by itself,
+// so the app finds out whether there is a newer one, fetches it, and hands it
+// to the system installer.
 //
-// Android will not update a sideloaded app by itself, so the app has to ask
-// for it: find out whether there is a newer one, fetch it, and hand it to the
-// system installer.
-//
-// The fetch goes through the PC rather than straight to GitHub, for two
-// reasons. The phone may be on a network with no way out, which is a perfectly
-// ordinary way to use this. And the phone already trusts exactly one machine;
-// adding a second is a change worth not making for a download.
-//
-// What makes this safe is not the transport. Android refuses to install an
-// update signed with a different key from the one already on the phone, so a
-// tampered file on the way across a home network is rejected by the installer
-// rather than by us.
+// The fetch goes through the PC: the phone may be on a network with no way
+// out, and it already trusts exactly one machine. What makes that safe is not
+// the transport — Android refuses a build signed with a different key from the
+// one installed, so a tampered file is rejected by the installer.
 
 // apkTimeout bounds the download. A few megabytes from GitHub, so this is
 // generous rather than tight.

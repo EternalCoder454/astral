@@ -13,21 +13,13 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
-// The stylesheets are the one part of Astral with no compiler. A misspelled
-// property, a keyframe GTK does not implement, a rule for a widget that no
-// longer exists: all of them load without complaint and just do nothing, which
-// is otherwise discovered by looking at the window and noticing that something
-// is not happening.
+// The stylesheets have no compiler: a misspelled property or an unimplemented
+// keyframe loads without complaint and does nothing. GTK's parser is the only
+// authority on what it accepts, and it says so on stderr.
 //
-// So they are parsed here. GTK's own parser is the only authority on what it
-// accepts, and it says so on stderr.
-//
-// Not under the race detector, which is what the build tag is for. -race turns
-// on checkptr, and checkptr aborts inside gotk4's weak-reference dependency the
-// moment GTK is initialised: "pointer arithmetic result points to invalid
-// allocation", in a library Astral only depends on. So no test in this project
-// can touch GTK under -race, and the ones that do are tagged out of it rather
-// than left to fail there for a reason that is nothing to do with Astral.
+// The build tag keeps this out of -race, which turns on checkptr, which aborts
+// inside gotk4's weak-reference dependency the moment GTK is initialised. No
+// test in this project can touch GTK under the race detector.
 
 // noDisplayExit is how the child process reports that it could not start GTK,
 // which is not a failing stylesheet.
@@ -37,18 +29,13 @@ const noDisplayExit = 3
 // what tells the helper test that it is the child.
 const cssSchemeEnv = "ASTRAL_CSS_PARSE_SCHEME"
 
-// parseInChild parses a stylesheet in a subprocess and returns what GTK wrote to
-// stderr.
+// parseInChild parses a stylesheet in a subprocess and returns what GTK wrote
+// to stderr.
 //
-// A subprocess rather than a CSSProvider in this process, for two reasons that
-// each cost a debugging round. CSSProvider's parsing-error signal cannot be
-// connected through gotk4 without aborting inside the first error's handler. And
-// capturing this process's own stderr means redirecting file descriptor 2, which
-// is global state in a test binary: under the race detector that crashed, and
-// the crash report went into the pipe that was supposed to hold GTK's
-// complaints, so the failure arrived as a silent non-zero exit.
-//
-// A child process has a stderr of its own by construction.
+// A subprocess because CSSProvider's parsing-error signal aborts when connected
+// through gotk4, and because capturing this process's own stderr means
+// redirecting fd 2, which swallows the crash report when anything goes wrong. A
+// child has a stderr of its own by construction.
 func parseInChild(t *testing.T, scheme string) string {
 	t.Helper()
 	cmd := exec.Command(os.Args[0], "-test.run=TestCSSParseHelper")

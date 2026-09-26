@@ -11,46 +11,22 @@ import (
 	"astral/internal/ollama"
 )
 
-// bubbleChars caps how wide a message bubble grows, in characters.
+// bubbleChars bounds a message's natural width, in characters, and is what
+// decides bubble width on a large display; the clamp below only bites once
+// space is tight.
 //
-// This is the single most important number in the transcript, and it is set in
-// characters rather than pixels because what matters is the reading measure,
-// not the window. Around 60 is the range typography settles on for continuous
-// prose; much wider and the eye loses its place returning to the start of the
-// next line, which in a long roleplay reply is the difference between readable
-// and not.
-//
-// It also does the structural work. A GtkLabel's *natural* width is its text
-// on one unbroken line, so a wrapping label in an expanding container asks for
-// an absurd width and either stretches its parent or gets clipped — which is
-// what made the old transcript wrap badly. Capping max-width-chars bounds that
-// natural width, so a bubble shrink-wraps a two-word reply and stops growing
-// at a comfortable measure for a long one.
-// bubbleChars bounds a message's natural width, in characters, and on a large
-// display it is the setting that actually decides how wide bubbles get — the
-// clamp below only bites once space is tight.
-//
-// 80 is wider than the ~65 typography would pick for a book, and deliberately
-// so: on a 4K screen a 60-character measure leaves the conversation looking
-// lost in the middle of the window.
+// A wrapping GtkLabel's natural width is its text on one unbroken line, so
+// without a cap it stretches its parent or gets clipped. 80 is wider than the
+// ~65 typography would pick, because at 60 a conversation looks lost on a 4K
+// screen.
 const bubbleChars = 80
 
-// bubbleMaxWidth is what the bubble clamp is set to, in pixels.
+// bubbleMaxWidth is the bubble clamp's maximum, in pixels: a backstop for
+// windows wide enough that height-for-width would run away, since bubbleChars
+// usually gets there first.
 //
-// It is not the width a bubble ends up: GTK's height-for-width negotiation
-// means the result lands somewhat wider, and where exactly depends on where
-// the text happens to break. 420 was arrived at by measuring — it produces
-// bubbles of roughly 400-550px, which is around half of a 1085px transcript
-// and reads like a messaging app. Change it by measuring rather than by
-// arithmetic (ASTRAL_DEV_VIEW=measure prints what every bubble came out at).
-// bubbleMaxWidth is the bubble clamp's maximum, in pixels. It is a backstop
-// rather than the usual limit: at a comfortable window size bubbleChars gets
-// there first, and this only takes over when the window is wide enough that
-// the label's height-for-width answer would otherwise run away.
-//
-// The number is not the width a bubble ends up — GTK's negotiation lands
-// wider. It was arrived at by measuring, and should be changed the same way
-// (ASTRAL_DEV_VIEW=measure prints every bubble's real width).
+// It is not the width a bubble ends up; GTK's negotiation lands wider. Change
+// it by measuring (ASTRAL_DEV_VIEW=measure prints every bubble's real width).
 const bubbleMaxWidth = 780
 
 // avatarSize is both the avatar's size and the width of the spacer that stands

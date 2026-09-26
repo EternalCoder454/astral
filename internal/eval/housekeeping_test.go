@@ -1,12 +1,10 @@
-// Package eval measures candidate models against the two jobs Astral gives a
-// model besides writing prose: folding an old scene into a recap, and reading
-// a scene for what it established about the world.
+// Package eval measures candidate models against the two jobs besides writing
+// prose: folding an old scene into a recap, and reading one for what it
+// established about the world.
 //
-// Both are bookkeeping, and both are the obvious candidates for a smaller,
-// faster model than the one writing the scene. Which small model, though, is
-// not answerable from a model card: the work is long-input comprehension,
-// schema-constrained JSON, and a willingness to summarise fiction that a
-// safety-tuned model will quietly sanitise. So it is measured.
+// Which small model does them is not answerable from a model card — the work
+// is long-input comprehension, schema-constrained JSON, and a willingness to
+// summarise fiction a safety-tuned model will sanitise — so it is measured.
 //
 //	go test ./internal/eval/ -run TestHousekeeping -v \
 //	    -models "huihui_ai/qwen3.5-abliterated:4b,huihui_ai/gemma3-abliterated:4b"
