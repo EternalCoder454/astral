@@ -21,6 +21,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -29,21 +33,30 @@ jobs:
     # gotk4 sources reference adw_about_dialog_add_other_app, which is 1.6, and
     # 24.04 has 1.5, so the dependency fails to compile before any Astral code
     # is reached. This image carries the same GTK 4.22 and libadwaita 1.9 that
-    # Astral is developed against, which is what should be tested anyway.
-    container: fedora:44
+    # Astral is developed against, which is what should be tested anyway, and
+    # it arrives with the toolchain and the dependency object code already in
+    # it. See packaging/ci/Dockerfile.
+    container:
+      image: ghcr.io/eternalcoder454/astral-ci:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    # The image's own cache directories. Repeated here because a job's
+    # environment is assembled by the runner, and a cache Go cannot find is a
+    # cold build wearing the image's clothes.
+    env:
+      GOPATH: /opt/go
+      GOCACHE: /opt/gocache
+      GOMODCACHE: /opt/go/pkg/mod
 
     steps:
-      - name: Install GTK and libadwaita
+      - name: Put the toolchain on the path
         run: |
-          dnf -y install gtk4-devel libadwaita-devel gobject-introspection-devel \
-            gcc pkgconf-pkg-config git tar gzip
+          echo /usr/local/go/bin >> "$GITHUB_PATH"
+          echo /opt/go/bin >> "$GITHUB_PATH"
 
       - uses: actions/checkout@v7
-
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: true
 
       # go build stamps the binary with the commit, which means it runs git,
       # which refuses a checkout owned by a different user than the one asking.
@@ -82,20 +95,23 @@ jobs:
 
   staticcheck:
     runs-on: ubuntu-latest
-    container: fedora:44
+    container:
+      image: ghcr.io/eternalcoder454/astral-ci:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      GOPATH: /opt/go
+      GOCACHE: /opt/gocache
+      GOMODCACHE: /opt/go/pkg/mod
     steps:
-      - name: Install GTK and libadwaita
+      - name: Put the toolchain on the path
         run: |
-          dnf -y install gtk4-devel libadwaita-devel gobject-introspection-devel \
-            gcc pkgconf-pkg-config git tar gzip
+          echo /usr/local/go/bin >> "$GITHUB_PATH"
+          echo /opt/go/bin >> "$GITHUB_PATH"
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: true
       - name: Trust the checkout
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      # Installed in the image, not here.
       - name: Staticcheck
-        run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest
-          "$(go env GOPATH)/bin/staticcheck" ./...
+        run: staticcheck ./...
