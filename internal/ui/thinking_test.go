@@ -75,3 +75,25 @@ func startsWithThinkTag(s string) bool {
 	}
 	return false
 }
+
+// Mistral-derived finetunes mark deliberation with square brackets. Cydonia
+// does, and the UGI leaderboard lists a whole column of "[THINK] prefill"
+// variants, so this is a family rather than one model.
+func TestSplitThinkingKnowsSquareBrackets(t *testing.T) {
+	cases := []struct{ in, think, reply string }{
+		{"[THINK]She is late again.[/THINK]*Vesper looked up.*", "She is late again.", "*Vesper looked up.*"},
+		{"[think]hm[/think]Fine.", "hm", "Fine."},
+		{"\n[THINK]\nstill deciding\n[/THINK]\n\nShe waited.", "still deciding", "She waited."},
+		// Unclosed takes the rest, the same as the angle-bracket spellings.
+		{"[THINK]I should be brief and", "I should be brief and", ""},
+		// And a stray bracket mid-reply is dialogue, not a block.
+		{`"What do you [think]?" she asked.`, "", `"What do you [think]?" she asked.`},
+	}
+	for _, c := range cases {
+		think, reply := SplitThinking(c.in)
+		if think != c.think || reply != c.reply {
+			t.Errorf("SplitThinking(%q)\n think: %q, want %q\n reply: %q, want %q",
+				c.in, think, c.think, reply, c.reply)
+		}
+	}
+}

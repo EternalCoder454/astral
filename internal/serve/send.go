@@ -255,6 +255,8 @@ func splitLeadingThink(s string) (thinking, reply string) {
 		{"<think>", "</think>"},
 		{"<thinking>", "</thinking>"},
 		{"<reasoning>", "</reasoning>"},
+		{"[think]", "[/think]"},
+		{"[thinking]", "[/thinking]"},
 	} {
 		trimmed := strings.TrimLeft(s, " \t\r\n")
 		if !strings.HasPrefix(strings.ToLower(trimmed[:min(len(trimmed), len(pair[0]))]), pair[0]) {

@@ -14,6 +14,11 @@ var thinkTags = [][2]string{
 	{"<think>", "</think>"},
 	{"<thinking>", "</thinking>"},
 	{"<reasoning>", "</reasoning>"},
+	// Mistral-derived finetunes use square brackets instead, which is what
+	// Cydonia's template emits. Missing it renders a block of deliberation as
+	// the scene, in italics, as though the character were thinking aloud.
+	{"[think]", "[/think]"},
+	{"[thinking]", "[/thinking]"},
 }
 
 // SplitThinking separates a leading block of deliberation from the reply.
