@@ -130,6 +130,37 @@ func (a *App) newDesignerChat() {
 	a.startPlainChat(store.KindDesigner, "Designing a Character", chars.DesignerOpening)
 }
 
+// reviseCharacter opens a designer conversation about somebody who already
+// exists.
+//
+// The character rides on the chat, which is what makes it a revision: the prompt
+// gets their card as the starting point, the chip says Save rather than Create,
+// and what comes out keeps their row so every scene they are in carries on with
+// them in it.
+//
+// This is the answer to changing the designer's instructions and wanting the
+// characters written before that brought up to match, which otherwise meant
+// deleting them and losing their scenes.
+func (a *App) reviseCharacter(ca chars.Character) {
+	if ca.ID == 0 {
+		a.toast("Save this character first, then the designer can revise them.")
+		return
+	}
+	a.chat.Clear()
+	a.chat.LoadChat(store.Chat{
+		Model:       a.cfg.Model,
+		Kind:        store.KindDesigner,
+		CharacterID: ca.ID,
+		Title:       "Revising " + ca.Name,
+	}, ca, nil)
+	a.chat.ShowGreeting(chars.ReviseOpening(ca))
+	a.showChat()
+	a.sidebar.Select(0)
+	a.setTitle(store.Chat{Title: "Revising " + ca.Name}, chars.Character{})
+	a.chat.FocusComposer()
+	a.refreshAttachAvailability()
+}
+
 // newAssistantChat opens a plain conversation with the model.
 func (a *App) newAssistantChat() {
 	a.startPlainChat(store.KindAssistant, "Chat", "")
@@ -230,7 +261,16 @@ func (a *App) buildCharacterFromChat() {
 				a.toast("Could not build the character: " + friendlyBuildError(err))
 				return false
 			}
-			c.Accent = ui.AccentFor(c.Name)
+			// A revision keeps the character it came from: the same row, the
+			// same pictures, the same world, so every scene they are in carries
+			// on with them in it. Anything the conversation did not cover is
+			// kept as it was rather than blanked by a schema that has no field
+			// for it.
+			if existing, ok := a.revising(); ok {
+				c = chars.Revise(existing, c)
+			} else {
+				c.Accent = ui.AccentFor(c.Name)
+			}
 			// A picture used as reference during the design is almost
 			// certainly the picture of this character, so it is offered as the
 			// portrait. Still editable before saving.
@@ -241,12 +281,34 @@ func (a *App) buildCharacterFromChat() {
 			// Opened for review, and on save it offers to play the scene it
 			// was just designed for, which is the whole point of having made
 			// it.
+			if _, revising := a.revising(); revising {
+				a.editCharacterWith(c, func(saved chars.Character) {
+					a.toast(saved.Name + " is saved. Their scenes carry on with the new card.")
+				})
+				return false
+			}
 			a.editCharacterWith(c, func(saved chars.Character) {
 				a.confirmStartScene(saved)
 			})
 			return false
 		})
 	}()
+}
+
+// revising is the character the open designer chat is about, when it is about
+// one. A designer chat with no character is inventing a new one.
+func (a *App) revising() (chars.Character, bool) {
+	ch := a.chat.Chat()
+	if ch.Kind != store.KindDesigner || ch.CharacterID == 0 {
+		return chars.Character{}, false
+	}
+	ca, err := a.store.Character(ch.CharacterID)
+	if err != nil {
+		// Deleted while the conversation was open. What was written is still
+		// worth keeping, so it becomes a new character rather than being lost.
+		return chars.Character{}, false
+	}
+	return ca, true
 }
 
 // confirmStartScene offers to open a scene with a freshly designed character.

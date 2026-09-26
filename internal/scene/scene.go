@@ -111,6 +111,12 @@ func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character,
 	// guidance is sent, because a character with a real job or a world set in a
 	// real place is exactly where being a year out of date shows.
 	case store.KindDesigner:
+		// A designer chat that names a character is revising that character
+		// rather than inventing one. The column was already there, so a revision
+		// needs no new state: what makes it one is having somebody to revise.
+		if ca.Name != "" {
+			return system(withSearch(cfg, chars.ReviseSystem(ca, Persona(cfg))))
+		}
 		return system(withSearch(cfg, chars.DesignerSystem))
 	case store.KindStyleDesigner:
 		return system(withSearch(cfg, chars.StyleDesignerSystem))

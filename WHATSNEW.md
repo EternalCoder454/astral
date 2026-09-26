@@ -3,6 +3,10 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.4.8
+- Ask the designer to rewrite a character you already have, keeping their scenes
+- Swipe a character or world aside on your phone to delete it
+
 ## 0.4.7
 - The model can search the web in General Chat and the designers, never in a scene
 - It decides when to look something up, and what it searched is shown above the reply

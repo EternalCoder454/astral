@@ -56,6 +56,8 @@ func TestEverythingNeedsAToken(t *testing.T) {
 		{"POST", "/api/chats"},
 		{"POST", "/api/chats/1/send"},
 		{"DELETE", "/api/chats/1"},
+		{"DELETE", "/api/characters/1"},
+		{"DELETE", "/api/worlds/1"},
 	} {
 		if got := do(t, s, c.method, c.path, "", "{}").Code; got != http.StatusUnauthorized {
 			t.Errorf("%s %s with no token = %d, want 401", c.method, c.path, got)

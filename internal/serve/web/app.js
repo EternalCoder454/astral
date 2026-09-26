@@ -335,18 +335,138 @@ async function loadState() {
 	const cs = $("cast-characters");
 	cs.replaceChildren();
 	for (const c of state.characters || []) {
-		cs.append(row({
-			title: c.name, note: c.note, initial: initialOf(c.name),
-			onClick: () => newChat({ character_id: c.id }),
-		}));
+		cs.append(swipeable(
+			row({
+				title: c.name, note: c.note, initial: initialOf(c.name),
+				onClick: () => newChat({ character_id: c.id }),
+			}),
+			c.name,
+			async () => {
+				await api("/api/characters/" + c.id, { method: "DELETE" });
+				state.characters = state.characters.filter((x) => x.id !== c.id);
+				toast(c.name + " deleted. Scenes you played with them are kept.");
+			},
+		));
 	}
 	const ws = $("cast-worlds");
 	ws.replaceChildren();
 	for (const w of state.worlds || []) {
-		ws.append(row({
-			title: w.name, note: w.note, initial: initialOf(w.name),
-			onClick: () => newChat({ world_id: w.id }),
-		}));
+		ws.append(swipeable(
+			row({
+				title: w.name, note: w.note, initial: initialOf(w.name),
+				onClick: () => newChat({ world_id: w.id }),
+			}),
+			w.name,
+			async () => {
+				await api("/api/worlds/" + w.id, { method: "DELETE" });
+				state.worlds = state.worlds.filter((x) => x.id !== w.id);
+				toast(w.name + " deleted, with its lorebook.");
+			},
+		));
+	}
+}
+
+// swipeable wraps a row so it can be pulled aside to reveal a delete button.
+//
+// Revealing a button rather than deleting on the gesture itself. A swipe is easy
+// to make by accident while scrolling a list, and deleting a character is not
+// undoable, so the gesture uncovers the decision and a tap makes it. The button
+// then asks once more, because there is no dialog on this screen and a WebView
+// cannot be relied on to show one.
+//
+// Pointer events rather than touch events, so it works the same under a finger
+// and under a mouse.
+function swipeable(inner, label, onDelete) {
+	const wrap = document.createElement("div");
+	wrap.className = "swipe";
+
+	const action = document.createElement("button");
+	action.className = "swipe-delete";
+	action.textContent = "Delete";
+	action.setAttribute("aria-label", "Delete " + label);
+	wrap.append(action);
+
+	const front = document.createElement("div");
+	front.className = "swipe-front";
+	front.append(inner);
+	wrap.append(front);
+
+	const OPEN = 88;      // how far aside the row sits when the button is showing
+	const REVEAL = 40;    // past this on release, it stays open
+	const SLOP = 10;      // below this it is a tap, or a scroll, and not a swipe
+	let startX = 0, startY = 0, dx = 0, dragging = false, decided = false, open = false;
+	// Declared before close() below, which resets it.
+	let armed = false;
+
+	const setX = (x) => { front.style.transform = x ? "translateX(" + x + "px)" : ""; };
+	const close = () => { open = false; setX(0); armed = false; action.textContent = "Delete"; };
+
+	front.addEventListener("pointerdown", (e) => {
+		if (e.pointerType === "mouse" && e.button !== 0) return;
+		startX = e.clientX; startY = e.clientY;
+		dx = 0; dragging = true; decided = false;
+	});
+	front.addEventListener("pointermove", (e) => {
+		if (!dragging) return;
+		const mx = e.clientX - startX, my = e.clientY - startY;
+		if (!decided) {
+			if (Math.abs(mx) < SLOP && Math.abs(my) < SLOP) return;
+			// Vertical wins: the list has to stay scrollable, and a gesture that
+			// started as a scroll must not turn into a swipe halfway down.
+			decided = true;
+			if (Math.abs(my) > Math.abs(mx)) { dragging = false; return; }
+			front.setPointerCapture?.(e.pointerId);
+			front.classList.add("dragging");
+		}
+		dx = Math.min(0, Math.max(-OPEN - 24, mx + (open ? -OPEN : 0)));
+		setX(dx);
+	});
+	const end = () => {
+		if (!dragging) return;
+		dragging = false;
+		front.classList.remove("dragging");
+		if (!decided) return;
+		if (dx <= -REVEAL) {
+			// One at a time: a list with three rows hanging open is a list you
+			// have lost track of.
+			closeSwipes(wrap);
+			open = true;
+			setX(-OPEN);
+		} else {
+			close();
+		}
+	};
+	front.addEventListener("pointerup", end);
+	front.addEventListener("pointercancel", end);
+	// A swipe that ended open must not also count as a tap on the row beneath it.
+	front.addEventListener("click", (e) => {
+		if (open || dx !== 0) { e.stopPropagation(); e.preventDefault(); close(); }
+	}, true);
+
+	action.addEventListener("click", async (e) => {
+		e.stopPropagation();
+		if (!armed) {
+			armed = true;
+			action.textContent = "Sure?";
+			return;
+		}
+		try {
+			await onDelete();
+			wrap.remove();
+		} catch (err) {
+			toast(err.message);
+			close();
+		}
+	});
+
+	wrap.close = close;
+	return wrap;
+}
+
+// openSwipes closes any row left pulled aside, so only one is ever open.
+function closeSwipes(except) {
+	for (const el of document.querySelectorAll(".swipe")) {
+		if (el !== except && el.close) el.close();
 	}
 }
 

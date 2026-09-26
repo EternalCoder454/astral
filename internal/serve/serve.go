@@ -130,6 +130,8 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("POST /api/chats", s.guard(s.handleNewChat))
 	mux.Handle("POST /api/chats/{id}/send", s.guard(s.handleSend))
 	mux.Handle("DELETE /api/chats/{id}", s.guard(s.handleDeleteChat))
+	mux.Handle("DELETE /api/characters/{id}", s.guard(s.handleDeleteCharacter))
+	mux.Handle("DELETE /api/worlds/{id}", s.guard(s.handleDeleteWorld))
 	mux.Handle("GET /api/settings", s.guard(s.handleSettings))
 	mux.Handle("POST /api/settings", s.guard(s.handleSaveSettings))
 	mux.Handle("POST /api/forget", s.guard(s.handleForget))
@@ -364,6 +366,39 @@ func (s *Server) handleDeleteChat(w http.ResponseWriter, r *http.Request, d stor
 		return
 	}
 	if err := s.store.DeleteChat(id); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"ok": "deleted"})
+}
+
+// handleDeleteCharacter removes a character.
+//
+// The scenes already played with them are kept, the same as on the desktop: a
+// transcript is yours, and losing one because you tidied up the cast is not a
+// trade anybody would choose.
+func (s *Server) handleDeleteCharacter(w http.ResponseWriter, r *http.Request, d store.Device) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not a character id"})
+		return
+	}
+	if err := s.store.DeleteCharacter(id); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"ok": "deleted"})
+}
+
+// handleDeleteWorld removes a world and its lorebook. Characters that belonged to
+// it are kept and lose their setting, which is what the store does.
+func (s *Server) handleDeleteWorld(w http.ResponseWriter, r *http.Request, d store.Device) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not a world id"})
+		return
+	}
+	if err := s.store.DeleteWorld(id); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}

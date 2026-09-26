@@ -153,6 +153,18 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 	})
 	side.Append(edit)
 
+	// The designer, pointed at somebody who already exists. The form next door
+	// edits the words; this argues about them, which is what you want when the
+	// problem is that the description is all adjectives.
+	revise := gtk.NewButtonFromIconName(ui.IconDesigner)
+	revise.SetTooltipText("Talk through " + c.Name + " with the designer and write them again")
+	revise.AddCSSClass("flat")
+	revise.ConnectClicked(func() {
+		parent.Close()
+		a.reviseCharacter(character)
+	})
+	side.Append(revise)
+
 	del := gtk.NewButtonFromIconName(ui.IconTrash)
 	del.SetTooltipText("Delete " + c.Name)
 	del.AddCSSClass("flat")
@@ -301,6 +313,16 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	insOuter, insCard := groupCard("Instructions")
 	insFrame, insView := multilineField(c.Instructions, 5)
 	f.instructions = insView
+	if c.ID != 0 {
+		revise := gtk.NewButtonWithLabel("Revise with the Designer…")
+		revise.SetHAlign(gtk.AlignStart)
+		revise.SetTooltipText("Talk this character through with the designer instead of typing")
+		revise.ConnectClicked(func() {
+			d.Close()
+			a.reviseCharacter(c)
+		})
+		insCard.Append(revise)
+	}
 	insCard.Append(labelledField("Rules for This Character",
 		"Your own rules for them, one per line: \"keep replies to one paragraph\", "+
 			"\"{{char}} always lies about her past\".",

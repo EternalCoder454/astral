@@ -610,6 +610,18 @@ func (c *ChatView) speakerFor(role string, speaker int64) (string, string, int) 
 			return ca.Name, ca.Initial(), ca.Accent
 		}
 	}
+	// Before the character, because a designer chat revising somebody has that
+	// character on it and the designer is still the one talking.
+	if role != ollama.RoleUser {
+		switch c.chat.Kind {
+		case store.KindDesigner:
+			return "Character Designer", "✦", 1
+		case store.KindStyleDesigner:
+			return "Style Designer", "✦", 3
+		case store.KindWorldDesigner:
+			return "World Designer", "✦", 2
+		}
+	}
 	if role == ollama.RoleUser {
 		name := c.cfg.PersonaName
 		if name == "" {
@@ -620,16 +632,9 @@ func (c *ChatView) speakerFor(role string, speaker int64) (string, string, int) 
 	if name := c.char.Name; name != "" {
 		return name, c.char.Initial(), c.char.Accent
 	}
-	switch c.chat.Kind {
-	case store.KindDesigner:
-		return "Character Designer", "✦", 1
-	case store.KindStyleDesigner:
-		return "Style Designer", "✦", 3
-	case store.KindWorldDesigner:
-		return "World Designer", "✦", 2
-	default:
-		return "Assistant", "✦", 0
-	}
+	// The designers are answered above, before the character, so what is left
+	// here is a plain conversation.
+	return "Assistant", "✦", 0
 }
 
 func firstLetter(s string) string {
@@ -887,6 +892,10 @@ func (c *ChatView) refreshActions() {
 	switch c.chat.Kind {
 	case store.KindDesigner:
 		label, tip = "Create Character", "Turn this conversation into a character you can play with"
+		if c.char.Name != "" {
+			label = "Save Character"
+			tip = "Write " + c.char.Name + " again from this conversation, keeping their scenes"
+		}
 		fire = func() {
 			if c.OnBuildCharacter != nil {
 				c.OnBuildCharacter()
