@@ -17,6 +17,7 @@ import (
 	"astral/internal/ollama"
 	"astral/internal/scene"
 	"astral/internal/store"
+	"astral/internal/websearch"
 	"astral/internal/world"
 )
 
@@ -348,19 +349,36 @@ func (c *ChatView) startStream() {
 	gen := c.gen
 	c.streamGen = gen
 	started := time.Now()
+	c.searchNotes = ""
+	searcher := c.searcher(model, opts, &think)
 
 	go func() {
 		defer cancel()
 		// onDelta runs on this goroutine, not the UI's. It must not touch a
 		// widget, it only appends to the buffers the flush timer drains.
-		msg, stats, err := c.client.Chat(ctx, model, msgs, opts, &think, func(d ollama.Delta) {
+		onDelta := func(d ollama.Delta) {
 			c.pendMu.Lock()
 			c.pendText.WriteString(d.Content)
 			c.pendThink.WriteString(d.Thinking)
 			c.pendMu.Unlock()
-		})
+		}
+		var msg ollama.Message
+		var stats ollama.Stats
+		var err error
+		var rounds []websearch.Round
+		if searcher != nil {
+			// The model decides whether to search, and the searches it makes are
+			// shown above the reply rather than folded away silently: a reply that
+			// went to the internet is one you cannot judge without knowing that.
+			msg, stats, rounds, err = searcher.Run(ctx, msgs, onDelta)
+		} else {
+			msg, stats, err = c.client.Chat(ctx, model, msgs, opts, &think, onDelta)
+		}
 
 		coreglib.IdleAdd(func() bool {
+			if notes := websearch.Notes(rounds); notes != "" {
+				c.searchNotes = notes
+			}
 			c.finishStream(gen, msg, stats, err, started)
 			return false
 		})
@@ -501,6 +519,14 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 		row.SetMarkdown(text)
 	} else {
 		row.SetMarkdown("")
+	}
+	// What the turn looked up goes in the same fold as the model's deliberation,
+	// and above it: both are working rather than answer, and the searches are the
+	// part worth reading, because a sourced answer can only be checked against the
+	// sources it came from.
+	if c.searchNotes != "" {
+		msg.Thinking = strings.TrimSpace(c.searchNotes + "\n\n" + msg.Thinking)
+		c.searchNotes = ""
 	}
 	if msg.Thinking != "" {
 		row.SetThinking(msg.Thinking)

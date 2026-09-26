@@ -221,6 +221,9 @@ type ChatView struct {
 	// same list as the cast once somebody has been written out of it. The cast
 	// is who can speak next; this is who a stored line can belong to.
 	spoken []chars.Character
+	// searchNotes is what the turn being streamed looked up on the web, shown
+	// above the reply. Cleared at the start of every turn.
+	searchNotes string
 	// beats folds a group reply into its speakers as it streams, and liveRows
 	// are the rows it is being streamed into, in order.
 	beats    chars.BeatStream

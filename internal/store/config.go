@@ -48,6 +48,13 @@ const (
 	// Ollama's own default is five minutes, which a reading pause routinely
 	// exceeds, and the next message then pays a full reload.
 	DefaultKeepAlive = "30m"
+	// DefaultSearchResults is how many hits one web search asks for. Five is
+	// enough to answer a question and few enough not to become the prompt.
+	DefaultSearchResults = 5
+	// DefaultSearXNGURL is the port SearXNG's own instructions use. Filling it in
+	// costs nothing, because search stays off until it is switched on, and it
+	// saves everyone typing the one address the documentation already told them.
+	DefaultSearXNGURL = "http://localhost:8080"
 )
 
 // Config holds user settings persisted to ~/.config/astral/config.json.
@@ -75,6 +82,17 @@ type Config struct {
 	// before rules existed is loaded, and is kept in the struct only so that
 	// migration can find it. See rules.go.
 	GlobalInstructions string `json:"global_instructions"`
+
+	// WebSearch lets the conversations that are not roleplay look things up.
+	//
+	// Off unless asked for, and it needs an address: this is the one feature that
+	// sends anything off this machine, so it does not start doing that because a
+	// default said so. See internal/websearch.
+	WebSearch bool `json:"web_search"`
+	// SearXNGURL is the instance to search through, which you run yourself.
+	SearXNGURL string `json:"searxng_url"`
+	// SearchResults is how many hits one search asks for.
+	SearchResults int `json:"search_results"`
 
 	// Rulebook is the standing instructions every scene is under, each one
 	// switchable on its own. See rules.go.
@@ -222,6 +240,8 @@ func DefaultConfig() Config {
 		PortraitOpen:  true,
 		FontRendering: FontRenderingAuto,
 		KeepAlive:     DefaultKeepAlive,
+		SearchResults: DefaultSearchResults,
+		SearXNGURL:    DefaultSearXNGURL,
 		PhonePort:     DefaultPhonePort,
 		UpdateChannel: ChannelRelease,
 		CheckUpdates:  true,
@@ -297,6 +317,15 @@ func (c *Config) normalize() {
 	}
 	if c.RepeatLastN <= 0 {
 		c.RepeatLastN = DefaultRepeatLastN
+	}
+	if c.SearchResults <= 0 || c.SearchResults > 10 {
+		c.SearchResults = DefaultSearchResults
+	}
+	// Search cannot be on without somewhere to search. Left inconsistent, the
+	// model would be offered a tool that fails on every call, which is worse than
+	// not having it.
+	if strings.TrimSpace(c.SearXNGURL) == "" {
+		c.WebSearch = false
 	}
 	if c.PhonePort <= 0 || c.PhonePort > 65535 {
 		c.PhonePort = DefaultPhonePort

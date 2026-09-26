@@ -472,6 +472,7 @@ async function send(text) {
 				const payload = JSON.parse(data);
 				if (event === "token") {
 					body.classList.remove("dots");
+					if (!reply) body.textContent = "";
 					reply += payload.t;
 					// The text is written on the next frame rather than on
 					// every event. Replacing it and scrolling per event makes
@@ -486,6 +487,11 @@ async function send(text) {
 					beats = payload.beats || null;
 					reply = payload.content || "";
 					if (payload.title) $("chat-title").textContent = payload.title;
+				} else if (event === "searching") {
+					// A search takes seconds with nothing arriving, so the row
+					// says what is being looked up rather than sitting on dots.
+					body.classList.remove("dots");
+					body.textContent = "Searching for " + payload.q + "…";
 				} else if (event === "error") {
 					throw new Error(payload.error);
 				}

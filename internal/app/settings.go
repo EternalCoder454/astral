@@ -9,6 +9,7 @@ import (
 
 	"astral/internal/chars"
 	"astral/internal/store"
+	"astral/internal/websearch"
 )
 
 // settingsForm holds the widgets Save reads back.
@@ -28,6 +29,10 @@ type settingsForm struct {
 	channel  *gtk.DropDown
 	phone    *gtk.CheckButton
 	think    *gtk.CheckButton
+
+	webSearch  *gtk.CheckButton
+	searxngURL *gtk.Entry
+	searchN    *gtk.Entry
 
 	temperature *gtk.Scale
 	topP        *gtk.Scale
@@ -206,6 +211,10 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	sCard.Append(f.think)
 	page.Append(sOuter)
 
+	// On this page rather than on yours: what the model can reach is a fact
+	// about the model.
+	page.Append(a.buildWebSearch(f))
+
 	return page
 }
 
@@ -342,6 +351,9 @@ func (a *App) applySettings(f *settingsForm) {
 	if f.channel.Selected() == 1 {
 		a.cfg.UpdateChannel = store.ChannelBeta
 	}
+	a.cfg.SearXNGURL = strings.TrimSpace(f.searxngURL.Text())
+	a.cfg.WebSearch = f.webSearch.Active() && a.cfg.SearXNGURL != ""
+	a.cfg.SearchResults = websearch.ParseResultCount(f.searchN.Text())
 	a.cfg.Think = f.think.Active()
 	a.cfg.Temperature = f.temperature.Value()
 	a.cfg.TopP = f.topP.Value()

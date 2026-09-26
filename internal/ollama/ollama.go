@@ -44,6 +44,9 @@ const (
 	RoleSystem    = "system"
 	RoleUser      = "user"
 	RoleAssistant = "assistant"
+	// RoleTool carries the result of a tool the model asked to call, sent back
+	// so it can answer with what the tool returned.
+	RoleTool = "tool"
 )
 
 // Message is one turn in a conversation.
@@ -58,6 +61,44 @@ type Message struct {
 	// subsequent turns only when the model asked for it; for most models it is
 	// empty and omitted.
 	Thinking string `json:"thinking,omitempty"`
+	// ToolCalls are the tools the model asked to call, on a reply. A model that
+	// wants a tool returns these instead of an answer, and the caller is expected
+	// to run them and send the results back.
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+	// ToolName names the tool a RoleTool message is the result of. Ollama accepts
+	// the message without it, and answers better with it.
+	ToolName string `json:"tool_name,omitempty"`
+}
+
+// Tool describes a function the model may call.
+//
+// Ollama passes these to the model's own tool-calling template, so whether they
+// are honoured at all depends on the model: one without the capability ignores
+// the field and answers from what it already knows, which is the right failure
+// for this to have.
+type Tool struct {
+	// Type is always "function". It is the only kind the API defines, and is
+	// spelled out rather than defaulted because the field is required.
+	Type     string       `json:"type"`
+	Function ToolFunction `json:"function"`
+}
+
+// ToolFunction is one callable function: its name, what it is for, and a JSON
+// Schema for its arguments.
+type ToolFunction struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Parameters  json.RawMessage `json:"parameters"`
+}
+
+// ToolCall is the model asking for a tool to be run.
+type ToolCall struct {
+	Function struct {
+		Name string `json:"name"`
+		// Arguments arrives as an object, and is kept raw so the caller can
+		// unmarshal it into whatever that tool's arguments are.
+		Arguments json.RawMessage `json:"arguments"`
+	} `json:"function"`
 }
 
 // Options are the sampling knobs Astral exposes. Zero values mean "leave it to
@@ -192,15 +233,17 @@ type chatRequest struct {
 	Stream    bool            `json:"stream"`
 	Think     *bool           `json:"think,omitempty"`
 	Format    json.RawMessage `json:"format,omitempty"`
+	Tools     []Tool          `json:"tools,omitempty"`
 	KeepAlive string          `json:"keep_alive,omitempty"`
 	Options   map[string]any  `json:"options,omitempty"`
 }
 
 type chatResponse struct {
 	Message struct {
-		Role     string `json:"role"`
-		Content  string `json:"content"`
-		Thinking string `json:"thinking"`
+		Role      string     `json:"role"`
+		Content   string     `json:"content"`
+		Thinking  string     `json:"thinking"`
+		ToolCalls []ToolCall `json:"tool_calls"`
 	} `json:"message"`
 	Done               bool   `json:"done"`
 	DoneReason         string `json:"done_reason"`
@@ -244,9 +287,34 @@ func (c *Client) Chat(ctx context.Context, model string, msgs []Message, opts Op
 	if len(msgs) == 0 {
 		return Message{}, Stats{}, fmt.Errorf("no messages to send")
 	}
-	msg, stats, err := c.chat(ctx, model, msgs, opts, think, nil, onDelta)
+	msg, stats, err := c.chat(ctx, model, msgs, opts, think, nil, nil, onDelta)
 	if err != nil && think != nil && rejectsThinking(err) && ctx.Err() == nil {
-		return c.chat(ctx, model, msgs, opts, nil, nil, onDelta)
+		return c.chat(ctx, model, msgs, opts, nil, nil, nil, onDelta)
+	}
+	return msg, stats, err
+}
+
+// ChatTools is Chat with a set of tools the model may call.
+//
+// A model that wants one returns tool calls and no answer, and the caller runs
+// them, appends the results as RoleTool messages, and calls again. Nothing here
+// runs a tool: what a tool does, and whether it should be offered at all, is not
+// this package's business.
+//
+// A model without the tool-calling capability ignores the field and answers from
+// what it already knows. That is the right failure for this to have, and the
+// reason there is no capability check: the alternative is refusing to answer at
+// all on a model that would have answered.
+func (c *Client) ChatTools(ctx context.Context, model string, msgs []Message, opts Options, think *bool, tools []Tool, onDelta func(Delta)) (Message, Stats, error) {
+	if model == "" {
+		return Message{}, Stats{}, fmt.Errorf("no model selected")
+	}
+	if len(msgs) == 0 {
+		return Message{}, Stats{}, fmt.Errorf("no messages to send")
+	}
+	msg, stats, err := c.chat(ctx, model, msgs, opts, think, nil, tools, onDelta)
+	if err != nil && think != nil && rejectsThinking(err) && ctx.Err() == nil {
+		return c.chat(ctx, model, msgs, opts, nil, nil, tools, onDelta)
 	}
 	return msg, stats, err
 }
@@ -261,9 +329,9 @@ func (c *Client) Chat(ctx context.Context, model string, msgs []Message, opts Op
 // is thrown away.
 func (c *Client) Structured(ctx context.Context, model string, msgs []Message, opts Options, schema json.RawMessage) ([]byte, Stats, error) {
 	noThink := false
-	msg, stats, err := c.chat(ctx, model, msgs, opts, &noThink, schema, nil)
+	msg, stats, err := c.chat(ctx, model, msgs, opts, &noThink, schema, nil, nil)
 	if err != nil && rejectsThinking(err) && ctx.Err() == nil {
-		msg, stats, err = c.chat(ctx, model, msgs, opts, nil, schema, nil)
+		msg, stats, err = c.chat(ctx, model, msgs, opts, nil, schema, nil, nil)
 	}
 	if err != nil {
 		return nil, stats, err
@@ -288,7 +356,7 @@ func rejectsThinking(err error) bool {
 	return strings.Contains(s, "think") || strings.Contains(s, "thinking")
 }
 
-func (c *Client) chat(ctx context.Context, model string, msgs []Message, opts Options, think *bool, format json.RawMessage, onDelta func(Delta)) (Message, Stats, error) {
+func (c *Client) chat(ctx context.Context, model string, msgs []Message, opts Options, think *bool, format json.RawMessage, tools []Tool, onDelta func(Delta)) (Message, Stats, error) {
 	// A structured request is not streamed: Ollama then returns one JSON
 	// object rather than NDJSON, which the reader below handles either way
 	// because a single object is just a one-line stream that is already done.
@@ -298,6 +366,7 @@ func (c *Client) chat(ctx context.Context, model string, msgs []Message, opts Op
 		Stream:    len(format) == 0,
 		Think:     think,
 		Format:    format,
+		Tools:     tools,
 		KeepAlive: c.KeepAlive,
 		Options:   opts.toMap(),
 	})
@@ -327,6 +396,7 @@ func (c *Client) chat(ctx context.Context, model string, msgs []Message, opts Op
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 
 	var content, thinking strings.Builder
+	var toolCalls []ToolCall
 	var stats Stats
 	for sc.Scan() {
 		line := sc.Bytes()
@@ -340,6 +410,9 @@ func (c *Client) chat(ctx context.Context, model string, msgs []Message, opts Op
 		if cr.Error != "" {
 			return Message{}, Stats{}, fmt.Errorf("ollama: %s", cr.Error)
 		}
+		// Collected rather than replaced: a model may spread its calls over
+		// several chunks, and the last chunk of a stream carries none of them.
+		toolCalls = append(toolCalls, cr.Message.ToolCalls...)
 		d := Delta{Content: cr.Message.Content, Thinking: cr.Message.Thinking}
 		if d.Content != "" {
 			content.WriteString(d.Content)
@@ -360,14 +433,21 @@ func (c *Client) chat(ctx context.Context, model string, msgs []Message, opts Op
 		// cancellation itself, so the caller can tell "you pressed Stop" from
 		// "the connection broke".
 		if ctx.Err() != nil {
-			return Message{Role: RoleAssistant, Content: content.String(), Thinking: thinking.String()}, stats, ctx.Err()
+			return Message{
+				Role: RoleAssistant, Content: content.String(),
+				Thinking: thinking.String(), ToolCalls: toolCalls,
+			}, stats, ctx.Err()
 		}
-		return Message{Role: RoleAssistant, Content: content.String(), Thinking: thinking.String()}, stats, err
+		return Message{
+			Role: RoleAssistant, Content: content.String(),
+			Thinking: thinking.String(), ToolCalls: toolCalls,
+		}, stats, err
 	}
 	msg := Message{
-		Role:     RoleAssistant,
-		Content:  strings.TrimSpace(content.String()),
-		Thinking: strings.TrimSpace(thinking.String()),
+		Role:      RoleAssistant,
+		Content:   strings.TrimSpace(content.String()),
+		Thinking:  strings.TrimSpace(thinking.String()),
+		ToolCalls: toolCalls,
 	}
 	return msg, stats, nil
 }

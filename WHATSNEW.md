@@ -3,6 +3,11 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.4.7
+- The model can search the web in General Chat and the designers, never in a scene
+- It decides when to look something up, and what it searched is shown above the reply
+- Search runs through SearXNG, which you host yourself, so only the query leaves your machine
+
 ## 0.4.6
 - Bring characters into a world scene: the place plays itself, the people play themselves
 - Export a world and its whole lorebook to one file, and import one back

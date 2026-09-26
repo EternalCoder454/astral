@@ -17,6 +17,7 @@ import (
 	"astral/internal/chars"
 	"astral/internal/ollama"
 	"astral/internal/store"
+	"astral/internal/websearch"
 	"astral/internal/world"
 )
 
@@ -106,13 +107,15 @@ func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character,
 	switch ch.Kind {
 	// The designers are tools with a defined product, and the user's own rules
 	// are not sent to them: a rule about how prose should read is right for a
-	// scene and would break an interview whose answer has to parse.
+	// scene and would break an interview whose answer has to parse. The search
+	// guidance is sent, because a character with a real job or a world set in a
+	// real place is exactly where being a year out of date shows.
 	case store.KindDesigner:
-		return system(chars.DesignerSystem)
+		return system(withSearch(cfg, chars.DesignerSystem))
 	case store.KindStyleDesigner:
-		return system(chars.StyleDesignerSystem)
+		return system(withSearch(cfg, chars.StyleDesignerSystem))
 	case store.KindWorldDesigner:
-		return system(world.DesignerSystem)
+		return system(withSearch(cfg, world.DesignerSystem))
 	case store.KindAssistant:
 		return Plain(cfg, ch, hist)
 	}
@@ -154,7 +157,7 @@ func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character,
 func Plain(cfg store.Config, ch store.Chat, hist []ollama.Message) []ollama.Message {
 	msgs := []ollama.Message{{
 		Role:    ollama.RoleSystem,
-		Content: chars.AssistantSystemFor(Persona(cfg)),
+		Content: withSearch(cfg, chars.AssistantSystemFor(Persona(cfg))),
 	}}
 	if r := strings.TrimSpace(ch.Summary); r != "" {
 		msgs = append(msgs, ollama.Message{
@@ -164,6 +167,37 @@ func Plain(cfg store.Config, ch store.Chat, hist []ollama.Message) []ollama.Mess
 		})
 	}
 	return append(msgs, hist...)
+}
+
+// withSearch adds the search guidance when search is switched on.
+//
+// Only to the conversations that can search. A scene never gets it: the tool is
+// not offered there, and telling a character they can search the web when they
+// cannot is how a scene ends up with someone claiming they looked something up.
+func withSearch(cfg store.Config, system string) string {
+	if !Searchable(cfg) {
+		return system
+	}
+	return system + "\n\n" + websearch.Guidance
+}
+
+// Searchable reports whether search is available: switched on, and pointed at
+// something.
+func Searchable(cfg store.Config) bool {
+	return cfg.WebSearch && strings.TrimSpace(cfg.SearXNGURL) != ""
+}
+
+// CanSearch reports whether a conversation of this kind may search.
+//
+// Everything that is not a roleplay. A scene does not want facts from outside
+// it, a search would fire on names that exist only in the story, and a scene
+// cannot survive the model stopping to report what it found on the internet.
+func CanSearch(kind string) bool {
+	switch kind {
+	case store.KindAssistant, store.KindDesigner, store.KindStyleDesigner, store.KindWorldDesigner:
+		return true
+	}
+	return false
 }
 
 // PlainBudget divides the window for a conversation that is not a roleplay.

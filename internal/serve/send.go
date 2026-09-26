@@ -14,6 +14,7 @@ import (
 	"astral/internal/ollama"
 	"astral/internal/scene"
 	"astral/internal/store"
+	"astral/internal/websearch"
 	"astral/internal/world"
 )
 
@@ -136,16 +137,42 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 	}
 
 	noThink := false
-	reply, stats, err := s.client().Chat(ctx, model, msgs, scene.Options(cfg), &noThink,
-		func(delta ollama.Delta) {
-			if delta.Content == "" {
-				return
-			}
-			if shown, _ := think.Next(delta.Content); shown != "" {
-				pending.WriteString(shown)
-			}
-			flush(false)
-		})
+	onDelta := func(delta ollama.Delta) {
+		if delta.Content == "" {
+			return
+		}
+		if shown, _ := think.Next(delta.Content); shown != "" {
+			pending.WriteString(shown)
+		}
+		flush(false)
+	}
+
+	var reply ollama.Message
+	var stats ollama.Stats
+	var rounds []websearch.Round
+	// The same search the window offers, on the same conversations. Without this
+	// the phone would be told it can search, by the same assembler, and then be
+	// handed no tool to do it with: the model would claim to have looked something
+	// up and have looked nothing up.
+	if scene.Searchable(cfg) && scene.CanSearch(ch.Kind) {
+		runner := &websearch.Runner{
+			Client:   s.client(),
+			Provider: websearch.NewSearXNG(cfg.SearXNGURL),
+			Model:    model,
+			Options:  scene.Options(cfg),
+			Think:    &noThink,
+			Results:  cfg.SearchResults,
+			OnRound: func(r websearch.Round) {
+				// Said as it happens, because a search is the one part of a turn
+				// where nothing arrives for several seconds and the phone would
+				// otherwise look stuck.
+				send("searching", map[string]string{"q": r.Query})
+			},
+		}
+		reply, stats, rounds, err = runner.Run(ctx, msgs, onDelta)
+	} else {
+		reply, stats, err = s.client().Chat(ctx, model, msgs, scene.Options(cfg), &noThink, onDelta)
+	}
 	flush(true)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -163,6 +190,9 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 	thinking := reply.Thinking
 	if inline, rest := ollama.SplitThinking(content); inline != "" {
 		thinking, content = strings.TrimSpace(thinking+"\n\n"+inline), rest
+	}
+	if notes := websearch.Notes(rounds); notes != "" {
+		thinking = strings.TrimSpace(notes + "\n\n" + thinking)
 	}
 	if content == "" {
 		send("error", map[string]string{"error": "the model returned an empty reply"})
