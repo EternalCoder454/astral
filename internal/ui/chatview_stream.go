@@ -129,7 +129,29 @@ func (c *ChatView) ShowGreeting(text string) {
 	if strings.TrimSpace(text) == "" {
 		return
 	}
+	c.greetingAt = 0
 	c.greeting = c.appendRow(ollama.RoleAssistant, text, "", 0, time.Now())
+	// A character written with several ways into a scene should offer them.
+	// Only while the greeting is the whole chat: once there is a reply under
+	// it, changing the opening would rewrite the start of something already
+	// being played.
+	if len(chars.Greetings(c.char)) > 1 {
+		c.greeting.AddAction(IconRegenerate, "Another opening", c.nextGreeting)
+	}
+	c.glideToBottom()
+}
+
+// nextGreeting steps to the character's next opening, wrapping at the end.
+func (c *ChatView) nextGreeting() {
+	if c.greeting == nil || c.busy {
+		return
+	}
+	c.greetingAt++
+	next := chars.GreetingAt(c.char, c.persona(), c.greetingAt)
+	if next == "" {
+		return
+	}
+	c.greeting.SetMarkdown(next)
 	c.glideToBottom()
 }
 

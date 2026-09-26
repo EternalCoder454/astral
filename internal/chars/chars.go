@@ -497,9 +497,39 @@ func truncateTo(s string, budget int) string {
 
 // Greeting is the character's opening line, with placeholders expanded.
 func Greeting(c Character, p Persona) string {
+	return GreetingAt(c, p, 0)
+}
+
+// Greetings is every opening a character has: the card's first message, then
+// its alternates.
+//
+// Cards in circulation carry several, and Astral has always imported, stored
+// and exported them while only ever showing the first. A character written
+// with four ways into a scene was one with one.
+func Greetings(c Character) []string {
+	out := make([]string, 0, 1+len(c.AltGreetings))
+	if g := strings.TrimSpace(c.FirstMes); g != "" {
+		out = append(out, g)
+	}
+	for _, g := range c.AltGreetings {
+		if g = strings.TrimSpace(g); g != "" {
+			out = append(out, g)
+		}
+	}
+	return out
+}
+
+// GreetingAt is the nth opening, with the placeholders expanded. Out of range
+// wraps, so a caller stepping through them needs no bounds of its own.
+func GreetingAt(c Character, p Persona, n int) string {
+	all := Greetings(c)
+	if len(all) == 0 {
+		return ""
+	}
 	userName := p.Name
 	if userName == "" {
 		userName = DefaultPersonaName
 	}
-	return Substitute(strings.TrimSpace(c.FirstMes), c.Name, userName)
+	n = ((n % len(all)) + len(all)) % len(all)
+	return Substitute(all[n], c.Name, userName)
 }

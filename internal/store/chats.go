@@ -285,6 +285,20 @@ func (s *Store) AddMessage(m Message) (int64, error) {
 	return id, tx.Commit()
 }
 
+// SetMessageContent rewrites a turn.
+//
+// The transcript is the prompt, so correcting a line is how a scene is steered
+// back: by turn twenty the model's own replies are the strongest instruction
+// in its context, and one wrong line left in place is imitated rather than
+// forgotten. Deleting and rerolling throws away everything that was right
+// about it.
+func (s *Store) SetMessageContent(id int64, content string) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err := s.db.Exec(`UPDATE messages SET content = ? WHERE id = ?`, content, id)
+	return err
+}
+
 // DeleteMessage removes a single turn.
 func (s *Store) DeleteMessage(id int64) error {
 	s.writeMu.Lock()

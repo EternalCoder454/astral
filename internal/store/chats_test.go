@@ -47,3 +47,41 @@ func TestChatNoteAndStyleRoundTrip(t *testing.T) {
 		t.Errorf("note = %q after clearing, want empty", got.Note)
 	}
 }
+
+// Correcting a turn has to survive: the transcript is the prompt, so an edit
+// that is only on screen fixes nothing about the next reply.
+func TestSetMessageContent(t *testing.T) {
+	s := openTest(t)
+	ch, err := s.NewChat(0, "scene", "m", KindRoleplay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := s.AddMessage(Message{ChatID: ch.ID, Role: "assistant", Content: "She sat down abruptly."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := s.AddMessage(Message{ChatID: ch.ID, Role: "user", Content: "untouched"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetMessageContent(id, "*She sat down slowly.*"); err != nil {
+		t.Fatal(err)
+	}
+	msgs, err := s.Messages(ch.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("got %d messages", len(msgs))
+	}
+	if msgs[0].Content != "*She sat down slowly.*" {
+		t.Errorf("the edit did not stick: %q", msgs[0].Content)
+	}
+	if msgs[1].ID != other || msgs[1].Content != "untouched" {
+		t.Errorf("editing one turn changed another: %+v", msgs[1])
+	}
+	// And the order is unchanged, so an edited turn does not jump to the end.
+	if msgs[0].ID != id {
+		t.Errorf("the edited turn moved: first is %d, want %d", msgs[0].ID, id)
+	}
+}

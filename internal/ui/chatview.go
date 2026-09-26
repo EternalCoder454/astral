@@ -95,8 +95,10 @@ type ChatView struct {
 	cancel context.CancelFunc
 	live   *MessageRow
 	// greeting is the character's opening message while it is still unsaved,
-	// so the first send can persist it instead of adding a second copy.
-	greeting *MessageRow
+	// so the first send can persist it instead of adding a second copy, and
+	// greetingAt is which of the character's openings is showing.
+	greeting   *MessageRow
+	greetingAt int
 	// gen increments whenever the view moves to a different chat. A reply that
 	// completes after you have navigated away carries a stale gen and is
 	// discarded, instead of being appended to whatever is on screen now.
@@ -629,6 +631,9 @@ func (c *ChatView) attachActions(row *MessageRow) {
 			d.Clipboard().SetText(row.Text())
 		}
 	})
+	row.AddAction(IconEdit, "Edit this message", func() {
+		c.editRow(row)
+	})
 	if row.Role == ollama.RoleAssistant {
 		row.AddAction(IconRegenerate, "Write this reply again", func() {
 			c.regenerate(row)
@@ -636,6 +641,27 @@ func (c *ChatView) attachActions(row *MessageRow) {
 	}
 	row.AddAction(IconTrash, "Delete this message", func() {
 		c.deleteRow(row)
+	})
+}
+
+// editRow lets a turn be corrected in place, and saves it.
+func (c *ChatView) editRow(row *MessageRow) {
+	if c.busy {
+		// Editing the transcript underneath a reply being written to it would
+		// change the prompt that reply was built from.
+		c.fail("Wait for the reply to finish before editing it.")
+		return
+	}
+	EditMessage(c.widget, row, func(text string) bool {
+		if row.ID != 0 && c.store != nil {
+			if err := c.store.SetMessageContent(row.ID, text); err != nil {
+				c.fail("Could not save the edit: " + err.Error())
+				return false
+			}
+		}
+		row.SetMarkdown(text)
+		c.notifyChanged()
+		return true
 	})
 }
 

@@ -418,3 +418,45 @@ func TestDoubleBraceWinsOverSingle(t *testing.T) {
 		t.Errorf("Substitute(\"{{char}}\") = %q, want %q", got, "Vesper")
 	}
 }
+
+// Cards carry several openings and Astral only ever showed the first, while
+// importing, storing and exporting the rest.
+func TestGreetingsOffersEveryOpening(t *testing.T) {
+	c := Character{
+		Name:         "Vesper",
+		FirstMes:     "  *She does not look up.* \"You're late, {{user}}.\"  ",
+		AltGreetings: []string{"*The door is already open.*", "   ", "\"Again?\""},
+	}
+	p := Persona{Name: "Wren"}
+
+	all := Greetings(c)
+	if len(all) != 3 {
+		t.Fatalf("got %d openings, want 3 (the blank one dropped): %q", len(all), all)
+	}
+	if got := GreetingAt(c, p, 0); !strings.Contains(got, "You're late, Wren.") {
+		t.Errorf("the first opening did not substitute: %q", got)
+	}
+	if got := GreetingAt(c, p, 1); got != "*The door is already open.*" {
+		t.Errorf("second opening = %q", got)
+	}
+	// Stepping past the end wraps, so a caller needs no bounds of its own.
+	if GreetingAt(c, p, 3) != GreetingAt(c, p, 0) {
+		t.Error("stepping past the last opening did not wrap")
+	}
+	if GreetingAt(c, p, -1) != GreetingAt(c, p, 2) {
+		t.Error("stepping back from the first did not wrap")
+	}
+	// And Greeting stays what it was.
+	if Greeting(c, p) != GreetingAt(c, p, 0) {
+		t.Error("Greeting is no longer the first opening")
+	}
+}
+
+func TestGreetingsWithNothingToShow(t *testing.T) {
+	if got := Greetings(Character{}); len(got) != 0 {
+		t.Errorf("a character with no openings produced %q", got)
+	}
+	if got := GreetingAt(Character{}, Persona{}, 2); got != "" {
+		t.Errorf("GreetingAt on nothing = %q", got)
+	}
+}
