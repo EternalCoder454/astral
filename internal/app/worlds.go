@@ -6,6 +6,7 @@ import (
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 
 	"astral/internal/chars"
 	"astral/internal/ui"
@@ -104,12 +105,7 @@ func (a *App) worldRow(w world.World, parent *adw.Dialog) *gtk.Box {
 	col.Append(head)
 
 	if d := ui.Snippet(w.Description, 180); d != "" {
-		desc := gtk.NewLabel(d)
-		desc.SetXAlign(0)
-		desc.SetWrap(true)
-		desc.SetLines(2)
-		desc.SetEllipsize(3)
-		desc.AddCSSClass("character-card-desc")
+		desc := cardDescription(d)
 		col.Append(desc)
 	}
 	open.SetChild(col)
@@ -181,29 +177,21 @@ func (a *App) editWorld(w world.World) {
 		frame))
 	page.Append(outer)
 
-	header := adw.NewHeaderBar()
-	header.SetShowEndTitleButtons(false)
-	cancel := gtk.NewButtonWithLabel("Cancel")
-	cancel.ConnectClicked(func() { d.Close() })
-	header.PackStart(cancel)
-	save := gtk.NewButtonWithLabel("Save")
-	save.AddCSSClass("suggested-action")
-	save.ConnectClicked(func() {
+	header := saveHeader(d, "", func() bool {
 		name := strings.TrimSpace(nameEntry.Text())
 		if name == "" {
 			a.toast("A world needs a name.")
 			nameEntry.GrabFocus()
-			return
+			return false
 		}
 		w.Name, w.Description = name, textOf(view)
 		if _, err := a.store.SaveWorld(w); err != nil {
 			a.toast("Could not save: " + err.Error())
-			return
+			return false
 		}
-		d.Close()
 		a.showWorlds()
+		return true
 	})
-	header.PackEnd(save)
 
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(header)
@@ -358,17 +346,12 @@ func (a *App) worldCastRow(c chars.Character, w world.World, parent *adw.Dialog)
 	col.SetHExpand(true)
 	name := gtk.NewLabel(c.Name)
 	name.SetXAlign(0)
-	name.SetEllipsize(3)
+	name.SetEllipsize(pango.EllipsizeEnd)
 	name.AddCSSClass("character-card-name")
 	col.Append(name)
 
 	if sum := ui.Snippet(c.Summary(), 180); sum != "" {
-		desc := gtk.NewLabel(sum)
-		desc.SetXAlign(0)
-		desc.SetWrap(true)
-		desc.SetLines(2)
-		desc.SetEllipsize(3)
-		desc.AddCSSClass("character-card-desc")
+		desc := cardDescription(sum)
 		col.Append(desc)
 	}
 	box.Append(col)
@@ -505,16 +488,11 @@ func (a *App) moveIntoWorld(w world.World, candidates []chars.Character) {
 		col.SetHExpand(true)
 		name := gtk.NewLabel(c.Name)
 		name.SetXAlign(0)
-		name.SetEllipsize(3)
+		name.SetEllipsize(pango.EllipsizeEnd)
 		name.AddCSSClass("character-card-name")
 		col.Append(name)
 		if sum := ui.Snippet(c.Summary(), 140); sum != "" {
-			desc := gtk.NewLabel(sum)
-			desc.SetXAlign(0)
-			desc.SetWrap(true)
-			desc.SetLines(2)
-			desc.SetEllipsize(3)
-			desc.AddCSSClass("character-card-desc")
+			desc := cardDescription(sum)
 			col.Append(desc)
 		}
 		box.Append(col)

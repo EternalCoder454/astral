@@ -13,6 +13,7 @@ import (
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
@@ -103,6 +104,8 @@ type ChatView struct {
 	streamGen int
 
 	scrollPending bool
+	// scrollTravel says the pending scroll should glide rather than snap.
+	scrollTravel bool
 	// scrollAnim glides the transcript to a new message. One object, re-aimed;
 	// see motion.go.
 	scrollAnim *adw.TimedAnimation
@@ -247,7 +250,7 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 	c.attachChip.SetHAlign(gtk.AlignCenter)
 	c.attachChip.SetVisible(false)
 	c.attachName = gtk.NewLabel("")
-	c.attachName.SetEllipsize(3)
+	c.attachName.SetEllipsize(pango.EllipsizeEnd)
 	c.attachChip.Append(gtk.NewImageFromIconName(IconFolder))
 	c.attachChip.Append(c.attachName)
 	drop := gtk.NewButtonFromIconName(IconTrash)
@@ -289,7 +292,7 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 	c.placeholder.AddCSSClass("composer-placeholder")
 	c.placeholder.SetXAlign(0)
 	c.placeholder.SetYAlign(0)
-	c.placeholder.SetEllipsize(3)
+	c.placeholder.SetEllipsize(pango.EllipsizeEnd)
 	c.placeholder.SetCanTarget(false) // clicks belong to the text view under it
 	inputOverlay := gtk.NewOverlay()
 	inputOverlay.SetChild(inputScroll)
@@ -691,27 +694,6 @@ func (c *ChatView) lastRole() string {
 		return ""
 	}
 	return c.rows[len(c.rows)-1].Role
-}
-
-func (c *ChatView) scrollToBottom() {
-	// Deferred to an idle callback: the adjustment's upper bound is only
-	// correct once GTK has laid out the row that was just added.
-	//
-	// Coalesced, because streaming calls this on every flush — twenty times a
-	// second for the length of a reply — and each call is a closure plus an
-	// idle source that gotk4 keeps alive for the life of the process. One
-	// pending scroll does the same job.
-	if c.scrollPending {
-		return
-	}
-	c.scrollPending = true
-	c.stopGlide()
-	coreglib.IdleAdd(func() bool {
-		c.scrollPending = false
-		adj := c.scroll.VAdjustment()
-		adj.SetValue(adj.Upper() - adj.PageSize())
-		return false
-	})
 }
 
 // SetClient swaps the Ollama client, after the server address is changed in

@@ -3,6 +3,7 @@ package app
 import (
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 	"strings"
 )
 
@@ -162,6 +163,38 @@ func groupCard(title string) (*gtk.Box, *gtk.Box) {
 	return outer, card
 }
 
+// saveHeader is the Cancel and Save bar an editing dialog carries.
+//
+// onSave returns whether the dialog is finished: false leaves it open, which is
+// what a validation failure needs, having just put the reason in a toast that
+// nobody would see if the dialog closed underneath it. Writing that contract
+// into the signature is the point of the helper. Written out by hand three
+// times, it was three chances to close on a value that had not been accepted.
+//
+// The dialog closes after onSave returns rather than partway through it. That
+// is not observable: GTK draws nothing until the callback gives the main loop
+// back, so a save that navigates elsewhere and then closes looks the same as
+// one that closes and then navigates.
+// saveTip, where it is not empty, spells out what Save covers, for a dialog
+// where that is a fair question.
+func saveHeader(d *adw.Dialog, saveTip string, onSave func() bool) *adw.HeaderBar {
+	header := adw.NewHeaderBar()
+	header.SetShowEndTitleButtons(false)
+	cancel := gtk.NewButtonWithLabel("Cancel")
+	cancel.ConnectClicked(func() { d.Close() })
+	header.PackStart(cancel)
+	save := gtk.NewButtonWithLabel("Save")
+	save.AddCSSClass("suggested-action")
+	save.SetTooltipText(saveTip)
+	save.ConnectClicked(func() {
+		if onSave() {
+			d.Close()
+		}
+	})
+	header.PackEnd(save)
+	return header
+}
+
 // labelledField is a caption above a widget, with an optional hint below.
 func labelledField(label, hint string, child gtk.Widgetter) *gtk.Box {
 	box := gtk.NewBox(gtk.OrientationVertical, 4)
@@ -180,6 +213,21 @@ func labelledField(label, hint string, child gtk.Widgetter) *gtk.Box {
 		box.Append(h)
 	}
 	return box
+}
+
+// cardDescription is the two-line summary under a name on a card: a world's
+// description, a character's. Cards in a grid have to be the same height
+// whatever the text, or the grid comes out ragged, so this is two lines,
+// ellipsized, left aligned. The few places that want three lines, or no cap at
+// all, still say so themselves.
+func cardDescription(text string) *gtk.Label {
+	l := gtk.NewLabel(text)
+	l.SetXAlign(0)
+	l.SetWrap(true)
+	l.SetLines(2)
+	l.SetEllipsize(pango.EllipsizeEnd)
+	l.AddCSSClass("character-card-desc")
+	return l
 }
 
 // multilineField is a bordered text area, sized to a minimum number of lines.

@@ -9,6 +9,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 
 	"astral/internal/store"
 )
@@ -186,7 +187,7 @@ func (s *Sidebar) SetProfile(name, subtitle string) {
 	col.SetHExpand(true)
 	n := gtk.NewLabel(name)
 	n.SetXAlign(0)
-	n.SetEllipsize(3)
+	n.SetEllipsize(pango.EllipsizeEnd)
 	n.AddCSSClass("profile-name")
 	col.Append(n)
 	// A subtitle only when there is something worth saying. The persona
@@ -196,7 +197,7 @@ func (s *Sidebar) SetProfile(name, subtitle string) {
 	if strings.TrimSpace(subtitle) == "" {
 		m := gtk.NewLabel("Set up your persona")
 		m.SetXAlign(0)
-		m.SetEllipsize(3)
+		m.SetEllipsize(pango.EllipsizeEnd)
 		m.AddCSSClass("profile-sub")
 		col.Append(m)
 	} else {
@@ -215,7 +216,7 @@ func rowContent(icon, text string) *gtk.Box {
 	l := gtk.NewLabel(text)
 	l.SetXAlign(0)
 	l.SetHExpand(true)
-	l.SetEllipsize(3) // PANGO_ELLIPSIZE_END
+	l.SetEllipsize(pango.EllipsizeEnd)
 	box.Append(l)
 	return box
 }
@@ -335,7 +336,7 @@ func (s *Sidebar) chatRow(ch store.Chat) *gtk.Button {
 	l := gtk.NewLabel(title)
 	l.SetXAlign(0)
 	l.SetHExpand(true)
-	l.SetEllipsize(3)
+	l.SetEllipsize(pango.EllipsizeEnd)
 	l.AddCSSClass("chat-row-title")
 	box.Append(l)
 	btn.SetChild(box)

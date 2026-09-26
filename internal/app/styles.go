@@ -7,6 +7,7 @@ import (
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
@@ -85,7 +86,7 @@ func (a *App) styleRow(st chars.WritingStyle, active bool, parent *adw.Dialog) *
 	desc.SetXAlign(0)
 	desc.SetWrap(true)
 	desc.SetLines(3)
-	desc.SetEllipsize(3)
+	desc.SetEllipsize(pango.EllipsizeEnd)
 	desc.AddCSSClass("character-card-desc")
 	col.Append(desc)
 	use.SetChild(col)

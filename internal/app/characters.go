@@ -10,6 +10,7 @@ import (
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 
 	"astral/internal/chars"
 	"astral/internal/store"
@@ -99,14 +100,14 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 	name := gtk.NewLabel(c.Name)
 	name.SetXAlign(0)
 	name.SetHExpand(true)
-	name.SetEllipsize(3)
+	name.SetEllipsize(pango.EllipsizeEnd)
 	name.AddCSSClass("character-card-name")
 	head.Append(name)
 	// Where their scenes are set, said on the screen where you pick one.
 	if c.WorldID != 0 {
 		if w, err := a.store.World(c.WorldID); err == nil {
 			tag := gtk.NewLabel(w.Name)
-			tag.SetEllipsize(3)
+			tag.SetEllipsize(pango.EllipsizeEnd)
 			tag.SetMaxWidthChars(24)
 			tag.SetTooltipText("Scenes with " + c.Name + " are set in " + w.Name)
 			tag.AddCSSClass("character-card-tag")
@@ -115,12 +116,7 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 	}
 	col.Append(head)
 
-	desc := gtk.NewLabel(ui.Snippet(c.Summary(), 240))
-	desc.SetXAlign(0)
-	desc.SetWrap(true)
-	desc.SetLines(2)
-	desc.SetEllipsize(3)
-	desc.AddCSSClass("character-card-desc")
+	desc := cardDescription(ui.Snippet(c.Summary(), 240))
 	col.Append(desc)
 
 	if len(c.Tags) > 0 {

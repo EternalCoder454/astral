@@ -7,6 +7,7 @@ import (
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
@@ -143,7 +144,7 @@ func (a *App) worldCard(w world.World) *gtk.Button {
 	name := gtk.NewLabel(w.Name)
 	name.SetXAlign(0)
 	name.SetHExpand(true)
-	name.SetEllipsize(3)
+	name.SetEllipsize(pango.EllipsizeEnd)
 	name.AddCSSClass("character-card-name")
 	head.Append(name)
 
@@ -155,12 +156,7 @@ func (a *App) worldCard(w world.World) *gtk.Button {
 	col.Append(head)
 
 	if d := ui.Snippet(w.Description, 140); d != "" {
-		desc := gtk.NewLabel(d)
-		desc.SetXAlign(0)
-		desc.SetWrap(true)
-		desc.SetLines(2)
-		desc.SetEllipsize(3)
-		desc.AddCSSClass("character-card-desc")
+		desc := cardDescription(d)
 		col.Append(desc)
 	}
 	btn.SetChild(col)
@@ -313,13 +309,13 @@ func (a *App) characterCard(c chars.Character) *gtk.Button {
 	name := gtk.NewLabel(c.Name)
 	name.SetXAlign(0)
 	name.SetHExpand(true)
-	name.SetEllipsize(3)
+	name.SetEllipsize(pango.EllipsizeEnd)
 	name.AddCSSClass("character-card-name")
 	head.Append(name)
 	if c.WorldID != 0 {
 		if w, err := a.store.World(c.WorldID); err == nil {
 			tag := gtk.NewLabel(w.Name)
-			tag.SetEllipsize(3)
+			tag.SetEllipsize(pango.EllipsizeEnd)
 			tag.SetMaxWidthChars(24)
 			tag.SetTooltipText("This scene is set in " + w.Name)
 			tag.AddCSSClass("character-card-tag")
@@ -328,12 +324,7 @@ func (a *App) characterCard(c chars.Character) *gtk.Button {
 	}
 	col.Append(head)
 
-	desc := gtk.NewLabel(ui.Snippet(c.Summary(), 240))
-	desc.SetXAlign(0)
-	desc.SetWrap(true)
-	desc.SetLines(2)
-	desc.SetEllipsize(3)
-	desc.AddCSSClass("character-card-desc")
+	desc := cardDescription(ui.Snippet(c.Summary(), 240))
 	col.Append(desc)
 	box.Append(col)
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 
 	"astral/internal/ui"
 	"astral/internal/world"
@@ -124,7 +125,7 @@ func (a *App) loreRow(e world.Entry, w world.World, parent *adw.Dialog) *gtk.Box
 	name := gtk.NewLabel(e.Name)
 	name.SetXAlign(0)
 	name.SetHExpand(true)
-	name.SetEllipsize(3)
+	name.SetEllipsize(pango.EllipsizeEnd)
 	name.AddCSSClass("character-card-name")
 	head.Append(name)
 
@@ -153,7 +154,7 @@ func (a *App) loreRow(e world.Entry, w world.World, parent *adw.Dialog) *gtk.Box
 		k.SetXAlign(0)
 		k.SetHAlign(gtk.AlignStart)
 		k.SetMaxWidthChars(44)
-		k.SetEllipsize(3)
+		k.SetEllipsize(pango.EllipsizeEnd)
 		k.SetTooltipText(keys)
 		k.AddCSSClass("character-card-tag")
 		card.Append(k)
@@ -163,7 +164,7 @@ func (a *App) loreRow(e world.Entry, w world.World, parent *adw.Dialog) *gtk.Box
 	body.SetXAlign(0)
 	body.SetWrap(true)
 	body.SetLines(3)
-	body.SetEllipsize(3)
+	body.SetEllipsize(pango.EllipsizeEnd)
 	body.AddCSSClass("character-card-desc")
 	card.Append(body)
 	row.Append(card)
@@ -277,23 +278,16 @@ func (a *App) editLore(e world.Entry, w world.World) {
 	card.Append(enabled)
 	page.Append(outer)
 
-	header := adw.NewHeaderBar()
-	header.SetShowEndTitleButtons(false)
-	cancel := gtk.NewButtonWithLabel("Cancel")
-	cancel.ConnectClicked(func() { d.Close() })
-	header.PackStart(cancel)
-	save := gtk.NewButtonWithLabel("Save")
-	save.AddCSSClass("suggested-action")
-	save.ConnectClicked(func() {
+	header := saveHeader(d, "", func() bool {
 		name := strings.TrimSpace(nameEntry.Text())
 		if name == "" {
 			a.toast("An entry needs a name.")
 			nameEntry.GrabFocus()
-			return
+			return false
 		}
 		if strings.TrimSpace(textOf(view)) == "" {
 			a.toast("An entry needs something to say.")
-			return
+			return false
 		}
 		e.Name = name
 		e.Keys = splitTags(keysEntry.Text())
@@ -305,17 +299,16 @@ func (a *App) editLore(e world.Entry, w world.World) {
 		e.Auto = false
 		if len(e.Keys) == 0 && !e.Constant {
 			a.toast("Add a trigger word, or set it to always send.")
-			return
+			return false
 		}
 		if _, err := a.store.SaveLoreEntry(e); err != nil {
 			a.toast("Could not save: " + err.Error())
-			return
+			return false
 		}
 		a.reloadLoreIfOpen(w.ID)
-		d.Close()
 		a.showLorebook(w)
+		return true
 	})
-	header.PackEnd(save)
 
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(header)

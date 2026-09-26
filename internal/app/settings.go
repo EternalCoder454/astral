@@ -71,18 +71,10 @@ func (a *App) showSettingsPage(page string) {
 	stack.SetHExpand(true)
 	body.Append(stack)
 
-	header := adw.NewHeaderBar()
-	header.SetShowEndTitleButtons(false)
-	cancel := gtk.NewButtonWithLabel("Cancel")
-	cancel.ConnectClicked(func() { d.Close() })
-	header.PackStart(cancel)
-	save := gtk.NewButtonWithLabel("Save")
-	save.AddCSSClass("suggested-action")
-	save.ConnectClicked(func() {
+	header := saveHeader(d, "Save the changes on every page", func() bool {
 		a.applySettings(f)
-		d.Close()
+		return true
 	})
-	header.PackEnd(save)
 
 	if page != "" {
 		stack.SetVisibleChildName(page)
@@ -98,7 +90,6 @@ func (a *App) showSettingsPage(page string) {
 	scope.SetMarginStart(14)
 	scope.SetMarginEnd(14)
 	scope.SetXAlign(0)
-	save.SetTooltipText("Save the changes on every page")
 
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(header)

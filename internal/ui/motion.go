@@ -47,24 +47,51 @@ func (c *ChatView) markArriving(row *MessageRow) {
 	}
 }
 
-// glideToBottom scrolls the transcript to the end, with travel.
+// scrollToBottom moves the transcript to the end at once.
+//
+// Used where the content is still arriving: streaming calls it on every flush,
+// and a chat being opened wants to be at the bottom before it is looked at, not
+// on its way there.
+func (c *ChatView) scrollToBottom() { c.scheduleScroll(false) }
+
+// glideToBottom moves the transcript to the end with travel.
 //
 // Used where the reason to scroll is something the reader did: they sent a
 // message, or a greeting arrived. Streaming does not use it, because streaming
 // scrolls twenty times a second and an animation that is re-aimed on every
 // flush never arrives anywhere.
-func (c *ChatView) glideToBottom() {
-	// Deferred for the same reason the snap is: the adjustment's upper bound
-	// is only correct once GTK has laid out the row that was just added.
+func (c *ChatView) glideToBottom() { c.scheduleScroll(true) }
+
+// scheduleScroll queues one scroll to the end of the transcript.
+//
+// Deferred to an idle callback, because the adjustment's upper bound is only
+// correct once GTK has laid out the row that was just added. Coalesced, because
+// streaming asks twenty times a second and each ask is a closure plus an idle
+// source that gotk4 keeps alive for the life of the process; one pending scroll
+// does the same job.
+//
+// A snap overrides a glide that has not run yet, and stops one that is playing.
+// The only reason to ask for a snap is that more content has arrived, which is
+// newer information than the glide was aimed with.
+func (c *ChatView) scheduleScroll(travel bool) {
+	if !travel {
+		c.scrollTravel = false
+		c.stopGlide()
+	} else if !c.scrollPending {
+		c.scrollTravel = true
+	}
 	if c.scrollPending {
 		return
 	}
 	c.scrollPending = true
 	coreglib.IdleAdd(func() bool {
 		c.scrollPending = false
+		glide := c.scrollTravel
+		c.scrollTravel = false
+
 		adj := c.scroll.VAdjustment()
 		to := adj.Upper() - adj.PageSize()
-		if math.Abs(to-adj.Value()) < glideMin {
+		if !glide || math.Abs(to-adj.Value()) < glideMin {
 			adj.SetValue(to)
 			return false
 		}
