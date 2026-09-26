@@ -50,6 +50,15 @@ const (
 	// This is the one piece of styling that carries meaning rather than
 	// decoration, which is why it is a mode and not a theme choice.
 	Roleplay
+	// RoleplayAsWritten is the same genre with the inference switched off: what
+	// the author marked is narration, and what they did not is left alone.
+	//
+	// It is what your own messages are rendered with. Inferring narration from
+	// everything outside quotation marks exists to cover for a model that
+	// forgets its asterisks, and a person typing into the composer is not
+	// something to cover for: they put the asterisks where they meant them, and
+	// dimming the rest of what they wrote is the renderer overruling them.
+	RoleplayAsWritten
 )
 
 // Markup converts Markdown (and, in Roleplay mode, roleplay prose) to Pango
@@ -106,8 +115,11 @@ func mdLine(line string, mode Prose) string {
 // Order matters: code goes first so its contents are not re-marked, then bold
 // before italic, or the single-asterisk rule eats half of a **pair**.
 func mdInline(s string, mode Prose) string {
-	if mode == Roleplay {
-		return mdRoleplay(s)
+	switch mode {
+	case Roleplay:
+		return mdRoleplay(s, mdNarration)
+	case RoleplayAsWritten:
+		return mdRoleplay(s, mdAsWritten)
 	}
 	s = mdCode.ReplaceAllString(s, "<tt>$1</tt>")
 	s = mdBold.ReplaceAllString(s, "<b>$1</b>")
@@ -135,17 +147,32 @@ func mdInline(s string, mode Prose) string {
 // `"66%"` inside an alpha tag the italic rule had just written and rewrite the
 // middle of it. That shipped once. A single pass over the source, splitting
 // before any tag exists, cannot do it at all.
-func mdRoleplay(s string) string {
+// outside renders a run of text that sits between quotations: either as
+// narration wholesale, or as written.
+func mdRoleplay(s string, outside func(string) string) string {
 	var b strings.Builder
 	b.Grow(len(s) + 48)
 	last := 0
 	for _, loc := range mdQuote.FindAllStringIndex(s, -1) {
-		b.WriteString(mdNarration(s[last:loc[0]]))
+		b.WriteString(outside(s[last:loc[0]]))
 		b.WriteString(quoteSpan(s[loc[0]:loc[1]]))
 		last = loc[1]
 	}
-	b.WriteString(mdNarration(s[last:]))
+	b.WriteString(outside(s[last:]))
 	return b.String()
+}
+
+// mdAsWritten styles only what the author marked, and leaves the rest as body
+// text. Speech is still weighted, because the quotation marks are theirs too.
+func mdAsWritten(s string) string {
+	inner := mdCode.ReplaceAllString(s, "<tt>$1</tt>")
+	inner = mdBold.ReplaceAllString(inner, "<b>$1</b>")
+	// Marked narration gets the same treatment the model's gets, so a scene
+	// reads as one conversation rather than two typefaces. Nothing else is
+	// touched.
+	inner = mdItalic.ReplaceAllString(inner, narrationOpen+"$1"+narrationClose)
+	inner = mdUnder.ReplaceAllString(inner, narrationOpen+"$1"+narrationClose)
+	return inner
 }
 
 // mdNarration styles a run of text that sits outside quotation marks.
@@ -174,8 +201,15 @@ func mdNarration(s string) string {
 	// identical span inside the first.
 	inner = mdItalic.ReplaceAllString(inner, "$1")
 	inner = mdUnder.ReplaceAllString(inner, "$1")
-	return lead + `<span alpha="66%"><i>` + inner + `</i></span>` + trail
+	return lead + narrationOpen + inner + narrationClose + trail
 }
+
+// The narration tags, named because two renderers emit them and a second copy
+// of the alpha value is a second thing to keep in step with the stylesheet.
+const (
+	narrationOpen  = `<span alpha="66%"><i>`
+	narrationClose = `</i></span>`
+)
 
 // quoteSpan re-emits a matched quotation with its quote characters intact and
 // the speech inside it weighted. The regexp has two alternatives (straight and

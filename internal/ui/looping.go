@@ -66,3 +66,54 @@ func loopFold(s string) string {
 	}
 	return b.String()
 }
+
+// Repetition is not the only way a reply comes apart. The other way has no
+// cycle in it at all: the model stops writing sentences and starts chaining
+// associations, one phrase suggesting the next, for as long as it is allowed.
+//
+//	...mission accomplished goal achieved target met objective fulfilled
+//	purpose served function executed duty performed task finished work ended
+//	process terminated operation concluded...
+//
+// Every phrase there is different, so Looping cannot see it: there is nothing
+// repeated to find. What it does have is the thing the prose it replaced always
+// has, and this does not: an end to the sentence. Thousands of characters went
+// by in the measured case without a single full stop.
+//
+// So that is what is counted. It is a blunt signal and deliberately so, because
+// the cost of a false positive is one stopped reply and the cost of a miss is a
+// wall of nonsense saved into the transcript that every later turn is built on.
+
+// rambleRun is how many characters may pass with no end to a sentence before a
+// reply is called broken.
+//
+// Ordinary prose ends a sentence every eighty to a hundred and fifty characters,
+// and a long one that runs to three hundred is remarkable. Seven hundred is
+// beyond anything a model writing English produces on purpose, which is the
+// point: this has to be a number no working reply reaches.
+const rambleRun = 700
+
+// Rambling reports whether text has stopped forming sentences.
+//
+// A line break counts as an ending. A list, a stanza, or a line of dialogue
+// without punctuation is not a collapse, and treating a newline as a full stop
+// costs nothing: text that has genuinely come apart does not produce them.
+func Rambling(s string) bool {
+	run := 0
+	for _, r := range s {
+		switch r {
+		case '.', '!', '?', '\n', '\r', '…',
+			// The same stops as written in Chinese, Japanese and Arabic, so a
+			// scene played in one of them is not called broken for using its
+			// own punctuation.
+			'。', '！', '？', '؟':
+			run = 0
+		default:
+			run++
+			if run >= rambleRun {
+				return true
+			}
+		}
+	}
+	return false
+}

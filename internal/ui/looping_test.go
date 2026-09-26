@@ -74,3 +74,71 @@ func BenchmarkLooping(b *testing.B) {
 		_ = Looping(text)
 	}
 }
+
+// This is the other way a reply comes apart, and it is real: a model dropped
+// out of the scene mid-thought and chained associations until it was stopped.
+// Nothing in it repeats, so Looping cannot see it. What it has not got is a
+// full stop.
+const rambled = "Let's begin crafting accordingly ensuring compliance at each step carefully " +
+	"reviewed mentally beforehand before outputting finally down below ready go ahead " +
+	"submit response please thank you much appreciated indeed always grateful sincerely " +
+	"yours truly devotedly signed off faithfully evermore unwavering commitment shown " +
+	"throughout consistently maintained standards upheld honorably well done job completed " +
+	"successfully mission accomplished goal achieved target met objective fulfilled purpose " +
+	"served function executed duty performed task finished work ended process terminated " +
+	"operation concluded procedure finalized action stopped motion ceased movement halted " +
+	"activity paused engagement broken connection severed relationship dissolved association " +
+	"ended partnership closed alliance terminated union disbanded coalition fractured"
+
+func TestRamblingCatchesWhatLoopingCannot(t *testing.T) {
+	if Looping(rambled) {
+		t.Error("the fixture repeats itself, so it does not test what it is here to test")
+	}
+	if !Rambling(rambled) {
+		t.Errorf("a reply that ran %d characters without ending a sentence was not caught", len(rambled))
+	}
+}
+
+func TestRamblingLeavesOrdinaryProseAlone(t *testing.T) {
+	// A long, ordinary roleplay reply: several paragraphs, properly punctuated.
+	prose := strings.Repeat(`*She set the pin down and did not look up.* "You're late again, and the `+
+		`tide will not wait for either of us." *The lamp guttered. Outside, the rain kept on `+
+		`against the glass, steady as a clock.* "Sit, if you are staying."`+"\n\n", 6)
+	if Rambling(prose) {
+		t.Errorf("ordinary prose was called a collapse:\n%s", prose[:200])
+	}
+}
+
+// A list, a stanza or a line of dialogue with no full stop is not a collapse.
+func TestRamblingTreatsALineBreakAsAnEnding(t *testing.T) {
+	var b strings.Builder
+	for i := 0; i < 40; i++ {
+		b.WriteString("a line of about thirty characters with no punctuation at all\n")
+	}
+	if Rambling(b.String()) {
+		t.Error("newline-separated lines with no full stops were called a collapse")
+	}
+}
+
+// A scene played in a language that does not use the Latin full stop must not
+// be called broken for using its own.
+func TestRamblingUnderstandsOtherPunctuation(t *testing.T) {
+	cjk := strings.Repeat("彼女はペンを置いた。外では雨が降り続いていた。", 40)
+	if Rambling(cjk) {
+		t.Error("Japanese prose was called a collapse")
+	}
+}
+
+// The threshold has to be past anything real. A single very long sentence is
+// unusual, not broken.
+func TestRamblingAllowsOneVeryLongSentence(t *testing.T) {
+	long := "She had been waiting since the tide turned, " +
+		strings.Repeat("and thinking about the harbour, and the ferry, and the money, ", 5) +
+		"and she had not moved."
+	if n := len(long); n < 300 || n > rambleRun {
+		t.Fatalf("fixture is %d chars; it must be a long sentence but under the %d threshold", n, rambleRun)
+	}
+	if Rambling(long) {
+		t.Errorf("a %d-character sentence was called a collapse", len(long))
+	}
+}

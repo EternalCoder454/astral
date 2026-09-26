@@ -316,7 +316,7 @@ func (c *ChatView) startStream() {
 	// already begun inside an asterisk span settles it, because the next token
 	// is narration whether or not the model meant to mark any.
 	c.prefilled = false
-	c.collapsed = false
+	c.collapsed, c.collapseWhy = false, ""
 	if len(msgs) > 0 && msgs[len(msgs)-1].Role == ollama.RoleSystem && c.wantsPrefill(msgs) {
 		msgs = append(msgs, ollama.Message{Role: ollama.RoleAssistant, Content: chars.NarrationPrefill})
 		c.prefilled = true
@@ -391,18 +391,29 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	}
 
 	if c.collapsed {
-		c.fail("The model started repeating itself, so this reply was stopped. " +
+		c.fail("The model started " + c.collapseWhy + ", so this reply was stopped. " +
 			"Delete it and try again, or lower the temperature in Settings.")
 	}
 
 	// A stopped reply keeps what had already arrived: it is usually most of a
 	// paragraph, and discarding it would throw away the model's work for the
 	// sake of tidiness.
-	if text := strings.TrimSpace(msg.Content); text != "" {
+	// Some models write their deliberation into the reply rather than into the
+	// field Ollama reserves for it. Move it where it belongs before anything
+	// else looks at the text, so it is folded away rather than read as part of
+	// the scene, and so the transcript stores the reply and not the model
+	// talking to itself about its instructions.
+	inlineThinking, content := SplitThinking(msg.Content)
+	if inlineThinking != "" {
+		msg.Thinking = strings.TrimSpace(msg.Thinking + "\n\n" + inlineThinking)
+	}
+	if text := strings.TrimSpace(content); text != "" {
 		if c.prefilled {
 			text = chars.RestorePrefill(text)
 		}
 		row.SetMarkdown(text)
+	} else {
+		row.SetMarkdown("")
 	}
 	if msg.Thinking != "" {
 		row.SetThinking(msg.Thinking)
@@ -442,7 +453,7 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 		if meta != "" {
 			meta += " · "
 		}
-		meta += "stopped: the model began repeating itself"
+		meta += "stopped: the model began " + c.collapseWhy
 	}
 	row.SetMeta(meta)
 
@@ -720,18 +731,40 @@ func (c *ChatView) drainPending() {
 		c.live.AppendText(text)
 		c.live.SetMeta("")
 
-		// A model that has begun cycling will not stop on its own, and every
-		// further token is both wasted and destined for the transcript that
-		// becomes the next turn's prompt. Stopping here costs one wasted
-		// reply instead of poisoning the scene.
-		if !c.collapsed && Looping(c.live.Text()) {
-			c.collapsed = true
+	}
+	// A model that has come apart will not recover on its own, and every
+	// further token is both wasted and destined for the transcript that becomes
+	// the next turn's prompt. Stopping here costs one wasted reply instead of
+	// poisoning the scene.
+	//
+	// Both channels are watched. A model can spend its whole budget rambling in
+	// its reasoning and never reach the reply at all, and until now nothing was
+	// looking at that text.
+	if !c.collapsed {
+		if why := brokenWhy(c.live.Text()); why != "" {
+			c.collapsed, c.collapseWhy = true, why
+		} else if why := brokenWhy(c.live.Thinking()); why != "" {
+			c.collapsed, c.collapseWhy = true, why
+		}
+		if c.collapsed {
 			c.Stop()
 		}
 	}
 	if stick {
 		c.scrollToBottom()
 	}
+}
+
+// brokenWhy names the way a stream has stopped being a reply, in words fit to
+// show someone, or returns empty if it has not.
+func brokenWhy(s string) string {
+	switch {
+	case Looping(s):
+		return "repeating itself"
+	case Rambling(s):
+		return "running on without finishing a sentence"
+	}
+	return ""
 }
 
 // regenerate rewrites a reply: the turn and everything after it are dropped,

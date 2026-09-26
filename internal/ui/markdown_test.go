@@ -44,6 +44,20 @@ func TestMarkupGolden(t *testing.T) {
 		// The space between them stays outside both tags.
 		{"rp speech then narration", `"Sit." She did not.`, Roleplay,
 			`"<span weight="600">Sit.</span>" <span alpha="66%"><i>She did not.</i></span>`},
+
+		// Your own messages are rendered as written. What you marked is
+		// narration; what you did not is your words, left alone.
+		{"own marked narration", "*I wait.*", RoleplayAsWritten,
+			`<span alpha="66%"><i>I wait.</i></span>`},
+		{"own underscore narration", "_I wait._", RoleplayAsWritten,
+			`<span alpha="66%"><i>I wait.</i></span>`},
+		{"own unmarked text is untouched", "I am not asking as a courier.", RoleplayAsWritten,
+			"I am not asking as a courier."},
+		{"own speech is still weighted", `"Come with me."`, RoleplayAsWritten,
+			`"<span weight="600">Come with me.</span>"`},
+		{"own mixed line", `*I stand.* "Come with me." And I meant it.`, RoleplayAsWritten,
+			`<span alpha="66%"><i>I stand.</i></span> "<span weight="600">Come with me.</span>" And I meant it.`},
+		{"own bold still bold", "**now**", RoleplayAsWritten, "<b>now</b>"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -95,7 +109,7 @@ func TestNoMarkupInjection(t *testing.T) {
 		strings.Repeat("<b>", 50),
 		"&&&<<<",
 	}
-	for _, mode := range []Prose{Plain, Roleplay} {
+	for _, mode := range []Prose{Plain, Roleplay, RoleplayAsWritten} {
 		for _, in := range hostile {
 			out := Markup(in, mode)
 			for _, tag := range extractTags(out) {
@@ -117,7 +131,7 @@ func FuzzMarkupTagsAreOurs(f *testing.F) {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, in string) {
-		for _, mode := range []Prose{Plain, Roleplay} {
+		for _, mode := range []Prose{Plain, Roleplay, RoleplayAsWritten} {
 			out := Markup(in, mode)
 			for _, tag := range extractTags(out) {
 				if !allowedTags[tag] {
@@ -216,5 +230,28 @@ func TestNarrationAndSpeechAreDistinguished(t *testing.T) {
 	}
 	if !strings.Contains(out, `<span weight="600">Fine.</span>`) {
 		t.Errorf("speech is not weighted:\n%s", out)
+	}
+}
+
+// The two roleplay modes must differ in exactly one way: what happens to text
+// nobody marked. Everything else about the reading grammar is shared, or a
+// transcript would look like two different applications above and below each
+// line.
+func TestTheTwoRoleplayModesDifferOnlyOnUnmarkedText(t *testing.T) {
+	unmarked := "She did not look up."
+	if got := Markup(unmarked, Roleplay); !strings.Contains(got, "alpha=") {
+		t.Errorf("a model's unmarked narration was left plain: %s", got)
+	}
+	if got := Markup(unmarked, RoleplayAsWritten); got != unmarked {
+		t.Errorf("your own unmarked text was styled: %s", got)
+	}
+	// Marked narration and speech render identically in both. Bold is not on
+	// this list: to the model's renderer a bold word outside quotes is still
+	// unmarked narration and is wrapped as such, which is the whole difference
+	// between the modes rather than an exception to it.
+	for _, in := range []string{"*I wait.*", `"Come with me."`, "_I wait._"} {
+		if a, b := Markup(in, Roleplay), Markup(in, RoleplayAsWritten); a != b {
+			t.Errorf("%q renders differently:\n model: %s\n  mine: %s", in, a, b)
+		}
 	}
 }

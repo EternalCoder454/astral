@@ -133,9 +133,10 @@ type ChatView struct {
 	// chars.NarrationPrefill.
 	prefilled bool
 
-	// collapsed records that this reply was stopped because the model began
-	// cycling the same text. See looping.go.
-	collapsed bool
+	// collapsed records that this reply was stopped because the model came
+	// apart, and collapseWhy is which way. See looping.go.
+	collapsed   bool
+	collapseWhy string
 
 	// warnedSpill stops the "your housekeeping model did not fit" notice from
 	// repeating: it is true of the configuration, not of the turn, so saying
@@ -585,7 +586,7 @@ func (c *ChatView) newRow(role, text, thinking string, id int64, when time.Time,
 		DisplayName: name,
 		Initial:     initial,
 		Accent:      accent,
-		Mode:        c.mode,
+		Mode:        c.proseFor(role),
 		Grouped:     grouped,
 		When:        when,
 	}
@@ -601,6 +602,20 @@ func (c *ChatView) newRow(role, text, thinking string, id int64, when time.Time,
 	row.SetThinking(thinking)
 	c.attachActions(row)
 	return row
+}
+
+// proseFor picks how a message body is rendered, which depends on who wrote it.
+//
+// A roleplay transcript infers narration from everything outside quotation
+// marks, because a model forgets its asterisks often enough that waiting for it
+// was measurably hopeless. That reasoning does not reach your own messages: you
+// put the asterisks where you meant them, so your text is rendered as you wrote
+// it and the renderer keeps its opinions to itself.
+func (c *ChatView) proseFor(role string) Prose {
+	if c.mode == Roleplay && role == ollama.RoleUser {
+		return RoleplayAsWritten
+	}
+	return c.mode
 }
 
 // attachActions adds the per-message hover buttons.
