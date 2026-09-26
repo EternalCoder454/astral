@@ -406,6 +406,10 @@ function bubble(role, content) {
 
 function scrollDown(smooth = true) {
 	const t = $("transcript");
+	// Only follow if the reader is already at the end. Pulling someone back
+	// down while they are reading earlier in the scene is the single most
+	// irritating thing a transcript can do.
+	if (!smooth && t.scrollHeight - t.scrollTop - t.clientHeight > 120) return;
 	t.scrollTo({ top: t.scrollHeight, behavior: smooth ? "smooth" : "auto" });
 }
 
@@ -422,6 +426,17 @@ async function send(text) {
 	scrollDown();
 
 	let reply = "";
+	// Plain text while it streams: half an asterisk is not markup.
+	let painting = false;
+	const paint = () => {
+		if (painting) return;
+		painting = true;
+		requestAnimationFrame(() => {
+			painting = false;
+			body.textContent = reply;
+			scrollDown(false);
+		});
+	};
 	try {
 		const res = await api("/api/chats/" + current.id + "/send", {
 			method: "POST",
@@ -448,10 +463,11 @@ async function send(text) {
 				if (event === "token") {
 					body.classList.remove("dots");
 					reply += payload.t;
-					// Plain text while it streams: half an asterisk is not
-					// markup, and re-rendering per token would flicker.
-					body.textContent = reply;
-					scrollDown();
+					// The text is written on the next frame rather than on
+					// every event. Replacing it and scrolling per event makes
+					// the browser lay the page out more often than it can
+					// draw it, which on a phone is heat rather than speed.
+					paint();
 				} else if (event === "done") {
 					reply = payload.content;
 					if (payload.title) $("chat-title").textContent = payload.title;
@@ -463,6 +479,7 @@ async function send(text) {
 		body.classList.remove("dots");
 		body.innerHTML = renderReply(reply);
 		scrollDown();
+
 		loadState();
 	} catch (e) {
 		body.classList.remove("dots");

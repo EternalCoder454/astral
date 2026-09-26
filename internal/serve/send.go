@@ -22,6 +22,10 @@ import (
 // cannot hold a generation open for ever.
 const sendTimeout = 15 * time.Minute
 
+// tokenFlush is how often at most the phone is sent what has arrived. The
+// window uses the same interval for the same reason.
+const tokenFlush = 50 * time.Millisecond
+
 // handleSend takes a message, streams the reply back, and leaves the
 // conversation in the same state the desktop window would have left it in.
 //
@@ -107,6 +111,29 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 	// arrives inside the reply never reaches the phone, rather than appearing
 	// and being tidied away once the turn ends.
 	var think ollama.ThinkStream
+
+	// And the same coalescing. A fast model generates around a hundred tokens
+	// a second, and a frame each means a JSON encode, a write and a flush a
+	// hundred times a second over a home network, with the page replacing its
+	// text and scrolling on every one. Twenty times a second is already more
+	// often than anything can be read.
+	//
+	// All of it stays on this goroutine, which is the one blocked in Chat, so
+	// nothing else is ever writing to the response at the same time.
+	var pending strings.Builder
+	last := time.Now()
+	flush := func(force bool) {
+		if pending.Len() == 0 {
+			return
+		}
+		if !force && time.Since(last) < tokenFlush {
+			return
+		}
+		send("token", map[string]string{"t": pending.String()})
+		pending.Reset()
+		last = time.Now()
+	}
+
 	noThink := false
 	reply, stats, err := s.client().Chat(ctx, model, msgs, scene.Options(cfg), &noThink,
 		func(delta ollama.Delta) {
@@ -114,9 +141,11 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 				return
 			}
 			if shown, _ := think.Next(delta.Content); shown != "" {
-				send("token", map[string]string{"t": shown})
+				pending.WriteString(shown)
 			}
+			flush(false)
 		})
+	flush(true)
 	if err != nil {
 		if ctx.Err() != nil {
 			return // the phone went away; nothing to report to it
@@ -128,6 +157,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 	if tail, _ := think.Done(); tail != "" {
 		send("token", map[string]string{"t": tail})
 	}
+
 	content := strings.TrimSpace(reply.Content)
 	thinking := reply.Thinking
 	if inline, rest := ollama.SplitThinking(content); inline != "" {

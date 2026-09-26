@@ -1,31 +1,75 @@
 /*
- * Astral on a phone.
+ * Astral on a phone, in Material.
  *
- * The same palette as the desktop window, because it is the same app seen from
- * somewhere else: deep ink, dusk rose, and narration set back from speech so a
- * scene can be skimmed for what happened.
+ * Material 3 as a structure, not as a palette. Its colour roles, shape scale,
+ * state layers and navigation bar are how an Android app is expected to behave,
+ * and a WebView that ignores them feels like a website in a frame. Its default
+ * purple is not: Astral is deep ink and dusk rose in the window, and a phone
+ * showing the same library should look like the same application.
  *
- * Laid out for a phone first and widened for anything larger, rather than the
- * other way round. The bottom bar is the only navigation a thumb can reach on
- * a tall screen, so it is fixed there and everything else scrolls under it.
+ * So the rose is the primary, the ink is the surface, and the tonal steps
+ * between them are generated from those two rather than taken from a reference
+ * palette. Everything else is Material's: 12/16/28dp corners, a 80dp navigation
+ * bar with a pill behind the active icon, state layers at 8% and 12% instead of
+ * invented hover colours, and type that steps rather than drifts.
+ *
+ * Laid out for a phone first and widened for anything larger. The bar is the
+ * only navigation a thumb can reach on a tall screen, so it is fixed there and
+ * everything else scrolls under it.
  */
 
 :root {
-	--sidebar: #03050d;
-	--canvas: #1b1e32;
-	--surface: #2f3350;
-	--elevated: #393e5d;
-	--border: #51577d;
-	--text: #f5f4fb;
-	--muted: #cac8db;
-	--faint: #b1aec6;
-	--accent: #c9787f;
-	--accent-ink: #1b1119;
-	--user-bubble: #614251;
+	/* Material colour roles. The names are theirs; the values are Astral's. */
+	--md-primary: #e3a0a6;
+	--md-on-primary: #3b1a20;
+	--md-primary-container: #6d4048;
+	--md-on-primary-container: #ffd9dd;
 
-	--bar: 58px;
+	/* Surfaces are one hue lifted in steps, which is how Material separates
+	   things without borders or shadows. */
+	--md-surface: #14162a;
+	--md-surface-container-lowest: #0d0f1f;
+	--md-surface-container-low: #1b1e32;
+	--md-surface-container: #22263c;
+	--md-surface-container-high: #2c3049;
+	--md-surface-container-highest: #373c58;
+
+	--md-on-surface: #e6e1ef;
+	--md-on-surface-variant: #c8c3d6;
+	--md-outline: #8e88a0;
+	--md-outline-variant: #453f57;
+	--md-error: #ffb4ab;
+
+	/* A state layer is the same colour at a fixed opacity over whatever is
+	   underneath, rather than a second set of hand-picked colours. */
+	--md-state-hover: 0.08;
+	--md-state-press: 0.12;
+
+	/* Shape scale. */
+	--md-corner-s: 8px;
+	--md-corner-m: 12px;
+	--md-corner-l: 16px;
+	--md-corner-xl: 28px;
+	--md-corner-full: 9999px;
+
+	/* Material's navigation bar is 80dp, taller than the 58 this used, and
+	   the extra is what the active indicator sits in. */
+	--bar: 80px;
 	--gutter: 16px;
-	--radius: 14px;
+	--radius: var(--md-corner-l);
+
+	/* Kept so the rest of the sheet reads the same. */
+	--sidebar: var(--md-surface);
+	--canvas: var(--md-surface);
+	--surface: var(--md-surface-container);
+	--elevated: var(--md-surface-container-high);
+	--border: var(--md-outline-variant);
+	--text: var(--md-on-surface);
+	--muted: var(--md-on-surface-variant);
+	--faint: var(--md-on-surface-variant);
+	--accent: var(--md-primary);
+	--accent-ink: var(--md-on-primary);
+	--user-bubble: var(--md-primary-container);
 }
 
 * { box-sizing: border-box; }
@@ -49,19 +93,23 @@ html, body {
 
 .screen[hidden] { display: none; }
 
+/* Material's small top app bar: 64dp, on the surface, no rule under it. It is
+   separated by being a different tone, not by a line. */
 .topbar {
 	display: flex;
 	align-items: center;
-	gap: 10px;
-	padding: calc(env(safe-area-inset-top) + 12px) var(--gutter) 12px;
-	background: var(--sidebar);
-	border-bottom: 1px solid var(--border);
+	gap: 8px;
+	padding: calc(env(safe-area-inset-top) + 12px) 4px 12px 16px;
+	min-height: 64px;
+	background: var(--md-surface);
 }
 
 .topbar h1 {
 	margin: 0;
-	font-size: 1.12rem;
-	font-weight: 700;
+	/* Title Large. */
+	font-size: 1.375rem;
+	font-weight: 400;
+	letter-spacing: 0;
 	/* The name wins the line. What is beside it is a detail; being greeted by
 	   "Welcome back, ..." is not a greeting. */
 	flex: 1 1 auto;
@@ -72,12 +120,14 @@ html, body {
 }
 
 .chip {
-	font-size: 0.74rem;
-	color: var(--muted);
-	background: var(--surface);
-	border: 1px solid var(--border);
-	border-radius: 999px;
-	padding: 3px 10px;
+	font-size: 0.75rem;
+	font-weight: 500;
+	letter-spacing: 0.5px;
+	color: var(--md-on-surface-variant);
+	background: none;
+	border: 1px solid var(--md-outline-variant);
+	border-radius: var(--md-corner-s);
+	padding: 5px 8px;
 	white-space: nowrap;
 	flex: 0 1 auto;
 	min-width: 0;
@@ -94,39 +144,60 @@ html, body {
 }
 
 .heading {
-	font-size: 0.72rem;
-	font-weight: 700;
-	letter-spacing: 0.07em;
-	text-transform: uppercase;
-	color: var(--faint);
-	margin: 18px 2px 8px;
+	font-size: 0.875rem;
+	font-weight: 500;
+	letter-spacing: 0.1px;
+	color: var(--md-primary);
+	margin: 22px 4px 10px;
 }
 
 .rows { display: flex; flex-direction: column; gap: 8px; }
 
 .row {
+	position: relative;
 	display: flex;
 	align-items: center;
-	gap: 12px;
+	gap: 16px;
 	width: 100%;
 	text-align: left;
-	padding: 13px 14px;
-	border-radius: var(--radius);
-	background: var(--surface);
-	border: 1px solid var(--border);
+	padding: 14px 16px;
+	border-radius: var(--md-corner-m);
+	background: var(--md-surface-container);
+	border: none;
 	color: var(--text);
 	font: inherit;
-	/* Comfortably past the 44px a thumb needs, without the list feeling sparse. */
+	/* Material's minimum touch target is 48dp; a list row is comfortably past
+	   it without the list feeling sparse. */
 	min-height: 56px;
-	transition: background-color 120ms ease, transform 90ms ease;
+	transition: background-color 120ms ease;
 }
 
-.row:active { transform: scale(0.99); background: var(--elevated); }
+/* Material presses with a state layer: the same colour over the surface at a
+   fixed opacity, rather than a second colour chosen by hand. */
+.row::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	background: var(--md-on-surface);
+	opacity: 0;
+	transition: opacity 80ms ease;
+	pointer-events: none;
+}
 
+.row:active::after { opacity: var(--md-state-press); }
+@media (hover: hover) {
+	.row:hover::after { opacity: var(--md-state-hover); }
+}
+
+/* The one row a screen is usually opened to press. Material says a filled
+   container, not a tinted border. */
 .row-primary {
-	background: color-mix(in srgb, var(--accent) 18%, var(--surface));
-	border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+	background: var(--md-primary-container);
+	color: var(--md-on-primary-container);
 }
+
+.row-primary .row-note { color: var(--md-on-primary-container); opacity: 0.8; }
 
 .row-text { flex: 1; min-width: 0; }
 
@@ -174,17 +245,20 @@ html, body {
 .msg.from-user { align-self: flex-end; }
 
 .bubble {
-	padding: 11px 14px;
-	border-radius: var(--radius);
-	background: var(--surface);
-	border: 1px solid var(--border);
+	padding: 12px 16px;
+	/* The flattened corner points at the speaker, which is how a message list
+	   shows direction without colouring everything. */
+	border-radius: var(--md-corner-l) var(--md-corner-l) var(--md-corner-l) 4px;
+	background: var(--md-surface-container-high);
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
+	line-height: 1.5;
 }
 
 .from-user .bubble {
-	background: var(--user-bubble);
-	border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+	background: var(--md-primary-container);
+	color: var(--md-on-primary-container);
+	border-radius: var(--md-corner-l) var(--md-corner-l) 4px var(--md-corner-l);
 }
 
 .who {
@@ -216,34 +290,38 @@ html, body {
 	align-items: flex-end;
 	gap: 8px;
 	padding: 10px var(--gutter) calc(10px + env(safe-area-inset-bottom) / 2);
-	background: var(--sidebar);
-	border-top: 1px solid var(--border);
+	background: var(--md-surface);
 }
 
 .composer textarea {
 	flex: 1;
 	resize: none;
 	max-height: 40vh;
-	padding: 11px 13px;
-	border-radius: var(--radius);
-	background: var(--surface);
-	border: 1px solid var(--border);
+	padding: 14px 16px;
+	border-radius: var(--md-corner-xl);
+	background: var(--md-surface-container-high);
+	border: none;
 	color: var(--text);
 	font: inherit;
 	/* Under 16px, iOS zooms the page when the field is focused. */
 	font-size: 16px;
 }
 
-.composer textarea:focus { outline: none; border-color: var(--accent); }
+.composer textarea:focus {
+	outline: 2px solid var(--md-primary);
+	outline-offset: -2px;
+}
 
+/* A small FAB: 56dp, the primary container, and Material's rounded square
+   rather than a circle. */
 .send {
 	flex: none;
-	width: 44px;
-	height: 44px;
-	border-radius: 999px;
+	width: 56px;
+	height: 56px;
+	border-radius: var(--md-corner-l);
 	border: none;
-	background: var(--accent);
-	color: var(--accent-ink);
+	background: var(--md-primary);
+	color: var(--md-on-primary);
 	display: grid;
 	place-items: center;
 	transition: transform 90ms ease, opacity 120ms ease;
@@ -252,8 +330,13 @@ html, body {
 .send:active { transform: scale(0.92); }
 .send:disabled { opacity: 0.45; }
 
-/* ---- Bottom bar ---- */
+/* ---- Navigation bar ---- */
 
+/*
+ * Material's navigation bar rather than a row of buttons: 80dp tall, the label
+ * always shown, and a pill behind the active icon instead of colouring it and
+ * hoping that reads as selected.
+ */
 .tabs {
 	position: fixed;
 	left: 0;
@@ -262,8 +345,7 @@ html, body {
 	height: calc(var(--bar) + env(safe-area-inset-bottom));
 	padding-bottom: env(safe-area-inset-bottom);
 	display: flex;
-	background: var(--sidebar);
-	border-top: 1px solid var(--border);
+	background: var(--md-surface-container);
 	z-index: 10;
 }
 
@@ -273,36 +355,54 @@ html, body {
 	flex: 1;
 	border: none;
 	background: none;
-	color: var(--faint);
+	color: var(--md-on-surface-variant);
 	font: inherit;
-	font-size: 0.74rem;
+	font-size: 0.75rem;
+	font-weight: 500;
+	letter-spacing: 0.4px;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
 	gap: 4px;
+	padding-top: 12px;
+	padding-bottom: 16px;
+	position: relative;
 	transition: color 120ms ease;
 }
 
-/* The icons are the set the window draws with, served by the PC and used as a
-   mask so they take the colour of whatever they sit in. A coloured PNG per
-   state would be two more files and one more thing to keep in step. */
+/* The indicator: 64x32 behind the icon, not behind the label. */
+.tab::before {
+	content: "";
+	position: absolute;
+	top: 12px;
+	width: 64px;
+	height: 32px;
+	border-radius: var(--md-corner-full);
+	background: var(--md-primary-container);
+	opacity: 0;
+	transform: scaleX(0.6);
+	transition: opacity 120ms ease, transform 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.tab.is-on::before { opacity: 1; transform: scaleX(1); }
+.tab.is-on { color: var(--md-on-surface); }
+.tab.is-on .tab-icon { color: var(--md-on-primary-container); opacity: 1; }
+
 .tab-icon,
 .send-icon {
 	display: block;
-	width: 22px;
-	height: 22px;
+	width: 24px;
+	height: 24px;
 	background: currentColor;
 	-webkit-mask: var(--icon) center / contain no-repeat;
 	mask: var(--icon) center / contain no-repeat;
 	transition: opacity 120ms ease;
-	opacity: 0.7;
+	opacity: 0.9;
+	position: relative;
 }
 
-.send-icon { width: 20px; height: 20px; opacity: 1; margin: 0 auto; }
-
-.tab.is-on { color: var(--accent); }
-.tab.is-on .tab-icon { opacity: 1; }
+.send-icon { width: 24px; height: 24px; opacity: 1; margin: 0 auto; }
 
 /* A chat fills the screen: the bar would only be a way to lose your place. */
 body.in-chat .tabs { display: none; }
@@ -317,22 +417,32 @@ body.in-chat .screen { inset: 0; }
 	max-width: 360px;
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
-	padding: 22px;
-	border-radius: 18px;
-	background: var(--surface);
-	border: 1px solid var(--border);
+	gap: 16px;
+	padding: 24px;
+	border-radius: var(--md-corner-xl);
+	background: var(--md-surface-container-high);
 }
 
-.pair-card h1 { margin: 0; font-size: 1.5rem; }
+/* Headline Small. */
+.pair-card h1 { margin: 0; font-size: 1.5rem; font-weight: 400; }
+
 .pair-card input {
-	padding: 13px;
-	border-radius: var(--radius);
-	background: var(--canvas);
-	border: 1px solid var(--border);
+	padding: 14px 16px;
+	border-radius: var(--md-corner-s) var(--md-corner-s) 0 0;
+	background: var(--md-surface-container-highest);
+	border: none;
+	border-bottom: 1px solid var(--md-outline);
 	color: var(--text);
 	font: inherit;
 	font-size: 16px;
+}
+
+/* Without this the browser draws its own focus ring, which is a colour from
+   nobody's palette. Material's is the field's own underline, thickened. */
+.pair-card input:focus {
+	outline: none;
+	border-bottom: 2px solid var(--md-primary);
+	padding-bottom: 13px;
 }
 
 #pair-code {
@@ -343,19 +453,35 @@ body.in-chat .screen { inset: 0; }
 	font-weight: 700;
 }
 
+/* A filled button: full-round, label-sized type, and a state layer for the
+   press rather than a scale. */
 .primary {
-	padding: 13px;
+	position: relative;
+	padding: 10px 24px;
+	min-height: 40px;
 	border: none;
-	border-radius: var(--radius);
-	background: var(--accent);
-	color: var(--accent-ink);
+	border-radius: var(--md-corner-full);
+	background: var(--md-primary);
+	color: var(--md-on-primary);
 	font: inherit;
-	font-weight: 700;
-	font-size: 1rem;
-	transition: transform 90ms ease;
+	font-weight: 500;
+	font-size: 0.875rem;
+	letter-spacing: 0.1px;
+	overflow: hidden;
 }
 
-.primary:active { transform: scale(0.98); }
+.primary::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: var(--md-on-primary);
+	opacity: 0;
+	transition: opacity 80ms ease;
+}
+
+.primary:active::after { opacity: var(--md-state-press); }
+
+
 
 .muted { color: var(--muted); font-size: 0.9rem; margin: 0; }
 .error { color: #ffb4b4; font-size: 0.88rem; min-height: 1.2em; margin: 0; }
@@ -376,11 +502,10 @@ body.in-chat .screen { inset: 0; }
 .card {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
-	padding: 14px;
-	border-radius: var(--radius);
-	background: var(--surface);
-	border: 1px solid var(--border);
+	gap: 16px;
+	padding: 16px;
+	border-radius: var(--md-corner-m);
+	background: var(--md-surface-container);
 }
 
 .field { display: flex; flex-direction: column; gap: 5px; }
@@ -390,13 +515,16 @@ body.in-chat .screen { inset: 0; }
 	color: var(--muted);
 }
 
+/* Material's filled text field: a tonal box with a line under it, which is
+   what tells you it is editable without a border all the way round. */
 .field input,
 .field select,
 .field textarea {
-	padding: 11px 12px;
-	border-radius: 10px;
-	background: var(--canvas);
-	border: 1px solid var(--border);
+	padding: 14px 16px;
+	border-radius: var(--md-corner-s) var(--md-corner-s) 0 0;
+	background: var(--md-surface-container-highest);
+	border: none;
+	border-bottom: 1px solid var(--md-outline);
 	color: var(--text);
 	font: inherit;
 	/* Under 16px, iOS zooms the page when the field is focused. */
@@ -407,27 +535,27 @@ body.in-chat .screen { inset: 0; }
 .field textarea { resize: vertical; min-height: 72px; }
 .field input:focus, .field select:focus, .field textarea:focus {
 	outline: none;
-	border-color: var(--accent);
+	border-bottom: 2px solid var(--md-primary);
+	padding-bottom: 13px;
 }
 
-.row-danger {
-	border-color: color-mix(in srgb, #ff8080 45%, var(--border));
-}
-.row-danger .row-title { color: #ffb4b4; }
+.row-danger .row-title { color: var(--md-error); }
 
 /* A row that is a link has to sit like the buttons beside it. */
 a.row { text-decoration: none; }
 
+/* A snackbar: Material puts it at the bottom edge, on its own inverse
+   surface, with a small corner rather than a pill. */
 .toast {
 	position: fixed;
 	left: 50%;
 	transform: translateX(-50%);
-	bottom: calc(var(--bar) + env(safe-area-inset-bottom) + 14px);
-	background: var(--elevated);
-	border: 1px solid var(--border);
-	border-radius: 999px;
-	padding: 9px 16px;
-	font-size: 0.88rem;
+	bottom: calc(var(--bar) + env(safe-area-inset-bottom) + 16px);
+	background: var(--md-surface-container-highest);
+	border: none;
+	border-radius: var(--md-corner-s);
+	padding: 14px 16px;
+	font-size: 0.875rem;
 	z-index: 20;
 	max-width: calc(100vw - 32px);
 }
