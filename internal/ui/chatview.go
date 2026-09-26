@@ -478,6 +478,9 @@ func (c *ChatView) Clear() {
 	c.live = nil
 	c.greeting = nil
 	c.settled = false
+	// A glide aimed at the chat being left would carry on moving the view while
+	// the next one is being built.
+	c.stopGlide()
 	c.older = nil
 	if c.earlierBtn != nil {
 		c.column.Remove(c.earlierBtn)
