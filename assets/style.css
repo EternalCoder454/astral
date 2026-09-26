@@ -636,22 +636,6 @@ frame:focus-within {
 	padding: 9px 11px;
 }
 
-/* Ollama status dot — intentional semantic colours, the one place in the app
-   where a colour is not from the palette. */
-.status-dot {
-	border-radius: 9999px;
-	min-width: 8px;
-	min-height: 8px;
-}
-
-.status-dot.online {
-	background-color: @success_color;
-}
-
-.status-dot.offline {
-	background-color: @destructive_bg_color;
-}
-
 /* ---- Dialogs & settings ---- */
 
 .settings-group {

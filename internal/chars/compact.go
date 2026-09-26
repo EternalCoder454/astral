@@ -152,19 +152,58 @@ func dedupeRecap(s string) string {
 	seen := make(map[string]bool, len(parts))
 	var b strings.Builder
 	b.Grow(len(s))
+	// carry remembers a line break that belonged to a statement being dropped,
+	// so removing a repeat cannot also remove the shape of the list it was in.
+	carry, last := "", ""
 	for _, part := range parts {
-		key := strings.ToLower(strings.Join(strings.Fields(part.text), " "))
-		key = strings.Trim(key, ".!?-• ")
+		key := recapKey(part.text)
 		if key == "" || seen[key] {
+			if part.before == "\n" {
+				carry = "\n"
+			}
 			continue
 		}
 		seen[key] = true
 		if b.Len() > 0 {
-			b.WriteString(part.before)
+			b.WriteString(joinWith(part.before, carry, last))
 		}
+		carry, last = "", part.text
 		b.WriteString(part.text)
 	}
 	return b.String()
+}
+
+// joinWith picks the separator between two kept statements.
+//
+// A line break wins over a space, whether it was this statement's own or one
+// inherited from a repeat that was dropped between them. And a statement that
+// does not end in a full stop gets a line break after it regardless, because a
+// space there would run it into the next one and the two would afterwards read
+// as a single statement. Real records end their sentences, so this only fires on
+// text that was never a record.
+func joinWith(before, carry, last string) string {
+	if before == "\n" || carry == "\n" || !endsStatement(last) {
+		return "\n"
+	}
+	return " "
+}
+
+func endsStatement(s string) bool {
+	if s == "" {
+		return false
+	}
+	switch s[len(s)-1] {
+	case '.', '!', '?', '"', ')', '\'':
+		return true
+	}
+	return false
+}
+
+// recapKey is what two statements are compared by: their words, lower case,
+// without the punctuation that ends or bullets them. A statement that is
+// nothing but punctuation has no key and is dropped.
+func recapKey(s string) string {
+	return strings.Trim(strings.ToLower(strings.Join(strings.Fields(s), " ")), ".!?-• ")
 }
 
 // statement is one comparable unit of a record, and what separated it from the

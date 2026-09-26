@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"astral/internal/ollama"
 )
@@ -300,4 +301,46 @@ func TestSplitStatementsIgnoresMidSentenceStops(t *testing.T) {
 		}
 		t.Fatalf("split into %d statements, want 2", len(got))
 	}
+}
+
+// FuzzDedupeRecap runs the splitter over arbitrary text. It indexes bytes and
+// slices between them, so the properties worth holding are that it never panics,
+// never grows what it was given, and never invents a character.
+func FuzzDedupeRecap(f *testing.F) {
+	for _, seed := range []string{
+		"", ".", "..", "...", "a. a. a.", "A.\nB.\nA.\n", "1.5 to the mile.",
+		"Ünïcode. Ünïcode.", "no ending at all", "!?!?", "\n\n\n", " . . . ",
+		"Vesper hid it. Wren did not look. Vesper hid it.",
+	} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, in string) {
+		out := dedupeRecap(in)
+		if len(out) > len(in) {
+			t.Fatalf("dedupe grew %q into %q", in, out)
+		}
+		if utf8.ValidString(in) && !utf8.ValidString(out) {
+			t.Fatalf("dedupe cut a rune in half: %q -> %q", in, out)
+		}
+		// A filter, never an editor: every statement of the input that is not a
+		// repeat of an earlier one has to survive verbatim. Checking it this way
+		// round rather than re-splitting the output is deliberate, because
+		// dropping a punctuation-only statement can leave its two neighbours
+		// adjacent, and re-splitting then reads them as one.
+		seen := map[string]bool{}
+		for _, st := range splitStatements(in) {
+			key := recapKey(st.text)
+			if key == "" || seen[key] {
+				continue
+			}
+			seen[key] = true
+			if !strings.Contains(out, st.text) {
+				t.Fatalf("input statement %q was lost from %q\n out: %q", st.text, in, out)
+			}
+		}
+		// Idempotent: running it again can find nothing new to drop.
+		if again := dedupeRecap(out); again != out {
+			t.Fatalf("not idempotent:\n1: %q\n2: %q", out, again)
+		}
+	})
 }
