@@ -656,11 +656,11 @@ func (c *ChatView) maybeCompact() {
 	if err != nil || len(stored) == 0 {
 		return
 	}
-	wire := make([]ollama.Message, 0, len(stored))
-	for _, m := range stored {
-		wire = append(wire, ollama.Message{Role: m.Role, Content: m.Content})
-	}
-	budget := c.budget(c.char, c.persona())
+	// Labelled, so the recap can say which of them did what. A group's turns
+	// summarised without their names come back as things "the group" did, and
+	// which of five people admitted something is the detail a scene turns on.
+	wire := scene.History(stored, c.nameOf)
+	budget := c.sceneBudget()
 	aged, _ := chars.SplitForCompaction(wire, budget)
 	if len(aged) == 0 {
 		return
@@ -673,10 +673,10 @@ func (c *ChatView) maybeCompact() {
 		return
 	}
 	client, model := c.client, c.housekeepingModel()
-	prev, char, persona, opts := c.recap, c.char, c.persona(), c.options()
+	prev, cast, persona, opts := c.recap, c.sceneCast(), c.persona(), c.options()
 
 	go func() {
-		next, err := chars.Compact(ctx, client, model, prev, aged, char, persona, opts, budget)
+		next, err := chars.CompactFor(ctx, client, model, prev, aged, cast, persona, opts, budget)
 
 		coreglib.IdleAdd(func() bool {
 			c.bg.done()

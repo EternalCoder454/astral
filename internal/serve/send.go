@@ -227,7 +227,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 	// The housekeeping the window does in the background. Without it a scene
 	// played only from a phone would never compact and never learn, and would
 	// quietly start forgetting its own beginning.
-	go s.housekeep(ch.ID, ca)
+	go s.housekeep(ch.ID, castFor(cast, ca))
 }
 
 // history is the conversation as it will be sent: everything the recap does
@@ -259,7 +259,11 @@ func castFor(cast []chars.Character, ca chars.Character) []chars.Character {
 // are logged and dropped: a scene that failed to compact this turn tries again
 // next turn, and telling a phone about it would interrupt reading a reply to
 // report something that fixes itself.
-func (s *Server) housekeep(chatID int64, ca chars.Character) {
+func (s *Server) housekeep(chatID int64, cast []chars.Character) {
+	var ca chars.Character
+	if len(cast) > 0 {
+		ca = cast[0]
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
@@ -273,23 +277,27 @@ func (s *Server) housekeep(chatID int64, ca chars.Character) {
 		return
 	}
 	p := scene.Persona(cfg)
-	budget := scene.Budget(cfg, ca, p)
+	// The cast's budget, not one character's: a group planned as a two-hander
+	// thinks it has room it does not have, and waits too long to compact.
+	budget := scene.GroupBudget(cfg, cast, p)
 	opts := scene.Options(cfg)
 
 	stored, err := s.store.MessagesAfter(chatID, ch.SummaryUpto)
 	if err != nil {
 		return
 	}
-	hist := make([]ollama.Message, 0, len(stored))
-	for _, m := range stored {
-		hist = append(hist, ollama.Message{Role: m.Role, Content: m.Content})
+	// Labelled, so the recap can say which of them did what.
+	nameOf := castNames(cast)
+	if len(cast) < 2 {
+		nameOf = nil
 	}
+	hist := scene.History(stored, nameOf)
 
 	if chars.NeedsCompaction(hist, budget) {
 		aged, _ := chars.SplitForCompaction(hist, budget)
 		if len(aged) > 0 {
 			upto := stored[len(aged)-1].ID
-			next, err := chars.Compact(ctx, s.client(), model, ch.Summary, aged, ca, p, opts, budget)
+			next, err := chars.CompactFor(ctx, s.client(), model, ch.Summary, aged, cast, p, opts, budget)
 			if err != nil {
 				log.Printf("astral: compacting %d from a phone: %v", chatID, err)
 			} else if err := s.store.SetChatSummary(chatID, next, upto); err != nil {

@@ -210,3 +210,48 @@ func TestGroupPromptIsStableBetweenTurns(t *testing.T) {
 		}
 	}
 }
+
+// TestCompactPromptNamesTheWholeCast is the bug groups introduced. The recap is
+// the only surviving record of the turns it replaces, so a group summarised as a
+// two-hander loses everything the other characters did — invisibly, and only in
+// scenes long enough to have been worth keeping.
+func TestCompactPromptNamesTheWholeCast(t *testing.T) {
+	aged := []ollama.Message{
+		{Role: ollama.RoleUser, Content: "Who took the chart?"},
+		{Role: ollama.RoleAssistant, Content: "Vesper: \"Not me.\"\n\nKestrel: \"I did.\""},
+	}
+	got := compactPrompt("", aged, threeHanded(), Persona{Name: "Wren"})
+	for _, want := range []string{"Vesper", "Kestrel", "Ash", "Wren"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the summariser is never told about %q", want)
+		}
+	}
+	if strings.Contains(got, "The two characters are") {
+		t.Error("a cast of three was described as a two-hander")
+	}
+	// The beats already carry their names, so nothing may be prefixed onto them.
+	if strings.Contains(got, "Vesper: Vesper:") {
+		t.Error("a beat was given a second label")
+	}
+	if strings.Contains(got, "Vesper: Kestrel:") {
+		t.Errorf("one character's name was put in front of another's line:\n%s", got)
+	}
+}
+
+// And the wording for one character is unchanged, because a scene that has
+// already been compacted must keep being compacted the same way or its notes
+// change voice halfway through.
+func TestCompactPromptIsUnchangedForOneCharacter(t *testing.T) {
+	aged := []ollama.Message{
+		{Role: ollama.RoleUser, Content: "Hello."},
+		{Role: ollama.RoleAssistant, Content: "*She did not look up.*"},
+	}
+	one := Character{Name: "Vesper"}
+	got := compactPrompt("", aged, []Character{one}, Persona{Name: "Wren"})
+	if !strings.HasPrefix(got, "The two characters are Vesper and Wren.") {
+		t.Errorf("the two-hander wording changed:\n%s", got)
+	}
+	if !strings.Contains(got, "Vesper: *She did not look up.*") {
+		t.Errorf("a two-hander's reply lost its name in the record:\n%s", got)
+	}
+}

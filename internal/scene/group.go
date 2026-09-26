@@ -106,25 +106,33 @@ func GroupLore(st *store.Store, cast []chars.Character, hist []ollama.Message, b
 // in the context, and a scene whose history arrives unlabelled is a scene
 // teaching the model that replies carry no labels.
 //
-// Consecutive turns by the cast are merged into one assistant message. They were
+// Consecutive beats by the cast are merged into one assistant message. They were
 // one reply when the model wrote them, several chat turns would imply the
 // characters took turns being prompted, and a few model templates require the
 // roles to alternate at all.
+//
+// Only beats, which is to say only messages that carry a speaker. Two adjacent
+// replies in a scene with one character happen when you delete your own message
+// between them, and merging those would change the prompt of a conversation that
+// has nothing to do with groups.
 func History(msgs []store.Message, nameOf func(int64) string) []ollama.Message {
 	out := make([]ollama.Message, 0, len(msgs))
+	merged := false // the previous message was a beat, so a beat can join it
 	for _, m := range msgs {
 		content := strings.TrimSpace(m.Content)
 		if content == "" {
 			continue
 		}
-		if m.Role == ollama.RoleAssistant && m.CharacterID != 0 && nameOf != nil {
+		beat := m.Role == ollama.RoleAssistant && m.CharacterID != 0 && nameOf != nil
+		if beat {
 			content = chars.Label(nameOf(m.CharacterID), content)
 		}
-		if n := len(out); n > 0 && out[n-1].Role == m.Role && m.Role == ollama.RoleAssistant {
-			out[n-1].Content += "\n\n" + content
+		if beat && merged && len(out) > 0 {
+			out[len(out)-1].Content += "\n\n" + content
 			continue
 		}
 		out = append(out, ollama.Message{Role: m.Role, Content: content})
+		merged = beat
 	}
 	return out
 }

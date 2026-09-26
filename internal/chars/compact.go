@@ -51,6 +51,17 @@ Write in past tense, third person, as short declarative statements. Use the char
 // in the scene survives by being carried forward through each pass rather than
 // by keeping the original turns.
 func Compact(ctx context.Context, client *ollama.Client, model, previous string, aged []ollama.Message, c Character, p Persona, opts ollama.Options, budget Budget) (string, error) {
+	return CompactFor(ctx, client, model, previous, aged, []Character{c}, p, opts, budget)
+}
+
+// CompactFor is Compact for a scene with any number of characters in it.
+//
+// The cast has to reach the summariser. A group scene compacted as a two-hander
+// is summarised as though only the first character was ever there, and since the
+// recap is the only surviving record of the turns it replaces, everything the
+// others did is simply gone — invisibly, and only in scenes long enough to have
+// been worth keeping.
+func CompactFor(ctx context.Context, client *ollama.Client, model, previous string, aged []ollama.Message, cast []Character, p Persona, opts ollama.Options, budget Budget) (string, error) {
 	if len(aged) == 0 {
 		return previous, nil
 	}
@@ -58,7 +69,7 @@ func Compact(ctx context.Context, client *ollama.Client, model, previous string,
 		return previous, fmt.Errorf("no model selected")
 	}
 
-	prompt := compactPrompt(previous, aged, c, p)
+	prompt := compactPrompt(previous, aged, cast, p)
 
 	// Low temperature: this is bookkeeping. A summary that invents a detail is
 	// worse than no summary, because it becomes fact for the rest of the scene.
@@ -125,18 +136,42 @@ func askForRecord(ctx context.Context, client *ollama.Client, model, system, pro
 // Separate from Compact so that a measurement run can send the same prompt with
 // different sampler settings and compare what comes back, which is the only way
 // to find out whether a setting helped.
-func compactPrompt(previous string, aged []ollama.Message, c Character, p Persona) string {
+func compactPrompt(previous string, aged []ollama.Message, cast []Character, p Persona) string {
 	userName := p.Name
 	if userName == "" {
 		userName = DefaultPersonaName
 	}
 
 	var b strings.Builder
-	b.WriteString("The two characters are ")
-	b.WriteString(c.Name)
-	b.WriteString(" and ")
-	b.WriteString(userName)
-	b.WriteString(".\n\n")
+	// The wording for one character is left exactly as it was. The recap goes
+	// into every later prompt, so a scene that has already been compacted must
+	// keep being compacted the same way or its notes change voice halfway
+	// through.
+	names := CastNames(cast)
+	switch len(names) {
+	case 0:
+		b.WriteString("The character is ")
+		b.WriteString(userName)
+		b.WriteString(".\n\n")
+	case 1:
+		b.WriteString("The two characters are ")
+		b.WriteString(names[0])
+		b.WriteString(" and ")
+		b.WriteString(userName)
+		b.WriteString(".\n\n")
+	default:
+		b.WriteString("The characters are ")
+		b.WriteString(strings.Join(names, ", "))
+		b.WriteString(", and ")
+		b.WriteString(userName)
+		b.WriteString(", who is the user.\n\n")
+		// Each beat in the transcript below carries the name of whoever said it.
+		// Without this the record comes back saying "the group" did things, and
+		// which of five people admitted what is exactly the sort of detail a
+		// scene later turns on.
+		b.WriteString("Each line of the scene below is prefixed with the name of who said it. ")
+		b.WriteString("Record what each of them said and did under their own name; never merge them into one.\n\n")
+	}
 	if prev := strings.TrimSpace(previous); prev != "" {
 		b.WriteString(markerRecord)
 		b.WriteString("\n")
@@ -148,12 +183,27 @@ func compactPrompt(previous string, aged []ollama.Message, c Character, p Person
 		b.WriteString(markerFirst)
 		b.WriteString("\n")
 	}
+	solo := ""
+	if len(names) == 1 {
+		solo = names[0]
+	}
 	for _, m := range aged {
-		who := c.Name
 		if m.Role == ollama.RoleUser {
-			who = userName
+			b.WriteString(userName)
+			b.WriteString(": ")
+			b.WriteString(strings.TrimSpace(m.Content))
+			b.WriteString("\n\n")
+			continue
 		}
-		b.WriteString(who)
+		// A group's turns already carry the speaker's name on every beat, so
+		// they go in as they are. Prefixing them would produce "Vesper: Vesper:"
+		// on one beat and put Vesper's name in front of Kestrel's.
+		if solo == "" {
+			b.WriteString(strings.TrimSpace(m.Content))
+			b.WriteString("\n\n")
+			continue
+		}
+		b.WriteString(solo)
 		b.WriteString(": ")
 		b.WriteString(strings.TrimSpace(m.Content))
 		b.WriteString("\n\n")

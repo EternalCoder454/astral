@@ -552,6 +552,7 @@ func (c *ChatView) LoadScene(ch store.Chat, cast []chars.Character, msgs []store
 	for _, member := range cast {
 		c.warnIfCardTooLarge(member)
 	}
+	c.warnIfCastTooLarge()
 
 	// Only the tail is built; the rest waits behind the button below.
 	if len(msgs) > renderWindow {

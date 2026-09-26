@@ -177,3 +177,37 @@ func TestGroupBudgetAccountsForEveryCard(t *testing.T) {
 			group.History, solo.History)
 	}
 }
+
+// TestHistoryDoesNotMergeATwoHandersReplies is the other half of leaving an
+// ordinary scene alone. Two replies end up adjacent when you delete your own
+// message between them, and merging those would rewrite the prompt of a
+// conversation that has no cast and never did.
+func TestHistoryDoesNotMergeATwoHandersReplies(t *testing.T) {
+	got := History([]store.Message{
+		{Role: ollama.RoleAssistant, Content: "First."},
+		{Role: ollama.RoleAssistant, Content: "Second."},
+	}, nil)
+	if len(got) != 2 {
+		t.Fatalf("got %d turns, want the two left as they were: %#v", len(got), got)
+	}
+}
+
+// And a beat only joins another beat, never an unlabelled reply that happened to
+// come before it.
+func TestHistoryOnlyMergesBeats(t *testing.T) {
+	nameOf := func(int64) string { return "Vesper" }
+	got := History([]store.Message{
+		{Role: ollama.RoleAssistant, Content: "Unlabelled."},
+		{Role: ollama.RoleAssistant, Content: "A beat.", CharacterID: 1},
+		{Role: ollama.RoleAssistant, Content: "Another beat.", CharacterID: 1},
+	}, nameOf)
+	if len(got) != 2 {
+		t.Fatalf("got %d turns, want 2: %#v", len(got), got)
+	}
+	if got[0].Content != "Unlabelled." {
+		t.Errorf("the unlabelled reply was changed to %q", got[0].Content)
+	}
+	if !strings.Contains(got[1].Content, "A beat.") || !strings.Contains(got[1].Content, "Another beat.") {
+		t.Errorf("the two beats did not merge: %q", got[1].Content)
+	}
+}

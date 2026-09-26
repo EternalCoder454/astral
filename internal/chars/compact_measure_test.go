@@ -47,7 +47,7 @@ func TestMeasureCompaction(t *testing.T) {
 	c := Character{Name: "Vesper Quill", Description: "A cartographer."}
 	p := Persona{Name: "Wren"}
 	aged := compactionFixture()
-	prompt := compactPrompt("", aged, c, p)
+	prompt := compactPrompt("", aged, []Character{c}, p)
 	in := totalChars(aged)
 	t.Logf("model %s, %d chars of transcript, %d runs each", model, in, *measureRuns)
 

@@ -1,11 +1,13 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
+	"astral/internal/scene"
 	"astral/internal/store"
 )
 
@@ -325,4 +327,47 @@ func (c *ChatView) greetingSpeaker() int64 {
 		return c.cast[0].ID
 	}
 	return 0
+}
+
+// sceneCast is the cast to assemble a prompt or a recap for: the scene's own
+// when it has one, and otherwise the single character, so every scene that
+// existed before groups did takes exactly the path it took.
+func (c *ChatView) sceneCast() []chars.Character {
+	if c.isGroup() {
+		return c.cast
+	}
+	return []chars.Character{c.char}
+}
+
+// sceneBudget divides the context window for this scene, whoever is in it.
+//
+// A group's cards are measured, not estimated. Five descriptions are thousands
+// of characters that have to come out of the transcript, and a group planned as
+// a two-hander thinks it has room it does not have: compaction waits too long,
+// and the server drops the front of the prompt instead, which is the framing.
+func (c *ChatView) sceneBudget() chars.Budget {
+	return scene.GroupBudget(c.cfg, c.sceneCast(), c.persona())
+}
+
+// warnIfCastTooLarge says so when the cast as a whole does not fit the window.
+//
+// The per-card warning next door catches one oversized description. A group
+// fails a different way: five cards that each fit comfortably, and do not fit
+// together. The symptom is the same and just as invisible — the server drops the
+// front of the prompt, which is the framing — so it is worth the same
+// interruption.
+func (c *ChatView) warnIfCastTooLarge() {
+	if !c.isGroup() {
+		return
+	}
+	b := c.sceneBudget()
+	if !b.Overflows {
+		return
+	}
+	fixed := len(chars.BuildGroupSystem(c.cast, c.persona()))
+	c.fail(fmt.Sprintf(
+		"These %d characters do not fit the context size together. Their descriptions need about "+
+			"%d tokens, and the window is %d. Use fewer of them, shorten a card, or raise the "+
+			"context size in Settings.",
+		len(c.cast), fixed/4, c.cfg.NumCtx))
 }
