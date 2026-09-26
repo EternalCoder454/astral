@@ -38,6 +38,13 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # go build stamps the binary with the commit, which means it runs git,
+      # which refuses a checkout owned by a different user than the one asking.
+      # Inside a container that is always the case, and the build fails with
+      # "error obtaining VCS status" before compiling anything.
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Build
         run: go build ./...
 
@@ -79,6 +86,8 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Staticcheck
         run: |
           go install honnef.co/go/tools/cmd/staticcheck@latest
