@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"astral/internal/chars"
+	"astral/internal/icons"
 	"astral/internal/ollama"
 	"astral/internal/scene"
 	"astral/internal/store"
@@ -29,6 +30,10 @@ type Server struct {
 	store  *store.Store
 	config func() store.Config
 	client func() *ollama.Client
+	// save writes a changed config back where the window will see it, and
+	// version is what the phone shows on its about screen.
+	save    func(store.Config) error
+	version string
 
 	pair pairing
 
@@ -43,8 +48,12 @@ type Server struct {
 // because the model, the persona and the server address can all be changed in
 // settings while a phone is connected, and the phone should get what the window
 // would get.
-func New(st *store.Store, config func() store.Config, client func() *ollama.Client) *Server {
-	return &Server{store: st, config: config, client: client}
+func New(st *store.Store, config func() store.Config, client func() *ollama.Client,
+	save func(store.Config) error, version string) *Server {
+	if save == nil {
+		save = func(store.Config) error { return nil }
+	}
+	return &Server{store: st, config: config, client: client, save: save, version: version}
 }
 
 // Start begins listening. Starting an already-running server is not an error.
@@ -121,6 +130,13 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("POST /api/chats", s.guard(s.handleNewChat))
 	mux.Handle("POST /api/chats/{id}/send", s.guard(s.handleSend))
 	mux.Handle("DELETE /api/chats/{id}", s.guard(s.handleDeleteChat))
+	mux.Handle("GET /api/settings", s.guard(s.handleSettings))
+	mux.Handle("POST /api/settings", s.guard(s.handleSaveSettings))
+	mux.Handle("POST /api/forget", s.guard(s.handleForget))
+
+	// The same icon set the window draws with, served so the phone can use it
+	// as a CSS mask and recolour it. One set, two clients.
+	mux.Handle("GET /icons/", http.StripPrefix("/icons/", http.FileServer(http.FS(icons.FS()))))
 
 	sub, err := fs.Sub(webFiles, "web")
 	if err != nil {

@@ -3,6 +3,11 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.3.1
+- Settings on your phone: model, context, reply limit, who you are, writing style
+- The phone uses Astral's own icons, and the Android app uses its own mark
+- Unpair a phone from the phone itself, for the one you are giving away
+
 ## 0.3.0
 - Your phone can now use this machine's Astral: same library, same models, over your own network
 - An Android app, and a phone layout with a bottom bar

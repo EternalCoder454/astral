@@ -21,7 +21,8 @@ func testServer(t *testing.T) (*Server, *store.Store) {
 	t.Cleanup(func() { st.Close() })
 	cfg := store.DefaultConfig()
 	s := New(st, func() store.Config { return cfg },
-		func() *ollama.Client { return ollama.NewClient("http://127.0.0.1:1") })
+		func() *ollama.Client { return ollama.NewClient("http://127.0.0.1:1") },
+		func(next store.Config) error { cfg = next; return nil }, "test")
 	return s, st
 }
 
@@ -156,5 +157,121 @@ func TestTokensAreNotStored(t *testing.T) {
 	}
 	if store.HashToken(out.Token) == out.Token {
 		t.Error("the stored form is the token itself")
+	}
+}
+
+// paired is a token for a device, for the tests that need to be let in.
+func paired(t *testing.T, s *Server) string {
+	t.Helper()
+	code, err := s.OpenPairing()
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := do(t, s, "POST", "/api/pair", "", `{"code":"`+code+`","name":"Test phone"}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("pairing failed: %s", w.Body.String())
+	}
+	var out struct{ Token string }
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	return out.Token
+}
+
+// A phone changes the settings the window is using, not a copy of them.
+func TestSettingsRoundTrip(t *testing.T) {
+	s, _ := testServer(t)
+	tok := paired(t, s)
+
+	w := do(t, s, "POST", "/api/settings", tok,
+		`{"persona":"Wren","persona_note":"A courier.","temperature":0.7,"num_ctx":16384}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("saving = %d: %s", w.Code, w.Body.String())
+	}
+	var got settingsOut
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Persona != "Wren" || got.PersonaNote != "A courier." {
+		t.Errorf("persona = %q / %q", got.Persona, got.PersonaNote)
+	}
+	if got.Temperature != 0.7 || got.NumCtx != 16384 {
+		t.Errorf("temperature = %v, num_ctx = %d", got.Temperature, got.NumCtx)
+	}
+
+	// And it stuck: a fresh read sees it, and so does the home screen.
+	var reread settingsOut
+	json.Unmarshal(do(t, s, "GET", "/api/settings", tok, "").Body.Bytes(), &reread)
+	if reread.Persona != "Wren" {
+		t.Errorf("a re-read says %q", reread.Persona)
+	}
+	if !strings.Contains(do(t, s, "GET", "/api/state", tok, "").Body.String(), "Wren") {
+		t.Error("the home screen did not see the change")
+	}
+}
+
+// A field the phone does not send must be left alone. An older phone talking to
+// a newer PC must not be able to blank a setting it has never heard of.
+func TestSettingsLeavesUnsentFieldsAlone(t *testing.T) {
+	s, _ := testServer(t)
+	tok := paired(t, s)
+
+	do(t, s, "POST", "/api/settings", tok, `{"persona":"Wren","num_ctx":16384}`)
+	var got settingsOut
+	json.Unmarshal(do(t, s, "POST", "/api/settings", tok, `{"persona":"Vesper"}`).Body.Bytes(), &got)
+	if got.Persona != "Vesper" {
+		t.Errorf("persona = %q, want the new one", got.Persona)
+	}
+	if got.NumCtx != 16384 {
+		t.Errorf("num_ctx = %d, want the 16384 that was not resent", got.NumCtx)
+	}
+}
+
+// Unpairing from the phone has to lock that phone out, for the one being sold.
+func TestAPhoneCanForgetItself(t *testing.T) {
+	s, _ := testServer(t)
+	tok := paired(t, s)
+	if got := do(t, s, "POST", "/api/forget", tok, "{}").Code; got != http.StatusOK {
+		t.Fatalf("forget = %d", got)
+	}
+	if got := do(t, s, "GET", "/api/state", tok, "").Code; got != http.StatusUnauthorized {
+		t.Errorf("a phone that forgot itself is still allowed in: %d", got)
+	}
+}
+
+// The phone draws with the window's icon set, served rather than redrawn. A
+// missing file is a blank button, which looks like a broken app.
+func TestTheIconSetIsServed(t *testing.T) {
+	s, _ := testServer(t)
+	for _, name := range []string{"home", "chat", "characters", "settings", "send", "panel-left"} {
+		path := "/icons/astral-" + name + "-symbolic.svg"
+		w := do(t, s, "GET", path, "", "")
+		if w.Code != http.StatusOK {
+			t.Errorf("GET %s = %d", path, w.Code)
+			continue
+		}
+		if !strings.Contains(w.Body.String(), "<svg") {
+			t.Errorf("%s is not an svg", path)
+		}
+	}
+}
+
+// Every icon the interface asks for by name has to exist in the set, or that
+// button renders as nothing at all and the page looks broken rather than
+// missing one picture.
+func TestEveryIconTheInterfaceAsksForExists(t *testing.T) {
+	s, _ := testServer(t)
+	page := do(t, s, "GET", "/", "", "").Body.String()
+	found := 0
+	for _, part := range strings.Split(page, `data-icon="`)[1:] {
+		name := part[:strings.IndexByte(part, '"')]
+		found++
+		path := "/icons/astral-" + name + "-symbolic.svg"
+		if got := do(t, s, "GET", path, "", "").Code; got != http.StatusOK {
+			t.Errorf("the page asks for %q and %s is %d", name, path, got)
+		}
+	}
+	if found < 4 {
+		t.Fatalf("only found %d icon references; the check is no longer finding them", found)
 	}
 }

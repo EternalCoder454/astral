@@ -66,7 +66,8 @@ func TestLiveTurnThroughTheServer(t *testing.T) {
 	cfg.Model = model
 	cfg.NumCtx = 4096
 	cfg.NumPredict = 128
-	s := New(st, func() store.Config { return cfg }, func() *ollama.Client { return client })
+	s := New(st, func() store.Config { return cfg }, func() *ollama.Client { return client },
+		func(next store.Config) error { cfg = next; return nil }, "test")
 
 	code, err := s.OpenPairing()
 	if err != nil {

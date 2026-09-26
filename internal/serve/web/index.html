@@ -53,25 +53,96 @@
   </div>
 </section>
 
+<!-- Settings. The ones you change while playing; the window is still where a
+     character gets written. -->
+<section id="settings" class="screen" hidden>
+  <header class="topbar"><h1>Settings</h1></header>
+  <div class="scroll">
+    <h2 class="heading">Model</h2>
+    <div class="card">
+      <label class="field">
+        <span>Answering with</span>
+        <select id="set-model"></select>
+      </label>
+      <label class="field">
+        <span>Context window</span>
+        <input id="set-numctx" type="number" inputmode="numeric" min="512" step="512">
+      </label>
+      <label class="field">
+        <span>Reply limit</span>
+        <input id="set-numpredict" type="number" inputmode="numeric" min="0" step="64">
+      </label>
+      <label class="field">
+        <span>Temperature</span>
+        <input id="set-temperature" type="number" inputmode="decimal" min="0" max="2" step="0.05">
+      </label>
+    </div>
+
+    <h2 class="heading">You</h2>
+    <div class="card">
+      <label class="field">
+        <span>Called</span>
+        <input id="set-persona" type="text" autocomplete="off">
+      </label>
+      <label class="field field-tall">
+        <span>About you</span>
+        <textarea id="set-persona-note" rows="3"></textarea>
+      </label>
+      <label class="field">
+        <span>Writing style</span>
+        <select id="set-style"></select>
+      </label>
+    </div>
+
+    <div class="rows" style="margin-top:14px">
+      <button id="set-save" class="row row-primary">
+        <span class="row-text"><span class="row-title">Save</span></span>
+      </button>
+    </div>
+
+    <h2 class="heading">This device</h2>
+    <div class="card">
+      <p id="set-device" class="muted"></p>
+      <p id="set-version" class="muted"></p>
+      <p id="set-update" class="muted"></p>
+    </div>
+    <div class="rows" style="margin-top:10px">
+      <a id="set-releases" class="row" href="https://github.com/EternalCoder454/astral/releases" target="_blank" rel="noreferrer">
+        <span class="row-text">
+          <span class="row-title">Get the newest app</span>
+          <span class="row-note">Opens the releases page, where the .apk is</span>
+        </span>
+      </a>
+      <button id="set-forget" class="row row-danger">
+        <span class="row-text">
+          <span class="row-title">Unpair this device</span>
+          <span class="row-note">Forgets the token. You will need a new code.</span>
+        </span>
+      </button>
+    </div>
+  </div>
+</section>
+
 <!-- One conversation -->
 <section id="chat" class="screen chat" hidden>
   <header class="topbar">
-    <button id="chat-back" class="icon" aria-label="Back">‹</button>
+    <button id="chat-back" class="icon" aria-label="Back"><i class="tab-icon" data-icon="panel-left"></i></button>
     <h1 id="chat-title">Chat</h1>
   </header>
   <div id="transcript" class="transcript"></div>
   <form id="composer" class="composer">
     <textarea id="composer-text" rows="1" placeholder="Say something" aria-label="Message"></textarea>
-    <button id="composer-send" class="send" aria-label="Send">↑</button>
+    <button id="composer-send" class="send" aria-label="Send"><i class="send-icon" data-icon="send"></i></button>
   </form>
 </section>
 
 <!-- The bottom bar. It is the only navigation on a phone, so it is always
      reachable and never scrolls away. -->
 <nav id="tabs" class="tabs" hidden>
-  <button data-screen="home" class="tab is-on"><span class="tab-dot"></span>Home</button>
-  <button data-screen="chats" class="tab"><span class="tab-dot"></span>Chats</button>
-  <button data-screen="cast" class="tab"><span class="tab-dot"></span>Cast</button>
+  <button data-screen="home" class="tab is-on"><i class="tab-icon" data-icon="home"></i>Home</button>
+  <button data-screen="chats" class="tab"><i class="tab-icon" data-icon="chat"></i>Chats</button>
+  <button data-screen="cast" class="tab"><i class="tab-icon" data-icon="characters"></i>Cast</button>
+  <button data-screen="settings" class="tab"><i class="tab-icon" data-icon="settings"></i>Settings</button>
 </nav>
 
 <div id="toast" class="toast" role="status" hidden></div>

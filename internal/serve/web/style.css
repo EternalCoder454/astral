@@ -244,8 +244,8 @@ html, body {
 	border: none;
 	background: var(--accent);
 	color: var(--accent-ink);
-	font-size: 1.25rem;
-	font-weight: 700;
+	display: grid;
+	place-items: center;
 	transition: transform 90ms ease, opacity 120ms ease;
 }
 
@@ -284,17 +284,25 @@ html, body {
 	transition: color 120ms ease;
 }
 
-.tab-dot {
-	width: 6px;
-	height: 6px;
-	border-radius: 999px;
+/* The icons are the set the window draws with, served by the PC and used as a
+   mask so they take the colour of whatever they sit in. A coloured PNG per
+   state would be two more files and one more thing to keep in step. */
+.tab-icon,
+.send-icon {
+	display: block;
+	width: 22px;
+	height: 22px;
 	background: currentColor;
-	opacity: 0.45;
-	transition: opacity 120ms ease, transform 120ms ease;
+	-webkit-mask: var(--icon) center / contain no-repeat;
+	mask: var(--icon) center / contain no-repeat;
+	transition: opacity 120ms ease;
+	opacity: 0.7;
 }
 
+.send-icon { width: 20px; height: 20px; opacity: 1; margin: 0 auto; }
+
 .tab.is-on { color: var(--accent); }
-.tab.is-on .tab-dot { opacity: 1; transform: scale(1.6); }
+.tab.is-on .tab-icon { opacity: 1; }
 
 /* A chat fills the screen: the bar would only be a way to lose your place. */
 body.in-chat .tabs { display: none; }
@@ -356,12 +364,59 @@ body.in-chat .screen { inset: 0; }
 	border: none;
 	background: none;
 	color: var(--text);
-	font-size: 1.6rem;
-	line-height: 1;
+	display: grid;
+	place-items: center;
 	padding: 0 6px;
 	min-width: 40px;
 	min-height: 40px;
 }
+
+/* ---- Settings ---- */
+
+.card {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 14px;
+	border-radius: var(--radius);
+	background: var(--surface);
+	border: 1px solid var(--border);
+}
+
+.field { display: flex; flex-direction: column; gap: 5px; }
+
+.field > span {
+	font-size: 0.8rem;
+	color: var(--muted);
+}
+
+.field input,
+.field select,
+.field textarea {
+	padding: 11px 12px;
+	border-radius: 10px;
+	background: var(--canvas);
+	border: 1px solid var(--border);
+	color: var(--text);
+	font: inherit;
+	/* Under 16px, iOS zooms the page when the field is focused. */
+	font-size: 16px;
+	width: 100%;
+}
+
+.field textarea { resize: vertical; min-height: 72px; }
+.field input:focus, .field select:focus, .field textarea:focus {
+	outline: none;
+	border-color: var(--accent);
+}
+
+.row-danger {
+	border-color: color-mix(in srgb, #ff8080 45%, var(--border));
+}
+.row-danger .row-title { color: #ffb4b4; }
+
+/* A row that is a link has to sit like the buttons beside it. */
+a.row { text-decoration: none; }
 
 .toast {
 	position: fixed;

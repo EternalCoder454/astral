@@ -39,7 +39,8 @@ func TestDevServe(t *testing.T) {
 	cfg.PersonaName = "Christian"
 	cfg.Model = "huihui_ai/qwen3.6-abliterated:27b"
 	s := New(st, func() store.Config { return cfg },
-		func() *ollama.Client { return ollama.NewClient("") })
+		func() *ollama.Client { return ollama.NewClient("") },
+		func(next store.Config) error { cfg = next; return nil }, "0.3.0")
 	if err := s.Start(8799); err != nil {
 		t.Fatal(err)
 	}

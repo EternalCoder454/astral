@@ -2,7 +2,6 @@ package app
 
 import (
 	"crypto/sha256"
-	"embed"
 	"encoding/hex"
 	"io/fs"
 	"log"
@@ -12,6 +11,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
+	"astral/internal/icons"
 	"astral/internal/store"
 )
 
@@ -26,8 +26,9 @@ import (
 // single filled path, no strokes), so GTK recolours them with the rest of the
 // interface and they match at any size.
 
-//go:embed icons/*.svg
-var iconFS embed.FS
+// The set itself lives in internal/icons, which the phone server serves from
+// as well.
+var iconFS = icons.FS()
 
 // iconIndexTheme is the minimal theme description GTK needs to find the icons
 // in the directory below.
@@ -91,7 +92,7 @@ func unpackIcons(dir string) error {
 	actions := filepath.Join(dir, "hicolor", "scalable", "actions")
 	stampPath := filepath.Join(dir, ".stamp")
 
-	entries, err := fs.ReadDir(iconFS, "icons")
+	entries, err := fs.ReadDir(iconFS, ".")
 	if err != nil {
 		return err
 	}
@@ -112,7 +113,7 @@ func unpackIcons(dir string) error {
 		return err
 	}
 	for _, e := range entries {
-		data, err := iconFS.ReadFile("icons/" + e.Name())
+		data, err := fs.ReadFile(iconFS, e.Name())
 		if err != nil {
 			return err
 		}
@@ -130,7 +131,7 @@ func unpackIcons(dir string) error {
 func iconStamp(entries []fs.DirEntry) (string, error) {
 	h := sha256.New()
 	for _, e := range entries {
-		data, err := iconFS.ReadFile("icons/" + e.Name())
+		data, err := fs.ReadFile(iconFS, e.Name())
 		if err != nil {
 			return "", err
 		}

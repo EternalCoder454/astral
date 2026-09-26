@@ -27,13 +27,39 @@ func (a *App) startPhoneAccess() {
 	if a.phone == nil {
 		a.phone = serve.New(a.store,
 			func() store.Config { return a.cfg },
-			func() *ollama.Client { return a.client })
+			func() *ollama.Client { return a.client },
+			a.applyConfigFromPhone,
+			version)
 	}
 	if err := a.phone.Start(a.cfg.PhonePort); err != nil {
 		a.toast("Could not open phone access: " + err.Error())
 		a.cfg.PhoneAccess = false
 		return
 	}
+}
+
+// applyConfigFromPhone takes a settings change made on a phone and puts it
+// where the window will see it.
+//
+// It runs on the server's goroutine, so the parts that touch widgets are
+// handed back to the main thread. Everything the phone can change is something
+// the window displays somewhere, and a model chip still naming the old model is
+// the kind of small wrongness that makes a person distrust the whole feature.
+func (a *App) applyConfigFromPhone(cfg store.Config) error {
+	if err := store.SaveConfig(cfg); err != nil {
+		return err
+	}
+	coreglib.IdleAdd(func() bool {
+		a.cfg = cfg
+		if a.chat != nil {
+			a.chat.SetConfig(cfg)
+		}
+		if a.sidebar != nil {
+			a.sidebar.SetProfile(cfg.PersonaName, cfg.PersonaDescription)
+		}
+		return false
+	})
+	return nil
 }
 
 // stopPhoneAccess closes it, and any pairing in progress with it.

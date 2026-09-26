@@ -97,7 +97,16 @@ function asWritten(s) {
 
 // ---- Screens ----
 
-const SCREENS = ["pair", "home", "chats", "cast", "chat"];
+const SCREENS = ["pair", "home", "chats", "cast", "settings", "chat"];
+
+// The icons are the PC's own set, used as a CSS mask so they take the colour
+// of whatever they sit in. Named here by their short name; the file is the
+// window's, unchanged.
+function paintIcons(root = document) {
+	for (const el of root.querySelectorAll("[data-icon]")) {
+		el.style.setProperty("--icon", `url("/icons/astral-${el.dataset.icon}-symbolic.svg")`);
+	}
+}
 
 function show(name) {
 	for (const id of SCREENS) $(id).hidden = id !== name;
@@ -109,6 +118,71 @@ function show(name) {
 }
 
 function showPairing() { show("pair"); $("pair-code").focus(); }
+
+// ---- Settings ----
+
+let settings = null;
+
+async function loadSettings() {
+	const res = await api("/api/settings");
+	settings = await res.json();
+
+	fillSelect($("set-model"), settings.models, settings.model);
+	fillSelect($("set-style"), settings.styles, settings.style);
+	$("set-numctx").value = settings.num_ctx || "";
+	$("set-numpredict").value = settings.num_predict || "";
+	$("set-temperature").value = settings.temperature ?? "";
+	$("set-persona").value = settings.persona || "";
+	$("set-persona-note").value = settings.persona_note || "";
+	$("set-device").textContent = "Paired as " + (settings.device || "this device");
+	$("set-version").textContent = "Astral " + (settings.version || "?") + " on your PC";
+	$("set-update").textContent =
+		"The app updates by installing a newer .apk. Your PC updates itself from Settings there.";
+}
+
+function fillSelect(el, values, chosen) {
+	el.replaceChildren();
+	const all = values && values.length ? values.slice() : [];
+	if (chosen && !all.includes(chosen)) all.unshift(chosen);
+	for (const v of all) {
+		const opt = document.createElement("option");
+		opt.value = v;
+		opt.textContent = v;
+		if (v === chosen) opt.selected = true;
+		el.append(opt);
+	}
+}
+
+async function saveSettings() {
+	const body = {
+		model: $("set-model").value,
+		style: $("set-style").value,
+		persona: $("set-persona").value,
+		persona_note: $("set-persona-note").value,
+		num_ctx: Number($("set-numctx").value) || 0,
+		num_predict: Number($("set-numpredict").value) || 0,
+		temperature: Number($("set-temperature").value),
+	};
+	try {
+		const res = await api("/api/settings", { method: "POST", body: JSON.stringify(body) });
+		settings = await res.json();
+		toast("Saved. Your PC is using these too.");
+		loadState();
+	} catch (e) {
+		toast(e.message);
+	}
+}
+
+async function forgetDevice() {
+	try {
+		await api("/api/forget", { method: "POST", body: "{}" });
+	} catch (_) {
+		// Revoked is revoked, whatever the answer was.
+	}
+	token = "";
+	localStorage.removeItem(TOKEN_KEY);
+	showPairing();
+}
 
 function toast(text) {
 	const el = $("toast");
@@ -366,8 +440,15 @@ $("pair-go").addEventListener("click", async () => {
 $("chat-back").addEventListener("click", () => { current = null; show("home"); });
 
 for (const tab of document.querySelectorAll(".tab")) {
-	tab.addEventListener("click", () => { current = null; show(tab.dataset.screen); });
+	tab.addEventListener("click", () => {
+		current = null;
+		show(tab.dataset.screen);
+		if (tab.dataset.screen === "settings") loadSettings().catch((e) => toast(e.message));
+	});
 }
+
+$("set-save").addEventListener("click", saveSettings);
+$("set-forget").addEventListener("click", forgetDevice);
 
 const composer = $("composer-text");
 composer.addEventListener("input", () => {
@@ -394,6 +475,7 @@ composer.addEventListener("keydown", (e) => {
 });
 
 async function start() {
+	paintIcons();
 	if (!token) { showPairing(); return; }
 	try {
 		await loadState();
