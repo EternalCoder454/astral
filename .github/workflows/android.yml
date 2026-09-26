@@ -70,6 +70,24 @@ jobs:
           name: astral-android
           path: packaging/android/out/*.apk
 
+      # The same notes the Windows job writes, deliberately duplicated.
+      #
+      # Both jobs attach to one release and whichever finishes last wins: with
+      # no body of its own this one sent an empty string and wiped the notes
+      # the other had just written, which is how 0.3.0 reached its draft with
+      # nothing in it. Sending the same text from both makes the order stop
+      # mattering.
+      - name: Take this version's notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION=$(sed -n 's/^var version = "\(.*\)"/\1/p' ../../internal/app/version.go)
+          awk -v v="$VERSION" '
+            $0 == "## " v { taking = 1; next }
+            /^## / && taking  { exit }
+            taking            { print }
+          ' ../../WHATSNEW.md > release-notes.md
+          cat release-notes.md
+
       - name: Attach it to the release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
@@ -77,3 +95,4 @@ jobs:
           files: ${{ steps.name.outputs.apk }}
           draft: true
           generate_release_notes: false
+          body_path: packaging/android/release-notes.md
