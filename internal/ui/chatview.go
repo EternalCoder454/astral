@@ -135,6 +135,13 @@ type ChatView struct {
 	// chars.NarrationPrefill.
 	prefilled bool
 
+	// continuing is the reply being extended, when a turn stopped at the token
+	// limit and is being asked for the rest. Nil for an ordinary turn.
+	continuing *MessageRow
+	// continuePrefix is the reply as it stood before the continuation, so the
+	// two halves can be joined when it finishes.
+	continuePrefix string
+
 	// thinkStream keeps deliberation that arrives inside the reply off the
 	// screen while it streams. See ollama.ThinkStream.
 	thinkStream ollama.ThinkStream
@@ -634,6 +641,11 @@ func (c *ChatView) attachActions(row *MessageRow) {
 	row.AddAction(IconEdit, "Edit this message", func() {
 		c.editRow(row)
 	})
+	if row.Role == ollama.RoleAssistant {
+		row.AddAction(IconHistory, "Continue this reply", func() {
+			c.continueReply(row)
+		})
+	}
 	if row.Role == ollama.RoleAssistant {
 		row.AddAction(IconRegenerate, "Write this reply again", func() {
 			c.regenerate(row)

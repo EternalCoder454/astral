@@ -371,6 +371,7 @@ func (s *Sidebar) attachRowMenu(btn *gtk.Button, id int64) {
 		action string
 	}{
 		{"Rename…", "win.rename-chat"},
+		{"Export…", "win.export-chat"},
 		{"Delete", "win.delete-chat"},
 	} {
 		item := gio.NewMenuItem(it.label, "")

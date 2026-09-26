@@ -308,6 +308,21 @@ func (m *MessageRow) EndStreaming() {
 }
 
 // AppendText adds to the body during streaming.
+// ContinueStreaming prepares a row that already holds text to receive more.
+//
+// Unlike BeginStreaming there are no dots and the body stays visible: there is
+// already something to read, and hiding it behind an indicator would be a step
+// backwards. The text goes back to plain while it streams, for the same reason
+// it is plain in a new reply: half an asterisk is not markup.
+func (m *MessageRow) ContinueStreaming(maxWidth int) {
+	m.streaming = true
+	if maxWidth > 0 {
+		m.body.SetSizeRequest(maxWidth, -1)
+	}
+	m.body.SetText(m.raw)
+	m.body.SetVisible(true)
+}
+
 func (m *MessageRow) AppendText(s string) {
 	if s == "" {
 		return

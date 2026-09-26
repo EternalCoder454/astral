@@ -218,7 +218,14 @@ func (c *ChatView) buildRequest() []ollama.Message {
 	// too. Two clients that build their own prompts answer the same scene
 	// differently and throw away each other's cached prefix every time you
 	// switch between them, so there is one assembler and this calls it.
-	return scene.Build(c.store, c.cfg, c.chat, c.char, c.history())
+	hist := c.history()
+	// A continuation ends the prompt with the partial reply so the model
+	// carries straight on from it, which means taking it out of the transcript
+	// first: sent twice it reads as the character saying the same thing again.
+	if c.continuing != nil && len(hist) > 0 && hist[len(hist)-1].Role == ollama.RoleAssistant {
+		hist = hist[:len(hist)-1]
+	}
+	return scene.Build(c.store, c.cfg, c.chat, c.char, hist)
 }
 
 // budget divides this chat's context window between the parts of its prompt.
@@ -285,13 +292,24 @@ func (c *ChatView) startStream() {
 	c.prefilled = false
 	c.collapsed, c.collapseWhy = false, ""
 	c.thinkStream = ollama.ThinkStream{}
-	if len(msgs) > 0 && msgs[len(msgs)-1].Role == ollama.RoleSystem && c.wantsPrefill(msgs) {
+	switch {
+	case c.continuing != nil:
+		// The reply so far is the prefill. Nothing else is needed: a model
+		// handed an unfinished turn finishes it.
+		msgs = append(msgs, ollama.Message{Role: ollama.RoleAssistant, Content: c.continuing.Text()})
+	case len(msgs) > 0 && msgs[len(msgs)-1].Role == ollama.RoleSystem && c.wantsPrefill(msgs):
 		msgs = append(msgs, ollama.Message{Role: ollama.RoleAssistant, Content: chars.NarrationPrefill})
 		c.prefilled = true
 	}
 
-	c.live = c.appendRow(ollama.RoleAssistant, "", "", 0, time.Now())
-	c.live.BeginStreaming(c.streamWidth())
+	if c.continuing != nil {
+		c.continuePrefix = c.continuing.Text()
+		c.live = c.continuing
+		c.live.ContinueStreaming(c.streamWidth())
+	} else {
+		c.live = c.appendRow(ollama.RoleAssistant, "", "", 0, time.Now())
+		c.live.BeginStreaming(c.streamWidth())
+	}
 	c.setBusy(true)
 
 	model := c.activeModel()
@@ -337,6 +355,12 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	}
 	c.drainPending() // whatever arrived since the last tick
 	c.setBusy(false)
+
+	// Cleared here rather than where it is used, so that a turn which fails,
+	// is cancelled, or returns nothing does not leave the next one thinking it
+	// is still finishing something.
+	continuing, prefix := c.continuing != nil, c.continuePrefix
+	c.continuing, c.continuePrefix = nil, ""
 
 	row := c.live
 	c.live = nil
@@ -384,6 +408,15 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 		}
 	}
 	inlineThinking, content := ollama.SplitThinking(msg.Content)
+	// A continuation is only the rest of a reply, so what gets rendered and
+	// stored is what was already there plus what just arrived.
+	if continuing {
+		// Joined with nothing between them. The model was handed the reply as
+		// it stood and carries on from exactly there, so it supplies its own
+		// leading space when there should be one — and a reply cut mid-word
+		// is finished mid-word.
+		content = prefix + content
+	}
 	if inlineThinking != "" {
 		msg.Thinking = strings.TrimSpace(msg.Thinking + "\n\n" + inlineThinking)
 	}
@@ -437,7 +470,14 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	}
 	row.SetMeta(meta)
 
-	if id, err := c.store.AddMessage(store.Message{
+	// A continued reply already has a row in the database, so it is rewritten
+	// rather than added: saving it again would leave the scene holding the
+	// first half twice.
+	if row.ID != 0 {
+		if err := c.store.SetMessageContent(row.ID, row.Text()); err != nil {
+			c.fail("Could not save the reply: " + err.Error())
+		}
+	} else if id, err := c.store.AddMessage(store.Message{
 		ChatID:    c.chat.ID,
 		Role:      ollama.RoleAssistant,
 		Content:   row.Text(),
@@ -776,6 +816,26 @@ func (c *ChatView) regenerate(row *MessageRow) {
 		c.column.Remove(r.Widget())
 	}
 	c.rows = c.rows[:idx]
+	c.startStream()
+}
+
+// continueReply asks for the rest of a reply that stopped at the token limit.
+//
+// Only the last one. Continuing a turn from the middle of a scene would mean
+// everything after it was answering a shorter version of it, and the rest of
+// the transcript would quietly stop following.
+func (c *ChatView) continueReply(row *MessageRow) {
+	if c.busy || row == nil || row.Role != ollama.RoleAssistant {
+		return
+	}
+	if len(c.rows) == 0 || c.rows[len(c.rows)-1] != row {
+		c.fail("Only the last reply can be continued.")
+		return
+	}
+	if strings.TrimSpace(row.Text()) == "" {
+		return
+	}
+	c.continuing = row
 	c.startStream()
 }
 

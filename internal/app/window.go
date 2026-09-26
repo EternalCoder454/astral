@@ -329,6 +329,7 @@ func (a *App) registerActions() {
 	add("toggle-sidebar", func() { a.sideBtn.SetActive(!a.sideBtn.Active()) })
 	add("focus-composer", func() { a.chat.FocusComposer() })
 	addInt("rename-chat", a.actionRenameChat)
+	addInt("export-chat", a.actionExportChat)
 	addInt("delete-chat", a.actionDeleteChat)
 
 	for accel, action := range map[string]string{
