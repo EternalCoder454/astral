@@ -104,15 +104,22 @@ func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character,
 		return append([]ollama.Message{{Role: ollama.RoleSystem, Content: content}}, hist...)
 	}
 	switch ch.Kind {
+	// The designers are tools with a defined product, and the user's own rules
+	// are not sent to them: a rule about how prose should read is right for a
+	// scene and would break an interview whose answer has to parse.
 	case store.KindDesigner:
 		return system(chars.DesignerSystem)
 	case store.KindStyleDesigner:
 		return system(chars.StyleDesignerSystem)
+	case store.KindWorldDesigner:
+		return system(world.DesignerSystem)
 	case store.KindAssistant:
-		return system(chars.AssistantSystem)
+		return Plain(cfg, ch, hist)
 	}
 	if ca.Name == "" {
-		return system(chars.AssistantSystem)
+		// A scene whose character was deleted. It is still readable and still
+		// worth continuing, as a conversation rather than as a roleplay.
+		return Plain(cfg, ch, hist)
 	}
 
 	p := Persona(cfg)
@@ -134,6 +141,38 @@ func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character,
 	}
 	sc.Lore = Lore(st, ca, hist, sc.Budget.Lore)
 	return chars.BuildMessages(ca, sc)
+}
+
+// Plain assembles a conversation that is not a roleplay.
+//
+// The recap is the point. Everything that keeps a long scene alive was written
+// for a scene with a character in it, so a general chat had no recap at all and
+// lost its own beginning the moment it outgrew the window. Now that it has one,
+// this is what carries it: without this the turns it replaced would be dropped
+// from the history and the record of them sent nowhere, which is worse than the
+// bug it fixes.
+func Plain(cfg store.Config, ch store.Chat, hist []ollama.Message) []ollama.Message {
+	msgs := []ollama.Message{{
+		Role:    ollama.RoleSystem,
+		Content: chars.AssistantSystemFor(Persona(cfg)),
+	}}
+	if r := strings.TrimSpace(ch.Summary); r != "" {
+		msgs = append(msgs, ollama.Message{
+			Role: ollama.RoleSystem,
+			Content: "Earlier in this conversation, in note form. Treat all of it as " +
+				"already said and already settled, and do not go back over it.\n" + r,
+		})
+	}
+	return append(msgs, hist...)
+}
+
+// PlainBudget divides the window for a conversation that is not a roleplay.
+func PlainBudget(cfg store.Config) chars.Budget {
+	numCtx := cfg.NumCtx
+	if numCtx <= 0 {
+		numCtx = chars.DefaultNumCtx
+	}
+	return chars.Plan(numCtx, cfg.NumPredict, len(chars.AssistantSystemFor(Persona(cfg))))
 }
 
 // StyleChanged reports whether the scene was written under a different style

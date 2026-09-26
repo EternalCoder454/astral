@@ -2,6 +2,7 @@ package chars
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -22,6 +23,10 @@ import (
 // the context window between the parts of a prompt, because a fixed 20,000
 // characters is either wasteful in a 32k window or a silent overflow in a 4k
 // one. See budget.go.
+
+// errNoModel is returned when compaction is asked for with nothing to do it
+// with, which happens when Ollama has no models installed at all.
+var errNoModel = errors.New("no model selected")
 
 // compactSystem frames the summarizer. It is deliberately not asked for prose:
 // a recap written as narration reads like part of the scene and the model
@@ -66,7 +71,7 @@ func CompactFor(ctx context.Context, client *ollama.Client, model, previous stri
 		return previous, nil
 	}
 	if model == "" {
-		return previous, fmt.Errorf("no model selected")
+		return previous, errNoModel
 	}
 
 	prompt := compactPrompt(previous, aged, cast, p)

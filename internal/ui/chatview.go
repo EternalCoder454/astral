@@ -202,6 +202,8 @@ type ChatView struct {
 	OnBuildCharacter func()
 	// OnBuildStyle is the same for a writing-style design chat.
 	OnBuildStyle func()
+	// OnBuildWorld is the same for a world design chat.
+	OnBuildWorld func()
 	// OnAttachImage asks the app to choose an image. The app calls
 	// AttachImage with the result.
 	OnAttachImage func()
@@ -558,7 +560,7 @@ func (c *ChatView) LoadScene(ch store.Chat, cast []chars.Character, msgs []store
 	c.loadLore(c.loreHost())
 	c.mode = Roleplay
 	switch ch.Kind {
-	case store.KindDesigner, store.KindAssistant, store.KindStyleDesigner:
+	case store.KindDesigner, store.KindAssistant, store.KindStyleDesigner, store.KindWorldDesigner:
 		c.mode = Plain
 	}
 	c.refreshModelChip()
@@ -620,6 +622,8 @@ func (c *ChatView) speakerFor(role string, speaker int64) (string, string, int) 
 		return "Character designer", "✦", 1
 	case store.KindStyleDesigner:
 		return "Style designer", "✦", 3
+	case store.KindWorldDesigner:
+		return "World designer", "✦", 2
 	default:
 		return "Assistant", "✦", 0
 	}
@@ -890,6 +894,13 @@ func (c *ChatView) refreshActions() {
 		fire = func() {
 			if c.OnBuildStyle != nil {
 				c.OnBuildStyle()
+			}
+		}
+	case store.KindWorldDesigner:
+		label, tip = "Create world", "Turn this conversation into a world and its lorebook"
+		fire = func() {
+			if c.OnBuildWorld != nil {
+				c.OnBuildWorld()
 			}
 		}
 	default:

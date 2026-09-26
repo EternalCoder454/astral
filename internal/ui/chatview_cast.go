@@ -358,6 +358,12 @@ func (c *ChatView) sceneCast() []chars.Character {
 // a two-hander thinks it has room it does not have: compaction waits too long,
 // and the server drops the front of the prompt instead, which is the framing.
 func (c *ChatView) sceneBudget() chars.Budget {
+	// A plain conversation is measured against its own framing, which carries
+	// the user and their rules and so is not the one-sentence prompt the cast
+	// path would measure for a chat with no character in it.
+	if c.chat.Kind == store.KindAssistant || c.char.Name == "" {
+		return scene.PlainBudget(c.cfg)
+	}
 	return scene.GroupBudget(c.cfg, c.sceneCast(), c.persona())
 }
 
@@ -472,4 +478,21 @@ func (c *ChatView) castChip() *gtk.Button {
 		}
 	})
 	return btn
+}
+
+// compactable reports whether this conversation should keep a recap.
+//
+// A scene with a character and a plain conversation both should: each outgrows
+// the window, and each loses its own beginning when it does. The designers
+// should not. Their whole content is the material an extraction reads at the
+// end, and folding the first half of an interview into notes would be summarising
+// the answer before anyone asked for it.
+func (c *ChatView) compactable() bool {
+	switch c.chat.Kind {
+	case store.KindDesigner, store.KindStyleDesigner, store.KindWorldDesigner:
+		return false
+	case store.KindAssistant:
+		return true
+	}
+	return c.char.Name != ""
 }

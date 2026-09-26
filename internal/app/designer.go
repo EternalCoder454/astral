@@ -115,6 +115,7 @@ func (a *App) showNewChat() {
 	heading("Create")
 	add(ui.IconDesigner, "New character", "the model interviews you", false, a.newDesignerChat)
 	add(ui.IconEdit, "New writing style", "changes how the prose sounds", false, a.newStyleDesignerChat)
+	add(ui.IconWorlds, "New world", "the model interviews you", false, a.newWorldDesignerChat)
 	add(ui.IconFolder, "Import a character", "from a .png or .json card", false, a.actionImportCharacter)
 
 	tv := adw.NewToolbarView()

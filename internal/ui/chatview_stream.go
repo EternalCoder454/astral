@@ -648,7 +648,7 @@ func (c *ChatView) maybeLearn() {
 // If you send again before it finishes, that turn simply goes out with the
 // transcript as it stands.
 func (c *ChatView) maybeCompact() {
-	if c.bg.running || c.chat.ID == 0 || c.char.Name == "" {
+	if c.bg.running || c.chat.ID == 0 || !c.compactable() {
 		return
 	}
 	chatID := c.chat.ID
@@ -674,9 +674,21 @@ func (c *ChatView) maybeCompact() {
 	}
 	client, model := c.client, c.housekeepingModel()
 	prev, cast, persona, opts := c.recap, c.sceneCast(), c.persona(), c.options()
+	plain := c.chat.Kind == store.KindAssistant
 
 	go func() {
-		next, err := chars.CompactFor(ctx, client, model, prev, aged, cast, persona, opts, budget)
+		// A conversation and a scene need different questions asked of the
+		// summariser. Keeping "the state of the relationship" out of the record
+		// of an hour spent working through a problem is the whole difference.
+		compact := chars.CompactFor
+		if plain {
+			compact = func(ctx context.Context, cl *ollama.Client, model, previous string,
+				aged []ollama.Message, _ []chars.Character, p chars.Persona,
+				opts ollama.Options, budget chars.Budget) (string, error) {
+				return chars.CompactPlain(ctx, cl, model, previous, aged, p, opts, budget)
+			}
+		}
+		next, err := compact(ctx, client, model, prev, aged, cast, persona, opts, budget)
 
 		coreglib.IdleAdd(func() bool {
 			c.bg.done()

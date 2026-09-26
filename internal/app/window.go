@@ -182,6 +182,7 @@ func (a *App) buildCenter() {
 	a.chat.OnBuildCharacter = a.buildCharacterFromChat
 	a.chat.OnEditDirection = a.editDirection
 	a.chat.OnBuildStyle = a.buildStyleFromChat
+	a.chat.OnBuildWorld = a.buildWorldFromChat
 	a.chat.OnLoreLearned = func(applied, held int) {
 		// Worth saying, because the lorebook changed without being asked and
 		// anything held back needs a decision. Kept to one line.

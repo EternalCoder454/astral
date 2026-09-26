@@ -18,6 +18,9 @@ const (
 	// KindStyleDesigner is the same idea as KindDesigner, but its product is a
 	// writing style rather than a character.
 	KindStyleDesigner = "style"
+	// KindWorldDesigner is the same again, and its product is a setting with a
+	// first lorebook in it.
+	KindWorldDesigner = "world"
 )
 
 // Chat is one conversation.

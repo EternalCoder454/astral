@@ -278,8 +278,13 @@ func (s *Server) housekeep(chatID int64, cast []chars.Character) {
 	}
 	p := scene.Persona(cfg)
 	// The cast's budget, not one character's: a group planned as a two-hander
-	// thinks it has room it does not have, and waits too long to compact.
+	// thinks it has room it does not have, and waits too long to compact. A
+	// conversation with nobody in it is measured against its own framing.
+	plain := ch.Kind == store.KindAssistant || len(cast) == 0 || cast[0].Name == ""
 	budget := scene.GroupBudget(cfg, cast, p)
+	if plain {
+		budget = scene.PlainBudget(cfg)
+	}
 	opts := scene.Options(cfg)
 
 	stored, err := s.store.MessagesAfter(chatID, ch.SummaryUpto)
@@ -297,7 +302,15 @@ func (s *Server) housekeep(chatID int64, cast []chars.Character) {
 		aged, _ := chars.SplitForCompaction(hist, budget)
 		if len(aged) > 0 {
 			upto := stored[len(aged)-1].ID
-			next, err := chars.CompactFor(ctx, s.client(), model, ch.Summary, aged, cast, p, opts, budget)
+			// A conversation and a scene need different questions asked of the
+			// summariser: what was decided against who is standing where.
+			var next string
+			var err error
+			if plain {
+				next, err = chars.CompactPlain(ctx, s.client(), model, ch.Summary, aged, p, opts, budget)
+			} else {
+				next, err = chars.CompactFor(ctx, s.client(), model, ch.Summary, aged, cast, p, opts, budget)
+			}
 			if err != nil {
 				log.Printf("astral: compacting %d from a phone: %v", chatID, err)
 			} else if err := s.store.SetChatSummary(chatID, next, upto); err != nil {

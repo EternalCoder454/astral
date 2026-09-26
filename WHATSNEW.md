@@ -3,6 +3,11 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.4.5
+- A world designer: the model interviews you and writes the setting and its lorebook
+- General chat keeps a record of itself instead of losing its own beginning
+- Your standing rules and who you are now reach general chat too
+
 ## 0.4.4
 - Standing rules: a list you switch on and off, instead of one box you retype
 - Settings is three pages rather than five, and Updates is now About
