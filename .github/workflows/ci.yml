@@ -1,0 +1,81 @@
+# Build, vet and test on every push.
+#
+# This did not exist for a long time, and the Windows and Android workflows
+# hid it: they build the app, so a green tick meant the code compiled
+# somewhere, while the tests only ever ran on one laptop before a push. A test
+# suite nobody is obliged to run is a test suite that eventually stops passing.
+
+name: ci
+
+on:
+  push:
+    branches: [beta, release]
+    paths-ignore: ["**.md", "screenshots/**", "packaging/android/**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # cgo against the real libraries, because gotk4 is a binding rather than
+      # a reimplementation and there is nothing to test without them.
+      - name: Install GTK and libadwaita
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-4-dev libadwaita-1-dev libgirepository1.0-dev
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "these files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      # -short skips everything that needs a model server, which a runner does
+      # not have. What is left is every pure function in the project: the
+      # prompt assembly, the budget arithmetic, the markup escaping, the
+      # pairing, the store.
+      - name: Test
+        run: go test -short ./...
+
+      # The race detector cannot initialise GTK (checkptr aborts inside a gotk4
+      # dependency), so the packages that touch it are tagged out of it and the
+      # rest still get checked.
+      - name: Test under the race detector
+        run: go test -race -short ./...
+
+  staticcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install GTK and libadwaita
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-4-dev libadwaita-1-dev libgirepository1.0-dev
+      - name: Staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          "$(go env GOPATH)/bin/staticcheck" ./...

@@ -3,6 +3,7 @@ package ollama
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -325,5 +326,44 @@ func TestFindLoaded(t *testing.T) {
 	}
 	if _, ok := FindLoaded(loaded, "qwen3.5-abliterated:4b"); ok {
 		t.Error("FindLoaded matched on a partial name, which would confuse two models")
+	}
+}
+
+// A server that does not answer has to be distinguishable from one that
+// answers with a refusal, because only the first is worth telling someone how
+// to fix. Matching the message text instead breaks when the wording changes,
+// which is the bug this replaced.
+func TestUnreachableIsMatchableByIdentity(t *testing.T) {
+	// Nothing listening on this port.
+	c := NewClient("http://127.0.0.1:1")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	_, err := c.Probe(ctx)
+	if err == nil {
+		t.Fatal("probing a dead address succeeded")
+	}
+	if !errors.Is(err, ErrUnreachable) {
+		t.Errorf("errors.Is(err, ErrUnreachable) is false for %v", err)
+	}
+	// And the cause survives the wrapping, so a caller can still look deeper.
+	if errors.Is(err, context.Canceled) {
+		t.Error("a connection failure was reported as a cancellation")
+	}
+}
+
+// A cancelled request must be recognisable as cancelled however deeply it is
+// wrapped on the way back.
+func TestCancellationSurvivesWrapping(t *testing.T) {
+	c := NewClient("http://127.0.0.1:1")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := c.Probe(ctx)
+	if err == nil {
+		t.Fatal("a cancelled probe succeeded")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("errors.Is(err, context.Canceled) is false for %v", err)
 	}
 }

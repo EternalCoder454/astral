@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -321,7 +322,11 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	}
 	row.EndStreaming()
 
-	cancelled := err != nil && (strings.Contains(err.Error(), "context canceled") || err == context.Canceled)
+	// errors.Is rather than a message match: the error arrives wrapped, so
+	// comparing it directly misses, and comparing its text breaks whenever the
+	// wording upstream changes. A deadline counts too, because to the person
+	// waiting it is the same thing.
+	cancelled := errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 	if err != nil && !cancelled {
 		// A failed turn leaves nothing useful behind, so the empty row goes
 		// with it rather than sitting in the transcript as a blank message.
@@ -587,7 +592,7 @@ func (c *ChatView) maybeCompact() {
 func friendlyError(err error) string {
 	s := err.Error()
 	switch {
-	case strings.Contains(s, "cannot reach Ollama"):
+	case errors.Is(err, ollama.ErrUnreachable):
 		return "Ollama isn't running. Start it with `ollama serve`, then try again."
 	case strings.Contains(s, "not found") || strings.Contains(s, "404"):
 		return "That model isn't installed. Pull it with `ollama pull <model>` and try again."

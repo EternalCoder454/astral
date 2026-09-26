@@ -16,6 +16,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -274,6 +275,12 @@ func (c *Client) Structured(ctx context.Context, model string, msgs []Message, o
 	return []byte(out), stats, nil
 }
 
+// ErrUnreachable means the model server did not answer at all, as opposed to
+// answering with a refusal. Callers tell the two apart with errors.Is: the
+// first is worth telling someone how to fix, and matching the message text
+// instead breaks the moment the wording changes.
+var ErrUnreachable = errors.New("cannot reach the model server")
+
 // rejectsThinking reports whether an error is the server refusing the think
 // parameter, rather than a failure worth surfacing.
 func rejectsThinking(err error) bool {
@@ -305,7 +312,7 @@ func (c *Client) chat(ctx context.Context, model string, msgs []Message, opts Op
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return Message{}, Stats{}, fmt.Errorf("cannot reach Ollama at %s: %w", c.BaseURL, err)
+		return Message{}, Stats{}, fmt.Errorf("cannot reach Ollama at %s: %w: %w", c.BaseURL, ErrUnreachable, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -411,7 +418,7 @@ func (c *Client) Models(ctx context.Context) ([]Model, error) {
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("cannot reach Ollama at %s: %w", c.BaseURL, err)
+		return nil, fmt.Errorf("cannot reach Ollama at %s: %w: %w", c.BaseURL, ErrUnreachable, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -471,7 +478,7 @@ func (c *Client) CanSee(ctx context.Context, model string) (bool, error) {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return false, fmt.Errorf("cannot reach Ollama at %s: %w", c.BaseURL, err)
+		return false, fmt.Errorf("cannot reach Ollama at %s: %w: %w", c.BaseURL, ErrUnreachable, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -566,7 +573,7 @@ func (c *Client) Running(ctx context.Context) ([]Loaded, error) {
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("cannot reach Ollama at %s: %w", c.BaseURL, err)
+		return nil, fmt.Errorf("cannot reach Ollama at %s: %w: %w", c.BaseURL, ErrUnreachable, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
