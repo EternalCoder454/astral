@@ -3,6 +3,13 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.4.1
+- The phone interface is themed in Material, so it looks like an Android app rather than a page
+- Opening a character on your phone shows their opening message, as the window does
+- A model pulled while Astral is open now appears without restarting it
+- Long scenes open about three times faster and hold less memory
+- Replies stream more smoothly on a phone, especially with a fast model
+
 ## 0.4.0
 - Edit any message: the transcript is what the model reads, so fixing a line steers the scene
 - Continue a reply that stopped at the reply limit, instead of rerolling it
