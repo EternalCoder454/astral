@@ -1,50 +1,30 @@
 package chars
 
-// Astral measures its prompts in characters, because counting real tokens
-// would mean shipping a tokenizer per model. That is a reasonable trade, but
-// it only works if every budget is derived from the same place. They were not:
-// the transcript cap, the lore cap and the recap cap were three independent
-// constants, chosen separately and never added up against the context window
-// they all had to share.
+// Prompts are measured in characters, not tokens: a tokenizer per model is
+// not worth shipping.
 //
-// Added up, they did not fit. A long scene with a rich card, a full lorebook
-// and a recap built a prompt of about 8,500 tokens against a default window of
-// 8,192, with nothing left over for the reply. What happens then is quiet and
-// bad: the server slides the window forward and drops the *oldest* tokens,
-// which are the system prompt. The scene keeps its small talk and loses the
-// framing that says to use asterisks, the writing style, and the character
-// description. It does not fail; it just gradually stops following the rules,
-// which is exactly what it looked like from the outside.
-//
-// So the window is divided once, here, and everything else asks.
+// Every budget is derived here and nowhere else. A prompt that overruns the
+// window is not an error: the server drops the oldest tokens, which are the
+// system prompt, so the scene keeps its small talk and silently loses its
+// framing.
 
-// charsPerToken converts a token budget into a character budget.
-//
-// The usual rule of thumb is four. This uses three and a half, deliberately:
-// the ratio is worse than four for the things roleplay prose is full of —
-// names, contractions, asterisks, quotation marks — and the cost of guessing
-// low is a slightly shorter transcript, while the cost of guessing high is the
-// silent truncation described above.
+// charsPerToken is 3.5 rather than the usual 4: roleplay prose tokenizes
+// worse, and guessing low costs a shorter transcript while guessing high costs
+// the truncation above.
 const charsPerToken = 3.5
 
-// DefaultReplyTokens is how much room a reply is assumed to need when no
-// explicit limit is set. Four paragraphs of roleplay prose runs to about six
-// hundred tokens; this leaves headroom over that.
+// DefaultReplyTokens is the room reserved for a reply when no limit is set.
+// Four paragraphs runs to about six hundred tokens.
 const DefaultReplyTokens = 1024
 
-// safetyTokens is held back for what this arithmetic cannot see: the chat
-// template's own wrapping, per-message role markers, and the difference
-// between a token estimate and a tokenizer.
+// safetyTokens covers what this arithmetic cannot see: the chat template's
+// wrapping, role markers, and estimate against tokenizer.
 const safetyTokens = 256
 
-// blockFramingChars is the fixed text wrapped around the recap and the lore:
-// the sentences saying what each block is, that it is notes rather than prose,
-// and how to treat it. Around two hundred characters each.
-//
-// It is not part of either block's budget, and it is in every prompt that
-// carries them, so it comes off the top. Lengthening that wording without this
-// is how the worst case went seventeen tokens over an 8k window, which
-// TestWorstCaseNowFits caught.
+// blockFramingChars is the fixed wording around the recap and lore blocks,
+// which is in every prompt carrying them and so comes off the top. Lengthening
+// that wording without raising this overruns the window; TestWorstCaseNowFits
+// holds it.
 const blockFramingChars = 460
 
 // Budget is how many characters each part of a prompt may spend.
@@ -61,11 +41,9 @@ type Budget struct {
 	// so that compaction always triggers before History is exceeded.
 	Compact int
 	Keep    int
-	// Overflows records that the fixed parts did not fit on their own. The
-	// prompt is still sent — a character with a very long description in a
-	// very small window is a real thing to want — but it will be truncated by
-	// the server, and the user is better told than left to wonder why the
-	// scene stopped following its own rules.
+	// Overflows records that the fixed parts did not fit alone. The prompt is
+	// still sent and will be truncated by the server; the user is told rather
+	// than left wondering why the scene stopped following its rules.
 	Overflows bool
 }
 
@@ -84,14 +62,9 @@ const (
 	minRecapChars = 500
 )
 
-// Plan divides a context window between the parts of a prompt.
-//
-// numCtx is the window in tokens, numPredict the reply limit (zero means the
-// default), and fixedChars is the size of everything that is not negotiable:
-// the system prompt with the character, the style and the instructions in it.
-// That is measured rather than estimated, because a rich card and a bare one
-// differ by thousands of characters and the difference has to come out of
-// somewhere.
+// Plan divides a context window between the parts of a prompt. fixedChars is
+// the measured size of the system prompt, which a rich card and a bare one
+// differ on by thousands of characters.
 func Plan(numCtx, numPredict, fixedChars int) Budget {
 	reply := numPredict
 	if reply <= 0 {
@@ -107,12 +80,9 @@ func Plan(numCtx, numPredict, fixedChars int) Budget {
 	}
 
 	b := Budget{}
-	// The system prompt is not negotiable, so it is served first and
-	// everything else divides what is left. Sizing lore and recap against the
-	// whole window instead reads better — a long character card has nothing
-	// to do with how big a lorebook should be — but it does not add up: a
-	// 9,000-character card in a 4,096-token window then plans a prompt larger
-	// than the window, which is the exact bug this file exists to stop.
+	// Served first, because sizing lore and recap against the whole window
+	// instead lets a 9,000-character card in a 4k window plan a prompt larger
+	// than the window.
 	remaining := total - fixedChars
 	if remaining < 0 {
 		remaining = 0
