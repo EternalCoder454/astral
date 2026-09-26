@@ -133,6 +133,10 @@ type ChatView struct {
 	// chars.NarrationPrefill.
 	prefilled bool
 
+	// thinkStream keeps deliberation that arrives inside the reply off the
+	// screen while it streams. See ollama.ThinkStream.
+	thinkStream ollama.ThinkStream
+
 	// collapsed records that this reply was stopped because the model came
 	// apart, and collapseWhy is which way. See looping.go.
 	collapsed   bool

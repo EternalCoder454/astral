@@ -103,11 +103,18 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 	ctx, cancel := context.WithTimeout(r.Context(), sendTimeout)
 	defer cancel()
 
+	// The same fold the window applies while streaming: deliberation that
+	// arrives inside the reply never reaches the phone, rather than appearing
+	// and being tidied away once the turn ends.
+	var think ollama.ThinkStream
 	noThink := false
 	reply, stats, err := s.client().Chat(ctx, model, msgs, scene.Options(cfg), &noThink,
 		func(delta ollama.Delta) {
-			if delta.Content != "" {
-				send("token", map[string]string{"t": delta.Content})
+			if delta.Content == "" {
+				return
+			}
+			if shown, _ := think.Next(delta.Content); shown != "" {
+				send("token", map[string]string{"t": shown})
 			}
 		})
 	if err != nil {
@@ -118,6 +125,9 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 		return
 	}
 
+	if tail, _ := think.Done(); tail != "" {
+		send("token", map[string]string{"t": tail})
+	}
 	content := strings.TrimSpace(reply.Content)
 	thinking := reply.Thinking
 	if inline, rest := ollama.SplitThinking(content); inline != "" {

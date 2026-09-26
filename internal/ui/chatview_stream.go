@@ -262,6 +262,7 @@ func (c *ChatView) startStream() {
 	// is narration whether or not the model meant to mark any.
 	c.prefilled = false
 	c.collapsed, c.collapseWhy = false, ""
+	c.thinkStream = ollama.ThinkStream{}
 	if len(msgs) > 0 && msgs[len(msgs)-1].Role == ollama.RoleSystem && c.wantsPrefill(msgs) {
 		msgs = append(msgs, ollama.Message{Role: ollama.RoleAssistant, Content: chars.NarrationPrefill})
 		c.prefilled = true
@@ -352,6 +353,14 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	// else looks at the text, so it is folded away rather than read as part of
 	// the scene, and so the transcript stores the reply and not the model
 	// talking to itself about its instructions.
+	if tail, held := c.thinkStream.Done(); tail != "" || held != "" {
+		if held != "" {
+			row.AppendThinking(held)
+		}
+		if tail != "" {
+			row.AppendText(tail)
+		}
+	}
 	inlineThinking, content := ollama.SplitThinking(msg.Content)
 	if inlineThinking != "" {
 		msg.Thinking = strings.TrimSpace(msg.Thinking + "\n\n" + inlineThinking)
@@ -668,6 +677,15 @@ func (c *ChatView) drainPending() {
 
 	if c.live == nil || (text == "" && think == "") {
 		return
+	}
+	// A model whose deliberation arrives in the reply rather than in its own
+	// field is folded away as it streams, not at the end. What it thinks about
+	// first is its own instructions, so what would otherwise stream past is the
+	// character sheet and the formatting rules read back aloud.
+	if text != "" {
+		var inline string
+		text, inline = c.thinkStream.Next(text)
+		think += inline
 	}
 	stick := c.atBottom() // decided before the append changes the extent
 	if think != "" {
