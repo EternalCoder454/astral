@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"astral/internal/world"
@@ -74,6 +75,7 @@ func (s *Store) SaveWorld(w world.World) (int64, error) {
 // DeleteWorld removes a world and, by the schema's cascade, its lore. The
 // characters that belonged to it are kept and simply stop having a setting.
 func (s *Store) DeleteWorld(id int64) error {
+	s.lore.forget(id)
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if _, err := s.db.Exec(`UPDATE characters SET world_id = 0 WHERE world_id = ?`, id); err != nil {
@@ -83,8 +85,62 @@ func (s *Store) DeleteWorld(id int64) error {
 	return err
 }
 
+// The lorebook is read on every turn and changes on almost none of them, so it
+// is kept in memory between reads.
+//
+// It is worth the cache rather than worth optimising: at four hundred entries
+// the read was 1.4ms and 7,800 allocations per turn, against 0.8ms to actually
+// match them, and it ran on the thread drawing the window. Writes go through
+// this file, so this is the one place that knows when it has gone stale.
+type loreCache struct {
+	mu      sync.RWMutex
+	entries map[int64][]world.Entry
+}
+
+func (c *loreCache) get(worldID int64) ([]world.Entry, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	e, ok := c.entries[worldID]
+	if !ok {
+		return nil, false
+	}
+	// A copy of the slice, so a caller sorting or trimming what it was given
+	// cannot reach back into the cache. The entries themselves are treated as
+	// read-only by everything that takes them.
+	out := make([]world.Entry, len(e))
+	copy(out, e)
+	return out, true
+}
+
+func (c *loreCache) put(worldID int64, entries []world.Entry) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.entries == nil {
+		c.entries = map[int64][]world.Entry{}
+	}
+	stored := make([]world.Entry, len(entries))
+	copy(stored, entries)
+	c.entries[worldID] = stored
+}
+
+// forget drops a world, or everything when the world is not known: a lore
+// entry is deleted by its own id, and finding out which world it belonged to
+// would be a query to save a map lookup.
+func (c *loreCache) forget(worldID int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if worldID == 0 {
+		c.entries = nil
+		return
+	}
+	delete(c.entries, worldID)
+}
+
 // LoreEntries returns a world's lorebook.
 func (s *Store) LoreEntries(worldID int64) ([]world.Entry, error) {
+	if cached, ok := s.lore.get(worldID); ok {
+		return cached, nil
+	}
 	rows, err := s.db.Query(`
 		SELECT id, world_id, name, "keys", content, enabled, constant, auto, priority,
 		       confidence, created_at, updated_at
@@ -107,7 +163,11 @@ func (s *Store) LoreEntries(worldID int64) ([]world.Entry, error) {
 		e.CreatedAt, e.UpdatedAt = fromUnix(created), fromUnix(updated)
 		out = append(out, e)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.lore.put(worldID, out)
+	return out, nil
 }
 
 // SaveLoreEntry inserts or updates an entry.
@@ -121,6 +181,7 @@ func (s *Store) LoreEntries(worldID int64) ([]world.Entry, error) {
 // wrote lore themselves has made a decision, and a background process quietly
 // replacing it would be the worst kind of surprise.
 func (s *Store) SaveLoreEntry(e world.Entry) (int64, error) {
+	s.lore.forget(e.WorldID)
 	name := strings.TrimSpace(e.Name)
 	if name == "" {
 		return 0, fmt.Errorf("a lore entry needs a name")
@@ -169,6 +230,7 @@ var ErrWouldOverwriteManual = fmt.Errorf("entry was written by hand and will not
 
 // DeleteLoreEntry removes one entry.
 func (s *Store) DeleteLoreEntry(id int64) error {
+	s.lore.forget(0)
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	_, err := s.db.Exec(`DELETE FROM lore_entries WHERE id = ?`, id)

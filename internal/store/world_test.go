@@ -281,3 +281,87 @@ func TestChatRemembersItsWorld(t *testing.T) {
 		t.Errorf("the sidebar listing lost the world: %+v", list)
 	}
 }
+
+// The lorebook is cached between turns, so every write has to drop it or a
+// scene keeps using entries that were edited or deleted minutes ago.
+func TestLoreCacheIsDroppedOnEveryWrite(t *testing.T) {
+	s := openTest(t)
+	wid, err := s.SaveWorld(world.World{Name: "Kestrel Bay"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	add := func(name string) int64 {
+		id, err := s.SaveLoreEntry(world.Entry{
+			WorldID: wid, Name: name, Keys: []string{name}, Content: "A fact.", Enabled: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	count := func() int {
+		got, err := s.LoreEntries(wid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(got)
+	}
+
+	add("Sever")
+	if n := count(); n != 1 { // fills the cache
+		t.Fatalf("after one entry, count = %d", n)
+	}
+	id := add("Kestrel")
+	if n := count(); n != 2 {
+		t.Errorf("a new entry was not visible: count = %d, want 2", n)
+	}
+	if err := s.DeleteLoreEntry(id); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(); n != 1 {
+		t.Errorf("a deleted entry was still visible: count = %d, want 1", n)
+	}
+
+	// An edit to an existing entry has to show as well, not just a new row.
+	entries, _ := s.LoreEntries(wid)
+	entries[0].Content = "A different fact."
+	if _, err := s.SaveLoreEntry(entries[0]); err != nil {
+		t.Fatal(err)
+	}
+	again, _ := s.LoreEntries(wid)
+	if again[0].Content != "A different fact." {
+		t.Errorf("an edit was not visible: %q", again[0].Content)
+	}
+}
+
+// What a caller is handed must not be a window into the cache: sorting or
+// trimming it is normal, and it must not reach back.
+func TestLoreCacheHandsOutCopies(t *testing.T) {
+	s := openTest(t)
+	wid, _ := s.SaveWorld(world.World{Name: "Kestrel Bay"})
+	for _, n := range []string{"one", "two", "three"} {
+		if _, err := s.SaveLoreEntry(world.Entry{
+			WorldID: wid, Name: n, Keys: []string{n}, Content: "A fact.", Enabled: true,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, _ := s.LoreEntries(wid)
+	if len(first) != 3 {
+		t.Fatalf("got %d entries", len(first))
+	}
+	// Both the kinds of handling a caller does: editing an entry, and keeping
+	// only some of them.
+	first[0].Name = "clobbered"
+	_ = first[:1]
+
+	second, _ := s.LoreEntries(wid)
+	if len(second) != 3 {
+		t.Errorf("the cache was truncated by its caller: %d entries", len(second))
+	}
+	for _, e := range second {
+		if e.Name == "clobbered" {
+			t.Error("a caller's edit reached back into the cache")
+		}
+	}
+}

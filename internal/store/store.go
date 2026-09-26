@@ -18,6 +18,8 @@ import (
 // drives two choices below: synchronous=FULL rather than NORMAL, and a
 // corrupt file being quarantined and reported rather than quietly replaced.
 type Store struct {
+	// lore keeps the lorebook in memory between turns; see world.go.
+	lore loreCache
 	db   *sql.DB
 	path string
 
