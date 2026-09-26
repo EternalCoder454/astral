@@ -148,6 +148,30 @@ func scrolled(child gtk.Widgetter) *gtk.ScrolledWindow {
 	return s
 }
 
+// fitToContentHeight is the tallest a self-sizing dialog will ask to be. Past
+// this it scrolls, which is what the scrolled window was for.
+const fitToContentHeight = 560
+
+// scrolledToFit is scrolled() for a dialog with no fixed height.
+//
+// A GtkScrolledWindow reports a natural height of nothing by default: it is
+// happy at any size and expects to be given one. A dialog that sets no content
+// height asks its child how tall it wants to be, gets that nothing back, and
+// presents as a title bar with one row under it and the rest of the form
+// clipped away. That shipped, twice, because the fix everywhere else was to
+// give the dialog a fixed height and these two were written without one.
+//
+// So this reports the height its content actually wants, up to a limit. Use it
+// for a dialog short enough to be sized by what is in it; use scrolled with an
+// explicit SetContentHeight for one that is not, and the test next door holds
+// that choice to being made.
+func scrolledToFit(child gtk.Widgetter) *gtk.ScrolledWindow {
+	s := scrolled(child)
+	s.SetPropagateNaturalHeight(true)
+	s.SetMaxContentHeight(fitToContentHeight)
+	return s
+}
+
 // groupCard is the bordered container settings and dialogs group fields into.
 func groupCard(title string) (*gtk.Box, *gtk.Box) {
 	outer := gtk.NewBox(gtk.OrientationVertical, 6)

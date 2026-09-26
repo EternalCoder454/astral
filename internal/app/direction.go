@@ -98,7 +98,7 @@ func (a *App) editDirection() {
 
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(header)
-	tv.SetContent(scrolled(page))
+	tv.SetContent(scrolledToFit(page))
 	d.SetChild(tv)
 	d.Present(a.win)
 	view.GrabFocus()
