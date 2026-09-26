@@ -11,7 +11,7 @@ import (
 
 // The designer is a conversation whose product is a character.
 //
-// Writing a good card is genuinely hard — the fields interact, the opening
+// Writing a good card is genuinely hard, the fields interact, the opening
 // message sets the style for everything after it, and a description that reads
 // well to a person can still give a model nothing to act on. Being interviewed
 // about it is far easier than facing eight empty text boxes, and the model is
@@ -29,7 +29,7 @@ Your job is to interview them, not to lecture them. Follow these rules:
 - Offer concrete suggestions they can accept or reject, rather than open-ended prompts. "Is she bitter about it, or does she find it funny?" beats "What is her personality?"
 - The person playing opposite this character is written {{user}}, and the character themselves {{char}}. You do not need to use those while talking, but the card you eventually produce will.
 - Keep your messages short: a few sentences. This is a conversation, not a form.
-- When you have enough for a rounded character (who they are, how they speak, the situation, and how a scene with them opens), say so plainly and tell them to press "Create character".
+- When you have enough for a rounded character (who they are, how they speak, the situation, and how a scene with them opens), say so plainly and tell them to press "Create Character".
 
 Do not write the character card yourself, and do not output JSON. That happens separately. Just talk it through with them.`
 
@@ -46,7 +46,7 @@ Tell me anything to start, a role, a setting, a line of dialogue you want to hea
 If you'd rather I just invent one, say so and tell me what kind of story you're in the mood for.`
 
 // characterSchema constrains the extraction call. Ollama restricts decoding to
-// this schema, so the reply parses — the difference between this and asking
+// this schema, so the reply parses, the difference between this and asking
 // for JSON in a prompt and hoping.
 //
 // The field names are the character-card spec's, which means the result is a
@@ -113,7 +113,7 @@ func BuildFromConversation(ctx context.Context, client *ollama.Client, model str
 
 // A writing style is harder to write than it looks. "Be more descriptive" is
 // not an instruction a model can act on, and the difference between a style
-// that works and one that does nothing is usually specificity — naming the
+// that works and one that does nothing is usually specificity, naming the
 // sentence length, the tense, what to leave out. So styles get the same
 // treatment characters do: a conversation, then a structured extraction.
 
@@ -126,7 +126,7 @@ Your job is to interview them, not to lecture them. Follow these rules:
 - Offer concrete alternatives they can pick between, rather than open questions. "Short, clipped sentences, or long ones that run on?" beats "What rhythm do you want?"
 - Anchor on things a model can actually follow: paragraph count, sentence length, tense, how much interiority, how dialogue is punctuated, what to avoid.
 - Keep your messages short. This is a conversation, not a form.
-- When you have enough, say so plainly and tell them to press "Create style".
+- When you have enough, say so plainly and tell them to press "Create Style".
 
 Do not write the style rules yourself yet, and do not output JSON. That happens separately. Just talk it through with them.
 
@@ -223,7 +223,7 @@ func BuildStyleFromConversation(ctx context.Context, client *ollama.Client, mode
 
 // assembleStyle turns the answered fields into the labelled block the editor
 // shows and the prompt carries. Missing fields are skipped rather than
-// printed as empty headings — the schema requires them, but a model can still
+// printed as empty headings, the schema requires them, but a model can still
 // answer one with whitespace.
 func assembleStyle(fields map[string]string) string {
 	var b strings.Builder

@@ -2,9 +2,9 @@
 // prose: folding an old scene into a recap, and reading one for what it
 // established about the world.
 //
-// Which small model does them is not answerable from a model card — the work
+// Which small model does them is not answerable from a model card, the work
 // is long-input comprehension, schema-constrained JSON, and a willingness to
-// summarise fiction a safety-tuned model will sanitise — so it is measured.
+// summarise fiction a safety-tuned model will sanitise, so it is measured.
 //
 //	go test ./internal/eval/ -run TestHousekeeping -v \
 //	    -models "huihui_ai/qwen3.5-abliterated:4b,huihui_ai/gemma3-abliterated:4b"
@@ -35,7 +35,7 @@ var (
 //
 // Some of it is violent and some of it is criminal, on purpose. That is
 // ordinary fiction, and it is exactly the material a safety-tuned model
-// declines to summarise or quietly launders into "a difficult past" — which
+// declines to summarise or quietly launders into "a difficult past", which
 // would corrupt the scene's memory rather than merely refuse it. A model that
 // cannot do this job has to fail the test visibly.
 var scene = []ollama.Message{

@@ -17,7 +17,7 @@ import (
 
 // The welcome screen is what you see with no chat open. It has one job beyond
 // looking like the front of an app: to tell you, honestly, whether Astral can
-// actually do anything right now — and if not, exactly what to run.
+// actually do anything right now, and if not, exactly what to run.
 
 // buildWelcome constructs the home screen. Its contents are rebuilt by
 // refreshWelcome whenever the model probe or the cast changes.
@@ -31,7 +31,7 @@ func (a *App) buildWelcome() *gtk.Widget {
 	a.welcomeBox.SetMarginBottom(24)
 
 	// A clamp, not a size request. The welcome page shares a GtkStack with the
-	// chat, and a stack's minimum width is the widest of its children — so a
+	// chat, and a stack's minimum width is the widest of its children, so a
 	// hard 560px here became a 560px floor on the whole window, and no amount
 	// of fixing the transcript could make the app narrower than the page you
 	// are not even looking at.
@@ -126,7 +126,7 @@ func (a *App) appendWorlds() {
 	if len(worlds) > maxShown {
 		more.SetLabel(fmt.Sprintf("All %d worlds…", len(worlds)))
 	} else {
-		more.SetLabel("Manage worlds")
+		more.SetLabel("Manage Worlds")
 	}
 	more.SetTooltipText("Create a world, or open one's lorebook")
 	more.ConnectClicked(a.showWorlds)
@@ -233,14 +233,14 @@ func (a *App) appendCast() {
 
 	design := gtk.NewButton()
 	design.AddCSSClass("welcome-action")
-	design.SetLabel("New character")
+	design.SetLabel("New Character")
 	design.SetTooltipText("The model interviews you, then writes the character")
 	design.ConnectClicked(a.newDesignerChat)
 	row.Append(design)
 
 	plain := gtk.NewButton()
 	plain.AddCSSClass("welcome-action")
-	plain.SetLabel("General chat")
+	plain.SetLabel("General Chat")
 	plain.SetTooltipText("A conversation with the model, no character and no roleplay")
 	plain.ConnectClicked(a.newAssistantChat)
 	row.Append(plain)
@@ -279,14 +279,14 @@ func (a *App) buildEmptyCast() *gtk.Box {
 	// easier way in.
 	row := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	row.SetHAlign(gtk.AlignStart)
-	design := gtk.NewButtonWithLabel("New character")
+	design := gtk.NewButtonWithLabel("New Character")
 	design.AddCSSClass("suggested-action")
 	design.ConnectClicked(a.newDesignerChat)
 	row.Append(design)
-	imp := gtk.NewButtonWithLabel("Import a character")
+	imp := gtk.NewButtonWithLabel("Import a Character")
 	imp.ConnectClicked(a.actionImportCharacter)
 	row.Append(imp)
-	write := gtk.NewButtonWithLabel("Write one yourself")
+	write := gtk.NewButtonWithLabel("Write One Yourself")
 	write.ConnectClicked(func() { a.editCharacter(chars.Character{}) })
 	row.Append(write)
 	card.Append(row)
@@ -388,7 +388,7 @@ func (a *App) buildSetupCard() *gtk.Box {
 	row := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	row.SetHAlign(gtk.AlignStart)
 	if cmd != "" {
-		copyBtn := gtk.NewButtonWithLabel("Copy command")
+		copyBtn := gtk.NewButtonWithLabel("Copy Command")
 		copyBtn.ConnectClicked(func() {
 			if d := gtk.BaseWidget(a.win).Display(); d != nil {
 				d.Clipboard().SetText(cmd)
@@ -405,7 +405,7 @@ func (a *App) buildSetupCard() *gtk.Box {
 	})
 	row.Append(retry)
 	if a.probeErr == nil && len(a.models) > 0 {
-		pick := gtk.NewButtonWithLabel("Choose a model")
+		pick := gtk.NewButtonWithLabel("Choose a Model")
 		pick.ConnectClicked(a.showModelPicker)
 		row.Append(pick)
 	}

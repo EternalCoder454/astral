@@ -259,8 +259,8 @@ func TestLiveDriftEscalationRecovers(t *testing.T) {
 
 // A direction has two ways to fail and they pull in opposite directions. It
 // can be ignored, which makes the control useless; or it can be obeyed too
-// literally, with the model narrating the instruction itself — "she was about
-// to realise he had lied" — which is worse than ignoring it, because it hands
+// literally, with the model narrating the instruction itself, "she was about
+// to realise he had lied", which is worse than ignoring it, because it hands
 // the reader the thing the scene was supposed to play out.
 //
 // So arrival is measured over several turns rather than one. The prompt tells

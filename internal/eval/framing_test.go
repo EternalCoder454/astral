@@ -32,7 +32,7 @@ const (
 
 // Turns that tempt a model to take the user's turn. A scene where the user has
 // just acted decisively gives the model nothing to take, so it would measure
-// nothing — an earlier version of this list was passive rather than inviting
+// nothing, an earlier version of this list was passive rather than inviting
 // and came back zero against zero, control included.
 //
 // What actually tempts it is delegation and joint movement: a turn that hands

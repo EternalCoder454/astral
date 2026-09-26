@@ -51,7 +51,7 @@ func TestSplitForCompactionKeepsTheRecentHalf(t *testing.T) {
 		t.Fatal("nothing was aged out of a scene well over the threshold")
 	}
 	if len(recent) == 0 {
-		t.Fatal("the recent half is empty — there would be nothing to reply to")
+		t.Fatal("the recent half is empty, there would be nothing to reply to")
 	}
 	if len(aged)+len(recent) != len(history) {
 		t.Errorf("split lost turns: %d + %d != %d", len(aged), len(recent), len(history))
@@ -82,7 +82,7 @@ func TestSplitLeavesShortScenesAlone(t *testing.T) {
 }
 
 // A single turn larger than the whole verbatim budget must not produce an
-// empty recent half — the model would have nothing to answer.
+// empty recent half, the model would have nothing to answer.
 func TestSplitSurvivesOneEnormousTurn(t *testing.T) {
 	history := []ollama.Message{
 		{Role: ollama.RoleUser, Content: strings.Repeat("a", 5000)},
@@ -222,7 +222,7 @@ func TestRecapAppearsBeforeTheTranscript(t *testing.T) {
 		t.Fatalf("the recap never reached the model:\n%+v", msgs)
 	}
 	if turnAt < 0 || recapAt > turnAt {
-		t.Errorf("recap at %d, transcript at %d — it must come first", recapAt, turnAt)
+		t.Errorf("recap at %d, transcript at %d, it must come first", recapAt, turnAt)
 	}
 	if !strings.Contains(msgs[recapAt].Content, "established fact") {
 		t.Errorf("the recap is not marked as fact:\n%s", msgs[recapAt].Content)

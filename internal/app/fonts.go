@@ -11,8 +11,8 @@ import (
 )
 
 // GTK 4 renders text unhinted with grayscale antialiasing and does not round
-// font metrics. On a HiDPI screen that is invisible and correct. At scale 1 —
-// an ordinary 1080p monitor — it makes glyphs soft and line spacing uneven
+// font metrics. On a HiDPI screen that is invisible and correct. At scale 1,
+// an ordinary 1080p monitor, it makes glyphs soft and line spacing uneven
 // next to everything else on the desktop. Astral picks per display, and the
 // setting lets you overrule it.
 const hidpiThreshold = 2
@@ -107,7 +107,7 @@ func lowDensityDisplay() bool {
 }
 
 // watchScaleChanges re-applies the settings when the window moves to a screen
-// with a different pixel density — only while the mode is automatic.
+// with a different pixel density, only while the mode is automatic.
 func (a *App) watchScaleChanges() {
 	if a.win == nil || a.cfg.FontRendering != store.FontRenderingAuto {
 		return
@@ -147,7 +147,7 @@ func setSetting(settings *gtk.Settings, name string, value any) {
 }
 
 // debugFontSettings prints the resolved settings when ASTRAL_DEBUG_FONTS is
-// set — the first thing to check on a report of soft or uneven text.
+// set, the first thing to check on a report of soft or uneven text.
 func debugFontSettings(settings *gtk.Settings, mode string) {
 	if os.Getenv("ASTRAL_DEBUG_FONTS") == "" {
 		return

@@ -41,7 +41,7 @@ type MessageOpts struct {
 	Accent      int
 	Mode        Prose
 	// Grouped means the turn above is from the same speaker, so the name and
-	// avatar are omitted and the bubbles read as one run — the thing that
+	// avatar are omitted and the bubbles read as one run, the thing that
 	// makes a long exchange look like a conversation rather than a list.
 	Grouped bool
 	When    time.Time
@@ -107,7 +107,7 @@ func NewMessageRow(o MessageOpts) *MessageRow {
 	}
 	// halign only sizes a widget to its natural width while nothing is asking
 	// to expand. hexpand propagates up from any descendant that sets it, and a
-	// single one anywhere in the row makes GTK treat halign as Fill — which is
+	// single one anywhere in the row makes GTK treat halign as Fill, which is
 	// how a bubble whose natural width was correctly capped at ~430px ended up
 	// allocated 800. Denying expansion explicitly at every level of the row is
 	// what makes the cap take effect.
@@ -168,7 +168,7 @@ func NewMessageRow(o MessageOpts) *MessageRow {
 	// The bubble goes inside a clamp, and this is the part that actually
 	// controls its width. max-width-chars below bounds the label's *natural*
 	// width, but a wrapping GtkLabel also answers "how wide to fit this height"
-	// during allocation, and that answer grows with the amount of text — which
+	// during allocation, and that answer grows with the amount of text, which
 	// is why bubbles were coming out 800px wide with a natural of 430, and why
 	// neither halign nor hexpand=false made any difference. A clamp is the one
 	// thing that overrides it.
@@ -240,7 +240,7 @@ func (m *MessageRow) ensureThinking() {
 	}
 	m.thinkBox = gtk.NewBox(gtk.OrientationVertical, 0)
 	m.thinkToggle = gtk.NewToggleButton()
-	m.thinkToggle.SetLabel("Show reasoning")
+	m.thinkToggle.SetLabel("Show Reasoning")
 	m.thinkToggle.SetHAlign(gtk.AlignStart)
 	m.thinkToggle.AddCSSClass("thinking-toggle")
 
@@ -260,9 +260,9 @@ func (m *MessageRow) ensureThinking() {
 		on := m.thinkToggle.Active()
 		m.thinkRevea.SetRevealChild(on)
 		if on {
-			m.thinkToggle.SetLabel("Hide reasoning")
+			m.thinkToggle.SetLabel("Hide Reasoning")
 		} else {
-			m.thinkToggle.SetLabel("Show reasoning")
+			m.thinkToggle.SetLabel("Show Reasoning")
 		}
 	})
 	m.thinkBox.Append(m.thinkToggle)

@@ -213,7 +213,7 @@ func TestGroupPromptIsStableBetweenTurns(t *testing.T) {
 
 // TestCompactPromptNamesTheWholeCast is the bug groups introduced. The recap is
 // the only surviving record of the turns it replaces, so a group summarised as a
-// two-hander loses everything the other characters did — invisibly, and only in
+// two-hander loses everything the other characters did, invisibly, and only in
 // scenes long enough to have been worth keeping.
 func TestCompactPromptNamesTheWholeCast(t *testing.T) {
 	aged := []ollama.Message{

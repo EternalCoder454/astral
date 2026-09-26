@@ -71,7 +71,7 @@ func TestBuildFromConversation(t *testing.T) {
 		t.Errorf("Tags = %v", c.Tags)
 	}
 
-	// The request must carry a schema — that is what makes the reply parse
+	// The request must carry a schema, that is what makes the reply parse
 	// rather than merely usually parse.
 	if req["format"] == nil {
 		t.Error("no schema was sent; the model was only asked nicely for JSON")
@@ -127,7 +127,7 @@ func TestBuildFromConversationRejectsUnusableResult(t *testing.T) {
 }
 
 // The designed character has to survive the round trip into a real roleplay
-// prompt — this is the join between the two halves of the feature.
+// prompt, this is the join between the two halves of the feature.
 func TestDesignedCharacterProducesAUsablePrompt(t *testing.T) {
 	c, err := ParseCard([]byte(designedCard))
 	if err != nil {

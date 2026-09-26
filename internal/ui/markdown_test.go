@@ -93,7 +93,7 @@ var allowedTags = map[string]bool{
 // TestNoMarkupInjection is the property that actually matters: whatever a model
 // writes, the only tags in the rendered output are ours. A model that emits
 // <span foreground="red"> or a raw &#60; must come out as visible text, not as
-// markup — otherwise a character card could style, or break, the transcript.
+// markup, otherwise a character card could style, or break, the transcript.
 func TestNoMarkupInjection(t *testing.T) {
 	hostile := []string{
 		`<span foreground="red">red</span>`,

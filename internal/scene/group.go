@@ -70,8 +70,8 @@ func GroupBudget(cfg store.Config, cast []chars.Character, p chars.Persona) char
 // whichever entries the conversation is currently touching.
 //
 // The world comes from the first member that has one. A cast drawn from two
-// worlds is a scene that has to happen in one of them, and the alternative —
-// concatenating two lorebooks — spends the budget twice to describe a place that
+// worlds is a scene that has to happen in one of them, and the alternative,
+// concatenating two lorebooks, spends the budget twice to describe a place that
 // does not exist.
 func GroupLore(st *store.Store, cast []chars.Character, hist []ollama.Message, budget int) string {
 	var host chars.Character

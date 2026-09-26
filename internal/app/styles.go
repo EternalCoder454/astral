@@ -17,11 +17,11 @@ import (
 
 // showStyles lists the writing styles and lets one be chosen, edited or
 // removed. It mirrors the character list deliberately: the two are the same
-// kind of thing — a named bundle of instructions — and there is no reason for
+// kind of thing, a named bundle of instructions, and there is no reason for
 // them to be managed in two different shapes.
 func (a *App) showStyles() {
 	d := adw.NewDialog()
-	d.SetTitle("Writing styles")
+	d.SetTitle("Writing Styles")
 	d.SetContentWidth(560)
 	d.SetContentHeight(620)
 
@@ -76,7 +76,7 @@ func (a *App) styleRow(st chars.WritingStyle, active bool, parent *adw.Dialog) *
 	name.AddCSSClass("character-card-name")
 	head.Append(name)
 	if active {
-		badge := gtk.NewLabel("In use")
+		badge := gtk.NewLabel("In Use")
 		badge.AddCSSClass("character-card-tag")
 		head.Append(badge)
 	}
@@ -153,7 +153,7 @@ func (a *App) styleRow(st chars.WritingStyle, active bool, parent *adw.Dialog) *
 func (a *App) editStyle(st chars.WritingStyle, isNew bool) {
 	d := adw.NewDialog()
 	if isNew {
-		d.SetTitle("New writing style")
+		d.SetTitle("New Writing Style")
 	} else {
 		d.SetTitle("Edit " + st.Name)
 	}
@@ -234,7 +234,7 @@ func (a *App) editStyle(st chars.WritingStyle, isNew bool) {
 
 // newStyleDesignerChat opens a conversation whose product is a writing style.
 func (a *App) newStyleDesignerChat() {
-	a.startPlainChat(store.KindStyleDesigner, "Designing a writing style", chars.StyleDesignerOpening)
+	a.startPlainChat(store.KindStyleDesigner, "Designing a Writing Style", chars.StyleDesignerOpening)
 }
 
 // buildStyleFromChat turns the open design conversation into a style, opening

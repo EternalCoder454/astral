@@ -51,7 +51,7 @@ func (a *App) showSettings() { a.showSettingsPage("") }
 func (a *App) showSettingsPage(page string) {
 	// Asked again on the way in. The list was only ever fetched at launch and
 	// after a save, so a model pulled while Astral was open did not exist as
-	// far as the window was concerned until it was restarted — which looks
+	// far as the window was concerned until it was restarted, which looks
 	// exactly like the model not being installed.
 	a.probeModels()
 
@@ -122,9 +122,9 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	if len(f.models) == 0 {
 		hint = "Nothing installed yet. Run `ollama pull qwen3:8b`, then reopen this."
 	}
-	card.Append(labelledField("Default model", hint, f.model))
+	card.Append(labelledField("Default Model", hint, f.model))
 
-	refresh := gtk.NewButtonWithLabel("Check again")
+	refresh := gtk.NewButtonWithLabel("Check Again")
 	refresh.SetHAlign(gtk.AlignStart)
 	refresh.ConnectClicked(func() {
 		a.probeModels()
@@ -142,13 +142,13 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	// row 0 already means something and an unset value would silently select a
 	// background model nobody chose.
 	f.housekeeping.SetSelected(uint(housekeepingRow(f.models, a.cfg.HousekeepingModel)))
-	card.Append(labelledField("Background model",
+	card.Append(labelledField("Background Model",
 		"Writes the recap and keeps the lorebook. It stays in memory beside your main model, so pick a small one.",
 		f.housekeeping))
 
 	f.baseURL = gtk.NewEntry()
 	f.baseURL.SetText(a.cfg.BaseURL)
-	card.Append(labelledField("Ollama address",
+	card.Append(labelledField("Ollama Address",
 		"Change this only if Ollama runs somewhere other than this machine's default port.",
 		f.baseURL))
 	page.Append(outer)
@@ -168,14 +168,14 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 		f.topP))
 
 	f.repeat = newSlider(1, 1.5, 0.01, a.cfg.RepeatPenalty)
-	sCard.Append(labelledField("Repetition penalty",
+	sCard.Append(labelledField("Repetition Penalty",
 		fmt.Sprintf("Higher pushes harder against phrases the model has already used, at the "+
 			"cost of sounding forced. Default is %.2f.", store.DefaultRepeatPenalty),
 		f.repeat))
 
 	f.numCtx = gtk.NewEntry()
 	f.numCtx.SetText(fmt.Sprintf("%d", a.cfg.NumCtx))
-	sCard.Append(labelledField("Context size (tokens)",
+	sCard.Append(labelledField("Context Size (tokens)",
 		fmt.Sprintf("Higher remembers more of the scene and uses more memory, lower forgets "+
 			"sooner and runs lighter. Default is %d.", store.DefaultNumCtx),
 		f.numCtx))
@@ -186,7 +186,7 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	f.numPredict = gtk.NewEntry()
 	f.numPredict.SetText(fmt.Sprintf("%d", a.cfg.NumPredict))
 	f.numPredict.SetPlaceholderText(fmt.Sprintf("%d", chars.DefaultReplyTokens))
-	sCard.Append(labelledField("Reply limit (tokens)",
+	sCard.Append(labelledField("Reply Limit (tokens)",
 		fmt.Sprintf("Higher allows a longer reply, lower cuts it off sooner. Reserved out of the "+
 			"context size above, so raising it leaves less room for the scene. Leave at 0 for "+
 			"the default of %d, about four paragraphs.", chars.DefaultReplyTokens),
@@ -194,7 +194,7 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 
 	f.keepAlive = gtk.NewEntry()
 	f.keepAlive.SetText(a.cfg.KeepAlive)
-	sCard.Append(labelledField("Keep the model loaded for",
+	sCard.Append(labelledField("Keep the Model Loaded For",
 		"Longer means a reading pause does not cost a model reload, at the price of the memory "+
 			"it holds. Write it as \"30m\" or \"2h\", or \"-1\" to never unload. Default is "+
 			store.DefaultKeepAlive+", against Ollama's own five minutes.",
@@ -239,7 +239,7 @@ func (a *App) buildAboutPage(f *settingsForm) *gtk.Box {
 		"Release is the tested one. Beta is ahead of it and may be rough.",
 		f.channel))
 
-	check := gtk.NewButtonWithLabel("Check now")
+	check := gtk.NewButtonWithLabel("Check Now")
 	check.SetHAlign(gtk.AlignStart)
 	check.ConnectClicked(func() {
 		a.applySettings(f)
@@ -259,29 +259,29 @@ func (a *App) buildAboutPage(f *settingsForm) *gtk.Box {
 func (a *App) buildYouPage(f *settingsForm) *gtk.Box {
 	page := settingsPage()
 
-	outer, card := groupCard("Your persona")
+	outer, card := groupCard("Your Persona")
 	f.personaName = gtk.NewEntry()
 	f.personaName.SetText(a.cfg.PersonaName)
 	f.personaName.SetPlaceholderText("Leave empty to stay unnamed")
-	card.Append(labelledField("Your name",
+	card.Append(labelledField("Your Name",
 		"Characters address you by this, and it replaces {{user}} in their cards.",
 		f.personaName))
 
 	frame, view := multilineField(a.cfg.PersonaDescription, 5)
 	f.personaDesc = view
-	card.Append(labelledField("About you",
+	card.Append(labelledField("About You",
 		"Optional. Who you are in the scene: appearance, role, anything the character already knows.",
 		frame))
 	page.Append(outer)
 
-	styleOuter, styleCard := groupCard("Writing style")
+	styleOuter, styleCard := groupCard("Writing Style")
 	cur := gtk.NewLabel(a.cfg.Style().Name)
 	cur.SetXAlign(0)
 	cur.AddCSSClass("field-label")
-	styleCard.Append(labelledField("In use",
+	styleCard.Append(labelledField("In Use",
 		"Controls how the prose sounds, not how it is formatted.",
 		cur))
-	manage := gtk.NewButtonWithLabel("Manage writing styles…")
+	manage := gtk.NewButtonWithLabel("Manage Writing Styles…")
 	manage.SetHAlign(gtk.AlignStart)
 	manage.ConnectClicked(func() { a.showStyles() })
 	styleCard.Append(manage)
@@ -296,7 +296,7 @@ func (a *App) buildYouPage(f *settingsForm) *gtk.Box {
 
 	f.fontMode = gtk.NewDropDownFromStrings([]string{"Automatic", "Crisp (1080p screens)", "Smooth (HiDPI screens)"})
 	f.fontMode.SetSelected(uint(fontIndex(a.cfg.FontRendering)))
-	appCard.Append(labelledField("Text rendering",
+	appCard.Append(labelledField("Text Rendering",
 		"Automatic picks per screen. Change it if text looks soft or unevenly spaced.",
 		f.fontMode))
 
@@ -385,7 +385,7 @@ func (a *App) showModelPicker() {
 		return
 	}
 
-	d := adw.NewAlertDialog("Choose a model", "This is what Ollama has on this machine.")
+	d := adw.NewAlertDialog("Choose a Model", "This is what Ollama has on this machine.")
 	list := gtk.NewBox(gtk.OrientationVertical, 4)
 
 	var group *gtk.CheckButton
@@ -442,7 +442,7 @@ func (a *App) modelNames() []string {
 }
 
 // modelLabels renders the dropdown's rows, falling back to a single
-// explanatory row when nothing is installed — an empty dropdown looks broken.
+// explanatory row when nothing is installed, an empty dropdown looks broken.
 func (f *settingsForm) modelLabels(a *App) []string {
 	if len(a.models) == 0 {
 		return []string{"No models found"}

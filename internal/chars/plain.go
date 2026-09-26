@@ -9,8 +9,8 @@ import (
 
 // A plain conversation is not a degenerate roleplay, and treating it as one
 // showed. It had a single sentence of framing, no idea who it was talking to,
-// and — because every path that keeps a long conversation alive was written for
-// a scene with a character in it — no recap at all. A general chat that outgrew
+// and, because every path that keeps a long conversation alive was written for
+// a scene with a character in it, no recap at all. A general chat that outgrew
 // the window simply lost its beginning, which for a conversation that had been
 // working through something is the part worth keeping.
 //
@@ -24,8 +24,8 @@ import (
 // "be concise" and "British spelling" are exactly the rules someone writes once
 // and wants everywhere.
 //
-// The writing style is deliberately not sent. A style describes prose — tense,
-// dialogue, what to avoid — and a plain answer is not prose.
+// The writing style is deliberately not sent. A style describes prose, tense,
+// dialogue, what to avoid, and a plain answer is not prose.
 func AssistantSystemFor(p Persona) string {
 	var b strings.Builder
 	b.WriteString(AssistantSystem)

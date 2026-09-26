@@ -66,7 +66,7 @@ type Config struct {
 	FontRendering string `json:"font_rendering"`
 
 	// PersonaName / PersonaDescription are who the user plays as. Empty is
-	// fine and common — plenty of scenes work with an unnamed protagonist.
+	// fine and common, plenty of scenes work with an unnamed protagonist.
 	PersonaName        string `json:"persona_name"`
 	PersonaDescription string `json:"persona_description"`
 
@@ -81,7 +81,7 @@ type Config struct {
 	Rulebook []Rule `json:"rulebook"`
 
 	// WritingStyles are the user's own styles. The built-in default is not
-	// stored here — it is always available and cannot be edited away, so
+	// stored here, it is always available and cannot be edited away, so
 	// keeping it out of the file means a config that loses these keys still
 	// has a usable style rather than none.
 	WritingStyles []chars.WritingStyle `json:"writing_styles"`
@@ -140,7 +140,7 @@ type Config struct {
 	//
 	// Off by default. It is a developer's measurement sitting directly under
 	// the prose, and "34.8 tok/s · 112 tokens" tells someone who came here to
-	// write nothing they can act on — a reader cannot tell whether 34.8 is
+	// write nothing they can act on, a reader cannot tell whether 34.8 is
 	// good, and does not know what a token is. The timestamp stays either way.
 	ShowStats bool `json:"show_stats"`
 }
@@ -385,7 +385,7 @@ func SaveConfig(cfg Config) error {
 }
 
 // atomicWrite writes to a temp file in the same directory, fsyncs it, then
-// renames over the target — so an interrupted write leaves the old file intact
+// renames over the target, so an interrupted write leaves the old file intact
 // rather than a half-written one.
 func atomicWrite(path string, data []byte) error {
 	dir := filepath.Dir(path)

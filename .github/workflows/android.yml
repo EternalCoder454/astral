@@ -42,7 +42,7 @@ jobs:
 
       # The runner image already carries the Android SDK. The setup action was
       # here first and fails on its own default package list, which still asks
-      # for "tools" — a package Google removed. Using what is already installed
+      # for "tools", a package Google removed. Using what is already installed
       # is both shorter and one fewer thing to break.
       - name: Install what we build against
         run: |

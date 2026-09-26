@@ -1,8 +1,8 @@
 // Package chars holds Astral's character model and the prompt assembly that
 // turns a character plus a transcript into the message array Ollama sees.
 //
-// A character is data. Nothing in a card — no matter how it is phrased, and
-// including text that reads like an instruction addressed to the application —
+// A character is data. Nothing in a card, no matter how it is phrased, and
+// including text that reads like an instruction addressed to the application,
 // changes how Astral behaves. Card text only ever reaches the model inside the
 // persona it describes.
 package chars
@@ -26,7 +26,7 @@ type Character struct {
 	FirstMes    string // the opening message, in the character's voice
 	MesExample  string // few-shot examples of how they talk
 	// Instructions are your own directions for how this character should be
-	// played — "never break the fourth wall", "keep replies to one paragraph",
+	// played, "never break the fourth wall", "keep replies to one paragraph",
 	// "she always lies about her past".
 	//
 	// They are layered on top of Astral's roleplay framing, never in place of
@@ -34,7 +34,7 @@ type Character struct {
 	// scene or writing your turns for you, and a character that replaced it
 	// wholesale lost all of that and usually played worse. Instructions are
 	// also repeated at the end of the context, which is the position a model
-	// actually obeys — see BuildMessages.
+	// actually obeys, see BuildMessages.
 	Instructions string
 	AltGreetings []string
 	Creator      string
@@ -138,10 +138,10 @@ func Substitute(s, charName, userName string) string {
 // defaultFraming is Astral's house system prompt: the instructions that make a
 // local model actually hold a scene, rather than narrating one from outside it.
 // Small models drift into summarizing, breaking character to be helpful, or
-// writing the user's actions for them — each clause below is aimed at one of
+// writing the user's actions for them, each clause below is aimed at one of
 // those failure modes.
-// The framing splits in two. Everything here is structural — who is speaking,
-// whose turns are whose, and the formatting the renderer depends on — and it
+// The framing splits in two. Everything here is structural, who is speaking,
+// whose turns are whose, and the formatting the renderer depends on, and it
 // never changes. How the prose should actually *sound* is a separate block,
 // supplied by the active writing style, because that is the part worth having
 // opinions about and swapping between scenes.
@@ -191,7 +191,7 @@ func DefaultStyle() WritingStyle {
 }
 
 // Resolved returns the style's instructions, falling back to the default when
-// a style is missing or empty — a scene with no style guidance at all drifts
+// a style is missing or empty, a scene with no style guidance at all drifts
 // into summary within a few turns.
 func (w WritingStyle) Resolved() string {
 	if s := strings.TrimSpace(w.Instructions); s != "" {
@@ -201,8 +201,8 @@ func (w WritingStyle) Resolved() string {
 }
 
 // BuildSystem assembles the system message for a character. When the card
-// carries its own system prompt that is used verbatim — the card author chose
-// it deliberately — and Astral's framing is skipped.
+// carries its own system prompt that is used verbatim, the card author chose
+// it deliberately, and Astral's framing is skipped.
 func BuildSystem(c Character, p Persona) string {
 	userName := p.Name
 	if userName == "" {
@@ -215,7 +215,7 @@ func BuildSystem(c Character, p Persona) string {
 	b.WriteString("\n\nHOW TO WRITE IT\n")
 	// Substituted like everything else. A style is written once and applied to
 	// every character, so "{{char}} never uses contractions" is exactly the
-	// sort of thing it should be able to say — and it reached the model as the
+	// sort of thing it should be able to say, and it reached the model as the
 	// literal text "{{char}}" until this was fixed.
 	b.WriteString(sub(p.Style.Resolved()))
 	b.WriteString("\n\n")
@@ -240,7 +240,7 @@ func BuildSystem(c Character, p Persona) string {
 	// makes a model follow an instruction, so the user's own directions go at
 	// the bottom of the prompt rather than buried in the middle of it.
 	//
-	// Global first, then this character's — the specific one comes later and
+	// Global first, then this character's, the specific one comes later and
 	// so wins when the two disagree.
 	if ins := allInstructions(c, p); ins != "" {
 		b.WriteString("\n\n## Instructions\nThese come from the user and take priority over the general guidance above. Follow them exactly.\n")
@@ -323,7 +323,7 @@ func hasPrefixFold(s, prefix string) bool {
 }
 
 // exampleCutoff is how many real turns must exist before the card's example
-// dialogue stops being sent. Six is two or three exchanges — enough for the
+// dialogue stops being sent. Six is two or three exchanges, enough for the
 // transcript itself to establish the voice.
 //
 // It is a hard threshold rather than a gradual taper on purpose: changing the
@@ -455,7 +455,7 @@ func BuildMessages(c Character, sc Scene) []ollama.Message {
 
 	// Example dialogue is there to teach the character's voice before there is
 	// any. Once the scene has run a few turns the real transcript does that
-	// job better, and the examples are pure cost — they are among the most
+	// job better, and the examples are pure cost, they are among the most
 	// token-heavy parts of a card and they are re-sent on every single turn.
 	if len(history) < exampleCutoff {
 		msgs = append(msgs, exampleTurns(c, userName)...)

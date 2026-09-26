@@ -23,7 +23,7 @@ import (
 
 // buildRulebook is the rules card.
 func (a *App) buildRulebook() *gtk.Box {
-	outer, card := groupCard("Standing rules")
+	outer, card := groupCard("Standing Rules")
 
 	hint := wrappingLabel("Every scene is played under these, on top of whatever a " +
 		"character's own card says. Switch one off to try a scene without it.")

@@ -196,7 +196,7 @@ func TestSpeakersInIncludesWhoeverHasLeft(t *testing.T) {
 		}
 	}
 	// Ash leaves. Their lines are still in the transcript, so they are still a
-	// speaker in it — otherwise those lines would be re-rendered and re-sent
+	// speaker in it, otherwise those lines would be re-rendered and re-sent
 	// under whoever is first in the cast now.
 	if err := s.SetCast(ch.ID, ids[:2]); err != nil {
 		t.Fatal(err)

@@ -58,7 +58,7 @@ func (a *App) showWorlds() {
 		})
 	}
 	searchableList(list, "Search worlds", rows)
-	list.Append(addRow("New world", func() {
+	list.Append(addRow("New World", func() {
 		d.Close()
 		a.editWorld(world.World{})
 	}))
@@ -155,7 +155,7 @@ func (a *App) worldRow(w world.World, parent *adw.Dialog) *gtk.Box {
 func (a *App) editWorld(w world.World) {
 	d := adw.NewDialog()
 	if w.ID == 0 {
-		d.SetTitle("New world")
+		d.SetTitle("New World")
 	} else {
 		d.SetTitle("Edit " + w.Name)
 	}
@@ -226,7 +226,7 @@ func (a *App) showWorldPicker() {
 	}
 
 	d := adw.NewDialog()
-	d.SetTitle("Play in a world")
+	d.SetTitle("Play in a World")
 	d.SetContentWidth(520)
 
 	list := gtk.NewBox(gtk.OrientationVertical, 6)
@@ -409,7 +409,7 @@ func (a *App) showWorld(w world.World) {
 	actions.SetMarginTop(8)
 	actions.SetMarginBottom(4)
 
-	write := gtk.NewButtonWithLabel("Write someone who lives here")
+	write := gtk.NewButtonWithLabel("Write Someone Who Lives Here")
 	if len(here) == 0 {
 		write.AddCSSClass("suggested-action")
 	}
@@ -421,7 +421,7 @@ func (a *App) showWorld(w world.World) {
 	actions.Append(write)
 
 	if len(elsewhere) > 0 {
-		move := gtk.NewButtonWithLabel("Move someone in…")
+		move := gtk.NewButtonWithLabel("Move Someone In…")
 		move.SetTooltipText("Bring a character you already have into " + w.Name)
 		move.ConnectClicked(func() {
 			d.Close()

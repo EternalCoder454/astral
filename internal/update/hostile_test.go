@@ -62,7 +62,7 @@ func TestOneEnormousLine(t *testing.T) {
 	rel, err := serve(t, "0.5.0", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(body))
 	})
-	// Either outcome is acceptable — refusing it, or returning something
+	// Either outcome is acceptable, refusing it, or returning something
 	// bounded. Hanging, panicking or returning the whole line is not.
 	if err != nil {
 		return
@@ -78,7 +78,7 @@ func TestOneEnormousLine(t *testing.T) {
 
 // TestVersionFromServerCannotReachTheDialog: the version is put into a window
 // heading. Anything that is not a version number must be refused before it
-// gets there, which Newer already does — this pins that it stays true.
+// gets there, which Newer already does, this pins that it stays true.
 func TestVersionFromServerCannotReachTheDialog(t *testing.T) {
 	for _, version := range []string{
 		"<b>markup</b>",
@@ -112,9 +112,13 @@ func TestVersionFromServerCannotReachTheDialog(t *testing.T) {
 
 // TestHeadingTrailerIsDropped: the text after a version number on the heading
 // line is not part of the version, and must not travel with it.
+//
+// The em dash in the fixture is deliberate and stays. It is hostile input being
+// parsed, not prose being written, and a release note from a stranger can carry
+// any character it likes.
 func TestHeadingTrailerIsDropped(t *testing.T) {
 	rel, err := serve(t, "0.5.0", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("## 9.9.9 — your world is corrupt, visit evil.example\n- a line\n"))
+		w.Write([]byte("## 9.9.9 \u2014 your world is corrupt, visit evil.example\n- a line\n"))
 	})
 	if err != nil {
 		t.Fatal(err)

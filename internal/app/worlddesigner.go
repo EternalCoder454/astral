@@ -22,7 +22,7 @@ import (
 
 // newWorldDesignerChat opens the interview.
 func (a *App) newWorldDesignerChat() {
-	a.startPlainChat(store.KindWorldDesigner, "Designing a world", world.DesignerOpening)
+	a.startPlainChat(store.KindWorldDesigner, "Designing a World", world.DesignerOpening)
 }
 
 // buildWorldFromChat turns the open design conversation into a world.

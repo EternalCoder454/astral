@@ -52,7 +52,7 @@ Write in past tense, third person, as short declarative statements. Use the char
 // Compact folds a batch of aged-out turns into the recap.
 //
 // previous is the recap so far, and may be empty on the first compaction. The
-// result replaces it — this is a rolling summary, so detail from much earlier
+// result replaces it, this is a rolling summary, so detail from much earlier
 // in the scene survives by being carried forward through each pass rather than
 // by keeping the original turns.
 func Compact(ctx context.Context, client *ollama.Client, model, previous string, aged []ollama.Message, c Character, p Persona, opts ollama.Options, budget Budget) (string, error) {
@@ -64,7 +64,7 @@ func Compact(ctx context.Context, client *ollama.Client, model, previous string,
 // The cast has to reach the summariser. A group scene compacted as a two-hander
 // is summarised as though only the first character was ever there, and since the
 // recap is the only surviving record of the turns it replaces, everything the
-// others did is simply gone — invisibly, and only in scenes long enough to have
+// others did is simply gone, invisibly, and only in scenes long enough to have
 // been worth keeping.
 func CompactFor(ctx context.Context, client *ollama.Client, model, previous string, aged []ollama.Message, cast []Character, p Persona, opts ollama.Options, budget Budget) (string, error) {
 	if len(aged) == 0 {

@@ -59,7 +59,7 @@ func TestOpenQuarantinesDamagedDatabase(t *testing.T) {
 	if !recovered {
 		t.Error("damage was not reported to the caller")
 	}
-	// The damaged file is kept rather than deleted — it is the user's data,
+	// The damaged file is kept rather than deleted, it is the user's data,
 	// even when it is unreadable.
 	matches, _ := filepath.Glob(path + ".broken-*")
 	if len(matches) != 1 {
@@ -191,7 +191,7 @@ func TestDeletingCharacterKeepsChats(t *testing.T) {
 	}
 }
 
-// The sidebar orders by updated_at, so a new message must bump it — in the
+// The sidebar orders by updated_at, so a new message must bump it, in the
 // same transaction, or a message can exist in a chat that sorts as untouched.
 func TestAddMessageBumpsChatOrder(t *testing.T) {
 	s := openTest(t)
@@ -219,7 +219,7 @@ func TestAddMessageBumpsChatOrder(t *testing.T) {
 
 func TestTitleFrom(t *testing.T) {
 	cases := []struct{ in, want string }{
-		{"", "New chat"},
+		{"", "New Chat"},
 		{"Hello there", "Hello there"},
 		{"first line\nsecond line", "first line"},
 		{"  padded  ", "padded"},
@@ -306,7 +306,7 @@ func TestConfigBackfillsNewSettings(t *testing.T) {
 }
 
 // A database written before chat kinds existed has no `kind` column. The
-// migration has to add it without touching the chats already in there — and
+// migration has to add it without touching the chats already in there, and
 // those chats were all roleplay, which is what the column defaults to.
 func TestMigrationAddsKindToAnOlderDatabase(t *testing.T) {
 	dir := t.TempDir()
@@ -387,7 +387,7 @@ func TestNewChatRecordsKind(t *testing.T) {
 
 // system_prompt and post_history were merged into one instructions field. A
 // database written before that has the two old columns, and their contents
-// must survive into the new one — losing someone's carefully written
+// must survive into the new one, losing someone's carefully written
 // instructions to a schema change is not an acceptable upgrade.
 func TestMigrationMergesInstructions(t *testing.T) {
 	dir := t.TempDir()
@@ -520,8 +520,8 @@ func TestDeletingTheActiveStyleFallsBack(t *testing.T) {
 	}
 }
 
-// An active style naming something that no longer exists — a config carried
-// between machines, say — must resolve rather than fail.
+// An active style naming something that no longer exists, a config carried
+// between machines, say, must resolve rather than fail.
 func TestUnknownActiveStyleResolvesToDefault(t *testing.T) {
 	c := DefaultConfig()
 	c.ActiveStyle = "Something Else"

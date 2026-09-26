@@ -23,7 +23,7 @@ import (
 
 // flushInterval is how often streamed tokens are drained into the label.
 //
-// The obvious implementation — hop to the main thread once per token — costs
+// The obvious implementation, hop to the main thread once per token, costs
 // an idle source and a full relayout per token, and since each update rewrites
 // the whole label it is quadratic in the length of the reply. A local model
 // emitting 60 tokens a second turns that into real jank halfway through a long
@@ -177,7 +177,7 @@ type ChatView struct {
 	// lane, and the user's own turn takes it from them.
 	//
 	// They used to have a flag each, which meant both could be generating at
-	// once — two large requests against one model, on top of whatever the user
+	// once, two large requests against one model, on top of whatever the user
 	// did next. Ollama serves them in turn, so the visible effect was the next
 	// reply waiting behind a recap the user never asked for and cannot see.
 	bg bgWork
@@ -451,7 +451,7 @@ func (c *ChatView) refreshModelChip() {
 	}
 	m := c.activeModel()
 	if m == "" {
-		c.modelBtn.SetLabel("Choose a model")
+		c.modelBtn.SetLabel("Choose a Model")
 		c.modelBtn.SetTooltipText("Choose the model for this chat")
 		return
 	}
@@ -619,11 +619,11 @@ func (c *ChatView) speakerFor(role string, speaker int64) (string, string, int) 
 	}
 	switch c.chat.Kind {
 	case store.KindDesigner:
-		return "Character designer", "✦", 1
+		return "Character Designer", "✦", 1
 	case store.KindStyleDesigner:
-		return "Style designer", "✦", 3
+		return "Style Designer", "✦", 3
 	case store.KindWorldDesigner:
-		return "World designer", "✦", 2
+		return "World Designer", "✦", 2
 	default:
 		return "Assistant", "✦", 0
 	}
@@ -762,7 +762,7 @@ func (c *ChatView) atBottom() bool {
 
 // streamWidth is the width a streaming bubble is pinned to: as wide as the
 // column allows, but never past the usual bubble cap. Pinning it to the
-// maximum means a long reply — which is most of them — never reflows at all,
+// maximum means a long reply, which is most of them, never reflows at all,
 // and a short one resizes exactly once, when it finishes.
 func (c *ChatView) streamWidth() int {
 	avail := c.column.Width() - avatarSize - 60 // avatar, spacing, bubble padding
@@ -852,7 +852,7 @@ func (c *ChatView) loreHost() chars.Character {
 }
 
 // SetClient swaps the Ollama client, after the server address is changed in
-// settings. An in-flight reply keeps the client it started with — cancelling
+// settings. An in-flight reply keeps the client it started with, cancelling
 // someone's generation because they edited an unrelated field would be its own
 // kind of bug.
 func (c *ChatView) SetClient(client *ollama.Client) {
@@ -883,21 +883,21 @@ func (c *ChatView) refreshActions() {
 	var fire func()
 	switch c.chat.Kind {
 	case store.KindDesigner:
-		label, tip = "Create character", "Turn this conversation into a character you can play with"
+		label, tip = "Create Character", "Turn this conversation into a character you can play with"
 		fire = func() {
 			if c.OnBuildCharacter != nil {
 				c.OnBuildCharacter()
 			}
 		}
 	case store.KindStyleDesigner:
-		label, tip = "Create style", "Turn this conversation into a writing style"
+		label, tip = "Create Style", "Turn this conversation into a writing style"
 		fire = func() {
 			if c.OnBuildStyle != nil {
 				c.OnBuildStyle()
 			}
 		}
 	case store.KindWorldDesigner:
-		label, tip = "Create world", "Turn this conversation into a world and its lorebook"
+		label, tip = "Create World", "Turn this conversation into a world and its lorebook"
 		fire = func() {
 			if c.OnBuildWorld != nil {
 				c.OnBuildWorld()
@@ -949,7 +949,7 @@ func (c *ChatView) directionChip() *gtk.Button {
 		btn.AddCSSClass("direction-set")
 		btn.SetTooltipText(shown + "\n\nClick to change or clear it.")
 	} else {
-		btn.SetLabel("Set a direction")
+		btn.SetLabel("Set a Direction")
 		btn.SetTooltipText("Tell the scene where to go next, without saying it out loud in the story")
 	}
 	btn.ConnectClicked(func() {
@@ -1112,7 +1112,7 @@ func (c *ChatView) SetLore(entries []world.Entry) { c.lore = entries }
 // Only one runs at a time, and the user's next turn cancels whatever is in it.
 // Cancelling is safe because both passes are idempotent: each records how far
 // it got only on success, so an interrupted one simply does the same work after
-// the next reply. Waiting, by contrast, is not free — it is the user watching
+// the next reply. Waiting, by contrast, is not free, it is the user watching
 // a cursor while the model finishes a summary for them.
 type bgWork struct {
 	running bool

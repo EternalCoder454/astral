@@ -21,7 +21,7 @@ func bpara(n int) string {
 // The regression this file exists for, stated as the scene that caused it: a
 // rich card, a full lorebook, a full recap and a long transcript, all at once.
 // Before the budget was planned this built a prompt of about 9,750 tokens
-// against a window of 8,192, and the server silently dropped the front of it —
+// against a window of 8,192, and the server silently dropped the front of it,
 // which is the framing that says to use asterisks, and the writing style.
 func TestWorstCaseNowFits(t *testing.T) {
 	c := Character{

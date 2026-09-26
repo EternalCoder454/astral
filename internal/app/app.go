@@ -20,7 +20,7 @@ import (
 )
 
 // appID is all-lowercase so the Wayland app-id matches the .desktop file's
-// basename exactly — GNOME takes the dock name and icon from that match.
+// basename exactly, GNOME takes the dock name and icon from that match.
 const appID = "io.github.astral"
 
 // Assets are the embedded stylesheets handed in from main.
@@ -254,7 +254,7 @@ func (a *App) noteTurnFailed(msg string) {
 
 // ready reports whether a turn can actually be sent right now.
 //
-// The model being *configured* is not enough — it has to still be installed.
+// The model being *configured* is not enough, it has to still be installed.
 // A model pulled once and later removed leaves a name in the config that looks
 // fine everywhere until a send fails with a 404 from the server, which is not
 // a message anyone can act on.

@@ -18,7 +18,7 @@ import (
 //
 // The fetch goes through the PC: the phone may be on a network with no way
 // out, and it already trusts exactly one machine. What makes that safe is not
-// the transport — Android refuses a build signed with a different key from the
+// the transport. Android refuses a build signed with a different key from the
 // one installed, so a tampered file is rejected by the installer.
 
 // apkTimeout bounds the download. A few megabytes from GitHub, so this is

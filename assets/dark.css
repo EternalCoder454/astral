@@ -1,8 +1,8 @@
 /*
- * Astral — dark colour scheme (the default).
+ * Astral, dark colour scheme (the default).
  *
  * These are libadwaita's own named colours, redefined so every stock Adwaita
- * widget — popovers, dialogs, switches, dropdowns — comes out in Astral's
+ * widget, popovers, dialogs, switches, dropdowns, comes out in Astral's
  * palette instead of the platform's neutral grey. Structure lives in style.css
  * and refers to these names only, so the two schemes share one stylesheet and
  * swapping them is swapping this file.

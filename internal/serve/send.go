@@ -70,7 +70,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 		return
 	}
 	// The first message names the chat, the same way it does in the window.
-	if strings.TrimSpace(ch.Title) == "" || ch.Title == "New chat" {
+	if strings.TrimSpace(ch.Title) == "" || ch.Title == "New Chat" {
 		if err := s.store.RenameChat(ch.ID, store.TitleFrom(text)); err == nil {
 			ch.Title = store.TitleFrom(text)
 		}

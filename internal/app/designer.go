@@ -24,11 +24,11 @@ const buildTimeout = 6 * time.Minute
 // showNewChat asks what kind of conversation to start.
 //
 // Before this existed the only way in was to pick a character, which meant a
-// fresh install with no cast had no way to talk to the model at all — and no
+// fresh install with no cast had no way to talk to the model at all, and no
 // way to get help making the character it was asking for.
 func (a *App) showNewChat() {
 	d := adw.NewDialog()
-	d.SetTitle("New chat")
+	d.SetTitle("New Chat")
 	d.SetContentWidth(420)
 
 	page := gtk.NewBox(gtk.OrientationVertical, 4)
@@ -94,12 +94,12 @@ func (a *App) showNewChat() {
 	cast, _ := a.store.CountCharacters()
 	worlds, _ := a.store.Worlds()
 	if cast > 0 {
-		add(ui.IconCharacters, "Play a scene", "with someone from your cast", true, a.showCharacters)
+		add(ui.IconCharacters, "Play a Scene", "with someone from your cast", true, a.showCharacters)
 	}
 	// A group needs two people to put in a room, so it appears when there are
 	// two to pick from and not before.
 	if cast > 1 {
-		add(ui.IconCharacters, "Play with a group",
+		add(ui.IconCharacters, "Play with a Group",
 			fmt.Sprintf("up to %d characters in one scene", store.MaxCast), false, a.showCastPicker)
 	}
 	// A world is a place, so it is somewhere to go rather than someone to
@@ -107,16 +107,16 @@ func (a *App) showNewChat() {
 	// which is where it was: unreachable without first inventing a character
 	// to be met there.
 	if len(worlds) > 0 {
-		add(ui.IconWorlds, "Play in a world", "the model plays the place and whoever you meet",
+		add(ui.IconWorlds, "Play in a World", "the model plays the place and whoever you meet",
 			cast == 0, a.showWorldPicker)
 	}
-	add(ui.IconChat, "General chat", "", cast == 0 && len(worlds) == 0, a.newAssistantChat)
+	add(ui.IconChat, "General Chat", "", cast == 0 && len(worlds) == 0, a.newAssistantChat)
 
 	heading("Create")
-	add(ui.IconDesigner, "New character", "the model interviews you", false, a.newDesignerChat)
-	add(ui.IconEdit, "New writing style", "changes how the prose sounds", false, a.newStyleDesignerChat)
-	add(ui.IconWorlds, "New world", "the model interviews you", false, a.newWorldDesignerChat)
-	add(ui.IconFolder, "Import a character", "from a .png or .json card", false, a.actionImportCharacter)
+	add(ui.IconDesigner, "New Character", "the model interviews you", false, a.newDesignerChat)
+	add(ui.IconEdit, "New Writing Style", "changes how the prose sounds", false, a.newStyleDesignerChat)
+	add(ui.IconWorlds, "New World", "the model interviews you", false, a.newWorldDesignerChat)
+	add(ui.IconFolder, "Import a Character", "from a .png or .json card", false, a.actionImportCharacter)
 
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(adw.NewHeaderBar())
@@ -127,7 +127,7 @@ func (a *App) showNewChat() {
 
 // newDesignerChat opens a conversation whose product is a character.
 func (a *App) newDesignerChat() {
-	a.startPlainChat(store.KindDesigner, "Designing a character", chars.DesignerOpening)
+	a.startPlainChat(store.KindDesigner, "Designing a Character", chars.DesignerOpening)
 }
 
 // newAssistantChat opens a plain conversation with the model.
@@ -253,7 +253,7 @@ func (a *App) buildCharacterFromChat() {
 func (a *App) confirmStartScene(c chars.Character) {
 	d := adw.NewAlertDialog(c.Name+" is ready", "Start a scene with them now?")
 	d.AddResponse("later", "Not yet")
-	d.AddResponse("play", "Start the scene")
+	d.AddResponse("play", "Start the Scene")
 	d.SetResponseAppearance("play", adw.ResponseSuggested)
 	d.SetDefaultResponse("play")
 	d.SetCloseResponse("later")

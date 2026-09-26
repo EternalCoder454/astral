@@ -87,7 +87,7 @@ func installIcons() {
 //
 // It is a digest of the icons themselves rather than the app's version. Keyed
 // on the version, an icon that changed without a release going out would never
-// reach disk — which is every icon change during development.
+// reach disk, which is every icon change during development.
 func unpackIcons(dir string) error {
 	actions := filepath.Join(dir, "hicolor", "scalable", "actions")
 	stampPath := filepath.Join(dir, ".stamp")

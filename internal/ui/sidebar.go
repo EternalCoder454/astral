@@ -66,7 +66,7 @@ func NewSidebar() *Sidebar {
 
 	newBtn := gtk.NewButton()
 	newBtn.AddCSSClass("new-chat-button")
-	newBtn.SetChild(rowContent(IconAdd, "New chat"))
+	newBtn.SetChild(rowContent(IconAdd, "New Chat"))
 	newBtn.SetTooltipText("Start a new chat (Ctrl+N)")
 	newBtn.ConnectClicked(func() { fire(s.OnNewChat) })
 	head.Append(newBtn)
@@ -77,7 +77,7 @@ func NewSidebar() *Sidebar {
 
 	// The way back. The welcome screen holds the cast, the worlds and the
 	// greeting, and until now it could only be reached by having no chat open
-	// — which, once you had opened one, meant not at all.
+	//, which, once you had opened one, meant not at all.
 	s.homeBtn = gtk.NewButton()
 	s.homeBtn.AddCSSClass("sidebar-item")
 	s.homeBtn.SetChild(rowContent(IconHome, "Home"))
@@ -118,7 +118,7 @@ func NewSidebar() *Sidebar {
 	s.profile = gtk.NewButton()
 	s.profile.AddCSSClass("profile-pill")
 	s.profile.SetHExpand(true)
-	s.profile.SetTooltipText("Your persona")
+	s.profile.SetTooltipText("Your Persona")
 	s.profile.ConnectClicked(func() { s.profileMenu.Popup() })
 	foot.Append(s.profile)
 
@@ -159,8 +159,8 @@ func (s *Sidebar) buildProfileMenu() *gtk.Popover {
 		})
 		box.Append(b)
 	}
-	add(IconEdit, "Edit your persona", func() { fire(s.OnPersona) })
-	add(IconDesigner, "Writing styles", func() { fire(s.OnStyles) })
+	add(IconEdit, "Edit Your Persona", func() { fire(s.OnPersona) })
+	add(IconDesigner, "Writing Styles", func() { fire(s.OnStyles) })
 	add(IconInfo, "About Astral", func() { fire(s.OnAbout) })
 
 	pop := gtk.NewPopover()
@@ -193,7 +193,7 @@ func (s *Sidebar) SetProfile(name, subtitle string) {
 	col.Append(n)
 	// A subtitle only when there is something worth saying. The persona
 	// description was shown here, which meant the pill read "Name: Christian
-	// Appeara..." — the first few words of a prose field, truncated mid-word.
+	// Appeara...", the first few words of a prose field, truncated mid-word.
 	// A prompt to set one up is useful; a fragment of one is not.
 	if strings.TrimSpace(subtitle) == "" {
 		m := gtk.NewLabel("Set up your persona")
@@ -231,7 +231,7 @@ func rowContent(icon, text string) *gtk.Box {
 // here.
 func (s *Sidebar) SetChats(chats []store.Chat) {
 	// This is called after every message, twice a turn, and usually nothing
-	// about the list has changed — the open chat was already at the top. A
+	// about the list has changed, the open chat was already at the top. A
 	// rebuild is a few hundred widgets plus a popover and two gestures per
 	// row, and gotk4 keeps every closure alive for the life of the process,
 	// so the wasted ones are not collected either.
@@ -333,7 +333,7 @@ func (s *Sidebar) chatRow(ch store.Chat) *gtk.Button {
 
 	title := ch.Title
 	if title == "" {
-		title = "New chat"
+		title = "New Chat"
 	}
 	l := gtk.NewLabel(title)
 	l.SetXAlign(0)
@@ -378,7 +378,7 @@ func (s *Sidebar) chatRow(ch store.Chat) *gtk.Button {
 func (s *Sidebar) attachRowMenu(btn *gtk.Button, id int64) {
 	// The target is attached as a real GVariant rather than encoded into a
 	// detailed action string. "win.rename-chat(7)" looks right but parses its
-	// target as an int32, while the action is declared to take an int64 — the
+	// target as an int32, while the action is declared to take an int64, the
 	// types do not match, so GTK quietly refuses to activate the item and the
 	// menu entry does nothing at all when clicked.
 	menu := gio.NewMenu()
@@ -403,7 +403,7 @@ func (s *Sidebar) attachRowMenu(btn *gtk.Button, id int64) {
 	// The menu opens at the pointer. The rectangle must be built with
 	// gdk.NewRectangle: a &gdk.Rectangle{} is a Go struct with no native
 	// backing behind it, and gotk4 dereferences that straight into a segfault
-	// — which is exactly how this crashed the app the first time someone
+	//, which is exactly how this crashed the app the first time someone
 	// right-clicked a chat.
 	show := func(x, y float64) {
 		at := gdk.NewRectangle(int(x), int(y), 1, 1)

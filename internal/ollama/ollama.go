@@ -62,7 +62,7 @@ type Message struct {
 
 // Options are the sampling knobs Astral exposes. Zero values mean "leave it to
 // the model", so an empty Options sends nothing and inherits the model's own
-// defaults — which is what you want for a model you have never tuned.
+// defaults, which is what you want for a model you have never tuned.
 type Options struct {
 	Temperature   float64
 	TopP          float64
@@ -124,8 +124,8 @@ func (o Options) toMap() map[string]any {
 // after a reply.
 //
 // This is the single biggest thing separating a fast session from a slow one.
-// Ollama's own default is five minutes, and roleplay has long gaps — reading
-// the reply, deciding what to do — so the model is routinely evicted between
+// Ollama's own default is five minutes, and roleplay has long gaps, reading
+// the reply, deciding what to do, so the model is routinely evicted between
 // turns and the next message pays a full reload. On a 27B model that is tens
 // of seconds of staring at nothing before the first token.
 const DefaultKeepAlive = "30m"
@@ -230,7 +230,7 @@ func statsFrom(cr chatResponse) Stats {
 }
 
 // Chat streams a multi-turn completion. onDelta (if non-nil) is invoked on this
-// goroutine with each chunk as it arrives — the caller is responsible for
+// goroutine with each chunk as it arrives, the caller is responsible for
 // getting those onto the UI thread. It returns the assembled reply and the
 // throughput stats from the final chunk.
 //
@@ -252,7 +252,7 @@ func (c *Client) Chat(ctx context.Context, model string, msgs []Message, opts Op
 }
 
 // Structured asks the model to answer as JSON matching schema, and returns the
-// raw JSON. Ollama constrains decoding to the schema, so the result parses —
+// raw JSON. Ollama constrains decoding to the schema, so the result parses,
 // which is the difference between this and asking nicely in a prompt and
 // hoping. Not streamed: there is nothing useful to show of a half-built object.
 //
@@ -409,7 +409,7 @@ func (m Model) Label() string {
 }
 
 // Models returns the models installed on the server. A nil error means the
-// server is reachable — the slice may still be empty if nothing is pulled,
+// server is reachable, the slice may still be empty if nothing is pulled,
 // which lets the UI tell "Ollama down" from "no models installed".
 func (c *Client) Models(ctx context.Context) ([]Model, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/tags", nil)

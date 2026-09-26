@@ -59,7 +59,7 @@ func TestLoreChangeKeepsThePrefixCacheable(t *testing.T) {
 	recap := fillTo(2000, "Vesper admitted she was expelled. ")
 	// An explicit, generous budget, so this measures lore placement and not
 	// trimming. Trimming drops turns off the front and moves everything after
-	// them, which invalidates the prefix too — but that is compaction's job to
+	// them, which invalidates the prefix too, but that is compaction's job to
 	// prevent, and TestCompactionRunsBeforeTrimming is where it is checked.
 	budget := Plan(32768, 0, 4000)
 

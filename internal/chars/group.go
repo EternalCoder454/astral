@@ -17,8 +17,8 @@ import (
 // is that they talk to each other.
 //
 // So one call gets the whole cast, and the reply comes back with the speakers
-// marked in it. That asks more of the model — it has to decide who reacts and
-// who stays quiet — which is why the framing below spends most of its words on
+// marked in it. That asks more of the model, it has to decide who reacts and
+// who stays quiet, which is why the framing below spends most of its words on
 // turn taking rather than on the characters.
 
 // groupStructure is the group counterpart of framingStructure. The formatting
@@ -145,7 +145,7 @@ func BuildGroupSystem(cast []Character, p Persona) string {
 //
 // It restates what drifts, and in a group what drifts first is the turn taking.
 // By turn ten a model that has settled into a roll call will keep producing one,
-// because its own transcript is the strongest instruction it can see — so the
+// because its own transcript is the strongest instruction it can see, so the
 // rule against that is here, in the position that is actually obeyed, and not
 // only in the system prompt where it has already been outvoted.
 func GroupAnchor(cast []Character, sc Scene, userName string) string {

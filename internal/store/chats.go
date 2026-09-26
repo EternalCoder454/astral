@@ -8,7 +8,7 @@ import (
 )
 
 // What a conversation is for. A chat without a character is not a degenerate
-// roleplay — it is a different thing with its own framing, and the two that
+// roleplay, it is a different thing with its own framing, and the two that
 // exist here earn their place: plain assistant talk, and a session whose whole
 // purpose is to produce a character.
 const (
@@ -43,7 +43,7 @@ type Chat struct {
 	// scene reopened tomorrow does not learn today's turns a second time.
 	LoreUpto int64
 	// StyleName is the writing style the transcript was written under. When
-	// the active style no longer matches it, the prompt says so — otherwise
+	// the active style no longer matches it, the prompt says so, otherwise
 	// the model reads a scene full of its own prose in the old style and
 	// writes a continuation to match, whatever the new style asks for.
 	StyleName string
@@ -91,7 +91,7 @@ func (s *Store) Chats() ([]Chat, error) {
 	// The message count comes from one grouped pass rather than a correlated
 	// subquery per row. The subquery version was re-counting a chat's messages
 	// once for every chat in the list, so the cost grew with chats times
-	// messages — and this runs on every sidebar refresh, twice a turn.
+	// messages, and this runs on every sidebar refresh, twice a turn.
 	rows, err := s.db.Query(`
 		SELECT c.id, c.character_id, c.world_id, c.title, c.model, c.kind, c.created_at, c.updated_at,
 		       COALESCE(ch.name, ''), COALESCE(ch.accent, 0), COALESCE(n.count, 0),
@@ -350,7 +350,7 @@ func TitleFrom(text string) string {
 	const max = 48
 	if len(line) <= max {
 		if line == "" {
-			return "New chat"
+			return "New Chat"
 		}
 		return line
 	}

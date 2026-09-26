@@ -42,7 +42,7 @@ const (
 	// Plain is ordinary Markdown: bold, italic, code, bullets, headings.
 	Plain Prose = iota
 	// Roleplay reads the genre's conventions: *asterisks* wrap everything
-	// internal — narration, action, body language, thought — and "quotes" are
+	// internal, narration, action, body language, thought, and "quotes" are
 	// what was said out loud. Narration is set in a grey italic and speech is
 	// weighted, so a long scene can be skimmed for what actually happened
 	// rather than read start to finish.
@@ -214,11 +214,11 @@ func quoteSpan(m string) string {
 }
 
 // Snippet collapses a message to a single line for the sidebar, stripping the
-// markup characters rather than rendering them — a preview row is scanned, not
+// markup characters rather than rendering them, a preview row is scanned, not
 // read, and asterisks in it are noise.
 //
 // It is a single pass that stops as soon as it has max runes. The obvious
-// implementation — strip, then strings.Fields, then Join — walks the entire
+// implementation, strip, then strings.Fields, then Join, walks the entire
 // message and allocates a slice of every word in it, to produce sixty
 // characters. On a long roleplay reply that is most of a kilobyte of garbage
 // per sidebar row, per rebuild.

@@ -18,7 +18,7 @@ import (
 // group is a set, so there is a moment between choosing and starting that a
 // single click cannot express.
 func (a *App) showCastPicker() {
-	a.pickCast(nil, "Start the scene", a.newGroupChat)
+	a.pickCast(nil, "Start the Scene", a.newGroupChat)
 }
 
 // showCastEditor changes who is in the scene already open.
@@ -300,7 +300,7 @@ func groupTitle(cast []chars.Character) string {
 	names := chars.CastNames(cast)
 	switch len(names) {
 	case 0:
-		return "New scene"
+		return "New Scene"
 	case 1:
 		return names[0]
 	case 2:

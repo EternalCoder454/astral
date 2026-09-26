@@ -67,7 +67,7 @@ func (d cardData) toCharacter() Character {
 		MesExample:  d.MesExample,
 		// A card's two instruction fields both become Instructions. The spec
 		// separates them by *where* they are injected, which is Astral's
-		// decision to make rather than the card's — and one field the user
+		// decision to make rather than the card's, and one field the user
 		// can actually find beats two they have to tell apart.
 		Instructions: joinInstructions(d.SystemPrompt, d.PostHistoryInstruction),
 		AltGreetings: d.AlternateGreetings,

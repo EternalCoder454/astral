@@ -83,11 +83,11 @@ func (a *App) showShortcuts() {
 			{"Enter", "Send the message"},
 			{"Shift+Enter", "Start a new line"},
 			{"Ctrl+L", "Jump to the message box"},
-			{"Ctrl+N", "New chat"},
+			{"Ctrl+N", "New Chat"},
 		}},
 		{"Navigate", []shortcut{
 			{"Ctrl+K", "Characters"},
-			{"Ctrl+M", "Choose a model"},
+			{"Ctrl+M", "Choose a Model"},
 			{"F9", "Show or hide the sidebar"},
 			{"Ctrl+,", "Settings"},
 			{"Ctrl+/", "This list"},

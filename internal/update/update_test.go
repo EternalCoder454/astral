@@ -135,7 +135,7 @@ func TestCheckServerErrors(t *testing.T) {
 // TestShippedNotes checks the file this whole feature reads in production. It
 // has to parse, it has to describe the version that is actually being shipped,
 // and its lines have to be the kind of thing a person who does not write
-// software can read — the point of keeping it separate from CHANGELOG.md.
+// software can read, the point of keeping it separate from CHANGELOG.md.
 func TestShippedNotes(t *testing.T) {
 	f, err := os.Open(filepath.Join("..", "..", "WHATSNEW.md"))
 	if err != nil {

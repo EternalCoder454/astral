@@ -5,7 +5,7 @@ import "strings"
 // Ollama puts deliberation in a field of its own, which Astral folds away. A
 // finetune whose template does not declare the tags emits it into the reply
 // instead, and a message beginning "<think>" is then styled as prose, read as
-// part of the scene, and saved as the reply — so the next prompt contains the
+// part of the scene, and saved as the reply, so the next prompt contains the
 // model talking to itself about its instructions.
 //
 // This lives here rather than beside a renderer because it is a property of

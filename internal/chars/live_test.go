@@ -12,7 +12,7 @@ import (
 
 // This is the only test that talks to a real model. It skips itself when no
 // Ollama server is reachable, so an ordinary `go test ./...` on a machine
-// without one stays green — but where a server exists it checks the thing
+// without one stays green, but where a server exists it checks the thing
 // nothing else can: that a character, a persona and a transcript assembled by
 // this package actually produce a reply from a real model, streamed, with
 // usable throughput numbers on the end.
@@ -60,7 +60,7 @@ func TestLiveRoleplayTurn(t *testing.T) {
 
 	// Reasoning is turned off, as Astral does for roleplay; without that a
 	// thinking model can spend the whole NumPredict budget deliberating and
-	// return an empty reply — which is exactly what this test caught.
+	// return an empty reply, which is exactly what this test caught.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
@@ -87,7 +87,7 @@ func TestLiveRoleplayTurn(t *testing.T) {
 		t.Fatal("model returned an empty reply")
 	}
 	if deltas < 2 {
-		t.Errorf("got %d deltas — the reply did not stream", deltas)
+		t.Errorf("got %d deltas, the reply did not stream", deltas)
 	}
 	if stats.Tokens == 0 {
 		t.Error("no token count came back in the final chunk")
@@ -99,8 +99,8 @@ func TestLiveRoleplayTurn(t *testing.T) {
 
 // TestLiveInstructionsAreObeyed is the test that justifies the design. An
 // instruction is only worth having if the model actually follows it, so this
-// runs the same character twice against a real model — once plain, once with
-// a hard constraint — and checks the constraint bites.
+// runs the same character twice against a real model, once plain, once with
+// a hard constraint, and checks the constraint bites.
 //
 // "One short sentence" is used because it is objectively measurable. Whether a
 // model is "more in character" is not.
@@ -221,7 +221,7 @@ func TestLiveWritingStyleAndCost(t *testing.T) {
 
 	// The formatting rule the renderer depends on.
 	if !strings.Contains(reply, "*") {
-		t.Errorf("no *asterisks* — narration would render as plain text:\n%s", reply)
+		t.Errorf("no *asterisks*, narration would render as plain text:\n%s", reply)
 	}
 	if !strings.Contains(reply, "\"") {
 		t.Errorf("no spoken lines in quotes:\n%s", reply)
@@ -245,8 +245,8 @@ func TestLiveWritingStyleAndCost(t *testing.T) {
 	}
 
 	t.Logf("reply:\n%s", reply)
-	t.Logf("prompt tokens — new scene (with examples): %d", early.PromptTokens)
-	t.Logf("prompt tokens — underway (examples dropped, and %d more turns): %d",
+	t.Logf("prompt tokens, new scene (with examples): %d", early.PromptTokens)
+	t.Logf("prompt tokens, underway (examples dropped, and %d more turns): %d",
 		len(underway)-len(newScene), later.PromptTokens)
 	t.Logf("second call: %.1f tok/s, %.1fs total (model already resident)",
 		later.TokPerSec, later.Elapsed.Seconds())
@@ -254,7 +254,7 @@ func TestLiveWritingStyleAndCost(t *testing.T) {
 
 // TestLiveStyleDesignerIsSubstantive guards the failure this was written for:
 // asked for a single free-form "instructions" string, a real model returned
-// seven rules run together on one line — and, asked less generously, one
+// seven rules run together on one line, and, asked less generously, one
 // sentence. Only a real model shows that; a stubbed server returns whatever
 // the test puts in it.
 func TestLiveStyleDesignerIsSubstantive(t *testing.T) {
@@ -298,7 +298,7 @@ func TestLiveStyleDesignerIsSubstantive(t *testing.T) {
 	}
 	lines := strings.Split(strings.TrimSpace(st.Instructions), "\n")
 	if len(lines) < 5 {
-		t.Errorf("style has only %d lines — the model collapsed it again:\n%s",
+		t.Errorf("style has only %d lines, the model collapsed it again:\n%s",
 			len(lines), st.Instructions)
 	}
 	// Each labelled aspect should have survived as its own line.
@@ -342,7 +342,7 @@ func liveModel(t *testing.T) (*ollama.Client, string) {
 
 // TestLiveCompactionKeepsTheFacts is the point of compaction. Dropping old
 // turns loses them outright; a recap is only worth the tokens if the things
-// that matter survive it — names, admissions, promises, where everyone is.
+// that matter survive it, names, admissions, promises, where everyone is.
 func TestLiveCompactionKeepsTheFacts(t *testing.T) {
 	client, model := liveModel(t)
 

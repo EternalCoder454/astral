@@ -371,8 +371,8 @@ func (c *ChatView) sceneBudget() chars.Budget {
 //
 // The per-card warning next door catches one oversized description. A group
 // fails a different way: five cards that each fit comfortably, and do not fit
-// together. The symptom is the same and just as invisible — the server drops the
-// front of the prompt, which is the framing — so it is worth the same
+// together. The symptom is the same and just as invisible, the server drops the
+// front of the prompt, which is the framing, so it is worth the same
 // interruption.
 func (c *ChatView) warnIfCastTooLarge() {
 	if !c.isGroup() {
@@ -469,7 +469,7 @@ func (c *ChatView) castChip() *gtk.Button {
 		btn.AddCSSClass("direction-set")
 		btn.SetTooltipText(strings.Join(names, ", ") + "\n\nClick to add or remove someone.")
 	} else {
-		btn.SetLabel("Add someone")
+		btn.SetLabel("Add Someone")
 		btn.SetTooltipText("Bring another character into this scene")
 	}
 	btn.ConnectClicked(func() {

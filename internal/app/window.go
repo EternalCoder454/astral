@@ -36,7 +36,7 @@ func (a *App) buildWindow() {
 	a.registerActions()
 
 	// OverlaySplitView rather than a Paned: the sidebar is a fixed-width
-	// navigation column that collapses, not a pane you drag — and on a narrow
+	// navigation column that collapses, not a pane you drag, and on a narrow
 	// window it slides over the chat instead of squeezing it.
 	// The portrait sits on the far side of the chat, inside the main split so
 	// hiding the navigation does not take it with it.
@@ -256,7 +256,7 @@ func (a *App) setTitle(ch store.Chat, ca chars.Character) {
 		a.title.SetSubtitle("with " + ca.Name + where)
 	case ca.Name != "":
 		a.title.SetTitle(ca.Name)
-		a.title.SetSubtitle("New scene" + where)
+		a.title.SetSubtitle("New Scene" + where)
 	case ch.Title != "":
 		a.title.SetTitle(ch.Title)
 		a.title.SetSubtitle("")
@@ -295,7 +295,7 @@ func (a *App) buildMainMenu() *gio.Menu {
 
 	app := gio.NewMenu()
 	app.Append("Settings", "win.settings")
-	app.Append("Keyboard shortcuts", "win.shortcuts")
+	app.Append("Keyboard Shortcuts", "win.shortcuts")
 	app.Append("About Astral", "win.about")
 	menu.AppendSection("", app)
 

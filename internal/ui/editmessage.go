@@ -28,7 +28,7 @@ const editHeight = 460
 // text still in it rather than losing the edit.
 func EditMessage(parent gtk.Widgetter, row *MessageRow, onSave func(string) bool) {
 	d := adw.NewDialog()
-	d.SetTitle("Edit message")
+	d.SetTitle("Edit Message")
 	d.SetContentWidth(640)
 	d.SetContentHeight(editHeight)
 

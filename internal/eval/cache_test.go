@@ -27,7 +27,7 @@ var cacheTurns = flag.Int("cacheturns", 5, "how many turns to play while watchin
 // Two things that look like the cache failing and are not. A prompt of around
 // fourteen hundred tokens shows no gain at all, because at that size the fixed
 // cost of a request is most of the measurement. And a trailing system message
-// that changes every turn — which the anchor is — does not destroy the prefix:
+// that changes every turn, which the anchor is, does not destroy the prefix:
 // the template does not hoist it to the front, and a changed tail still reads
 // at 3187 tokens a second against 927 cold.
 //

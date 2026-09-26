@@ -86,7 +86,7 @@ func (a *App) applyPhoneAccess() {
 // a trip through a sidebar, so they sit at the bottom of the page about you and
 // this machine, which is what a paired phone is.
 func (a *App) phoneCards(f *settingsForm) []gtk.Widgetter {
-	outer, card := groupCard("Phone access")
+	outer, card := groupCard("Phone Access")
 
 	f.phone = gtk.NewCheckButton()
 	f.phone.SetChild(wrappingLabel("Let another device on this network use this Astral"))
@@ -113,11 +113,11 @@ func (a *App) phoneCards(f *settingsForm) []gtk.Widgetter {
 	code.SetVisible(false)
 	card.Append(code)
 
-	pairBtn := gtk.NewButtonWithLabel("Start pairing")
+	pairBtn := gtk.NewButtonWithLabel("Start Pairing")
 	pairBtn.SetHAlign(gtk.AlignStart)
 	card.Append(pairBtn)
 
-	devicesOuter, devicesCard := groupCard("Paired devices")
+	devicesOuter, devicesCard := groupCard("Paired Devices")
 
 	var refresh func()
 	refresh = func() {
@@ -140,10 +140,10 @@ func (a *App) phoneCards(f *settingsForm) []gtk.Widgetter {
 			if c, left, open := a.phone.PairingOpen(); open {
 				code.SetVisible(true)
 				code.SetText(c + "   (" + fmt.Sprintf("%d", int(left.Minutes())+1) + " min left)")
-				pairBtn.SetLabel("Stop pairing")
+				pairBtn.SetLabel("Stop Pairing")
 			} else {
 				code.SetVisible(false)
-				pairBtn.SetLabel("Start pairing")
+				pairBtn.SetLabel("Start Pairing")
 			}
 		}
 

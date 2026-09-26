@@ -87,7 +87,7 @@ func (a *App) showLorebook(w world.World) {
 		}
 	}
 	if len(rest) > 0 {
-		heading := gtk.NewLabel("In use")
+		heading := gtk.NewLabel("In Use")
 		heading.SetXAlign(0)
 		heading.AddCSSClass("settings-heading")
 		heading.SetMarginTop(8)
@@ -233,7 +233,7 @@ func (a *App) loreRow(e world.Entry, w world.World, parent *adw.Dialog) *gtk.Box
 func (a *App) editLore(e world.Entry, w world.World) {
 	d := adw.NewDialog()
 	if e.ID == 0 {
-		d.SetTitle("New entry")
+		d.SetTitle("New Entry")
 	} else {
 		d.SetTitle(e.Name)
 	}
@@ -262,7 +262,7 @@ func (a *App) editLore(e world.Entry, w world.World) {
 		keysEntry))
 
 	frame, view := multilineField(e.Content, 7)
-	card.Append(labelledField("What is true",
+	card.Append(labelledField("What Is True",
 		"Plain statements of fact. Under sixty words works best.",
 		frame))
 
@@ -273,7 +273,7 @@ func (a *App) editLore(e world.Entry, w world.World) {
 	card.Append(constant)
 
 	enabled := gtk.NewCheckButton()
-	enabled.SetChild(wrappingLabel("In use"))
+	enabled.SetChild(wrappingLabel("In Use"))
 	enabled.SetActive(e.Enabled)
 	card.Append(enabled)
 	page.Append(outer)

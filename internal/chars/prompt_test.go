@@ -53,7 +53,7 @@ func TestBuildSystemIncludesEverySection(t *testing.T) {
 
 // Instructions are layered on top of the framing, never in place of it. The
 // framing is what stops a local model narrating from outside the scene, so a
-// character that replaced it wholesale played worse — which is the whole
+// character that replaced it wholesale played worse, which is the whole
 // reason this is additive.
 func TestInstructionsAddToFramingRatherThanReplacingIt(t *testing.T) {
 	c := testChar()
@@ -262,7 +262,7 @@ func containsContent(msgs []ollama.Message, want string) bool {
 
 // A scene that outgrows the context window must lose its oldest turns here,
 // where we choose what goes. Left to the server it drops the *front* of the
-// prompt instead — the framing and the character — so the model keeps the
+// prompt instead, the framing and the character, so the model keeps the
 // small talk and forgets who it is playing.
 func TestTrimHistoryKeepsTheMostRecentTurns(t *testing.T) {
 	var history []ollama.Message
@@ -336,7 +336,7 @@ func TestWritingStyleReplacesOnlyTheVoiceBlock(t *testing.T) {
 	if !strings.Contains(sys, "One paragraph. No adverbs.") {
 		t.Errorf("style instructions missing:\n%s", sys)
 	}
-	// The default's guidance must be gone — a style replaces the block.
+	// The default's guidance must be gone, a style replaces the block.
 	if strings.Contains(sys, "Real speech is shorter than written prose") {
 		t.Errorf("the default style leaked in alongside a custom one:\n%s", sys)
 	}

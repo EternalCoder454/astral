@@ -13,7 +13,7 @@ import (
 
 // Store is Astral's database: characters, chats and messages.
 //
-// Unlike a search index, this database *is* the data — it holds your
+// Unlike a search index, this database *is* the data, it holds your
 // transcripts, and nothing can rebuild it from elsewhere. That single fact
 // drives two choices below: synchronous=FULL rather than NORMAL, and a
 // corrupt file being quarantined and reported rather than quietly replaced.
@@ -215,7 +215,7 @@ CREATE TABLE IF NOT EXISTS chat_cast (
 //
 // There is no version table. Each later change is a bare ALTER TABLE whose
 // error is ignored, because the only error it can raise is "duplicate column"
-// — which is precisely the signal that the migration already ran.
+// , which is precisely the signal that the migration already ran.
 func (s *Store) migrate() error {
 	if _, err := s.db.Exec(schema); err != nil {
 		return err

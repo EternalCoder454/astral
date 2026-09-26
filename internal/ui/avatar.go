@@ -8,7 +8,7 @@ import (
 const AccentCount = 8
 
 // AccentFor derives a stable tint from a character's name, so the same
-// character keeps the same colour across machines without it being stored —
+// character keeps the same colour across machines without it being stored,
 // and so importing a folder of cards produces a varied cast rather than eight
 // shades of clay. FNV-1a because it is three lines and spreads short strings
 // well; nothing here needs a cryptographic hash.
@@ -29,7 +29,7 @@ func AccentFor(name string) int {
 // first letter of their name.
 //
 // It is a styled label rather than a drawn widget so the tint comes from the
-// stylesheet (one `.accent-N` class) instead of from code — which means the
+// stylesheet (one `.accent-N` class) instead of from code, which means the
 // palette can be edited in CSS without recompiling, and the avatar inherits
 // font rendering from the rest of the interface.
 func NewAvatar(initial string, accent, size int) *gtk.Label {

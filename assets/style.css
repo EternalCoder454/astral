@@ -58,7 +58,7 @@ button:focus-visible,
 /*
  * Text areas are deliberately NOT in the list above. An entry already draws
  * its own focus border, and a text view always sits inside something that
- * shows focus for it — the composer card, or a frame in a settings form. Given
+ * shows focus for it, the composer card, or a frame in a settings form. Given
  * a ring of their own they draw a second box just inside the first, which is
  * what typing in the composer looked like: a rounded rectangle wrapped around
  * another rounded rectangle.
@@ -85,7 +85,7 @@ frame:focus-within {
 	padding: 10px 10px 6px 10px;
 }
 
-/* "New chat" — the one filled affordance in the sidebar. Everything else there
+/* "New chat", the one filled affordance in the sidebar. Everything else there
    is flat, so this reads as the primary action without shouting. */
 .new-chat-button {
 	border-radius: 10px;
@@ -127,7 +127,7 @@ frame:focus-within {
 }
 
 /* The open chat. An earlier version marked it with a slightly lighter fill,
-   which on this palette was almost exactly the hover state — so you could not
+   which on this palette was almost exactly the hover state, so you could not
    tell what you were pointing at from what you were reading. The accent bar
    is unambiguous at a glance down the list. */
 .sidebar-item.selected {
@@ -146,7 +146,7 @@ frame:focus-within {
 	color: @sidebar_fg_color;
 }
 
-/* Section captions ("Today", "Previous 7 days"). Small, wide-tracked, quiet —
+/* Section captions ("Today", "Previous 7 days"). Small, wide-tracked, quiet, 
    they group the list without becoming entries in it. */
 .sidebar-section {
 	font-size: 0.72em;
@@ -282,7 +282,7 @@ frame:focus-within {
 }
 
 /* Width is governed by an AdwClamp in code, which sets a maximum the column
-   can shrink below — CSS cannot express that, and a fixed width here would
+   can shrink below, CSS cannot express that, and a fixed width here would
    reintroduce the clipping it was added to fix. */
 .chat-column {
 	padding: 20px 16px 8px 16px;
@@ -308,7 +308,7 @@ frame:focus-within {
 
 /*
  * The bubble. Both sides get one, tinted differently and tucked to opposite
- * corners — the asymmetric radius is what makes a bubble read as belonging to
+ * corners, the asymmetric radius is what makes a bubble read as belonging to
  * the avatar beside it rather than floating free.
  *
  * The fills are a measured 1.33:1 and 1.39:1 against the canvas. That sounds
@@ -335,14 +335,14 @@ frame:focus-within {
 
 /*
  * Roleplay is read in long stretches, so line spacing matters more here than
- * anywhere else in the app — and it is easy to get backwards. line-height in
+ * anywhere else in the app, and it is easy to get backwards. line-height in
  * GTK multiplies the font's own line box, which for the default UI font is
  * already generous: measured, 1.0 renders at 28px and the 1.55 this used to
  * carry rendered at 43.6px. At that spacing a paragraph stops reading as a
  * block and becomes a stack of disconnected stripes, which is most of why the
  * transcript felt hard to read.
  *
- * 1.10 measures 31px — a little air, without the lines drifting apart.
+ * 1.10 measures 31px, a little air, without the lines drifting apart.
  */
 .message-body {
 	font-size: 1.0em;
@@ -394,7 +394,7 @@ frame:focus-within {
 
 /*
  * Per-message actions. Hidden until the row is hovered keeps the transcript
- * clean, but hover is not available to a keyboard — so focus-within reveals
+ * clean, but hover is not available to a keyboard, so focus-within reveals
  * them too, and tabbing through a message can reach copy and regenerate.
  */
 .message-action {
@@ -441,7 +441,7 @@ frame:focus-within {
 	border-color: @accent_bg_color;
 }
 
-/* The entry is a bare TextView inside the rounded card — the card draws the
+/* The entry is a bare TextView inside the rounded card, the card draws the
    border, so the text area itself must draw nothing at all. */
 .composer scrolledwindow {
 	background: none;
@@ -476,7 +476,7 @@ frame:focus-within {
 	color: @astral_muted;
 }
 
-/* Send — circular, clay, and visibly inert until there is something to send. */
+/* Send, circular, clay, and visibly inert until there is something to send. */
 .send-button {
 	min-width: 32px;
 	min-height: 32px;

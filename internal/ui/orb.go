@@ -10,8 +10,8 @@ import (
 // Orb is Astral's mark: a Cairo-drawn sphere, used as the logo on the welcome
 // screen.
 //
-// It used to animate. That machinery — a frame-clock tick easing between a
-// resting and a working state, with fewer halo rings and no ripples at rest —
+// It used to animate. That machinery, a frame-clock tick easing between a
+// resting and a working state, with fewer halo rings and no ripples at rest,
 // was written for a thinking indicator, and then the job went to TypingDots
 // instead, which sits in the bubble where the reply is actually going to
 // appear. Nothing ever called the animated constructor, so the tick callback,
@@ -65,7 +65,7 @@ func (o *Orb) draw(_ *gtk.DrawingArea, cr *cairo.Context, w, h int) {
 	cr.Stroke()
 
 	// Nucleus: a blob rather than a circle, so the mark has a little life in
-	// it. Three harmonics, at a fixed phase — one circle would read as a dot.
+	// it. Three harmonics, at a fixed phase, one circle would read as a dot.
 	const pts = 32
 	for i := 0; i <= pts; i++ {
 		ang := 2 * math.Pi * float64(i) / pts

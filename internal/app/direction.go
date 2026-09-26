@@ -32,7 +32,7 @@ func (a *App) editDirection() {
 		return
 	}
 	d := adw.NewDialog()
-	d.SetTitle("Scene direction")
+	d.SetTitle("Scene Direction")
 	d.SetContentWidth(560)
 
 	page := gtk.NewBox(gtk.OrientationVertical, 16)
@@ -43,7 +43,7 @@ func (a *App) editDirection() {
 
 	outer, card := groupCard("")
 	frame, view := multilineField(a.chat.Note(), 5)
-	card.Append(labelledField("Where this scene should go next",
+	card.Append(labelledField("Where This Scene Should Go Next",
 		"Sent every turn until you change it. The model steers toward it without saying it out loud.",
 		frame))
 

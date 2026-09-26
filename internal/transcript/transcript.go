@@ -22,7 +22,7 @@ func Markdown(ch store.Chat, msgs []store.Message, who, you string) string {
 
 // MarkdownCast renders a scene with more than one character in it. nameOf gives
 // a speaker's name from the id stored on a message, and falls back to who for a
-// turn that names nobody — which is every turn in a scene with one character,
+// turn that names nobody, which is every turn in a scene with one character,
 // and the greeting in a scene that was played as a group from the start.
 func MarkdownCast(ch store.Chat, msgs []store.Message, who, you string, nameOf func(int64) string) string {
 	if who = strings.TrimSpace(who); who == "" {

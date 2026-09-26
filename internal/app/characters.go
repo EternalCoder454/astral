@@ -27,7 +27,7 @@ func (a *App) showCharacters() {
 	header := adw.NewHeaderBar()
 
 	importBtn := gtk.NewButtonFromIconName(ui.IconFolder)
-	importBtn.SetTooltipText("Import a character card (.png or .json)")
+	importBtn.SetTooltipText("Import a Character Card (.png or .json)")
 	importBtn.ConnectClicked(func() {
 		d.Close()
 		a.actionImportCharacter()
@@ -68,7 +68,7 @@ func (a *App) showCharacters() {
 		})
 	}
 	searchableList(list, "Search by name, description or tag", rows)
-	list.Append(addRow("New character", func() {
+	list.Append(addRow("New Character", func() {
 		d.Close()
 		a.editCharacter(chars.Character{})
 	}))
@@ -195,12 +195,12 @@ type characterForm struct {
 func (a *App) editCharacter(c chars.Character) { a.editCharacterWith(c, nil) }
 
 // editCharacterWith opens the editor and, on a successful save, hands the
-// saved character to onSaved — which is how the designer offers to play the
+// saved character to onSaved, which is how the designer offers to play the
 // scene it just built.
 func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)) {
 	d := adw.NewDialog()
 	if c.ID == 0 {
-		d.SetTitle("New character")
+		d.SetTitle("New Character")
 	} else {
 		d.SetTitle("Edit " + c.Name)
 	}
@@ -286,13 +286,13 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 
 	firstFrame, firstView := multilineField(c.FirstMes, 5)
 	f.firstMes = firstView
-	sceneCard.Append(labelledField("Opening message",
+	sceneCard.Append(labelledField("Opening Message",
 		"Their first words. The model copies its length and tone, so write it the way you want the scene to read.",
 		firstFrame))
 
 	exFrame, exView := multilineField(c.MesExample, 4)
 	f.mesExample = exView
-	sceneCard.Append(labelledField("Example dialogue",
+	sceneCard.Append(labelledField("Example Dialogue",
 		"Optional. Put <START> between exchanges and prefix lines with {{user}}: and {{char}}:.",
 		exFrame))
 	page.Append(sceneOuter)
@@ -301,7 +301,7 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	insOuter, insCard := groupCard("Instructions")
 	insFrame, insView := multilineField(c.Instructions, 5)
 	f.instructions = insView
-	insCard.Append(labelledField("Rules for this character",
+	insCard.Append(labelledField("Rules for This Character",
 		"Your own rules for them, one per line: \"keep replies to one paragraph\", "+
 			"\"{{char}} always lies about her past\".",
 		insFrame))
@@ -341,7 +341,7 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 
 		items := gtk.NewBox(gtk.OrientationVertical, 0)
 		items.AddCSSClass("menu-popover")
-		export := gtk.NewButtonWithLabel("Export as a character card…")
+		export := gtk.NewButtonWithLabel("Export as a Character Card…")
 		export.AddCSSClass("flat")
 		export.SetTooltipText("Save a file other roleplay apps can read")
 		gtk.BaseWidget(export.Child()).SetHAlign(gtk.AlignStart)
@@ -434,7 +434,7 @@ func (a *App) exportCharacter(c chars.Character) {
 // actionImportCharacter opens a file chooser for a character card.
 func (a *App) actionImportCharacter() {
 	dialog := gtk.NewFileDialog()
-	dialog.SetTitle("Import a character card")
+	dialog.SetTitle("Import a Character Card")
 
 	cards := gtk.NewFileFilter()
 	cards.SetName("Character cards")

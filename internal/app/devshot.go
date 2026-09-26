@@ -23,8 +23,8 @@ import (
 // it runs unless an environment variable asks for it.
 //
 // The important part is devRun: without it a capture run would hand off to the
-// copy of Astral you already have open — single-instance behaviour doing
-// exactly what it should — and screenshot the wrong process.
+// copy of Astral you already have open, single-instance behaviour doing
+// exactly what it should, and screenshot the wrong process.
 
 const devCaptureTitle = "Astral Dev Capture"
 
@@ -39,7 +39,7 @@ var (
 // Astral cannot screenshot itself, and the reason is worth recording so it is
 // not attempted again: rendering a widget's snapshot to a texture needs
 // gsk_renderer_render_texture, and the gotk4 binding passes the GskRenderNode
-// through InternObject — which assumes a GObject. GskRenderNode is not one, so
+// through InternObject, which assumes a GObject. GskRenderNode is not one, so
 // GSK receives a bogus pointer and returns NULL for any node at all, including
 // a trivially valid one. Nothing in this package can work around that.
 //
@@ -311,7 +311,7 @@ func (a *App) devRowMenu() {
 
 	// Opening the menu is only half of it. The items carry an int64 target,
 	// and a mismatch between that and the action's declared type makes GTK
-	// refuse to activate them — silently, which is how Rename and Delete
+	// refuse to activate them, silently, which is how Rename and Delete
 	// shipped doing nothing. Firing them here proves the wiring end to end.
 	for _, name := range []string{"rename-chat", "delete-chat"} {
 		ok := gtk.BaseWidget(a.win).ActivateAction("win."+name, glib.NewVariantInt64(id))
@@ -325,7 +325,7 @@ func (a *App) devRowMenu() {
 func (a *App) devMeasure() {
 	a.devDemoScene()
 	// One more turn of the loop, so GTK has actually allocated what was just
-	// built — widths are all zero before that.
+	// built, widths are all zero before that.
 	coreglib.TimeoutAdd(600, func() bool {
 		view, column, bubbles := a.chat.DevMeasure()
 		log.Printf("astral: measure: view=%dpx column=%dpx", view, column)
@@ -348,7 +348,7 @@ func (a *App) devMeasure() {
 }
 
 // devDemoScene fabricates a scene for a screenshot, so a capture does not
-// depend on what happens to be in the database — or on a model being installed
+// depend on what happens to be in the database, or on a model being installed
 // at all. It writes nothing: the rows go straight onto the transcript.
 func (a *App) devDemoScene() {
 	c := chars.Character{

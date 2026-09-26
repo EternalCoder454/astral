@@ -28,7 +28,7 @@ const maxNotesBytes = 64 << 10
 
 // maxNoteLines is how many bullets a release may show before the list is cut
 // short. Eight is what fits in the dialog without scrolling at an ordinary
-// window height — measured, not guessed: at ten the last line sits under the
+// window height, measured, not guessed: at ten the last line sits under the
 // buttons, and a list you have to scroll is not the plain summary this is
 // meant to be. The shipped notes are held to the same limit in
 // TestShippedNotes, so a release can never quietly lose its last line.
@@ -43,7 +43,7 @@ type Checker struct {
 }
 
 // New returns a Checker pointed at the project's published release notes, with
-// a short timeout — an update check must never be something the user waits on.
+// a short timeout, an update check must never be something the user waits on.
 func New() *Checker {
 	return &Checker{
 		NotesURL: DefaultNotesURL,
@@ -58,7 +58,7 @@ type Release struct {
 }
 
 // Check asks whether branch has a version newer than current. It returns a nil
-// Release when the app is already up to date — the common case, and the one
+// Release when the app is already up to date, the common case, and the one
 // that must stay quiet.
 func (c *Checker) Check(ctx context.Context, branch, current string) (*Release, error) {
 	rel, err := c.latest(ctx, branch)

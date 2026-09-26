@@ -14,7 +14,7 @@ import (
 // it gets them is a question only a model can answer.
 //
 // The conversation below is seeded with specifics that cannot be reconstructed
-// from a general summary — a version, a path, a number, a reversal — because
+// from a general summary, a version, a path, a number, a reversal, because
 // those are exactly what a summariser drops when it is trying to be concise.
 func TestLivePlainRecapKeepsTheSpecifics(t *testing.T) {
 	client, model := liveModel(t)

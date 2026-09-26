@@ -135,7 +135,7 @@ func (s *Store) SaveCharacter(c chars.Character) (int64, error) {
 	return c.ID, err
 }
 
-// DeleteCharacter removes a character. Chats that used it are kept — the
+// DeleteCharacter removes a character. Chats that used it are kept, the
 // transcript is yours, and losing a scene because you tidied up the cast is
 // not a trade anyone would choose. Those chats report the character as gone.
 func (s *Store) DeleteCharacter(id int64) error {

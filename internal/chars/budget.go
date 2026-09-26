@@ -113,7 +113,7 @@ func Plan(numCtx, numPredict, fixedChars int) Budget {
 	// Compaction has to happen before the transcript hits its cap, or trimming
 	// silently throws turns away that the recap never got a chance to read.
 	// Three quarters leaves a comfortable margin, and the quarter between the
-	// two is what one pass reclaims — wide enough that it does not run again
+	// two is what one pass reclaims, wide enough that it does not run again
 	// on the very next turn.
 	b.Compact = b.History * 3 / 4
 	b.Keep = b.Compact / 2

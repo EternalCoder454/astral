@@ -12,7 +12,7 @@ import (
 
 // Astral does not follow the desktop's grey. Its whole point is to look like
 // Claude Desktop, so it redefines libadwaita's named colours to Anthropic's
-// palette and every widget — including stock popovers and dialogs — inherits
+// palette and every widget, including stock popovers and dialogs, inherits
 // the warm scheme.
 //
 // GTK CSS has no equivalent of prefers-color-scheme, so the two schemes cannot
@@ -38,7 +38,7 @@ func newThemer(structure, dark, light string) *themer {
 // install loads the structural stylesheet. Called once, at activation.
 //
 // ASTRAL_DEV_CSS is appended to it, which is how a rule can be tried without a
-// rebuild — GTK's own layout is the only way to find out what a value actually
+// rebuild, GTK's own layout is the only way to find out what a value actually
 // renders as, and a five-minute gotk4 build per experiment makes that
 // impractical otherwise.
 func (t *themer) install(css string) {
@@ -73,7 +73,7 @@ func (t *themer) apply(theme string) {
 	default:
 		sm.SetColorScheme(adw.ColorSchemePreferDark)
 		// "System" means whatever the desktop settled on, which libadwaita has
-		// already worked out — so ask it rather than re-deriving it here.
+		// already worked out, so ask it rather than re-deriving it here.
 		dark = sm.Dark()
 	}
 	t.loadColors(dark)

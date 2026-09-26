@@ -135,7 +135,7 @@ func (c *ChatView) ensureChat(firstMessage string) error {
 }
 
 // ShowGreeting puts a character's opening message on screen for a chat that
-// does not exist yet. It is not saved until the first reply is sent — opening
+// does not exist yet. It is not saved until the first reply is sent, opening
 // a character to read their greeting and then changing your mind should not
 // leave a chat behind.
 func (c *ChatView) ShowGreeting(text string) {
@@ -151,7 +151,7 @@ func (c *ChatView) ShowGreeting(text string) {
 	// it, changing the opening would rewrite the start of something already
 	// being played.
 	if len(chars.Greetings(c.char)) > 1 {
-		c.greeting.AddAction(IconRegenerate, "Another opening", c.nextGreeting)
+		c.greeting.AddAction(IconRegenerate, "Another Opening", c.nextGreeting)
 	}
 	c.glideToBottom()
 }
@@ -185,7 +185,7 @@ func (c *ChatView) persona() chars.Persona {
 // rows made the on-screen transcript the source of truth for what gets sent,
 // which is fragile in both directions: a row that is mid-stream or not yet
 // saved had to be specially excluded, and anything the view chose not to
-// render — a long scene is windowed — would silently vanish from the model's
+// render, a long scene is windowed, would silently vanish from the model's
 // context. A query is about half a millisecond and cannot disagree with what
 // was actually stored.
 //
@@ -224,7 +224,7 @@ func (c *ChatView) rowHistory() []ollama.Message {
 }
 
 // buildRequest assembles the messages for a turn, framed for what this
-// conversation is. A chat with no character is not a broken roleplay — it is
+// conversation is. A chat with no character is not a broken roleplay, it is
 // either plain assistant talk or a design session, and each needs its own
 // system message rather than an empty one.
 func (c *ChatView) buildRequest() []ollama.Message {
@@ -339,7 +339,7 @@ func (c *ChatView) startStream() {
 	opts := c.options()
 	// Sent explicitly either way. Left unspecified a reasoning model thinks by
 	// default, which in roleplay means waiting through a paragraph of
-	// deliberation for prose that reads no better — and under a reply limit it
+	// deliberation for prose that reads no better, and under a reply limit it
 	// can spend the whole budget thinking and return nothing at all.
 	think := c.cfg.Think
 
@@ -352,7 +352,7 @@ func (c *ChatView) startStream() {
 	go func() {
 		defer cancel()
 		// onDelta runs on this goroutine, not the UI's. It must not touch a
-		// widget — it only appends to the buffers the flush timer drains.
+		// widget, it only appends to the buffers the flush timer drains.
 		msg, stats, err := c.client.Chat(ctx, model, msgs, opts, &think, func(d ollama.Delta) {
 			c.pendMu.Lock()
 			c.pendText.WriteString(d.Content)
@@ -401,7 +401,7 @@ func (c *ChatView) turnMeta(stats *ollama.Stats, started time.Time, cancelled bo
 // finishStream lands a completed reply on the main thread.
 func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats, err error, started time.Time) {
 	// The staleness guard. Between the request going out and this running, the
-	// view may have moved to a different chat — in which case this reply
+	// view may have moved to a different chat, in which case this reply
 	// belongs to a transcript that is no longer on screen, and appending it
 	// here would put one scene's words into another's.
 	if gen != c.gen {
@@ -471,7 +471,7 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	if continuing {
 		// Joined with nothing between them. The model was handed the reply as
 		// it stood and carries on from exactly there, so it supplies its own
-		// leading space when there should be one — and a reply cut mid-word
+		// leading space when there should be one, and a reply cut mid-word
 		// is finished mid-word.
 		//
 		// In a group the first half gets its label back before the two are
@@ -703,7 +703,7 @@ func (c *ChatView) maybeCompact() {
 				return false
 			}
 			// Saved against the chat it was built from, even if the view has
-			// moved on since — the work is still correct for that scene.
+			// moved on since, the work is still correct for that scene.
 			if err := c.store.SetChatSummary(chatID, next, upto); err != nil {
 				log.Printf("astral: saving recap for %d: %v", chatID, err)
 				return false
@@ -790,7 +790,7 @@ func (c *ChatView) stopFlush() {
 }
 
 // drainPending moves buffered tokens into the live row. Runs on the main
-// thread only — from the flush timer, and once more at completion.
+// thread only, from the flush timer, and once more at completion.
 func (c *ChatView) drainPending() {
 	c.pendMu.Lock()
 	text := c.pendText.String()

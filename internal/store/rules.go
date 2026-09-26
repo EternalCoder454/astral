@@ -6,8 +6,8 @@ import "strings"
 // each one switchable on its own.
 //
 // It replaces a single freeform box, and the reason is what people actually did
-// with that box. Instructions accumulate — "keep replies short", "never skip
-// ahead in time", "she always lies about her past" — and once there are six of
+// with that box. Instructions accumulate, "keep replies short", "never skip
+// ahead in time", "she always lies about her past", and once there are six of
 // them in one paragraph, trying one scene without the third means deleting it
 // and retyping it afterwards. So nobody tries. A rule you can switch off is a
 // rule you will experiment with, and a rule you can switch off is a rule you
@@ -138,7 +138,7 @@ func (c *Config) RemoveRule(i int) bool {
 // Run once, when a config written before the rulebook existed is loaded. The old
 // box was filled a line at a time by people keeping a list in it, so a line is
 // the right unit to split on, and what comes out is the list they were already
-// keeping — switched on, because it was in force a moment ago.
+// keeping, switched on, because it was in force a moment ago.
 func (c *Config) adoptGlobalInstructions() {
 	if len(c.Rulebook) > 0 || strings.TrimSpace(c.GlobalInstructions) == "" {
 		return

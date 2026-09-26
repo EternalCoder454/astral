@@ -317,7 +317,7 @@ func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request, d store.D
 	json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&body)
 
 	cfg := s.config()
-	title, kind := "New chat", store.KindRoleplay
+	title, kind := "New Chat", store.KindRoleplay
 	switch {
 	case body.CharacterID != 0:
 		if ca, err := s.store.Character(body.CharacterID); err == nil {
@@ -329,7 +329,7 @@ func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request, d store.D
 		}
 	default:
 		kind = store.KindAssistant
-		title = "General chat"
+		title = "General Chat"
 	}
 	ch, err := s.store.NewChatIn(body.CharacterID, body.WorldID, title, cfg.Model, kind)
 	if err != nil {

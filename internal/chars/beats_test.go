@@ -231,9 +231,9 @@ func TestLabelRoundTrips(t *testing.T) {
 
 // TestALabelAlwaysWins documents the one ambiguity in the format: a line that
 // starts with a cast member's name and a colon is that character speaking, even
-// in the middle of someone else's beat. It has to be read that way round — a
+// in the middle of someone else's beat. It has to be read that way round, a
 // model that writes a label mid-reply is switching speaker, which is the whole
-// mechanism — and the alternative would be a scene where a name in the wrong
+// mechanism, and the alternative would be a scene where a name in the wrong
 // place silently stopped working.
 func TestALabelAlwaysWins(t *testing.T) {
 	got := SplitBeats("Vesper: \"Come in.\"\nKestrel: \"Already did.\"", cast)

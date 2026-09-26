@@ -12,7 +12,7 @@ import (
 // A group scene asks something of the model that a two-hander does not: it has
 // to mark who is speaking, and it has to decide who stays quiet. Neither can be
 // settled by reading the prompt and deciding it sounds convincing, because the
-// failure modes are exactly the ones that sound fine written down — the labels
+// failure modes are exactly the ones that sound fine written down, the labels
 // drift into prose, or every character says one line in order, every turn,
 // forever.
 //

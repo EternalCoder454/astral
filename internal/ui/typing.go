@@ -13,8 +13,8 @@ import (
 // nothing has arrived yet.
 //
 // An empty bubble is indistinguishable from a frozen one. The gap before the
-// first token is not small either — a large model has to be loaded, then read
-// the whole context — so this is the difference between the app looking like
+// first token is not small either, a large model has to be loaded, then read
+// the whole context, so this is the difference between the app looking like
 // it is thinking and looking like it has crashed.
 type TypingDots struct {
 	*gtk.DrawingArea

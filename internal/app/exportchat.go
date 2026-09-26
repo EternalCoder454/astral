@@ -44,7 +44,7 @@ func (a *App) actionExportChat(id int64) {
 		func(cid int64) string { return names[cid] })
 
 	dialog := gtk.NewFileDialog()
-	dialog.SetTitle("Export scene")
+	dialog.SetTitle("Export Scene")
 	dialog.SetInitialName(transcript.Filename(ch) + ".md")
 	dialog.Save(context.Background(), &a.win.Window, func(res gio.AsyncResulter) {
 		file, err := dialog.SaveFinish(res)

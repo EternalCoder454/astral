@@ -50,8 +50,8 @@ func (s *Store) SetCast(chatID int64, ids []int64) error {
 		pos++
 	}
 	// The first member is also the chat's character, so everything that reads
-	// chats.character_id — the sidebar's name and tint, the title, reopening a
-	// scene — keeps working on a group without knowing groups exist.
+	// chats.character_id, the sidebar's name and tint, the title, reopening a
+	// scene, keeps working on a group without knowing groups exist.
 	head := int64(0)
 	for _, id := range ids {
 		if id != 0 {

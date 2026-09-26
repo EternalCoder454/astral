@@ -55,7 +55,7 @@ func TestLoopingCatchesItEarly(t *testing.T) {
 		t.Fatal("fixture does not loop")
 	}
 	// It fires as soon as one window has recurred, which is well before the
-	// whole block has been written a second time — that is the point.
+	// whole block has been written a second time, that is the point.
 	early := collapsed + collapsed[:loopWindow+20]
 	if !Looping(early) {
 		t.Error("waited for the whole block to repeat before firing")

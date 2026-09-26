@@ -41,7 +41,7 @@ func TestGroupTitleReadsAsAScene(t *testing.T) {
 		cast []chars.Character
 		want string
 	}{
-		{nil, "New scene"},
+		{nil, "New Scene"},
 		{[]chars.Character{name("Vesper")}, "Vesper"},
 		{[]chars.Character{name("Vesper"), name("Kestrel")}, "Vesper and Kestrel"},
 		{[]chars.Character{name("Vesper"), name("Kestrel"), name("Ash")}, "Vesper, Kestrel and Ash"},

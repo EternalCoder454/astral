@@ -56,7 +56,7 @@ Quote first and decide second. If you cannot find words in the passage that sett
 // the model taking your character's turn for you.
 //
 // The distinction it has to draw is the whole difficulty. A character may look
-// at you, speak to you, react to you and describe you — that is their turn. A
+// at you, speak to you, react to you and describe you, that is their turn. A
 // character may not decide what you did, said, thought or felt. The examples
 // are there because the rule stated abstractly gets read as "any mention of
 // the user", which is wrong and would fail every well-written reply.

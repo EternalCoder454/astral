@@ -4,7 +4,7 @@ import "strings"
 
 // A reasoning model's deliberation is not always in the field Ollama keeps for
 // it. When it arrives in the reply instead, SplitThinking moves it once the
-// reply is complete — which is too late for a transcript you are watching
+// reply is complete, which is too late for a transcript you are watching
 // being written. What the model thinks about first is its own instructions, so
 // what streams past is the character sheet and the formatting rules read back
 // aloud, and the scene only appears once it has finished.

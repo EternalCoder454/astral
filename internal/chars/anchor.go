@@ -12,8 +12,8 @@ import (
 // near the front loses to that, and the first reply that drops its asterisks
 // becomes precedent for every reply after.
 //
-// The anchor restates the three things that drift — who is speaking, how the
-// prose sounds, how it is marked — in the last position before the model
+// The anchor restates the three things that drift, who is speaking, how the
+// prose sounds, how it is marked, in the last position before the model
 // writes. It costs its own length every turn, which is the price of the only
 // position that works.
 
@@ -29,7 +29,7 @@ const anchorFormat = `FORMAT. Every sentence is one of exactly two things, and t
 // already slipped. Restating it more forcefully only where it is being
 // disobeyed keeps the usual case cheap, and stops as soon as the model
 // complies.
-const anchorFormatFirm = `FORMAT. Your recent replies have been getting this wrong, so correct it now. Every sentence is one of exactly two things and there is no third kind: spoken aloud in "double quotes", or everything else — narration, action, body language, thought — wrapped in *single asterisks*. Go paragraph by paragraph: each one must start with a quote or an asterisk, and no sentence may be left unmarked. Example:
+const anchorFormatFirm = `FORMAT. Your recent replies have been getting this wrong, so correct it now. Every sentence is one of exactly two things and there is no third kind: spoken aloud in "double quotes", or everything else (narration, action, body language, thought) wrapped in *single asterisks*. Go paragraph by paragraph: each one must start with a quote or an asterisk, and no sentence may be left unmarked. Example:
 *She did not look up from the chart. The rain had found the window again, and she let it.* "You're late."
 *A pin went into the table rather than the map, a small and deliberate violence.* "Sit. You're dripping on the Sever."`
 
@@ -80,7 +80,7 @@ func Anchor(c Character, sc Scene, userName string) string {
 	//
 	// The wording works hard on two failure modes. A model handed "she is
 	// about to realise he lied" will otherwise write exactly that sentence, in
-	// narration, this turn — announcing the thing instead of playing it — and
+	// narration, this turn, announcing the thing instead of playing it, and
 	// will treat the whole direction as something to finish within one reply.
 	if d := strings.TrimSpace(sc.Direction); d != "" {
 		b.WriteString("\n\nDIRECTION. Where the user wants this scene to go. Your next reply " +
@@ -105,7 +105,7 @@ const narrationScanTurns = 3
 // Forty is about eight words: past anything a stray connective or a piece of
 // punctuation between two quoted lines could account for, and short of a
 // sentence of narration. It was sixty, which let a full sentence of unmarked
-// prose through — the exact case this is for.
+// prose through, the exact case this is for.
 const unmarkedRunChars = 40
 
 // NarrationDrifted reports whether the character's recent replies have stopped
@@ -114,7 +114,7 @@ const unmarkedRunChars = 40
 // It is deliberately not "does this reply contain an asterisk". A reply that
 // is entirely dialogue is correct and contains none, and punishing it would
 // make the prompt nag at exactly the wrong moment. What is measured instead is
-// prose that is neither spoken nor marked — which is the actual mistake.
+// prose that is neither spoken nor marked, which is the actual mistake.
 func NarrationDrifted(history []ollama.Message) bool {
 	checked, bad := 0, 0
 	for i := len(history) - 1; i >= 0 && checked < narrationScanTurns; i-- {

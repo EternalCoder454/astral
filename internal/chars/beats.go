@@ -172,7 +172,7 @@ type BeatStream struct {
 	open bool   // the current line has already been released, so pass it through
 	// skipWS means a label has just been committed and only whitespace has
 	// followed it. The one-pass path trims that whitespace off as part of
-	// reading the label, so the stream has to swallow it too — including the
+	// reading the label, so the stream has to swallow it too, including the
 	// newline of a label sitting alone on its line, which contributes nothing.
 	skipWS bool
 }
@@ -306,7 +306,7 @@ func (b *BeatStream) Speaker() string { return b.cur }
 // SplitBeats parses a whole reply into beats, merged by speaker and trimmed.
 //
 // Defined in terms of BeatStream rather than beside it, so the two can never
-// disagree about what a label is — which they did, twice, when the streaming
+// disagree about what a label is, which they did, twice, when the streaming
 // splitter for reasoning tags was written separately from the one that ran at
 // the end.
 func SplitBeats(reply string, names []string) []Beat {
