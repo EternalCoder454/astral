@@ -4,6 +4,7 @@ This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
 ## 0.3.1
+- The Android app updates itself: check and install from its own settings
 - Settings on your phone: model, context, reply limit, who you are, writing style
 - The phone uses Astral's own icons, and the Android app uses its own mark
 - Unpair a phone from the phone itself, for the one you are giving away

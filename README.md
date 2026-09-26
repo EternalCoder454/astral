@@ -163,6 +163,13 @@ interface with an icon, a full screen and the address remembered. It is
 sideloaded: Android will ask you to allow installing it, because it does not
 come from a store.
 
+The app updates itself from its own settings. It asks your PC what the newest
+version is, downloads it through your PC rather than from the internet, and
+hands it to Android's installer. Android asks once for permission to do that,
+and refuses any build not signed with the same key as the one already
+installed, so a file altered on the way across your network is rejected by the
+system rather than trusted by Astral.
+
 Nothing leaves your network. There is no account, no server belonging to anyone
 else, and with phone access switched off nothing is listening.
 

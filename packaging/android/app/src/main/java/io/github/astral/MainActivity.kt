@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.os.Bundle
 import android.text.InputType
 import android.view.ViewGroup
+import android.webkit.JavascriptInterface
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -53,7 +54,31 @@ class MainActivity : AppCompatActivity() {
             settings.useWideViewPort = false
             settings.loadWithOverviewMode = false
             settings.setSupportZoom(false)
+            // The page and the app talk through one object with three methods.
+            //
+            // addJavascriptInterface hands the page real code, which is only
+            // safe because of the rule below it: this WebView loads the one
+            // address it was paired with and refuses to navigate anywhere
+            // else, so the only page that can reach this is the one served by
+            // the machine the user already trusts with their library.
+            addJavascriptInterface(Bridge(), "AstralApp")
             webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(
+                    view: WebView,
+                    request: WebResourceRequest,
+                ): Boolean {
+                    val url = request.url.toString()
+                    if (url.startsWith(home())) return false
+                    // A link out goes to the browser rather than inside the
+                    // app, so nothing else is ever loaded where the bridge is.
+                    return try {
+                        startActivity(Intent(Intent.ACTION_VIEW, request.url))
+                        true
+                    } catch (_: Exception) {
+                        true
+                    }
+                }
+
                 override fun onReceivedError(
                     view: WebView,
                     request: WebResourceRequest,
@@ -73,9 +98,59 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
+        Updater.tidy(this)
+
         val saved = prefs.getString(KEY_ADDRESS, null)
         if (saved.isNullOrBlank()) askForAddress() else web.loadUrl(saved)
     }
+
+    /** The address this app is paired with, or empty before it is set. */
+    private fun home(): String = prefs.getString(KEY_ADDRESS, "") ?: ""
+
+    /**
+     * What the page can ask the app to do. Three things, all about updating,
+     * because that is the only thing a browser cannot do for itself.
+     */
+    private inner class Bridge {
+        /** Tells the page it is running inside the app rather than a browser. */
+        @JavascriptInterface
+        fun version(): String =
+            packageManager.getPackageInfo(packageName, 0).versionName ?: ""
+
+        /** Whether Android will currently let this app start an install. */
+        @JavascriptInterface
+        fun canInstall(): Boolean = Updater.canInstall(this@MainActivity)
+
+        /** Opens the settings page where that permission is granted. */
+        @JavascriptInterface
+        fun askToInstall() {
+            runOnUiThread { Updater.askForPermission(this@MainActivity) }
+        }
+
+        /**
+         * Downloads a version from the paired PC and opens the installer.
+         * Progress and failures go back to the page, which is where the user
+         * is looking.
+         */
+        @JavascriptInterface
+        fun install(version: String, token: String) {
+            Updater.download(
+                this@MainActivity, home(), token, version,
+                onProgress = { pct -> toPage("astralUpdateProgress", pct.toString()) },
+                onError = { msg -> toPage("astralUpdateFailed", quote(msg)) },
+            )
+        }
+    }
+
+    /** Calls a function on the page, if it has one. */
+    private fun toPage(fn: String, arg: String) {
+        runOnUiThread {
+            web.evaluateJavascript("window.$fn && window.$fn($arg)", null)
+        }
+    }
+
+    private fun quote(s: String): String =
+        "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ") + "\""
 
     override fun onSaveInstanceState(out: Bundle) {
         super.onSaveInstanceState(out)

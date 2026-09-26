@@ -38,4 +38,6 @@ android {
 
 dependencies {
 	implementation("androidx.appcompat:appcompat:1.7.0")
+	// FileProvider, for handing the downloaded build to the system installer.
+	implementation("androidx.core:core-ktx:1.15.0")
 }

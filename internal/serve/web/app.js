@@ -136,9 +136,70 @@ async function loadSettings() {
 	$("set-persona-note").value = settings.persona_note || "";
 	$("set-device").textContent = "Paired as " + (settings.device || "this device");
 	$("set-version").textContent = "Astral " + (settings.version || "?") + " on your PC";
-	$("set-update").textContent =
-		"The app updates by installing a newer .apk. Your PC updates itself from Settings there.";
+	$("set-update").textContent = inApp()
+		? "This app is version " + appVersion() + ". Your PC updates itself from Settings there."
+		: "Opened in a browser, so there is no app to update. Your PC updates itself from Settings there.";
+	$("set-update-app").hidden = !inApp();
 }
+
+// ---- Updating the app ----
+//
+// Only inside the Android app: a browser cannot install anything, and Android
+// will not update a sideloaded app by itself. The PC is asked what the newest
+// version is and then fetches it, so this works on a network with no way out.
+
+function inApp() { return typeof window.AstralApp !== "undefined"; }
+function appVersion() { try { return window.AstralApp.version(); } catch (_) { return "?"; } }
+
+let pendingVersion = "";
+
+async function checkForAppUpdate() {
+	if (!inApp()) return;
+	const btn = $("set-update-app");
+	setUpdateRow("Checking…", "");
+	try {
+		const res = await api("/api/app/latest?have=" + encodeURIComponent(appVersion()));
+		const info = await res.json();
+		if (info.current) {
+			setUpdateRow("The app is up to date", "Version " + info.have);
+			pendingVersion = "";
+			return;
+		}
+		pendingVersion = info.version;
+		setUpdateRow("Install " + info.version, (info.notes || []).slice(0, 2).join(" · "));
+	} catch (e) {
+		setUpdateRow("Could not check", e.message);
+	}
+	btn.hidden = false;
+}
+
+function setUpdateRow(title, note) {
+	$("set-update-title").textContent = title;
+	$("set-update-note").textContent = note;
+}
+
+function startAppUpdate() {
+	if (!pendingVersion) { checkForAppUpdate(); return; }
+	if (!window.AstralApp.canInstall()) {
+		// Android will not let an app install anything until you say so, per
+		// app, on a settings page it has to be sent to.
+		setUpdateRow("Allow installing, then press again",
+			"Android needs permission before an app can install one");
+		window.AstralApp.askToInstall();
+		return;
+	}
+	setUpdateRow("Downloading…", "Through your PC");
+	window.AstralApp.install(pendingVersion, token);
+}
+
+// Called by the app while the download runs, and if it fails.
+window.astralUpdateProgress = (pct) => {
+	setUpdateRow(pct >= 0 ? "Downloading… " + pct + "%" : "Downloading…", "Through your PC");
+};
+window.astralUpdateFailed = (msg) => {
+	setUpdateRow("The update failed", msg);
+	toast(msg);
+};
 
 function fillSelect(el, values, chosen) {
 	el.replaceChildren();
@@ -443,11 +504,14 @@ for (const tab of document.querySelectorAll(".tab")) {
 	tab.addEventListener("click", () => {
 		current = null;
 		show(tab.dataset.screen);
-		if (tab.dataset.screen === "settings") loadSettings().catch((e) => toast(e.message));
+		if (tab.dataset.screen === "settings") {
+			loadSettings().then(checkForAppUpdate).catch((e) => toast(e.message));
+		}
 	});
 }
 
 $("set-save").addEventListener("click", saveSettings);
+$("set-update-app").addEventListener("click", startAppUpdate);
 $("set-forget").addEventListener("click", forgetDevice);
 
 const composer = $("composer-text");

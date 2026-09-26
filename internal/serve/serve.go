@@ -133,6 +133,8 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("GET /api/settings", s.guard(s.handleSettings))
 	mux.Handle("POST /api/settings", s.guard(s.handleSaveSettings))
 	mux.Handle("POST /api/forget", s.guard(s.handleForget))
+	mux.Handle("GET /api/app/latest", s.guard(s.handleAppLatest))
+	mux.Handle("GET /api/app/download", s.guard(s.handleAppDownload))
 
 	// The same icon set the window draws with, served so the phone can use it
 	// as a CSS mask and recolour it. One set, two clients.

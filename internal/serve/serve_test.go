@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -273,5 +274,49 @@ func TestEveryIconTheInterfaceAsksForExists(t *testing.T) {
 	}
 	if found < 4 {
 		t.Fatalf("only found %d icon references; the check is no longer finding them", found)
+	}
+}
+
+// The version goes into a download URL, so it is checked rather than trusted.
+// Nothing a phone sends should be able to make this machine fetch an address
+// somebody else chose.
+func TestTheDownloadWillNotFetchAnArbitraryAddress(t *testing.T) {
+	s, _ := testServer(t)
+	tok := paired(t, s)
+	for _, bad := range []string{
+		"", "latest", "0.3", "0.3.1.2", "../../etc/passwd", "1.2.3/../..",
+		"0.3.1%0d%0a", "0.0.0@evil.example.com", "99999.1.1", "a.b.c",
+		"0.3.-1", "0.3.1#x",
+		// "0.3.1 " is deliberately not here: surrounding space is trimmed
+		// before the check, and what is left is a real version.
+	} {
+		w := do(t, s, "GET", "/api/app/download?version="+url.QueryEscape(bad), tok, "")
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("version %q was accepted (%d), want 400", bad, w.Code)
+		}
+	}
+}
+
+func TestPlausibleVersion(t *testing.T) {
+	for _, ok := range []string{"0.3.1", "1.0.0", "10.20.30", "0.0.0"} {
+		if !plausibleVersion(ok) {
+			t.Errorf("%q was rejected", ok)
+		}
+	}
+	for _, bad := range []string{"", "1", "1.2", "1.2.3.4", "v1.2.3", "1.2.x", "1.2.99999", "1..3"} {
+		if plausibleVersion(bad) {
+			t.Errorf("%q was accepted", bad)
+		}
+	}
+}
+
+// Asking about an app update still needs a token: it is a route that makes
+// this machine go out to the network on a caller's say-so.
+func TestAppUpdateRoutesNeedAToken(t *testing.T) {
+	s, _ := testServer(t)
+	for _, path := range []string{"/api/app/latest?have=0.1.0", "/api/app/download?version=0.3.1"} {
+		if got := do(t, s, "GET", path, "", "").Code; got != http.StatusUnauthorized {
+			t.Errorf("GET %s with no token = %d, want 401", path, got)
+		}
 	}
 }
