@@ -38,8 +38,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up the Android SDK
-        uses: android-actions/setup-android@v3
+      # The runner image already carries the Android SDK. The setup action was
+      # here first and fails on its own default package list, which still asks
+      # for "tools" — a package Google removed. Using what is already installed
+      # is both shorter and one fewer thing to break.
+      - name: Install what we build against
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -1)
+          echo "sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4

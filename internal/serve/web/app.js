@@ -144,6 +144,15 @@ function row({ title, note, initial, primary, onClick }) {
 	return btn;
 }
 
+// shortModel drops the publisher. "huihui_ai/qwen3.6-abliterated:27b" is
+// mostly somebody's account name, and on a phone it was taking the line the
+// greeting needed and pushing it to "Welcome back, ...".
+function shortModel(m) {
+	if (!m) return "no model";
+	const cut = m.lastIndexOf("/");
+	return cut >= 0 ? m.slice(cut + 1) : m;
+}
+
 function initialOf(name) {
 	return (name || "?").trim().charAt(0).toUpperCase() || "?";
 }
@@ -155,7 +164,7 @@ async function loadState() {
 	state = await res.json();
 
 	$("home-greeting").textContent = state.persona ? "Welcome back, " + state.persona : "Astral";
-	$("home-model").textContent = state.model || "no model";
+	$("home-model").textContent = shortModel(state.model);
 
 	const start = $("home-start");
 	start.replaceChildren();

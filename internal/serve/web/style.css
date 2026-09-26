@@ -62,7 +62,10 @@ html, body {
 	margin: 0;
 	font-size: 1.12rem;
 	font-weight: 700;
-	flex: 1;
+	/* The name wins the line. What is beside it is a detail; being greeted by
+	   "Welcome back, ..." is not a greeting. */
+	flex: 1 1 auto;
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -76,7 +79,9 @@ html, body {
 	border-radius: 999px;
 	padding: 3px 10px;
 	white-space: nowrap;
-	max-width: 45vw;
+	flex: 0 1 auto;
+	min-width: 0;
+	max-width: 38vw;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
@@ -373,6 +378,13 @@ body.in-chat .screen { inset: 0; }
 }
 
 .toast[hidden] { display: none; }
+
+/* On a phone the greeting is what the top bar is for. The model is a detail,
+   so it gives up the room rather than taking it. */
+@media (max-width: 430px) {
+	.topbar h1 { font-size: 1rem; }
+	.chip { max-width: 30vw; font-size: 0.7rem; }
+}
 
 /* ---- Anything wider than a phone ---- */
 
