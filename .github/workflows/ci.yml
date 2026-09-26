@@ -31,9 +31,9 @@ jobs:
           dnf -y install gtk4-devel libadwaita-devel gobject-introspection-devel \
             gcc pkgconf-pkg-config git tar gzip
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
@@ -81,8 +81,8 @@ jobs:
         run: |
           dnf -y install gtk4-devel libadwaita-devel gobject-introspection-devel \
             gcc pkgconf-pkg-config git tar gzip
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
