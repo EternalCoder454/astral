@@ -7,6 +7,7 @@ heading, a few plain lines each. The detailed history is in the git log.
 - Play a scene with up to five characters at once: they react to each other, not just to you
 - Each character speaks in their own message, with their own name and colour
 - Not everyone speaks every turn, so a scene reads as a conversation rather than a roll call
+- Add or remove a character while a scene is running, from the chip above the composer
 - Exporting a group scene names who said what
 
 ## 0.4.2

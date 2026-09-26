@@ -208,11 +208,17 @@ type ChatView struct {
 	// OnEditDirection is the direction chip being clicked. The dialog lives in
 	// the app layer, like the other editors.
 	OnEditDirection func()
+	// OnEditCast is the cast chip being clicked, for changing who is in a scene.
+	OnEditCast func()
 
 	// cast is every character in this scene. One member, or none, is an
 	// ordinary conversation and behaves exactly as it did before there were
 	// groups. See chatview_cast.go.
 	cast []chars.Character
+	// spoken is everyone who has said something in this scene, which is not the
+	// same list as the cast once somebody has been written out of it. The cast
+	// is who can speak next; this is who a stored line can belong to.
+	spoken []chars.Character
 	// beats folds a group reply into its speakers as it streams, and liveRows
 	// are the rows it is being streamed into, in order.
 	beats    chars.BeatStream
@@ -516,7 +522,7 @@ func (c *ChatView) Clear() {
 	}
 	c.chat = store.Chat{}
 	c.char = chars.Character{}
-	c.cast = nil
+	c.cast, c.spoken = nil, nil
 	c.clearBeats()
 	c.recap, c.recapUpto = "", 0
 	c.world, c.lore = world.World{}, nil
@@ -539,6 +545,15 @@ func (c *ChatView) LoadScene(ch store.Chat, cast []chars.Character, msgs []store
 		ca = cast[0]
 	}
 	c.chat, c.char, c.cast = ch, ca, cast
+	// Anyone who has spoken but is no longer in the cast. Read once here rather
+	// than resolved per row, and only for a scene that has a cast at all.
+	if ch.ID != 0 && len(cast) > 1 {
+		if spoken, err := c.store.SpeakersIn(ch.ID); err == nil {
+			c.spoken = spoken
+		} else {
+			log.Printf("astral: reading who has spoken in chat %d: %v", ch.ID, err)
+		}
+	}
 	c.recap, c.recapUpto = ch.Summary, ch.SummaryUpto
 	c.loadLore(c.loreHost())
 	c.mode = Roleplay
@@ -884,6 +899,12 @@ func (c *ChatView) refreshActions() {
 		// that takes two clicks to reach does not get used that way.
 		if c.char.Name != "" {
 			c.actionBar.Append(c.directionChip())
+			// Only where there is somebody to add. A scene in a world plays the
+			// place and whoever you meet there, so its cast is written as the
+			// scene goes and not chosen from a list.
+			if c.chat.WorldID == 0 || c.isGroup() {
+				c.actionBar.Append(c.castChip())
+			}
 			c.actionBar.SetVisible(true)
 			return
 		}

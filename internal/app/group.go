@@ -12,12 +12,86 @@ import (
 	"astral/internal/ui"
 )
 
-// showCastPicker chooses who is in a scene with more than one character.
+// showCastPicker chooses who is in a new scene with more than one character.
 //
 // A list with checkboxes rather than the one-click rows the cast page uses: a
 // group is a set, so there is a moment between choosing and starting that a
 // single click cannot express.
 func (a *App) showCastPicker() {
+	a.pickCast(nil, "Start the scene", a.newGroupChat)
+}
+
+// showCastEditor changes who is in the scene already open.
+//
+// The same picker, with the people already here ticked. Adding somebody
+// mid-scene is the ordinary way a scene grows: they arrive knowing what is in
+// the transcript, which is the position anyone walking into a room is in.
+func (a *App) showCastEditor() {
+	current := a.chat.Cast()
+	if len(current) == 0 {
+		a.toast("Open a scene first.")
+		return
+	}
+	a.pickCast(current, "Save", func(cast []chars.Character) {
+		// A scene that has not been sent yet is nothing but a greeting, so it is
+		// simply started again with the new cast. Nothing is lost and no
+		// transcript has to be reconciled.
+		if open := a.chat.Chat(); open.ID == 0 {
+			a.newGroupChat(cast)
+			return
+		}
+		if !a.chat.SetCast(cast) {
+			return
+		}
+		// Rebuilt rather than patched. The rows carry names, faces and grouping
+		// that all depend on who is in the scene, and reloading is both simpler
+		// and the only way to be sure the transcript matches the cast.
+		id := a.chat.Chat().ID
+		if err := a.openChat(id); err != nil {
+			a.toast("Could not reopen the scene: " + err.Error())
+			return
+		}
+		a.refreshSidebar()
+		a.toast(castChangeNote(current, cast))
+	})
+}
+
+// castChangeNote says what just changed, because a list of ticks is easy to get
+// wrong by one and the transcript does not make it obvious.
+func castChangeNote(before, after []chars.Character) string {
+	was := make(map[int64]bool, len(before))
+	for _, c := range before {
+		was[c.ID] = true
+	}
+	now := make(map[int64]bool, len(after))
+	for _, c := range after {
+		now[c.ID] = true
+	}
+	var joined, left []string
+	for _, c := range after {
+		if !was[c.ID] {
+			joined = append(joined, c.Name)
+		}
+	}
+	for _, c := range before {
+		if !now[c.ID] {
+			left = append(left, c.Name)
+		}
+	}
+	switch {
+	case len(joined) > 0 && len(left) > 0:
+		return strings.Join(joined, ", ") + " joined the scene, " + strings.Join(left, ", ") + " left"
+	case len(joined) > 0:
+		return strings.Join(joined, ", ") + " joined the scene"
+	case len(left) > 0:
+		return strings.Join(left, ", ") + " left the scene"
+	}
+	return "The cast is unchanged"
+}
+
+// pickCast is the picker both of those use. already is ticked on opening, and
+// onPick is handed the choice in the order it was made.
+func (a *App) pickCast(already []chars.Character, confirm string, onPick func([]chars.Character)) {
 	characters, err := a.store.Characters()
 	if err != nil {
 		a.toast("Could not read your characters: " + err.Error())
@@ -48,8 +122,16 @@ func (a *App) showCastPicker() {
 	for _, c := range characters {
 		byID[c.ID] = c
 	}
+	// Whoever is already here, to be ticked once the boxes exist. Their order is
+	// kept, so saving without touching anything cannot reshuffle a scene's cast.
+	preTick := make([]int64, 0, len(already))
+	for _, c := range already {
+		if _, ok := byID[c.ID]; ok {
+			preTick = append(preTick, c.ID)
+		}
+	}
 
-	start := gtk.NewButtonWithLabel("Start the scene")
+	start := gtk.NewButtonWithLabel(confirm)
 	start.AddCSSClass("suggested-action")
 	start.SetSensitive(false)
 
@@ -160,8 +242,16 @@ func (a *App) showCastPicker() {
 			cast = append(cast, byID[id])
 		}
 		d.Close()
-		a.newGroupChat(cast)
+		onPick(cast)
 	})
+	// Ticking them runs the handler above, which is what fills in the selection
+	// and its order. Seeding that list here as well would count everybody
+	// already in the scene twice.
+	for _, id := range preTick {
+		if ch, ok := checks[id]; ok {
+			ch.SetActive(true)
+		}
+	}
 	refresh()
 
 	tv := adw.NewToolbarView()
@@ -202,9 +292,10 @@ func (a *App) newGroupChat(cast []chars.Character) {
 	a.chat.FocusComposer()
 }
 
-// groupTitle names a scene after the people in it. Two names in full, then a
-// count: "Vesper, Kestrel" reads as a scene, "Vesper, Kestrel, Ash, Wren" reads
-// as a list and does not fit a sidebar row either way.
+// groupTitle names a scene after the people in it.
+//
+// Up to three in full, because three names still read as a scene and fit a
+// sidebar row. Past that it is a list, so the rest become a count.
 func groupTitle(cast []chars.Character) string {
 	names := chars.CastNames(cast)
 	switch len(names) {
@@ -214,6 +305,10 @@ func groupTitle(cast []chars.Character) string {
 		return names[0]
 	case 2:
 		return names[0] + " and " + names[1]
+	case 3:
+		return names[0] + ", " + names[1] + " and " + names[2]
+	case 4:
+		return fmt.Sprintf("%s, %s and 2 others", names[0], names[1])
 	default:
 		return fmt.Sprintf("%s, %s and %d others", names[0], names[1], len(names)-2)
 	}

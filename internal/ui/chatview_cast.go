@@ -2,8 +2,11 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
@@ -38,12 +41,21 @@ func (c *ChatView) castMember(name string) (chars.Character, bool) {
 	return chars.Character{}, false
 }
 
-// castByID finds a member by id, for rendering a stored message.
+// castByID finds whoever a stored message belongs to.
+//
+// It looks through everyone who has spoken in this scene rather than only the
+// current cast, because a character written out of a scene keeps the lines they
+// already said, and those lines keep their name and their face.
 func (c *ChatView) castByID(id int64) (chars.Character, bool) {
 	if id == 0 {
 		return chars.Character{}, false
 	}
 	for _, ca := range c.cast {
+		if ca.ID == id {
+			return ca, true
+		}
+	}
+	for _, ca := range c.spoken {
 		if ca.ID == id {
 			return ca, true
 		}
@@ -370,4 +382,94 @@ func (c *ChatView) warnIfCastTooLarge() {
 			"%d tokens, and the window is %d. Use fewer of them, shorten a card, or raise the "+
 			"context size in Settings.",
 		len(c.cast), fixed/4, c.cfg.NumCtx))
+}
+
+// Cast is who is in this scene.
+func (c *ChatView) Cast() []chars.Character { return c.cast }
+
+// SetCast changes who is in a running scene, and returns whether it took.
+//
+// A character added mid-scene arrives knowing what is in the transcript and
+// nothing else, which is the same position anyone walking into a room is in.
+// One removed keeps every line they have already said: they left, they were
+// never not there.
+//
+// Two is the floor once a scene has a cast. Narrowing to one would leave a
+// transcript full of labelled replies in front of framing that never mentions
+// labels, and the next reply would come back with a name typed into the prose
+// where the splitter is no longer looking for one.
+func (c *ChatView) SetCast(cast []chars.Character) bool {
+	if c.busy {
+		c.fail("Wait for this reply to finish before changing who is here.")
+		return false
+	}
+	cast = trimNameless(cast)
+	if c.isGroup() && len(cast) < 2 {
+		c.fail("A scene with a cast needs at least two of them. Swap somebody out instead.")
+		return false
+	}
+	if len(cast) == 0 {
+		return false
+	}
+
+	// Becoming a group. The replies so far carry no speaker, because there was
+	// only one person they could have been; they need the name they always
+	// implied before a second voice appears above them.
+	becoming := !c.isGroup() && len(cast) > 1
+	if becoming && c.chat.ID != 0 && c.char.ID != 0 {
+		if _, err := c.store.AttributeUnclaimed(c.chat.ID, c.char.ID); err != nil {
+			c.fail("Could not attribute this scene's existing replies: " + err.Error())
+			return false
+		}
+	}
+
+	if c.chat.ID != 0 {
+		ids := make([]int64, 0, len(cast))
+		for _, member := range cast {
+			ids = append(ids, member.ID)
+		}
+		if err := c.store.SetCast(c.chat.ID, ids); err != nil {
+			c.fail("Could not save who is in this scene: " + err.Error())
+			return false
+		}
+	}
+	// Nothing is written for a scene that has not started; ensureChat records
+	// the cast along with the chat when the first message goes out.
+	c.cast = cast
+	return true
+}
+
+// trimNameless drops members with no name, who cannot be labelled and so cannot
+// be told apart in a reply.
+func trimNameless(cast []chars.Character) []chars.Character {
+	out := make([]chars.Character, 0, len(cast))
+	for _, ca := range cast {
+		if strings.TrimSpace(ca.Name) != "" {
+			out = append(out, ca)
+		}
+	}
+	return out
+}
+
+// castChip is the control for who is in a scene. It sits beside the direction
+// chip for the same reason that one is there rather than in a menu: adding or
+// dropping somebody is a thing you do while reading a reply.
+func (c *ChatView) castChip() *gtk.Button {
+	btn := gtk.NewButton()
+	btn.AddCSSClass("chat-action-chip")
+	if c.isGroup() {
+		names := c.castNames()
+		btn.SetLabel(strconv.Itoa(len(names)) + " here")
+		btn.AddCSSClass("direction-set")
+		btn.SetTooltipText(strings.Join(names, ", ") + "\n\nClick to add or remove someone.")
+	} else {
+		btn.SetLabel("Add someone")
+		btn.SetTooltipText("Bring another character into this scene")
+	}
+	btn.ConnectClicked(func() {
+		if c.OnEditCast != nil {
+			c.OnEditCast()
+		}
+	})
+	return btn
 }

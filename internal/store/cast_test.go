@@ -180,3 +180,73 @@ func TestCastCountsIsOneQueryForEveryChat(t *testing.T) {
 		t.Errorf("a scene with one character should have no cast rows, counted %d", n)
 	}
 }
+
+func TestSpeakersInIncludesWhoeverHasLeft(t *testing.T) {
+	s := openTest(t)
+	ids := castFixture(t, s, "Vesper", "Kestrel", "Ash")
+	ch, _ := s.NewChat(0, "A scene", "", KindRoleplay)
+	if err := s.SetCast(ch.ID, ids); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range ids {
+		if _, err := s.AddMessage(Message{
+			ChatID: ch.ID, Role: "assistant", Content: "A line.", CharacterID: id,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Ash leaves. Their lines are still in the transcript, so they are still a
+	// speaker in it — otherwise those lines would be re-rendered and re-sent
+	// under whoever is first in the cast now.
+	if err := s.SetCast(ch.ID, ids[:2]); err != nil {
+		t.Fatal(err)
+	}
+	cast, _ := s.Cast(ch.ID)
+	if len(cast) != 2 {
+		t.Fatalf("cast is %d, want 2", len(cast))
+	}
+	spoken, err := s.SpeakersIn(ch.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spoken) != 3 {
+		t.Errorf("%d speakers, want 3: the one who left still said things", len(spoken))
+	}
+}
+
+func TestAttributeUnclaimedNamesTheRepliesThatHadNoName(t *testing.T) {
+	s := openTest(t)
+	ids := castFixture(t, s, "Vesper", "Kestrel")
+	ch, _ := s.NewChat(ids[0], "A two-hander", "", KindRoleplay)
+	for _, m := range []Message{
+		{ChatID: ch.ID, Role: "assistant", Content: "You're late."},
+		{ChatID: ch.ID, Role: "user", Content: "I know."},
+		{ChatID: ch.ID, Role: "assistant", Content: "*She did not look up.*"},
+	} {
+		if _, err := s.AddMessage(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	n, err := s.AttributeUnclaimed(ch.ID, ids[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("named %d replies, want 2", n)
+	}
+	msgs, _ := s.Messages(ch.ID)
+	for _, m := range msgs {
+		switch m.Role {
+		case "assistant":
+			if m.CharacterID != ids[0] {
+				t.Errorf("a reply is still unattributed: %q", m.Content)
+			}
+		case "user":
+			// Your own turns are yours and must stay unattributed, or they would
+			// be labelled with a character's name on the way to the model.
+			if m.CharacterID != 0 {
+				t.Errorf("your own turn was given a speaker: %q", m.Content)
+			}
+		}
+	}
+}

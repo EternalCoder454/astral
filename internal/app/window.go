@@ -170,6 +170,7 @@ func (a *App) buildSidebar() {
 func (a *App) buildCenter() {
 	a.chat = ui.NewChatView(a.client, a.store, a.cfg)
 	a.chat.OnChatChanged = a.refreshSidebar
+	a.chat.OnEditCast = a.showCastEditor
 	a.chat.OnError = func(msg string) {
 		a.toast(msg)
 		a.noteTurnFailed(msg)

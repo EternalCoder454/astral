@@ -114,3 +114,57 @@ func (s *Store) CastCounts() (map[int64]int, error) {
 	}
 	return out, rows.Err()
 }
+
+// SpeakersIn is every character who has said something in a scene, whether or
+// not they are still in its cast.
+//
+// The cast is who can speak next; this is who has spoken. They stop being the
+// same list the moment somebody is written out of a scene, and the difference
+// matters: their old lines are still in the transcript, and without a name to
+// resolve they would be re-rendered and re-sent under whoever happens to be
+// first in the cast now.
+func (s *Store) SpeakersIn(chatID int64) ([]chars.Character, error) {
+	rows, err := s.db.Query(`
+		SELECT `+characterColumns+`
+		FROM characters
+		WHERE id IN (
+			SELECT DISTINCT character_id FROM messages
+			WHERE chat_id = ? AND character_id <> 0
+		)`, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []chars.Character
+	for rows.Next() {
+		c, err := scanCharacter(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// AttributeUnclaimed puts a name on the replies in a scene that have none, and
+// returns how many it changed.
+//
+// This is what makes a two-hander into a group without losing its history. Its
+// existing replies carry no speaker, because there was only one person it could
+// have been; once a second character is in the room those lines need the name
+// they always implied, or the transcript goes to the model half labelled and
+// teaches it that labels are optional.
+func (s *Store) AttributeUnclaimed(chatID, characterID int64) (int64, error) {
+	if characterID == 0 {
+		return 0, nil
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	res, err := s.db.Exec(`
+		UPDATE messages SET character_id = ?
+		WHERE chat_id = ? AND character_id = 0 AND role = 'assistant'`, characterID, chatID)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
