@@ -9,6 +9,7 @@ heading, a few plain lines each. The detailed history is in the git log.
 - A model pulled while Astral is open now appears without restarting it
 - Long scenes open about three times faster and hold less memory
 - Replies stream more smoothly on a phone, especially with a fast model
+- The Android app updates in place from now on: uninstall once to get onto this build
 
 ## 0.4.0
 - Edit any message: the transcript is what the model reads, so fixing a line steers the scene
