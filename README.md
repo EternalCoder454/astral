@@ -163,6 +163,14 @@ interface with an icon, a full screen and the address remembered. It is
 sideloaded: Android will ask you to allow installing it, because it does not
 come from a store.
 
+The app is signed with a key held in this repository's secrets, not in the
+repository. That is what makes one build an update to the last rather than a
+different app wearing its name: Android refuses to replace an app with one
+signed differently, which is what "App not installed as package conflicts with
+an existing package" means. Builds up to 0.4.0 were each signed with a
+throwaway key, so upgrading from one of those needs the old app uninstalled
+once. After that they update in place.
+
 The app updates itself from its own settings. It asks your PC what the newest
 version is, downloads it through your PC rather than from the internet, and
 hands it to Android's installer. Android asks once for permission to do that,
