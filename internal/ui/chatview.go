@@ -910,12 +910,7 @@ func (c *ChatView) refreshActions() {
 		// that takes two clicks to reach does not get used that way.
 		if c.char.Name != "" {
 			c.actionBar.Append(c.directionChip())
-			// Only where there is somebody to add. A scene in a world plays the
-			// place and whoever you meet there, so its cast is written as the
-			// scene goes and not chosen from a list.
-			if c.chat.WorldID == 0 || c.isGroup() {
-				c.actionBar.Append(c.castChip())
-			}
+			c.actionBar.Append(c.castChip())
 			c.actionBar.SetVisible(true)
 			return
 		}

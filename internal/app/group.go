@@ -18,7 +18,7 @@ import (
 // group is a set, so there is a moment between choosing and starting that a
 // single click cannot express.
 func (a *App) showCastPicker() {
-	a.pickCast(nil, "Start the Scene", a.newGroupChat)
+	a.pickCast(nil, "Start the Scene", 2, a.newGroupChat)
 }
 
 // showCastEditor changes who is in the scene already open.
@@ -32,7 +32,13 @@ func (a *App) showCastEditor() {
 		a.toast("Open a scene first.")
 		return
 	}
-	a.pickCast(current, "Save", func(cast []chars.Character) {
+	// A scene in a world already has somebody in it, the place itself, so one
+	// person is enough to make it a group. Anywhere else it takes two.
+	least := 2
+	if a.chat.Chat().WorldID != 0 {
+		least = 1
+	}
+	a.pickCast(current, "Save", least, func(cast []chars.Character) {
 		// A scene that has not been sent yet is nothing but a greeting, so it is
 		// simply started again with the new cast. Nothing is lost and no
 		// transcript has to be reconciled.
@@ -91,7 +97,7 @@ func castChangeNote(before, after []chars.Character) string {
 
 // pickCast is the picker both of those use. already is ticked on opening, and
 // onPick is handed the choice in the order it was made.
-func (a *App) pickCast(already []chars.Character, confirm string, onPick func([]chars.Character)) {
+func (a *App) pickCast(already []chars.Character, confirm string, least int, onPick func([]chars.Character)) {
 	characters, err := a.store.Characters()
 	if err != nil {
 		a.toast("Could not read your characters: " + err.Error())
@@ -140,11 +146,13 @@ func (a *App) pickCast(already []chars.Character, confirm string, onPick func([]
 	count.SetXAlign(0)
 
 	refresh := func() {
-		start.SetSensitive(len(chosen) >= 2)
-		switch len(chosen) {
-		case 0:
+		start.SetSensitive(len(chosen) >= least)
+		switch {
+		case len(chosen) == 0 && least == 1:
+			count.SetText(fmt.Sprintf("Pick one to %d characters to join the scene.", store.MaxCast))
+		case len(chosen) == 0:
 			count.SetText(fmt.Sprintf("Pick two to %d characters.", store.MaxCast))
-		case 1:
+		case len(chosen) < least:
 			count.SetText("Pick at least one more.")
 		default:
 			names := make([]string, 0, len(chosen))

@@ -3,6 +3,11 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.4.6
+- Bring characters into a world scene: the place plays itself, the people play themselves
+- Export a world and its whole lorebook to one file, and import one back
+- Paste your notes and have the model turn them into lorebook entries
+
 ## 0.4.5
 - A world designer: the model interviews you and writes the setting and its lorebook
 - General chat keeps a record of itself instead of losing its own beginning

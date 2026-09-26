@@ -34,9 +34,9 @@ install: build
 	sed 's|@BIN@|$(BINDIR)/astral|' packaging/io.github.astral.desktop > $(APPDIR)/io.github.astral.desktop
 	-update-desktop-database $(APPDIR) 2>/dev/null || true
 	-gtk-update-icon-cache -f -t $(PREFIX)/share/icons/hicolor 2>/dev/null || true
-	@echo "Astral installed — search 'Astral' from the Super/Activities menu."
+	@echo "Astral installed, search 'Astral' from the Super/Activities menu."
 	@# Astral is single-instance, so launching it again while a copy is open
-	@# just raises that window and exits 0 — the new binary never runs. With no
+	@# just raises that window and exits 0, the new binary never runs. With no
 	@# warning that looks exactly like a successful update that changed nothing.
 	@if pgrep -x astral >/dev/null 2>&1; then \
 		echo ""; \

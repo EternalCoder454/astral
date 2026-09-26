@@ -38,13 +38,18 @@ var titleCalls = []*regexp.Regexp{
 	regexp.MustCompile(`label, tip = "([^"]+)"`),
 }
 
-// smallWords stay lowercase inside a title unless they open or close it. The
-// list is the short, closed one: articles, conjunctions and two-letter
-// prepositions. Anything longer is a principal word and takes a capital.
+// smallWords stay lowercase inside a title unless they open or close it:
+// articles, conjunctions and prepositions.
+//
+// Prepositions are in it regardless of length, which is the stricter of the two
+// usual conventions and the one that reads better here. "Read Lore from Text"
+// against "Read Lore From Text", and "Export as a Character Card" against
+// "Export As a Character Card".
 var smallWords = map[string]bool{
 	"a": true, "an": true, "and": true, "as": true, "at": true, "but": true,
-	"by": true, "for": true, "if": true, "in": true, "nor": true, "of": true,
-	"on": true, "or": true, "per": true, "the": true, "to": true, "up": true,
+	"by": true, "for": true, "from": true, "if": true, "in": true, "into": true,
+	"nor": true, "of": true, "on": true, "onto": true, "or": true, "over": true,
+	"per": true, "than": true, "the": true, "to": true, "up": true, "upon": true,
 	"via": true, "vs": true, "with": true,
 }
 
@@ -140,10 +145,16 @@ func TestNoDashesInTheProject(t *testing.T) {
 				}
 				return nil
 			}
+			// By extension, plus the few files that have none. A Makefile prints
+			// its own messages and is as much this project's prose as a comment.
 			switch filepath.Ext(path) {
-			case ".go", ".md", ".css", ".js", ".html":
+			case ".go", ".md", ".css", ".js", ".html", ".svg", ".sh", ".yml", ".iss", ".kts":
 			default:
-				return nil
+				switch d.Name() {
+				case "Makefile", "Dockerfile":
+				default:
+					return nil
+				}
 			}
 			clean := filepath.Clean(path)
 			if seen[clean] {

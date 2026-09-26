@@ -23,6 +23,14 @@ func (a *App) showWorlds() {
 	d.SetContentHeight(620)
 
 	header := adw.NewHeaderBar()
+	importBtn := gtk.NewButtonFromIconName(ui.IconFolder)
+	importBtn.SetTooltipText("Import a world from a file")
+	importBtn.ConnectClicked(func() {
+		d.Close()
+		a.actionImportWorld()
+	})
+	header.PackStart(importBtn)
+
 	newBtn := gtk.NewButtonFromIconName(ui.IconAdd)
 	newBtn.SetTooltipText("Create a world")
 	newBtn.ConnectClicked(func() {
@@ -440,6 +448,29 @@ func (a *App) showWorld(w world.World) {
 	lore.SetMarginTop(8)
 	page.Append(lore)
 	page.Append(a.lorebookRow(w, d))
+
+	// A lorebook could only be filled by hand or by play, which is no help to
+	// anybody whose setting is already written down somewhere.
+	fromText := gtk.NewButtonWithLabel("Read Lore from Text…")
+	fromText.SetHAlign(gtk.AlignStart)
+	fromText.SetTooltipText("Paste notes or a document, and have the model write the entries")
+	fromText.ConnectClicked(func() {
+		d.Close()
+		a.showLoreFromText(w, func() { a.showWorld(w) })
+	})
+	page.Append(fromText)
+
+	keep := gtk.NewLabel("This World as a File")
+	keep.SetXAlign(0)
+	keep.AddCSSClass("settings-heading")
+	keep.SetMarginTop(8)
+	page.Append(keep)
+
+	export := gtk.NewButtonWithLabel("Export This World…")
+	export.SetHAlign(gtk.AlignStart)
+	export.SetTooltipText("Write this world and its whole lorebook to one file")
+	export.ConnectClicked(func() { a.exportWorld(w) })
+	page.Append(export)
 
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(header)

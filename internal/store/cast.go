@@ -52,6 +52,11 @@ func (s *Store) SetCast(chatID int64, ids []int64) error {
 	// The first member is also the chat's character, so everything that reads
 	// chats.character_id, the sidebar's name and tint, the title, reopening a
 	// scene, keeps working on a group without knowing groups exist.
+	//
+	// Except in a world. A scene set in a place has no character by design: its
+	// narrator is the world itself, rebuilt from the world every time it is
+	// opened rather than stored. Naming a cast member as the chat's character
+	// there would reopen it tomorrow as that person's scene with the place gone.
 	head := int64(0)
 	for _, id := range ids {
 		if id != 0 {
@@ -59,8 +64,11 @@ func (s *Store) SetCast(chatID int64, ids []int64) error {
 			break
 		}
 	}
-	if _, err := tx.Exec(`UPDATE chats SET character_id = ?, updated_at = ? WHERE id = ?`,
-		head, unix(time.Now()), chatID); err != nil {
+	if _, err := tx.Exec(`
+		UPDATE chats
+		SET character_id = CASE WHEN world_id = 0 THEN ? ELSE character_id END,
+		    updated_at = ?
+		WHERE id = ?`, head, unix(time.Now()), chatID); err != nil {
 		return err
 	}
 	return tx.Commit()

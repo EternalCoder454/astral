@@ -319,6 +319,12 @@ func (a *App) openChat(id int64) error {
 	if err != nil {
 		log.Printf("astral: reading the cast of chat %d: %v", id, err)
 	}
+	// A scene in a world is played by the place as well as by anyone in it, so
+	// the narrator leads the cast. It is not in the stored rows because it is not
+	// a character anyone wrote.
+	if ch.WorldID != 0 && len(cast) > 0 && ca.Name != "" {
+		cast = append([]chars.Character{ca}, cast...)
+	}
 	if len(cast) > 1 {
 		a.chat.LoadScene(ch, cast, msgs)
 		ca = cast[0]

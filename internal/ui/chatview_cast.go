@@ -48,6 +48,13 @@ func (c *ChatView) castMember(name string) (chars.Character, bool) {
 // already said, and those lines keep their name and their face.
 func (c *ChatView) castByID(id int64) (chars.Character, bool) {
 	if id == 0 {
+		// The narrator of a world scene is a member with no id, because it is
+		// not a character anyone wrote: it is rebuilt from the world each time
+		// the scene is opened. Its beats are stored unattributed, and this is
+		// what gives them back their name and their tint.
+		if c.isGroup() && len(c.cast) > 0 && c.cast[0].ID == 0 {
+			return c.cast[0], true
+		}
 		return chars.Character{}, false
 	}
 	for _, ca := range c.cast {
@@ -410,8 +417,25 @@ func (c *ChatView) SetCast(cast []chars.Character) bool {
 		return false
 	}
 	cast = trimNameless(cast)
+	// A scene set in a world keeps its narrator at the head, whoever else joins.
+	// The place does not stop being there because somebody walked into it, and
+	// the picker only ever returns stored characters, which the narrator is not.
+	if n, ok := c.narrator(); ok {
+		kept := make([]chars.Character, 0, len(cast)+1)
+		kept = append(kept, n)
+		for _, member := range cast {
+			if member.ID != 0 {
+				kept = append(kept, member)
+			}
+		}
+		cast = kept
+	}
 	if c.isGroup() && len(cast) < 2 {
-		c.fail("A scene with a cast needs at least two of them. Swap somebody out instead.")
+		// Emptying a cast would leave the replies already written with nobody to
+		// attribute them to: they carry names, and the framing that explains what
+		// a name on a reply means only exists for a scene with a cast.
+		c.fail("Removing everyone would leave this scene's earlier replies with no one " +
+			"to attribute them to. Swap somebody out instead.")
 		return false
 	}
 	if len(cast) == 0 {
@@ -443,6 +467,21 @@ func (c *ChatView) SetCast(cast []chars.Character) bool {
 	// the cast along with the chat when the first message goes out.
 	c.cast = cast
 	return true
+}
+
+// narrator is the world itself, when this scene is set in one.
+//
+// It sits at the head of the cast with no id, because it is not a character
+// anyone wrote and is never stored: it is rebuilt from the world every time the
+// scene is opened, so editing the world changes the scenes already running in it.
+func (c *ChatView) narrator() (chars.Character, bool) {
+	if c.chat.WorldID == 0 || len(c.cast) == 0 {
+		return chars.Character{}, false
+	}
+	if c.cast[0].ID != 0 || c.cast[0].Name == "" {
+		return chars.Character{}, false
+	}
+	return c.cast[0], true
 }
 
 // trimNameless drops members with no name, who cannot be labelled and so cannot
