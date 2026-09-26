@@ -76,12 +76,13 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 		}
 	}
 
-	hist, err := s.history(ch)
+	cast := s.castFor(ch)
+	hist, err := s.history(ch, castNames(cast))
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	msgs := scene.Build(s.store, cfg, ch, ca, hist)
+	msgs := scene.BuildFor(s.store, cfg, ch, castFor(cast, ca), hist)
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -167,15 +168,61 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 		send("error", map[string]string{"error": "the model returned an empty reply"})
 		return
 	}
-	msgID, err := s.store.AddMessage(store.Message{
-		ChatID: ch.ID, Role: ollama.RoleAssistant, Content: content,
-		Thinking: thinking, EvalCount: stats.Tokens, TokPerSec: stats.TokPerSec,
-	})
-	if err != nil {
-		send("error", map[string]string{"error": err.Error()})
-		return
+	if len(cast) > 1 {
+		// A group reply is several turns in one stream. It is split and stored
+		// the same way the window splits it, so the same scene reads the same on
+		// both screens, and the phone is told the pieces rather than the whole
+		// so it can put a name on each.
+		beats := chars.SplitBeats(content, chars.CastNames(cast))
+		if len(beats) == 0 {
+			send("error", map[string]string{"error": "the model returned an empty reply"})
+			return
+		}
+		byName := make(map[string]chars.Character, len(cast))
+		for _, member := range cast {
+			byName[strings.ToLower(member.Name)] = member
+		}
+		type beatOut struct {
+			ID      int64  `json:"id"`
+			Who     string `json:"who"`
+			Accent  int    `json:"accent"`
+			Content string `json:"content"`
+		}
+		out := make([]beatOut, 0, len(beats))
+		for i, b := range beats {
+			who, ok := byName[strings.ToLower(b.Name)]
+			if !ok {
+				who = cast[0]
+			}
+			m := store.Message{
+				ChatID: ch.ID, Role: ollama.RoleAssistant, Content: b.Text,
+				CharacterID: who.ID,
+			}
+			if i == 0 {
+				m.Thinking = thinking
+			}
+			if i == len(beats)-1 {
+				m.EvalCount, m.TokPerSec = stats.Tokens, stats.TokPerSec
+			}
+			id, err := s.store.AddMessage(m)
+			if err != nil {
+				send("error", map[string]string{"error": err.Error()})
+				return
+			}
+			out = append(out, beatOut{ID: id, Who: who.Name, Accent: who.Accent, Content: b.Text})
+		}
+		send("done", map[string]any{"beats": out, "title": ch.Title})
+	} else {
+		msgID, err := s.store.AddMessage(store.Message{
+			ChatID: ch.ID, Role: ollama.RoleAssistant, Content: content,
+			Thinking: thinking, EvalCount: stats.Tokens, TokPerSec: stats.TokPerSec,
+		})
+		if err != nil {
+			send("error", map[string]string{"error": err.Error()})
+			return
+		}
+		send("done", map[string]any{"id": msgID, "content": content, "title": ch.Title})
 	}
-	send("done", map[string]any{"id": msgID, "content": content, "title": ch.Title})
 
 	// The housekeeping the window does in the background. Without it a scene
 	// played only from a phone would never compact and never learn, and would
@@ -185,19 +232,24 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 
 // history is the conversation as it will be sent: everything the recap does
 // not already cover.
-func (s *Server) history(ch store.Chat) ([]ollama.Message, error) {
+func (s *Server) history(ch store.Chat, nameOf func(int64) string) ([]ollama.Message, error) {
 	msgs, err := s.store.MessagesAfter(ch.ID, ch.SummaryUpto)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]ollama.Message, 0, len(msgs))
-	for _, m := range msgs {
-		if strings.TrimSpace(m.Content) == "" {
-			continue
-		}
-		out = append(out, ollama.Message{Role: m.Role, Content: m.Content})
+	// Labelled and merged by internal/scene, the same call the window makes, so
+	// a scene played from both produces the same prompt and keeps its cached
+	// prefix when you switch between them.
+	return scene.History(msgs, nameOf), nil
+}
+
+// castFor is the cast to assemble a prompt for: the scene's own cast when it has
+// one, and otherwise the single character, so BuildFor takes the ordinary path.
+func castFor(cast []chars.Character, ca chars.Character) []chars.Character {
+	if len(cast) > 1 {
+		return cast
 	}
-	return out, nil
+	return []chars.Character{ca}
 }
 
 // housekeep compacts a scene that has outgrown its window and teaches the

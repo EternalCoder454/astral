@@ -31,7 +31,17 @@ func (a *App) actionExportChat(id int64) {
 			who = w.Name
 		}
 	}
-	data := transcript.Markdown(ch, msgs, who, a.cfg.PersonaName)
+	// A scene with a cast names each speaker. Without this an export of a
+	// group reads as one character saying everything, which is a worse record
+	// of it than no export at all.
+	names := map[int64]string{}
+	if cast, err := a.store.Cast(id); err == nil {
+		for _, member := range cast {
+			names[member.ID] = member.Name
+		}
+	}
+	data := transcript.MarkdownCast(ch, msgs, who, a.cfg.PersonaName,
+		func(cid int64) string { return names[cid] })
 
 	dialog := gtk.NewFileDialog()
 	dialog.SetTitle("Export scene")

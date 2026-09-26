@@ -104,6 +104,18 @@ func (c *ChatView) ensureChat(firstMessage string) error {
 	}
 	ch.CharacterName = c.char.Name
 	ch.Accent = c.char.Accent
+	if c.isGroup() {
+		ids := make([]int64, 0, len(c.cast))
+		for _, member := range c.cast {
+			ids = append(ids, member.ID)
+		}
+		if err := c.store.SetCast(ch.ID, ids); err != nil {
+			// The scene is playable without the row; what is lost is the other
+			// characters when it is reopened, so it is worth saying so rather
+			// than letting a group quietly become a two-hander tomorrow.
+			c.fail("Could not save who is in this scene: " + err.Error())
+		}
+	}
 	kind := c.chat.Kind
 	c.chat = ch
 	c.chat.Kind = kind
@@ -114,6 +126,7 @@ func (c *ChatView) ensureChat(firstMessage string) error {
 	if c.greeting != nil && c.greeting.ID == 0 {
 		if id, err := c.store.AddMessage(store.Message{
 			ChatID: c.chat.ID, Role: ollama.RoleAssistant, Content: c.greeting.Text(),
+			CharacterID: c.greeting.Speaker,
 		}); err == nil {
 			c.greeting.ID = id
 		}
@@ -130,7 +143,9 @@ func (c *ChatView) ShowGreeting(text string) {
 		return
 	}
 	c.greetingAt = 0
-	c.greeting = c.appendRow(ollama.RoleAssistant, text, "", 0, time.Now())
+	// Attributed in a group, so the opening is the first worked example of the
+	// labelled format rather than an unnamed paragraph the model has to guess at.
+	c.greeting = c.appendRowAs(c.greetingSpeaker(), ollama.RoleAssistant, text, "", 0, time.Now())
 	// A character written with several ways into a scene should offer them.
 	// Only while the greeting is the whole chat: once there is a reply under
 	// it, changing the opening would rewrite the start of something already
@@ -186,27 +201,26 @@ func (c *ChatView) history() []ollama.Message {
 		// error rather than sending the model an empty conversation.
 		return c.rowHistory()
 	}
-	out := make([]ollama.Message, 0, len(msgs))
-	for _, m := range msgs {
-		if strings.TrimSpace(m.Content) == "" {
-			continue
-		}
-		out = append(out, ollama.Message{Role: m.Role, Content: m.Content})
-	}
-	return out
+	// Labelled and merged by internal/scene, which the phone uses too: the
+	// speaker's name is stored beside a beat rather than inside it, and a
+	// transcript that arrives without the labels teaches the model that replies
+	// do not carry them.
+	return scene.History(msgs, c.nameOf)
 }
 
 // rowHistory reads the transcript off the rows, skipping the one currently
 // being streamed into.
 func (c *ChatView) rowHistory() []ollama.Message {
-	out := make([]ollama.Message, 0, len(c.rows))
+	msgs := make([]store.Message, 0, len(c.rows))
 	for _, r := range c.rows {
 		if r == c.live || strings.TrimSpace(r.Text()) == "" {
 			continue
 		}
-		out = append(out, ollama.Message{Role: r.Role, Content: r.Text()})
+		msgs = append(msgs, store.Message{
+			Role: r.Role, Content: r.Text(), CharacterID: r.Speaker,
+		})
 	}
-	return out
+	return scene.History(msgs, c.nameOf)
 }
 
 // buildRequest assembles the messages for a turn, framed for what this
@@ -225,7 +239,7 @@ func (c *ChatView) buildRequest() []ollama.Message {
 	if c.continuing != nil && len(hist) > 0 && hist[len(hist)-1].Role == ollama.RoleAssistant {
 		hist = hist[:len(hist)-1]
 	}
-	return scene.Build(c.store, c.cfg, c.chat, c.char, hist)
+	return scene.BuildFor(c.store, c.cfg, c.chat, c.cast, hist)
 }
 
 // budget divides this chat's context window between the parts of its prompt.
@@ -292,18 +306,27 @@ func (c *ChatView) startStream() {
 	c.prefilled = false
 	c.collapsed, c.collapseWhy = false, ""
 	c.thinkStream = ollama.ThinkStream{}
+	// A fresh splitter per turn, holding this scene's names.
+	c.liveRows = nil
+	c.beats = chars.BeatStream{}
+	if c.isGroup() {
+		c.beats.Names = c.castNames()
+	}
 	switch {
 	case c.continuing != nil:
 		// The reply so far is the prefill. Nothing else is needed: a model
 		// handed an unfinished turn finishes it.
 		msgs = append(msgs, ollama.Message{Role: ollama.RoleAssistant, Content: c.continuing.Text()})
-	case len(msgs) > 0 && msgs[len(msgs)-1].Role == ollama.RoleSystem && c.wantsPrefill(msgs):
+	case !c.isGroup() && len(msgs) > 0 && msgs[len(msgs)-1].Role == ollama.RoleSystem && c.wantsPrefill(msgs):
 		msgs = append(msgs, ollama.Message{Role: ollama.RoleAssistant, Content: chars.NarrationPrefill})
 		c.prefilled = true
 	}
 
 	if c.continuing != nil {
 		c.continuePrefix = c.continuing.Text()
+		c.continueSpeaker = c.continuing.Speaker
+		// The splitter starts mid-turn, so it is told whose turn it is.
+		c.beats.Start(c.nameOf(c.continueSpeaker))
 		c.live = c.continuing
 		c.live.ContinueStreaming(c.streamWidth())
 	} else {
@@ -344,6 +367,37 @@ func (c *ChatView) startStream() {
 	}()
 }
 
+// turnMeta is the footnote under a reply: its speed, and whether it was cut
+// short. It takes stats by pointer because a reply that returned no token count
+// has its elapsed time filled in here, and the caller stores what it is given.
+func (c *ChatView) turnMeta(stats *ollama.Stats, started time.Time, cancelled bool) string {
+	if stats.Tokens == 0 && !cancelled {
+		stats.Elapsed = time.Since(started)
+	}
+	meta := ""
+	if c.cfg.ShowStats {
+		meta = stats.Summary()
+	}
+	if stats.Truncated() {
+		// A reply that stops mid-sentence looks like the model failing unless
+		// it says why.
+		if meta != "" {
+			meta += " · "
+		}
+		meta += "cut off at the reply limit"
+	}
+	if c.collapsed {
+		// On the message as well as in a toast. The toast goes away and the
+		// reply does not, and a month later this is the only thing that
+		// explains why one turn in the transcript trails off into nonsense.
+		if meta != "" {
+			meta += " · "
+		}
+		meta += "stopped: the model began " + c.collapseWhy
+	}
+	return meta
+}
+
 // finishStream lands a completed reply on the main thread.
 func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats, err error, started time.Time) {
 	// The staleness guard. Between the request going out and this running, the
@@ -359,8 +413,8 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	// Cleared here rather than where it is used, so that a turn which fails,
 	// is cancelled, or returns nothing does not leave the next one thinking it
 	// is still finishing something.
-	continuing, prefix := c.continuing != nil, c.continuePrefix
-	c.continuing, c.continuePrefix = nil, ""
+	continuing, prefix, spoke := c.continuing != nil, c.continuePrefix, c.continueSpeaker
+	c.continuing, c.continuePrefix, c.continueSpeaker = nil, "", 0
 
 	row := c.live
 	c.live = nil
@@ -404,7 +458,11 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 			row.AppendThinking(held)
 		}
 		if tail != "" {
-			row.AppendText(tail)
+			if c.isGroup() {
+				c.streamBeats(tail)
+			} else {
+				row.AppendText(tail)
+			}
 		}
 	}
 	inlineThinking, content := ollama.SplitThinking(msg.Content)
@@ -415,10 +473,26 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 		// it stood and carries on from exactly there, so it supplies its own
 		// leading space when there should be one — and a reply cut mid-word
 		// is finished mid-word.
-		content = prefix + content
+		//
+		// In a group the first half gets its label back before the two are
+		// joined. Without it the finished reply opens with an unnamed beat, and
+		// the split would hand the whole thing to whoever the cast lists first.
+		if c.isGroup() {
+			if name := c.nameOf(spoke); name != "" {
+				content = chars.Label(name, prefix) + content
+			} else {
+				content = prefix + content
+			}
+		} else {
+			content = prefix + content
+		}
 	}
 	if inlineThinking != "" {
 		msg.Thinking = strings.TrimSpace(msg.Thinking + "\n\n" + inlineThinking)
+	}
+	if c.isGroup() {
+		c.finishGroupTurn(content, msg.Thinking, stats, started, cancelled)
+		return
 	}
 	if text := strings.TrimSpace(content); text != "" {
 		if c.prefilled {
@@ -444,31 +518,7 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 		return
 	}
 
-	if stats.Tokens == 0 && !cancelled {
-		stats.Elapsed = time.Since(started)
-	}
-	meta := ""
-	if c.cfg.ShowStats {
-		meta = stats.Summary()
-	}
-	if stats.Truncated() {
-		// A reply that stops mid-sentence looks like the model failing unless
-		// it says why.
-		if meta != "" {
-			meta += " · "
-		}
-		meta += "cut off at the reply limit"
-	}
-	if c.collapsed {
-		// On the message as well as in a toast. The toast goes away and the
-		// reply does not, and a month later this is the only thing that
-		// explains why one turn in the transcript trails off into nonsense.
-		if meta != "" {
-			meta += " · "
-		}
-		meta += "stopped: the model began " + c.collapseWhy
-	}
-	row.SetMeta(meta)
+	row.SetMeta(c.turnMeta(&stats, started, cancelled))
 
 	// A continued reply already has a row in the database, so it is rewritten
 	// rather than added: saving it again would leave the scene holding the
@@ -751,15 +801,27 @@ func (c *ChatView) drainPending() {
 	}
 	stick := c.atBottom() // decided before the append changes the extent
 	if think != "" {
-		c.live.AppendThinking(think)
+		// On the row the turn started in. Deliberation belongs to the reply
+		// rather than to whichever character happens to be speaking when it
+		// arrives.
+		if len(c.liveRows) > 0 {
+			c.liveRows[0].row.AppendThinking(think)
+		} else {
+			c.live.AppendThinking(think)
+		}
 	}
 	if text != "" {
 		// Plain text while streaming: a half-arrived "**bo" is not valid
 		// markup, and rendering per flush would flicker between broken and
 		// correct formatting. It is rendered once, at the end.
-		c.live.AppendText(text)
-		c.live.SetMeta("")
-
+		if c.isGroup() {
+			// A group reply arrives as one stream with the speakers marked in
+			// it, and is dealt out into a row each as those marks appear.
+			c.streamBeats(text)
+		} else {
+			c.live.AppendText(text)
+			c.live.SetMeta("")
+		}
 	}
 	// A model that has come apart will not recover on its own, and every
 	// further token is both wasted and destined for the transcript that becomes

@@ -393,6 +393,11 @@ type Scene struct {
 	// NarrationDrifted says the recent replies have stopped marking narration
 	// with asterisks, so the format rule is restated more firmly.
 	NarrationDrifted bool
+	// RollCall says the recent replies in a group scene have had every
+	// character speak once each, in cast order, which is what a scene with a
+	// cast degenerates into. The anchor argues against it only when it is
+	// happening.
+	RollCall bool
 	// Direction is where the user wants this scene to go next: "she is about
 	// to realise he lied", "move them toward the docks". It is not a standing
 	// rule like a character's instructions, it is a nudge for the next few

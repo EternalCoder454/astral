@@ -175,6 +175,17 @@ frame:focus-within {
 	font-size: 0.92em;
 }
 
+/* How many characters are in a scene. Set back far enough to be ignorable when
+   you are reading down the titles, and there when you are looking for it. */
+.chat-row-cast {
+	font-size: 0.74em;
+	color: @astral_muted;
+	background: alpha(@astral_border, 0.55);
+	border-radius: 6px;
+	padding: 0 5px;
+	min-width: 12px;
+}
+
 /* Profile pill, bottom-left. */
 .sidebar-foot {
 	padding: 8px 10px 10px 10px;

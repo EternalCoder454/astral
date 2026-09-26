@@ -312,7 +312,19 @@ func (a *App) openChat(id int64) error {
 	if err != nil {
 		return err
 	}
-	a.chat.LoadChat(ch, ca, msgs)
+	// Whoever else is in it. A scene with one character has no cast rows, so
+	// this is empty for almost every conversation and the ordinary path runs
+	// unchanged.
+	cast, err := a.store.Cast(id)
+	if err != nil {
+		log.Printf("astral: reading the cast of chat %d: %v", id, err)
+	}
+	if len(cast) > 1 {
+		a.chat.LoadScene(ch, cast, msgs)
+		ca = cast[0]
+	} else {
+		a.chat.LoadChat(ch, ca, msgs)
+	}
 	a.showPortraitFor(ca)
 	a.refreshAttachAvailability()
 	a.showChat()

@@ -17,6 +17,14 @@ import (
 // Markdown renders a scene. who is the character's name and you is the
 // persona's, since the transcript stores roles rather than names.
 func Markdown(ch store.Chat, msgs []store.Message, who, you string) string {
+	return MarkdownCast(ch, msgs, who, you, nil)
+}
+
+// MarkdownCast renders a scene with more than one character in it. nameOf gives
+// a speaker's name from the id stored on a message, and falls back to who for a
+// turn that names nobody — which is every turn in a scene with one character,
+// and the greeting in a scene that was played as a group from the start.
+func MarkdownCast(ch store.Chat, msgs []store.Message, who, you string, nameOf func(int64) string) string {
 	if who = strings.TrimSpace(who); who == "" {
 		who = "Them"
 	}
@@ -61,8 +69,13 @@ func Markdown(ch store.Chat, msgs []store.Message, who, you string) string {
 			continue
 		}
 		speaker := who
-		if m.Role == ollama.RoleUser {
+		switch {
+		case m.Role == ollama.RoleUser:
 			speaker = you
+		case nameOf != nil && m.CharacterID != 0:
+			if n := strings.TrimSpace(nameOf(m.CharacterID)); n != "" {
+				speaker = n
+			}
 		}
 		fmt.Fprintf(&b, "**%s**\n\n%s\n\n", speaker, text)
 	}

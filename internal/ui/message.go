@@ -78,8 +78,11 @@ type MessageRow struct {
 
 	// ID is the database row this displays, 0 while a reply is still streaming
 	// and has not been written yet.
-	ID   int64
-	Role string
+	ID int64
+	// Speaker is which member of the cast said it, in a scene with more than
+	// one character. Zero everywhere else.
+	Speaker int64
+	Role    string
 
 	// raw is the full text as received, kept because the label holds *markup*
 	// and there is no faithful way back from that to the original.

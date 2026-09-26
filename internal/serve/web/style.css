@@ -267,6 +267,15 @@ html, body {
 	margin: 0 0 4px 4px;
 }
 
+/* A tint per character, so a scene with five people in it can be followed
+   without reading every name. The same four secondary accents the window uses
+   for avatars, in the same order, so a character looks like themselves on both
+   screens. */
+.who-accent-0 { color: #c46686; }
+.who-accent-1 { color: #6a9bcc; }
+.who-accent-2 { color: #788c5d; }
+.who-accent-3 { color: #d4a27f; }
+
 /* The reading grammar, the same as the window: speech carries weight, and
    everything outside quotation marks is set back. */
 .speech { font-weight: 600; }

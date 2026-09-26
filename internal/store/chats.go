@@ -56,18 +56,30 @@ type Chat struct {
 	CharacterName string
 	Accent        int
 	MessageCount  int
+	// CastSize is how many characters are in the scene, for the scenes that
+	// have more than one. Zero for every other conversation, so the sidebar can
+	// treat zero and one as the same thing.
+	CastSize int
 }
 
 // Message is one turn, as persisted.
 type Message struct {
-	ID        int64
-	ChatID    int64
-	Role      string
-	Content   string
-	Thinking  string
-	EvalCount int
-	TokPerSec float64
-	CreatedAt time.Time
+	ID       int64
+	ChatID   int64
+	Role     string
+	Content  string
+	Thinking string
+	// CharacterID is who spoke, in a scene with more than one character. Zero
+	// for your own turns, and zero in a two-hander where the chat already
+	// records the only character there is.
+	//
+	// The content is stored without a name on it. The name belongs to the
+	// character, so a renamed character renames their old lines too, and the
+	// transcript holds prose rather than prose with a label glued to the front.
+	CharacterID int64
+	EvalCount   int
+	TokPerSec   float64
+	CreatedAt   time.Time
 }
 
 // Chats returns every chat, most recently updated first, joined to its
@@ -79,11 +91,16 @@ func (s *Store) Chats() ([]Chat, error) {
 	// messages — and this runs on every sidebar refresh, twice a turn.
 	rows, err := s.db.Query(`
 		SELECT c.id, c.character_id, c.world_id, c.title, c.model, c.kind, c.created_at, c.updated_at,
-		       COALESCE(ch.name, ''), COALESCE(ch.accent, 0), COALESCE(n.count, 0)
+		       COALESCE(ch.name, ''), COALESCE(ch.accent, 0), COALESCE(n.count, 0),
+		       COALESCE(cc.count, 0)
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
 		LEFT JOIN (SELECT chat_id, COUNT(*) AS count FROM messages GROUP BY chat_id) n
 		       ON n.chat_id = c.id
+		-- The cast size, in the same one grouped pass as the message count
+		-- rather than a query per row.
+		LEFT JOIN (SELECT chat_id, COUNT(*) AS count FROM chat_cast GROUP BY chat_id) cc
+		       ON cc.chat_id = c.id
 		ORDER BY c.updated_at DESC, c.id DESC`)
 	if err != nil {
 		return nil, err
@@ -94,7 +111,8 @@ func (s *Store) Chats() ([]Chat, error) {
 		var c Chat
 		var created, updated int64
 		if err := rows.Scan(&c.ID, &c.CharacterID, &c.WorldID, &c.Title, &c.Model, &c.Kind,
-			&created, &updated, &c.CharacterName, &c.Accent, &c.MessageCount); err != nil {
+			&created, &updated, &c.CharacterName, &c.Accent, &c.MessageCount,
+			&c.CastSize); err != nil {
 			return nil, err
 		}
 		c.CreatedAt, c.UpdatedAt = fromUnix(created), fromUnix(updated)
@@ -230,7 +248,7 @@ func (s *Store) Messages(chatID int64) ([]Message, error) {
 
 func (s *Store) messages(chatID, afterID int64) ([]Message, error) {
 	rows, err := s.db.Query(`
-		SELECT id, chat_id, role, content, thinking, eval_count, tok_per_sec, created_at
+		SELECT id, chat_id, role, content, thinking, character_id, eval_count, tok_per_sec, created_at
 		FROM messages WHERE chat_id = ? AND id > ? ORDER BY id`, chatID, afterID)
 	if err != nil {
 		return nil, err
@@ -241,7 +259,7 @@ func (s *Store) messages(chatID, afterID int64) ([]Message, error) {
 		var m Message
 		var created int64
 		if err := rows.Scan(&m.ID, &m.ChatID, &m.Role, &m.Content, &m.Thinking,
-			&m.EvalCount, &m.TokPerSec, &created); err != nil {
+			&m.CharacterID, &m.EvalCount, &m.TokPerSec, &created); err != nil {
 			return nil, err
 		}
 		m.CreatedAt = fromUnix(created)
@@ -268,9 +286,10 @@ func (s *Store) AddMessage(m Message) (int64, error) {
 	defer tx.Rollback() // no-op after a successful Commit
 
 	res, err := tx.Exec(`
-		INSERT INTO messages (chat_id, role, content, thinking, eval_count, tok_per_sec, created_at)
-		VALUES (?,?,?,?,?,?,?)`,
-		m.ChatID, m.Role, m.Content, m.Thinking, m.EvalCount, m.TokPerSec, unix(m.CreatedAt))
+		INSERT INTO messages (chat_id, role, content, thinking, character_id, eval_count, tok_per_sec, created_at)
+		VALUES (?,?,?,?,?,?,?,?)`,
+		m.ChatID, m.Role, m.Content, m.Thinking, m.CharacterID,
+		m.EvalCount, m.TokPerSec, unix(m.CreatedAt))
 	if err != nil {
 		return 0, err
 	}

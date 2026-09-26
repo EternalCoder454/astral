@@ -141,6 +141,11 @@ type ChatView struct {
 	// continuePrefix is the reply as it stood before the continuation, so the
 	// two halves can be joined when it finishes.
 	continuePrefix string
+	// continueSpeaker is who the continued reply belongs to. In a group the two
+	// halves have to be rejoined under the right name: the rest of a reply
+	// carries no label, because the model is finishing a sentence rather than
+	// starting a turn.
+	continueSpeaker int64
 
 	// thinkStream keeps deliberation that arrives inside the reply off the
 	// screen while it streams. See ollama.ThinkStream.
@@ -203,6 +208,15 @@ type ChatView struct {
 	// OnEditDirection is the direction chip being clicked. The dialog lives in
 	// the app layer, like the other editors.
 	OnEditDirection func()
+
+	// cast is every character in this scene. One member, or none, is an
+	// ordinary conversation and behaves exactly as it did before there were
+	// groups. See chatview_cast.go.
+	cast []chars.Character
+	// beats folds a group reply into its speakers as it streams, and liveRows
+	// are the rows it is being streamed into, in order.
+	beats    chars.BeatStream
+	liveRows []*beatRow
 
 	// OnLoreLearned reports a finished learning pass: how many entries were
 	// applied, and how many were held back for review.
@@ -502,16 +516,31 @@ func (c *ChatView) Clear() {
 	}
 	c.chat = store.Chat{}
 	c.char = chars.Character{}
+	c.cast = nil
+	c.clearBeats()
 	c.recap, c.recapUpto = "", 0
 	c.world, c.lore = world.World{}, nil
 }
 
 // LoadChat displays a conversation and its character.
 func (c *ChatView) LoadChat(ch store.Chat, ca chars.Character, msgs []store.Message) {
+	c.LoadScene(ch, []chars.Character{ca}, msgs)
+}
+
+// LoadScene displays a conversation and everyone in it.
+//
+// A cast of one is what LoadChat passes, and it has to behave identically: the
+// prompt, the rows and the grouping of a two-hander cannot change because the
+// code that draws them learned to count.
+func (c *ChatView) LoadScene(ch store.Chat, cast []chars.Character, msgs []store.Message) {
 	c.Clear()
-	c.chat, c.char = ch, ca
+	var ca chars.Character
+	if len(cast) > 0 {
+		ca = cast[0]
+	}
+	c.chat, c.char, c.cast = ch, ca, cast
 	c.recap, c.recapUpto = ch.Summary, ch.SummaryUpto
-	c.loadLore(ca)
+	c.loadLore(c.loreHost())
 	c.mode = Roleplay
 	switch ch.Kind {
 	case store.KindDesigner, store.KindAssistant, store.KindStyleDesigner:
@@ -520,7 +549,9 @@ func (c *ChatView) LoadChat(ch store.Chat, ca chars.Character, msgs []store.Mess
 	c.refreshModelChip()
 	c.refreshPlaceholder()
 	c.refreshActions()
-	c.warnIfCardTooLarge(ca)
+	for _, member := range cast {
+		c.warnIfCardTooLarge(member)
+	}
 
 	// Only the tail is built; the rest waits behind the button below.
 	if len(msgs) > renderWindow {
@@ -529,7 +560,7 @@ func (c *ChatView) LoadChat(ch store.Chat, ca chars.Character, msgs []store.Mess
 	}
 	c.refreshEarlierButton()
 	for _, m := range msgs {
-		row := c.appendRow(m.Role, m.Content, m.Thinking, m.ID, m.CreatedAt)
+		row := c.appendRowAs(m.CharacterID, m.Role, m.Content, m.Thinking, m.ID, m.CreatedAt)
 		if m.TokPerSec > 0 && c.cfg.ShowStats {
 			row.SetMeta(ollama.Stats{Tokens: m.EvalCount, TokPerSec: m.TokPerSec}.Summary())
 		}
@@ -548,8 +579,16 @@ func (c *ChatView) focusComposer() {
 	}
 }
 
-// speaker returns the display name, initial and tint for a role.
-func (c *ChatView) speaker(role string) (string, string, int) {
+// speakerFor returns the display name, initial and tint for a turn.
+//
+// A speaker id names one of the cast; zero means the scene's own character, which
+// is every turn in a scene with one.
+func (c *ChatView) speakerFor(role string, speaker int64) (string, string, int) {
+	if role != ollama.RoleUser {
+		if ca, ok := c.castByID(speaker); ok {
+			return ca.Name, ca.Initial(), ca.Accent
+		}
+	}
 	if role == ollama.RoleUser {
 		name := c.cfg.PersonaName
 		if name == "" {
@@ -581,9 +620,19 @@ func firstLetter(s string) string {
 
 // appendRow adds a turn to the transcript.
 func (c *ChatView) appendRow(role, text, thinking string, id int64, when time.Time) *MessageRow {
+	return c.appendRowAs(0, role, text, thinking, id, when)
+}
+
+// appendRowAs adds a turn spoken by a particular member of the cast. A speaker
+// of zero means whoever this scene's single character is, which is every message
+// in a scene that has one.
+func (c *ChatView) appendRowAs(speaker int64, role, text, thinking string, id int64, when time.Time) *MessageRow {
 	// A run of messages from one speaker reads as a single turn in the
-	// conversation, so only the first carries a name and an avatar.
-	row := c.newRow(role, text, thinking, id, when, c.lastRole() == role)
+	// conversation, so only the first carries a name and an avatar. Two
+	// characters in a row are two speakers, however, so the run is broken by a
+	// change of either.
+	grouped := c.lastRole() == role && c.lastSpeaker() == speaker
+	row := c.newRow(speaker, role, text, thinking, id, when, grouped)
 	c.markArriving(row)
 	c.column.Append(row.Widget())
 	c.rows = append(c.rows, row)
@@ -592,8 +641,12 @@ func (c *ChatView) appendRow(role, text, thinking string, id int64, when time.Ti
 
 // newRow builds a row without placing it, so older batches can be inserted
 // above the transcript rather than appended to it.
-func (c *ChatView) newRow(role, text, thinking string, id int64, when time.Time, grouped bool) *MessageRow {
-	name, initial, accent := c.speaker(role)
+func (c *ChatView) newRow(speaker int64, role, text, thinking string, id int64, when time.Time, grouped bool) *MessageRow {
+	name, initial, accent := c.speakerFor(role, speaker)
+	face := c.char
+	if ca, ok := c.castByID(speaker); ok {
+		face = ca
+	}
 	opts := MessageOpts{
 		Role:        role,
 		DisplayName: name,
@@ -606,11 +659,12 @@ func (c *ChatView) newRow(role, text, thinking string, id int64, when time.Time,
 	// A fresh widget per row: a GtkPicture cannot be parented twice, so the
 	// image is loaded again rather than shared. It is cheap, and GTK caches
 	// the decoded texture behind the filename.
-	if role != ollama.RoleUser && !grouped && c.char.AvatarPath != "" {
-		opts.Avatar = NewCharacterAvatar(c.char, avatarSize)
+	if role != ollama.RoleUser && !grouped && face.AvatarPath != "" {
+		opts.Avatar = NewCharacterAvatar(face, avatarSize)
 	}
 	row := NewMessageRow(opts)
 	row.ID = id
+	row.Speaker = speaker
 	row.SetMarkdown(text)
 	row.SetThinking(thinking)
 	c.attachActions(row)
@@ -735,7 +789,7 @@ func (c *ChatView) loadEarlier() {
 	rows := make([]*MessageRow, 0, len(batch))
 	for i, m := range batch {
 		grouped := i > 0 && batch[i-1].Role == m.Role
-		row := c.newRow(m.Role, m.Content, m.Thinking, m.ID, m.CreatedAt, grouped)
+		row := c.newRow(m.CharacterID, m.Role, m.Content, m.Thinking, m.ID, m.CreatedAt, grouped)
 		if m.TokPerSec > 0 && c.cfg.ShowStats {
 			row.SetMeta(ollama.Stats{Tokens: m.EvalCount, TokPerSec: m.TokPerSec}.Summary())
 		}
@@ -754,6 +808,27 @@ func (c *ChatView) lastRole() string {
 		return ""
 	}
 	return c.rows[len(c.rows)-1].Role
+}
+
+// lastSpeaker is which member of the cast wrote the last row, so a change of
+// character breaks the run of grouped bubbles as a change of role does.
+func (c *ChatView) lastSpeaker() int64 {
+	if len(c.rows) == 0 {
+		return 0
+	}
+	return c.rows[len(c.rows)-1].Speaker
+}
+
+// loreHost is the character whose world supplies this scene's setting. For a
+// cast that is the first member that belongs to one: a scene drawn from two
+// worlds has to happen in one of them.
+func (c *ChatView) loreHost() chars.Character {
+	for _, ca := range c.cast {
+		if ca.WorldID != 0 {
+			return ca
+		}
+	}
+	return c.char
 }
 
 // SetClient swaps the Ollama client, after the server address is changed in

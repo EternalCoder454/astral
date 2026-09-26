@@ -379,7 +379,7 @@ async function openChat(id) {
 		$("chat-title").textContent = current.title || current.who || "Chat";
 		const t = $("transcript");
 		t.replaceChildren();
-		for (const m of current.messages || []) t.append(bubble(m.role, m.content));
+		for (const m of current.messages || []) t.append(bubble(m.role, m.content, m.who, m.accent));
 		show("chat");
 		scrollDown(false);
 		$("composer-text").focus();
@@ -388,13 +388,22 @@ async function openChat(id) {
 	}
 }
 
-function bubble(role, content) {
+// bubble is one turn. speaker names it when a scene has several characters in
+// it, so a group reads as people talking rather than as one long reply; without
+// one it falls back to the scene's single character, as it always did.
+function bubble(role, content, speaker, accent) {
 	const wrap = document.createElement("div");
 	wrap.className = "msg" + (role === "user" ? " from-user" : "");
-	if (role !== "user" && current?.who) {
+	const name = role === "user" ? "" : speaker || current?.who || "";
+	if (name) {
 		const who = document.createElement("div");
 		who.className = "who";
-		who.textContent = current.who;
+		who.textContent = name;
+		// The character's own tint, so five voices are distinguishable at a
+		// glance and not only by reading the name above each one.
+		if (typeof accent === "number" && accent > 0) {
+			who.classList.add("who-accent-" + (accent % 4));
+		}
 		wrap.append(who);
 	}
 	const b = document.createElement("div");
@@ -426,6 +435,7 @@ async function send(text) {
 	scrollDown();
 
 	let reply = "";
+	let beats = null;
 	// Plain text while it streams: half an asterisk is not markup.
 	let painting = false;
 	const paint = () => {
@@ -469,7 +479,12 @@ async function send(text) {
 					// draw it, which on a phone is heat rather than speed.
 					paint();
 				} else if (event === "done") {
-					reply = payload.content;
+					// A group reply comes back already split by speaker. The
+					// row it streamed into becomes the first beat and the rest
+					// are appended, so the transcript ends up looking the same
+					// as it will when the scene is reopened.
+					beats = payload.beats || null;
+					reply = payload.content || "";
 					if (payload.title) $("chat-title").textContent = payload.title;
 				} else if (event === "error") {
 					throw new Error(payload.error);
@@ -477,7 +492,19 @@ async function send(text) {
 			}
 		}
 		body.classList.remove("dots");
-		body.innerHTML = renderReply(reply);
+		if (beats && beats.length) {
+			const who = live.querySelector(".who");
+			if (who) {
+				who.textContent = beats[0].who;
+				if (beats[0].accent > 0) who.classList.add("who-accent-" + (beats[0].accent % 4));
+			}
+			body.innerHTML = renderReply(beats[0].content);
+			for (const b of beats.slice(1)) {
+				$("transcript").append(bubble("assistant", b.content, b.who, b.accent));
+			}
+		} else {
+			body.innerHTML = renderReply(reply);
+		}
 		scrollDown();
 
 		loadState();

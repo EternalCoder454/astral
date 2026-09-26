@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -305,6 +306,7 @@ func chatSignature(chats []store.Chat) uint64 {
 		writeInt(int64(c.Accent))
 		write([]byte(c.Title))
 		write([]byte(c.CharacterName))
+		writeInt(int64(c.CastSize))
 		write([]byte{0})
 	}
 	return h
@@ -339,10 +341,24 @@ func (s *Sidebar) chatRow(ch store.Chat) *gtk.Button {
 	l.SetEllipsize(pango.EllipsizeEnd)
 	l.AddCSSClass("chat-row-title")
 	box.Append(l)
+
+	// How many people are in it. Without this a scene with a cast is
+	// indistinguishable from a two-hander in the list, and which one you are
+	// opening is the thing you most want to know before you open it.
+	if ch.CastSize > 1 {
+		n := gtk.NewLabel(strconv.Itoa(ch.CastSize))
+		n.AddCSSClass("chat-row-cast")
+		n.SetVAlign(gtk.AlignCenter)
+		n.SetTooltipText(fmt.Sprintf("%d characters in this scene", ch.CastSize))
+		box.Append(n)
+	}
 	btn.SetChild(box)
 
 	tip := title
-	if ch.CharacterName != "" {
+	switch {
+	case ch.CastSize > 1 && ch.CharacterName != "":
+		tip = fmt.Sprintf("%s, with %s and %d others", title, ch.CharacterName, ch.CastSize-1)
+	case ch.CharacterName != "":
 		tip = fmt.Sprintf("%s, with %s", title, ch.CharacterName)
 	}
 	btn.SetTooltipText(tip)

@@ -270,17 +270,41 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, d store.Devi
 		ID      int64  `json:"id"`
 		Role    string `json:"role"`
 		Content string `json:"content"`
+		// Who is the speaker's name, on a scene with more than one character in
+		// it. Empty everywhere else, so the page shows one name at the top as it
+		// always did.
+		Who    string `json:"who,omitempty"`
+		Accent int    `json:"accent,omitempty"`
 	}
 	out := struct {
-		ID       int64    `json:"id"`
-		Title    string   `json:"title"`
-		Who      string   `json:"who"`
-		Accent   int      `json:"accent"`
-		Kind     string   `json:"kind"`
-		Messages []msgOut `json:"messages"`
+		ID       int64     `json:"id"`
+		Title    string    `json:"title"`
+		Who      string    `json:"who"`
+		Accent   int       `json:"accent"`
+		Kind     string    `json:"kind"`
+		Cast     []nameOut `json:"cast,omitempty"`
+		Messages []msgOut  `json:"messages"`
 	}{ID: ch.ID, Title: ch.Title, Who: ch.CharacterName, Accent: ch.Accent, Kind: ch.Kind}
+	cast := s.castFor(ch)
+	tint := make(map[int64]int, len(cast))
+	for _, member := range cast {
+		out.Cast = append(out.Cast, nameOut{ID: member.ID, Name: member.Name, Accent: member.Accent})
+		tint[member.ID] = member.Accent
+	}
+	nameOf := castNames(cast)
 	for _, m := range msgs {
-		out.Messages = append(out.Messages, msgOut{ID: m.ID, Role: m.Role, Content: m.Content})
+		o := msgOut{ID: m.ID, Role: m.Role, Content: m.Content}
+		if nameOf != nil && m.Role == ollama.RoleAssistant {
+			id := m.CharacterID
+			if id == 0 && len(cast) > 0 {
+				// An unattributed beat in a group is the first member, the same
+				// answer the window gives: somebody said it, and that is who the
+				// scene is named after.
+				id = cast[0].ID
+			}
+			o.Who, o.Accent = nameOf(id), tint[id]
+		}
+		out.Messages = append(out.Messages, o)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -348,6 +372,37 @@ func (s *Server) handleDeleteChat(w http.ResponseWriter, r *http.Request, d stor
 
 // characterFor resolves who a chat is with: a character, the narrator of a
 // world, or nobody.
+// castFor is everyone in a scene, for a scene with more than one character in
+// it. Empty otherwise, which is almost every scene: a two-hander records no cast
+// and must keep behaving exactly as it did.
+func (s *Server) castFor(ch store.Chat) []chars.Character {
+	if ch.ID == 0 {
+		return nil
+	}
+	cast, err := s.store.Cast(ch.ID)
+	if err != nil {
+		log.Printf("astral: reading the cast of chat %d: %v", ch.ID, err)
+		return nil
+	}
+	if len(cast) < 2 {
+		return nil
+	}
+	return cast
+}
+
+// castNames maps a speaker id to a name, for labelling a transcript on its way
+// to the model and for showing who spoke on the phone.
+func castNames(cast []chars.Character) func(int64) string {
+	if len(cast) == 0 {
+		return nil
+	}
+	byID := make(map[int64]string, len(cast))
+	for _, c := range cast {
+		byID[c.ID] = c.Name
+	}
+	return func(id int64) string { return byID[id] }
+}
+
 func (s *Server) characterFor(ch store.Chat) chars.Character {
 	switch {
 	case ch.CharacterID != 0:

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -94,6 +95,12 @@ func (a *App) showNewChat() {
 	worlds, _ := a.store.Worlds()
 	if cast > 0 {
 		add(ui.IconCharacters, "Play a scene", "with someone from your cast", true, a.showCharacters)
+	}
+	// A group needs two people to put in a room, so it appears when there are
+	// two to pick from and not before.
+	if cast > 1 {
+		add(ui.IconCharacters, "Play with a group",
+			fmt.Sprintf("up to %d characters in one scene", store.MaxCast), false, a.showCastPicker)
 	}
 	// A world is a place, so it is somewhere to go rather than someone to
 	// meet. It belongs next to the cast and not buried in the worlds list,

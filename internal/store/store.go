@@ -186,16 +186,29 @@ CREATE TABLE IF NOT EXISTS chats (
 CREATE INDEX IF NOT EXISTS idx_chats_updated ON chats(updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS messages (
-	id          INTEGER PRIMARY KEY AUTOINCREMENT,
-	chat_id     INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
-	role        TEXT    NOT NULL,
-	content     TEXT    NOT NULL DEFAULT '',
-	thinking    TEXT    NOT NULL DEFAULT '',
-	eval_count  INTEGER NOT NULL DEFAULT 0,
-	tok_per_sec REAL    NOT NULL DEFAULT 0,
-	created_at  INTEGER NOT NULL DEFAULT 0
+	id           INTEGER PRIMARY KEY AUTOINCREMENT,
+	chat_id      INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+	role         TEXT    NOT NULL,
+	content      TEXT    NOT NULL DEFAULT '',
+	thinking     TEXT    NOT NULL DEFAULT '',
+	-- Who spoke, when a scene has more than one character in it. Zero for
+	-- your own turns and for a scene with a single character, where the chat
+	-- already says who was talking.
+	character_id INTEGER NOT NULL DEFAULT 0,
+	eval_count   INTEGER NOT NULL DEFAULT 0,
+	tok_per_sec  REAL    NOT NULL DEFAULT 0,
+	created_at   INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_id, id);
+
+-- The characters sharing one scene. A scene with a single character has no
+-- rows here at all, so an empty cast and "not a group" are the same state.
+CREATE TABLE IF NOT EXISTS chat_cast (
+	chat_id      INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+	character_id INTEGER NOT NULL,
+	position     INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (chat_id, character_id)
+);
 `
 
 // migrate creates the schema and applies later additions.
@@ -241,6 +254,15 @@ func (s *Store) migrate() error {
 
 	// A scene set in a world with nobody in particular in it.
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN world_id INTEGER NOT NULL DEFAULT 0`)
+
+	// Who spoke, for scenes with more than one character. See cast.go.
+	s.db.Exec(`ALTER TABLE messages ADD COLUMN character_id INTEGER NOT NULL DEFAULT 0`)
+	s.db.Exec(`CREATE TABLE IF NOT EXISTS chat_cast (
+		chat_id      INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+		character_id INTEGER NOT NULL,
+		position     INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (chat_id, character_id)
+	)`)
 
 	// Devices allowed in over the network. See devices.go.
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS devices (

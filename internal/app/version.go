@@ -3,7 +3,7 @@ package app
 // version is the single source of truth for the app's version: the Makefile
 // reads it out of this file, so a plain `go build .` and a `make install` can
 // never report different numbers at each other.
-var version = "0.4.2"
+var version = "0.4.3"
 
 // projectURL is where Astral lives. Used by the about dialog for the website
 // and issue links.

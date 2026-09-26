@@ -3,6 +3,12 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.4.3
+- Play a scene with up to five characters at once: they react to each other, not just to you
+- Each character speaks in their own message, with their own name and colour
+- Not everyone speaks every turn, so a scene reads as a conversation rather than a roll call
+- Exporting a group scene names who said what
+
 ## 0.4.2
 - Nothing changes in the app. This build only marks a change to how Astral is built and tested
 - Astral's tests now run in ninety seconds instead of sixteen minutes, so fixes reach a build sooner
