@@ -50,6 +50,12 @@ func (a *App) showSettings() { a.showSettingsPage("") }
 // showSettingsPage opens settings on a particular page, so a menu entry can
 // land somewhere specific instead of wherever the dialog opens by default.
 func (a *App) showSettingsPage(page string) {
+	// Asked again on the way in. The list was only ever fetched at launch and
+	// after a save, so a model pulled while Astral was open did not exist as
+	// far as the window was concerned until it was restarted — which looks
+	// exactly like the model not being installed.
+	a.probeModels()
+
 	d := adw.NewDialog()
 	d.SetTitle("Settings")
 	d.SetContentWidth(660)

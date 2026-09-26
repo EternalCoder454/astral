@@ -312,6 +312,24 @@ func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request, d store.D
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+
+	// The opening message, which the window shows and this did not: a phone
+	// opened a character onto an empty screen, and the first reply had to
+	// start a scene from nothing rather than answer one already begun.
+	//
+	// Saved straight away rather than held unsaved as the window does, because
+	// the row already exists by this point: a phone asks for a chat and then
+	// asks for its messages, and there is nowhere for an unsaved greeting to
+	// live in between.
+	if ca := s.characterFor(ch); ca.Name != "" {
+		if g := chars.Greeting(ca, scene.Persona(cfg)); g != "" {
+			if _, err := s.store.AddMessage(store.Message{
+				ChatID: ch.ID, Role: ollama.RoleAssistant, Content: g,
+			}); err != nil {
+				log.Printf("astral: saving the greeting for chat %d: %v", ch.ID, err)
+			}
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": ch.ID})
 }
 

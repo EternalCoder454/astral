@@ -174,7 +174,10 @@ func (a *App) buildCenter() {
 		a.toast(msg)
 		a.noteTurnFailed(msg)
 	}
-	a.chat.OnPickModel = a.showModelPicker
+	a.chat.OnPickModel = func() {
+		a.probeModels() // in case one was pulled since the window opened
+		a.showModelPicker()
+	}
 	a.chat.OnBuildCharacter = a.buildCharacterFromChat
 	a.chat.OnEditDirection = a.editDirection
 	a.chat.OnBuildStyle = a.buildStyleFromChat

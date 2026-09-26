@@ -6,9 +6,11 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
+	"astral/internal/chars"
 	"astral/internal/ollama"
 	"astral/internal/store"
 )
@@ -318,5 +320,47 @@ func TestAppUpdateRoutesNeedAToken(t *testing.T) {
 		if got := do(t, s, "GET", path, "", "").Code; got != http.StatusUnauthorized {
 			t.Errorf("GET %s with no token = %d, want 401", path, got)
 		}
+	}
+}
+
+// Opening a character on a phone has to give the same scene the window does:
+// their opening message, and their framing behind it.
+func TestANewChatOpensWithTheGreeting(t *testing.T) {
+	s, st := testServer(t)
+	tok := paired(t, s)
+
+	caID, err := st.SaveCharacter(chars.Character{
+		Name:        "Vesper Quill",
+		Description: "A cartographer, impatient and precise.",
+		FirstMes:    `*She does not look up.* "You're late, {{user}}."`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := do(t, s, "POST", "/api/chats", tok, `{"character_id":`+strconv.FormatInt(caID, 10)+`}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("creating a chat = %d: %s", w.Code, w.Body.String())
+	}
+	var made struct{ ID int64 }
+	json.Unmarshal(w.Body.Bytes(), &made)
+
+	body := do(t, s, "GET", "/api/chats/"+strconv.FormatInt(made.ID, 10), tok, "").Body.String()
+	if !strings.Contains(body, "You're late") {
+		t.Errorf("a new chat opened with no greeting:\n%s", body)
+	}
+	// And the placeholder is expanded, not shown raw.
+	if strings.Contains(body, "{{user}}") {
+		t.Errorf("the greeting reached the phone unsubstituted:\n%s", body)
+	}
+
+	// The character has to be behind the scene as well, or the reply is
+	// written by nobody in particular.
+	ch, err := st.Chat(made.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.characterFor(ch); got.Name != "Vesper Quill" {
+		t.Errorf("the chat resolves to %q, not the character it was opened with", got.Name)
 	}
 }
