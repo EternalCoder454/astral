@@ -249,6 +249,12 @@ func (a *App) devLoad(n int) {
 	built, pending := a.chat.DevRowCount()
 	log.Printf("astral: load: %d rows built, %d waiting behind the button", built, pending)
 
+	// The hover buttons are built on first hover, which a run like this cannot
+	// do, so they are asked for directly.
+	firstN, lastN := a.chat.DevActionCounts()
+	log.Printf("astral: load: hover buttons build on demand: %d on the first row, %d on the last",
+		firstN, lastN)
+
 	// Exercise the "show earlier" path, which otherwise needs a click.
 	for i := 0; pending > 0 && i < 3; i++ {
 		start := time.Now()

@@ -62,6 +62,11 @@ type MessageRow struct {
 	meta    *gtk.Label
 	name    *gtk.Label
 	actions *gtk.Box
+	// pending holds the hover buttons until the row is first hovered; armed
+	// says a controller is watching for that, and built that it has happened.
+	pending []rowAction
+	armed   bool
+	built   bool
 
 	dots      *TypingDots
 	streaming bool
@@ -266,13 +271,71 @@ func (m *MessageRow) ensureThinking() {
 // Widget returns the row's root widget.
 func (m *MessageRow) Widget() gtk.Widgetter { return m.widget }
 
-// AddAction adds a hover button to the row's footer.
+// AddAction registers a hover button for the row's footer.
+//
+// The button is not built here. These are invisible until the pointer is over
+// the row, and a transcript holds hundreds of rows with five each: measured on
+// six hundred messages, the buttons alone were 23MB of the 73MB the rows cost.
+// So the description is kept and the widget is made the first time the row is
+// hovered or focused, which is the first moment anyone could use it.
 func (m *MessageRow) AddAction(iconName, tooltip string, onClick func()) {
-	b := gtk.NewButtonFromIconName(iconName)
-	b.SetTooltipText(tooltip)
-	b.AddCSSClass("message-action")
-	b.ConnectClicked(onClick)
-	m.actions.Append(b)
+	m.pending = append(m.pending, rowAction{iconName, tooltip, onClick})
+	m.armActions()
+}
+
+// rowAction is a button that has not been built yet.
+type rowAction struct {
+	icon    string
+	tooltip string
+	onClick func()
+}
+
+// armActions makes sure something is watching for the first hover.
+//
+// Keyboard focus counts: the buttons are reachable by tabbing into the row, and
+// a row that only built them on a mouse hover would be a row that could not be
+// tabbed into at all.
+func (m *MessageRow) armActions() {
+	if m.armed || m.actions == nil {
+		return
+	}
+	m.armed = true
+	motion := gtk.NewEventControllerMotion()
+	motion.ConnectEnter(func(x, y float64) { m.buildActions() })
+	m.widget.AddController(motion)
+
+	focus := gtk.NewEventControllerFocus()
+	focus.ConnectEnter(func() { m.buildActions() })
+	m.widget.AddController(focus)
+}
+
+// buildActions materialises the buttons, once.
+func (m *MessageRow) buildActions() {
+	if m.built || len(m.pending) == 0 {
+		return
+	}
+	m.built = true
+	for _, a := range m.pending {
+		b := gtk.NewButtonFromIconName(a.icon)
+		b.SetTooltipText(a.tooltip)
+		b.AddCSSClass("message-action")
+		b.ConnectClicked(a.onClick)
+		m.actions.Append(b)
+	}
+	m.pending = nil
+}
+
+// DevActionCount builds this row's hover buttons and says how many there are.
+//
+// Only the dev harness calls it. The buttons are built on hover, and a
+// headless run cannot hover, so this is how that path is checked at all.
+func (m *MessageRow) DevActionCount() int {
+	m.buildActions()
+	n := 0
+	for child := m.actions.FirstChild(); child != nil; child = gtk.BaseWidget(child).NextSibling() {
+		n++
+	}
+	return n
 }
 
 // BeginStreaming prepares the row to receive a reply: the typing indicator

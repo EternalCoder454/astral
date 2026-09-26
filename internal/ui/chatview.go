@@ -918,6 +918,16 @@ func (c *ChatView) DevMeasure() (viewWidth, columnWidth int, bubbles []int) {
 	return viewWidth, columnWidth, bubbles
 }
 
+// DevActionCounts builds the hover buttons on the first and last rows and
+// reports how many each got, so the lazy path is exercised in a run that
+// cannot hover.
+func (c *ChatView) DevActionCounts() (first, last int) {
+	if len(c.rows) == 0 {
+		return 0, 0
+	}
+	return c.rows[0].DevActionCount(), c.rows[len(c.rows)-1].DevActionCount()
+}
+
 // DevRowCount reports how many rows are built and how many are still waiting
 // behind the "show earlier" button.
 func (c *ChatView) DevRowCount() (built, pending int) { return len(c.rows), len(c.older) }
