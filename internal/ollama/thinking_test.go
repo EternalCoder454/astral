@@ -1,4 +1,4 @@
-package ui
+package ollama
 
 import (
 	"strings"
@@ -94,6 +94,28 @@ func TestSplitThinkingKnowsSquareBrackets(t *testing.T) {
 		if think != c.think || reply != c.reply {
 			t.Errorf("SplitThinking(%q)\n think: %q, want %q\n reply: %q, want %q",
 				c.in, think, c.think, reply, c.reply)
+		}
+	}
+}
+
+// The fold has to keep every byte where it was, or an offset taken from it
+// slices the original through the middle of a rune and panics. This is the
+// input a fuzz run found, and the copy that lived in the server still had it.
+func TestSplitThinkingSurvivesLengthChangingCase(t *testing.T) {
+	// U+0130 lower-cases to two runes, so a naive fold shifts every offset
+	// after it.
+	for _, in := range []string{
+		"<think>İİİ</think>reply",
+		"[THINK]İ hmİ[/THINK]reply",
+		"<think>İ",
+		"İ<think>x</think>",
+	} {
+		think, reply := SplitThinking(in) // must not panic
+		if think != "" && !strings.Contains(in, think) {
+			t.Errorf("%q invented %q", in, think)
+		}
+		if reply != "" && !strings.Contains(in, reply) {
+			t.Errorf("%q invented reply %q", in, reply)
 		}
 	}
 }

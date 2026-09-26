@@ -120,7 +120,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 
 	content := strings.TrimSpace(reply.Content)
 	thinking := reply.Thinking
-	if inline, rest := splitLeadingThink(content); inline != "" {
+	if inline, rest := ollama.SplitThinking(content); inline != "" {
 		thinking, content = strings.TrimSpace(thinking+"\n\n"+inline), rest
 	}
 	if content == "" {
@@ -244,30 +244,4 @@ func (s *Server) housekeep(chatID int64, ca chars.Character) {
 		}
 	}
 	s.store.SetChatLoreUpto(chatID, lastID)
-}
-
-// splitLeadingThink is the server's copy of the rule the window applies: a
-// model that writes its deliberation into the reply gets it moved out, so the
-// transcript holds the reply rather than the model talking to itself about its
-// instructions.
-func splitLeadingThink(s string) (thinking, reply string) {
-	for _, pair := range [][2]string{
-		{"<think>", "</think>"},
-		{"<thinking>", "</thinking>"},
-		{"<reasoning>", "</reasoning>"},
-		{"[think]", "[/think]"},
-		{"[thinking]", "[/thinking]"},
-	} {
-		trimmed := strings.TrimLeft(s, " \t\r\n")
-		if !strings.HasPrefix(strings.ToLower(trimmed[:min(len(trimmed), len(pair[0]))]), pair[0]) {
-			continue
-		}
-		rest := trimmed[len(pair[0]):]
-		end := strings.Index(strings.ToLower(rest), pair[1])
-		if end < 0 {
-			return strings.TrimSpace(rest), ""
-		}
-		return strings.TrimSpace(rest[:end]), strings.TrimSpace(rest[end+len(pair[1]):])
-	}
-	return "", s
 }

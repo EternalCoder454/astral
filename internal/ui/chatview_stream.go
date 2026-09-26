@@ -352,7 +352,7 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	// else looks at the text, so it is folded away rather than read as part of
 	// the scene, and so the transcript stores the reply and not the model
 	// talking to itself about its instructions.
-	inlineThinking, content := SplitThinking(msg.Content)
+	inlineThinking, content := ollama.SplitThinking(msg.Content)
 	if inlineThinking != "" {
 		msg.Thinking = strings.TrimSpace(msg.Thinking + "\n\n" + inlineThinking)
 	}

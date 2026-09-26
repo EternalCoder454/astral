@@ -1,4 +1,4 @@
-package ui
+package ollama
 
 import "strings"
 
@@ -7,6 +7,12 @@ import "strings"
 // instead, and a message beginning "<think>" is then styled as prose, read as
 // part of the scene, and saved as the reply — so the next prompt contains the
 // model talking to itself about its instructions.
+//
+// This lives here rather than beside a renderer because it is a property of
+// what a model sends back, and both clients need it. It was written twice
+// before, and the second copy never got the fix the first one did: it folded
+// case with strings.ToLower and then sliced the original by an offset from the
+// folded copy, which panics on any input whose length changes when lowered.
 
 // thinkTags are the open and close markers models use for this, lower-cased.
 // Each pair is tried in order.
