@@ -225,3 +225,79 @@ func TestRecapAppearsBeforeTheTranscript(t *testing.T) {
 		t.Errorf("the recap is not marked as fact:\n%s", msgs[recapAt].Content)
 	}
 }
+
+// A recap is carried in the prompt on every turn for the rest of the scene, so
+// a sentence the summariser wrote twice is paid for over and over. This is the
+// record a measured run actually produced, abridged: the model had the facts
+// and then circled them.
+const circlingRecap = `Vesper Quill and Wren are characters in a scene. ` +
+	`Vesper Quill admitted she has never left the city. ` +
+	`Wren promised to take her after the solstice. ` +
+	`Vesper Quill turned the map over, hiding the coastline. ` +
+	`Wren was late because the ferry from Kestrel Bay was held. ` +
+	`Vesper Quill's map had a coastline that she hid. ` +
+	`Wren did not look at it yet. ` +
+	`The lamp guttered. Neither of them moved to trim it. ` +
+	`Vesper Quill's map had a coastline that she hid. ` +
+	`Wren did not look at it yet. ` +
+	`The lamp guttered. Neither of them moved to trim it. ` +
+	`Vesper Quill's map had a coastline that she hid. ` +
+	`Wren did not look at it yet.`
+
+func TestDedupeRecapReclaimsWhatCirclingWasted(t *testing.T) {
+	got := dedupeRecap(circlingRecap)
+	if len(got) >= len(circlingRecap) {
+		t.Errorf("nothing was reclaimed: %d chars in, %d out", len(circlingRecap), len(got))
+	}
+	// Every fact has to survive. This is the half of the job that matters:
+	// a recap that loses a fact is worse than a repetitive one.
+	for _, fact := range []string{
+		"never left the city", "after the solstice", "hiding the coastline",
+		"ferry from Kestrel Bay", "lamp guttered", "trim it",
+	} {
+		if !strings.Contains(got, fact) {
+			t.Errorf("dedupe lost %q:\n%s", fact, got)
+		}
+	}
+	// And each of the repeated ones appears once now.
+	for _, once := range []string{"a coastline that she hid", "did not look at it yet", "The lamp guttered"} {
+		if n := strings.Count(got, once); n != 1 {
+			t.Errorf("%q appears %d times, want 1:\n%s", once, n, got)
+		}
+	}
+}
+
+func TestDedupeRecapLeavesAnHonestRecordAlone(t *testing.T) {
+	clean := "Vesper admitted she has never left the city. " +
+		"Wren promised to take her after the solstice. " +
+		"Vesper hid the coastline side of the map."
+	if got := dedupeRecap(clean); got != clean {
+		t.Errorf("a record with no repeats was changed:\n in:  %s\n out: %s", clean, got)
+	}
+}
+
+// A record written as a list has to still be a list: folding the bullets into
+// one paragraph would change what the next model reads.
+func TestDedupeRecapKeepsLines(t *testing.T) {
+	in := "- Vesper has never left the city.\n- Wren promised to take her.\n- Vesper has never left the city.\n- The map is hidden."
+	got := dedupeRecap(in)
+	// Four lines in, one of them a repeat: three lines out, so two breaks.
+	if want := 2; strings.Count(got, "\n") != want {
+		t.Errorf("line breaks = %d, want %d:\n%s", strings.Count(got, "\n"), want, got)
+	}
+	if strings.Count(got, "never left the city") != 1 {
+		t.Errorf("the repeated line survived:\n%s", got)
+	}
+}
+
+// Sentence splitting must not be fooled by a decimal or an ellipsis, or a
+// statement gets cut in half and its two halves are compared with everything.
+func TestSplitStatementsIgnoresMidSentenceStops(t *testing.T) {
+	got := splitStatements("The scale was 1.5 to the mile. She said... nothing.")
+	if len(got) != 2 {
+		for i, s := range got {
+			t.Logf("%d: %q", i, s.text)
+		}
+		t.Fatalf("split into %d statements, want 2", len(got))
+	}
+}

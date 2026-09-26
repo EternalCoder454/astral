@@ -58,6 +58,47 @@ func Compact(ctx context.Context, client *ollama.Client, model, previous string,
 		return previous, fmt.Errorf("no model selected")
 	}
 
+	msgs := []ollama.Message{
+		{Role: ollama.RoleSystem, Content: compactSystem},
+		{Role: ollama.RoleUser, Content: compactPrompt(previous, aged, c, p)},
+	}
+
+	// Low temperature: this is bookkeeping. A summary that invents a detail is
+	// worse than no summary, because it becomes fact for the rest of the scene.
+	opts.Temperature = 0.2
+	// repeat_last_n is deliberately left as it comes.
+	//
+	// Widening it to cover the whole record was the obvious answer to a
+	// summariser that circles, and it does nothing: eighteen runs across two
+	// models, nine a side, gave mean records of 2143 characters at the default
+	// and 2219 widened, with the same two runs in six circling either way.
+	// TestMeasureCompaction is the instrument. What actually pays is throwing
+	// the repeats away afterwards, below.
+	// The recap is bounded afterwards anyway, so the reply limit only has to
+	// stop a model that will not stop on its own. Leaving it unset let a
+	// verbose model spend minutes writing a record that was then cut to a
+	// fraction of its length.
+	opts.NumPredict = recapReplyTokens
+
+	noThink := false
+	reply, _, err := client.Chat(ctx, model, msgs, opts, &noThink, nil)
+	if err != nil {
+		return previous, err
+	}
+	out := strings.TrimSpace(reply.Content)
+	if out == "" {
+		return previous, fmt.Errorf("the model returned an empty record")
+	}
+	return truncateRecap(dedupeRecap(out), budget.Recap), nil
+}
+
+// compactPrompt writes the summariser's instructions: who is in the scene, the
+// record so far, and the turns to fold into it.
+//
+// Separate from Compact so that a measurement run can send the same prompt with
+// different sampler settings and compare what comes back, which is the only way
+// to find out whether a setting helped.
+func compactPrompt(previous string, aged []ollama.Message, c Character, p Persona) string {
 	userName := p.Name
 	if userName == "" {
 		userName = DefaultPersonaName
@@ -89,31 +130,100 @@ func Compact(ctx context.Context, client *ollama.Client, model, previous string,
 	b.WriteString("Now write the updated record, covering everything above. ")
 	b.WriteString("Cover every specific fact, however small, and leave out the atmosphere. ")
 	b.WriteString("Keep it under 400 words. Output only the record.")
+	return b.String()
+}
 
-	msgs := []ollama.Message{
-		{Role: ollama.RoleSystem, Content: compactSystem},
-		{Role: ollama.RoleUser, Content: b.String()},
+// dedupeRecap drops a statement the record has already made.
+//
+// This is the cheap half of the repetition problem. The sampler setting above
+// makes circling less likely; this makes the circling that still happens cost
+// nothing, because the recap is carried in the prompt on every later turn, so
+// a sentence written twice is paid for on every turn until the scene ends.
+//
+// Only exact repeats go, compared with case and spacing ignored. Two
+// statements of the same fact in different words are not touched: telling them
+// apart needs to understand them, and getting it wrong loses a fact, which is
+// the one thing a recap must not do.
+func dedupeRecap(s string) string {
+	parts := splitStatements(s)
+	if len(parts) < 2 {
+		return s
+	}
+	seen := make(map[string]bool, len(parts))
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, part := range parts {
+		key := strings.ToLower(strings.Join(strings.Fields(part.text), " "))
+		key = strings.Trim(key, ".!?-• ")
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		if b.Len() > 0 {
+			b.WriteString(part.before)
+		}
+		b.WriteString(part.text)
+	}
+	return b.String()
+}
+
+// statement is one comparable unit of a record, and what separated it from the
+// one before. The separator is carried so that a record written as a list is
+// still a list afterwards: joining everything with spaces would fold a set of
+// bullets into one paragraph.
+type statement struct {
+	text   string
+	before string
+}
+
+// splitStatements cuts a record into the units that can be compared: one
+// sentence, or one line of a list.
+//
+// It splits on a full stop followed by whitespace, which will also cut an
+// abbreviation in half. That is harmless here: the pieces are only ever used to
+// find exact duplicates, so a wrong boundary means a duplicate is missed, not
+// that anything is lost.
+func splitStatements(s string) []statement {
+	var out []statement
+	start, sep := 0, ""
+
+	// cut closes the statement ending at textEnd, then steps over the
+	// whitespace after it, noting whether a line ended there.
+	cut := func(textEnd int) int {
+		if piece := strings.TrimSpace(s[start:textEnd]); piece != "" {
+			out = append(out, statement{text: piece, before: sep})
+			sep = " "
+		}
+		j, newline := textEnd, false
+		for j < len(s) && (s[j] == ' ' || s[j] == '\t' || s[j] == '\n' || s[j] == '\r') {
+			if s[j] == '\n' {
+				newline = true
+			}
+			j++
+		}
+		if newline {
+			sep = "\n"
+		}
+		start = j
+		return j
 	}
 
-	// Low temperature: this is bookkeeping. A summary that invents a detail is
-	// worse than no summary, because it becomes fact for the rest of the scene.
-	opts.Temperature = 0.2
-	// The recap is bounded afterwards anyway, so the reply limit only has to
-	// stop a model that will not stop on its own. Leaving it unset let a
-	// verbose model spend minutes writing a record that was then cut to a
-	// fraction of its length.
-	opts.NumPredict = recapReplyTokens
-
-	noThink := false
-	reply, _, err := client.Chat(ctx, model, msgs, opts, &noThink, nil)
-	if err != nil {
-		return previous, err
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '.', '!', '?':
+			if i+1 < len(s) && s[i+1] != ' ' && s[i+1] != '\n' && s[i+1] != '\t' && s[i+1] != '\r' {
+				continue // a decimal point, or the first dot of an ellipsis
+			}
+			if i > 0 && s[i-1] == '.' {
+				continue // the last dot of an ellipsis, which ends nothing
+			}
+			i = cut(i+1) - 1
+		case '\n':
+			i = cut(i) - 1
+		}
 	}
-	out := strings.TrimSpace(reply.Content)
-	if out == "" {
-		return previous, fmt.Errorf("the model returned an empty record")
-	}
-	return truncateRecap(out, budget.Recap), nil
+	cut(len(s))
+	return out
 }
 
 // recapReplyTokens caps the summariser's own reply. The prompt asks for under

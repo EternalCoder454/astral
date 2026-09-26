@@ -10,7 +10,6 @@ import (
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
-	"astral/internal/store"
 	"astral/internal/update"
 )
 
@@ -137,12 +136,4 @@ func updateNotes(rel *update.Release) *gtk.Box {
 		box.Append(l)
 	}
 	return box
-}
-
-// channelLabel names a channel for the interface.
-func channelLabel(channel string) string {
-	if channel == store.ChannelBeta {
-		return "Beta"
-	}
-	return "Release"
 }
