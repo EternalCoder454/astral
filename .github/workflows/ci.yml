@@ -10,7 +10,11 @@ name: ci
 on:
   push:
     branches: [beta, release]
-    paths-ignore: ["**.md", "screenshots/**", "packaging/android/**"]
+    # No paths-ignore for documentation. WHATSNEW.md is asserted on by
+    # TestShippedNotes, so skipping a run for a Markdown change skipped the one
+    # file whose edits can fail the suite. The exclusion was there to dodge a
+    # sixteen minute run; a run is ninety seconds now.
+    paths-ignore: ["screenshots/**", "packaging/android/**"]
   pull_request:
   workflow_dispatch:
 
