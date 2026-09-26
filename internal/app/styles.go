@@ -181,8 +181,8 @@ func (a *App) editStyle(st chars.WritingStyle, isNew bool) {
 	}
 	frame, view := multilineField(body, 10)
 	card.Append(labelledField("Instructions",
-		"One instruction per line, in the imperative: length, tense, what to avoid. "+
-			"Write {{char}} and {{user}} rather than names, and leave formatting to Astral.",
+		"One instruction per line: length, tense, what to avoid. Use {{char}} and {{user}}, "+
+			"never a name.",
 		frame))
 	page.Append(outer)
 

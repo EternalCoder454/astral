@@ -123,6 +123,8 @@ CREATE TABLE IF NOT EXISTS characters (
 	name          TEXT    NOT NULL,
 	description   TEXT    NOT NULL DEFAULT '',
 	personality   TEXT    NOT NULL DEFAULT '',
+	appearance    TEXT    NOT NULL DEFAULT '',
+	speech        TEXT    NOT NULL DEFAULT '',
 	scenario      TEXT    NOT NULL DEFAULT '',
 	first_mes     TEXT    NOT NULL DEFAULT '',
 	mes_example   TEXT    NOT NULL DEFAULT '',
@@ -254,6 +256,11 @@ func (s *Store) migrate() error {
 
 	// A scene set in a world with nobody in particular in it.
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN world_id INTEGER NOT NULL DEFAULT 0`)
+
+	// Appearance and how they talk, which the card had no room for. Voice is the
+	// field a reply is judged by and there was nowhere to put it.
+	s.db.Exec(`ALTER TABLE characters ADD COLUMN appearance TEXT NOT NULL DEFAULT ''`)
+	s.db.Exec(`ALTER TABLE characters ADD COLUMN speech TEXT NOT NULL DEFAULT ''`)
 
 	// Who spoke, for scenes with more than one character. See cast.go.
 	s.db.Exec(`ALTER TABLE messages ADD COLUMN character_id INTEGER NOT NULL DEFAULT 0`)

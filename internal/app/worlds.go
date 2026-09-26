@@ -188,7 +188,7 @@ func (a *App) editWorld(w world.World) {
 
 	rulesFrame, rulesView := multilineField(w.Rules, 5)
 	card.Append(labelledField("Rules",
-		"What is always true here: what can and cannot happen, who holds power. Sent every turn, so keep it to a few lines.",
+		"What is always true here. Sent every turn, so keep it short.",
 		rulesFrame))
 	page.Append(outer)
 

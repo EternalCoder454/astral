@@ -692,9 +692,18 @@ frame:focus-within {
 	color: @astral_faint;
 }
 
+/* A hint explains the field above it and must not compete with it. Small, set
+   back, and tight to its label: it is an annotation, not a paragraph. */
 .settings-hint {
-	font-size: 0.84em;
+	font-size: 0.82em;
 	color: @astral_muted;
+	margin-bottom: 3px;
+}
+
+/* One field: label, hint, control. The margin here is what separates it from
+   the next field, and is deliberately larger than anything inside it. */
+.field {
+	margin-bottom: 2px;
 }
 
 .field-label {

@@ -62,8 +62,8 @@ func (a *App) showSettingsPage(page string) {
 
 	d := adw.NewDialog()
 	d.SetTitle("Settings")
-	d.SetContentWidth(660)
-	d.SetContentHeight(640)
+	d.SetContentWidth(700)
+	d.SetContentHeight(760)
 
 	f := &settingsForm{}
 	stack := gtk.NewStack()
@@ -123,19 +123,27 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	f.models = a.modelNames()
 	f.model = gtk.NewDropDownFromStrings(f.modelLabels(a))
 	f.model.SetSelected(uint(indexOf(f.models, a.cfg.Model)))
-	hint := "Every model Ollama has on this machine."
+	f.model.SetHExpand(true)
+	// A dropdown of installed models needs no caption saying it lists installed
+	// models. The only thing worth saying here is what to do when it is empty.
+	hint := ""
 	if len(f.models) == 0 {
-		hint = "Nothing installed yet. Run `ollama pull qwen3:8b`, then reopen this."
+		hint = "Nothing installed yet. Run `ollama pull qwen3:8b`, then press Check Again."
 	}
-	card.Append(labelledField("Default Model", hint, f.model))
 
+	// The refresh sits on the same row as the thing it refreshes. Under it, on
+	// its own line, it read as an instruction belonging to neither the field
+	// above nor the field below.
+	modelRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	modelRow.Append(f.model)
 	refresh := gtk.NewButtonWithLabel("Check Again")
-	refresh.SetHAlign(gtk.AlignStart)
+	refresh.SetTooltipText("Ask Ollama again which models it has")
 	refresh.ConnectClicked(func() {
 		a.probeModels()
 		a.toast("Checking Ollama…")
 	})
-	card.Append(refresh)
+	modelRow.Append(refresh)
+	card.Append(labelledField("Default Model", hint, modelRow))
 
 	// The recap and the lorebook pass are bookkeeping, not prose, and a much
 	// smaller model does them about as well in a fraction of the time. They
@@ -148,7 +156,7 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	// background model nobody chose.
 	f.housekeeping.SetSelected(uint(housekeepingRow(f.models, a.cfg.HousekeepingModel)))
 	card.Append(labelledField("Background Model",
-		"Writes the recap and keeps the lorebook. It stays in memory beside your main model, so pick a small one.",
+		"Writes the recap and the lorebook. Stays loaded beside your main model, so pick a small one.",
 		f.housekeeping))
 
 	f.baseURL = gtk.NewEntry()
@@ -192,17 +200,15 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	f.numPredict.SetText(fmt.Sprintf("%d", a.cfg.NumPredict))
 	f.numPredict.SetPlaceholderText(fmt.Sprintf("%d", chars.DefaultReplyTokens))
 	sCard.Append(labelledField("Reply Limit (tokens)",
-		fmt.Sprintf("Higher allows a longer reply, lower cuts it off sooner. Reserved out of the "+
-			"context size above, so raising it leaves less room for the scene. Leave at 0 for "+
-			"the default of %d, about four paragraphs.", chars.DefaultReplyTokens),
+		fmt.Sprintf("Higher allows a longer reply, and leaves less room for the scene. "+
+			"0 for the default of %d.", chars.DefaultReplyTokens),
 		f.numPredict))
 
 	f.keepAlive = gtk.NewEntry()
 	f.keepAlive.SetText(a.cfg.KeepAlive)
 	sCard.Append(labelledField("Keep the Model Loaded For",
-		"Longer means a reading pause does not cost a model reload, at the price of the memory "+
-			"it holds. Write it as \"30m\" or \"2h\", or \"-1\" to never unload. Default is "+
-			store.DefaultKeepAlive+", against Ollama's own five minutes.",
+		"Longer avoids a reload after a reading pause, at the price of the memory it holds. "+
+			"\"30m\", \"2h\", or \"-1\" to never unload. Default "+store.DefaultKeepAlive+".",
 		f.keepAlive))
 
 	f.think = gtk.NewCheckButton()

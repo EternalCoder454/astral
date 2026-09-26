@@ -55,6 +55,22 @@ type cardData struct {
 	CreatorNotes           string   `json:"creator_notes"`
 	CharacterVersion       string   `json:"character_version"`
 	Tags                   []string `json:"tags"`
+	// Extensions is the spec's own escape hatch for fields it does not define,
+	// and is where Astral's two extra ones live. A tool that does not know about
+	// them ignores the key, which is the mechanism working as designed; a card
+	// exported from Astral and imported back into it keeps them.
+	Extensions cardExtensions `json:"extensions,omitempty"`
+}
+
+// cardExtensions carries what the spec has no field for, namespaced so it cannot
+// collide with another application's.
+type cardExtensions struct {
+	Astral *astralExtension `json:"astral,omitempty"`
+}
+
+type astralExtension struct {
+	Appearance string `json:"appearance,omitempty"`
+	Speech     string `json:"speech,omitempty"`
 }
 
 func (d cardData) toCharacter() Character {
@@ -62,6 +78,8 @@ func (d cardData) toCharacter() Character {
 		Name:        strings.TrimSpace(d.Name),
 		Description: d.Description,
 		Personality: d.Personality,
+		Appearance:  d.Extensions.appearance(),
+		Speech:      d.Extensions.speech(),
 		Scenario:    d.Scenario,
 		FirstMes:    d.FirstMes,
 		MesExample:  d.MesExample,
@@ -306,6 +324,7 @@ func ExportCard(c Character) ([]byte, error) {
 		Description: c.Description,
 		Personality: c.Personality,
 		Scenario:    c.Scenario,
+		Extensions:  newExtensions(c),
 		FirstMes:    c.FirstMes,
 		MesExample:  c.MesExample,
 		// Written to system_prompt so a round trip through Astral returns the
@@ -331,4 +350,32 @@ func ExportCard(c Character) ([]byte, error) {
 		Data:     d,
 		cardData: d,
 	}, "", "  ")
+}
+
+// appearance and speech read the extension without the caller having to check
+// two levels of pointer for a field that is usually absent.
+func (e cardExtensions) appearance() string {
+	if e.Astral == nil {
+		return ""
+	}
+	return e.Astral.Appearance
+}
+
+func (e cardExtensions) speech() string {
+	if e.Astral == nil {
+		return ""
+	}
+	return e.Astral.Speech
+}
+
+// newExtensions builds the extension block, or nothing when there is nothing to
+// put in it. An empty object in every exported card would be noise in a format
+// people read by hand.
+func newExtensions(c Character) cardExtensions {
+	appearance := strings.TrimSpace(c.Appearance)
+	speech := strings.TrimSpace(c.Speech)
+	if appearance == "" && speech == "" {
+		return cardExtensions{}
+	}
+	return cardExtensions{Astral: &astralExtension{Appearance: appearance, Speech: speech}}
 }

@@ -38,9 +38,9 @@ func (a *App) buildWebSearch(f *settingsForm) *gtk.Box {
 	f.searxngURL.SetText(a.cfg.SearXNGURL)
 	f.searxngURL.SetPlaceholderText("http://localhost:8080")
 	card.Append(labelledField("SearXNG Address",
-		"SearXNG is a search engine you run yourself, with no account and no API key. "+
-			"Run one with: docker run -d -p 8080:8080 searxng/searxng, then add \"json\" to "+
-			"search.formats in its settings.yml and restart it.",
+		"A search engine you run yourself, no account and no key. Start one with "+
+			"docker run -d -p 8080:8080 searxng/searxng, then add \"json\" to search.formats "+
+			"in its settings.yml.",
 		f.searxngURL))
 
 	f.searchN = gtk.NewEntry()

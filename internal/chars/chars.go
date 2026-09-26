@@ -20,11 +20,25 @@ import (
 type Character struct {
 	ID          int64
 	Name        string
-	Description string // who they are, appearance, voice, sent every turn
+	Description string // who they are, sent every turn
 	Personality string // traits, usually comma-separated
-	Scenario    string // the situation the roleplay opens in
-	FirstMes    string // the opening message, in the character's voice
-	MesExample  string // few-shot examples of how they talk
+	// Appearance is what they physically are: face, build, what they wear, how
+	// they hold themselves.
+	//
+	// Its own field because narration needs it and personality does not. Mixed
+	// into one description the two dilute each other, and what a model reaches
+	// for when it needs a physical detail mid-sentence is whatever is nearest.
+	Appearance string
+	// Speech is how they talk: sentence length, what they contract, what they
+	// will not say out loud, the words they reach for.
+	//
+	// Astral's own designer prompt calls voice the highest-value thing on a card,
+	// and there was nowhere to put it. A character with a distinct voice survives
+	// a weak description; one without it sounds like the model.
+	Speech     string
+	Scenario   string // the situation the roleplay opens in
+	FirstMes   string // the opening message, in the character's voice
+	MesExample string // few-shot examples of how they talk
 	// Instructions are your own directions for how this character should be
 	// played, "never break the fourth wall", "keep replies to one paragraph",
 	// "she always lies about her past".
@@ -232,6 +246,13 @@ func BuildSystem(c Character, p Persona) string {
 	}
 	section("## "+c.Name, c.Description)
 	section("## Personality", c.Personality)
+	section("## Appearance", c.Appearance)
+	// Last of the three, and labelled as the thing to imitate rather than to
+	// know. It is the field a reply is judged by, so it reads better next to the
+	// style guidance than buried among the facts.
+	if v := strings.TrimSpace(c.Speech); v != "" {
+		section("## How "+c.Name+" talks", v)
+	}
 	section("## Scenario", c.Scenario)
 	if strings.TrimSpace(p.Description) != "" {
 		section("## "+userName, p.Description)

@@ -175,7 +175,7 @@ func groupCard(title string) (*gtk.Box, *gtk.Box) {
 		l.AddCSSClass("settings-heading")
 		outer.Append(l)
 	}
-	card := gtk.NewBox(gtk.OrientationVertical, 12)
+	card := gtk.NewBox(gtk.OrientationVertical, 16)
 	card.AddCSSClass("settings-group")
 	outer.Append(card)
 	return outer, card
@@ -207,16 +207,23 @@ func saveHeader(d *adw.Dialog, saveTip string, onSave func() bool) *adw.HeaderBa
 	return header
 }
 
-// labelledField is a caption above a widget, with an optional hint below.
+// labelledField is a caption and its explanation above a widget.
 func labelledField(label, hint string, child gtk.Widgetter) *gtk.Box {
-	box := gtk.NewBox(gtk.OrientationVertical, 4)
+	box := gtk.NewBox(gtk.OrientationVertical, 2)
+	box.AddCSSClass("field")
 	if label != "" {
 		l := gtk.NewLabel(label)
 		l.SetXAlign(0)
 		l.AddCSSClass("field-label")
 		box.Append(l)
 	}
-	box.Append(child)
+	// The hint goes between the label and the control, not after it.
+	//
+	// After it, a hint sits closer to the next field's label than to its own,
+	// so a form of ten fields reads as twenty loose pieces and the eye has
+	// nothing to group. Above the control, the label and its explanation are one
+	// block, the control is the thing you act on, and the gap before the next
+	// field is the only large gap on the screen.
 	if hint != "" {
 		h := gtk.NewLabel(hint)
 		h.SetXAlign(0)
@@ -224,6 +231,7 @@ func labelledField(label, hint string, child gtk.Widgetter) *gtk.Box {
 		h.AddCSSClass("settings-hint")
 		box.Append(h)
 	}
+	box.Append(child)
 	return box
 }
 

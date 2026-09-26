@@ -7,6 +7,13 @@ heading, a few plain lines each. The detailed history is in the git log.
 - Ask the designer to rewrite a character you already have, keeping their scenes
 - Swipe a character or world aside on your phone to delete it
 
+## 0.4.8
+- Settings and the character editor show twice as much at once, and read more clearly
+- Two new character fields: Appearance, and how they talk
+- Ask the designer to rewrite a character you already have, keeping their scenes
+- Drag the sidebar to the width you want, and its buttons are centred
+- Swipe a character or world aside on your phone to delete it
+
 ## 0.4.7
 - The model can search the web in General Chat and the designers, never in a scene
 - It decides when to look something up, and what it searched is shown above the reply

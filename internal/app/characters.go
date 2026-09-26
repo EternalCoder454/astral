@@ -192,6 +192,8 @@ type characterForm struct {
 	name         *gtk.Entry
 	description  *gtk.TextView
 	personality  *gtk.TextView
+	appearance   *gtk.TextView
+	speech       *gtk.TextView
 	scenario     *gtk.TextView
 	firstMes     *gtk.TextView
 	mesExample   *gtk.TextView
@@ -216,8 +218,8 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	} else {
 		d.SetTitle("Edit " + c.Name)
 	}
-	d.SetContentWidth(620)
-	d.SetContentHeight(700)
+	d.SetContentWidth(640)
+	d.SetContentHeight(780)
 
 	f := &characterForm{}
 	page := gtk.NewBox(gtk.OrientationVertical, 16)
@@ -233,11 +235,11 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	f.name.SetPlaceholderText("Who is this?")
 	idCard.Append(labelledField("Name", "", f.name))
 
-	descFrame, descView := multilineField(c.Description, 5)
+	descFrame, descView := multilineField(c.Description, 3)
 	f.description = descView
 	idCard.Append(labelledField("Description",
-		"Who they are, how they look, how they speak, in as few words as will do. "+
-			"{{user}} and {{char}} expand to names, here and in every field.",
+		"Who they are and what they want. Behaviour, not adjectives: a model can act on "+
+			"\"answers questions with questions\", not on \"complex\".",
 		descFrame))
 
 	persFrame, persView := multilineField(c.Personality, 2)
@@ -245,6 +247,19 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	idCard.Append(labelledField("Personality",
 		"A few traits, usually comma-separated, wry, guarded, quick to anger.",
 		persFrame))
+
+	appFrame, appView := multilineField(c.Appearance, 2)
+	f.appearance = appView
+	idCard.Append(labelledField("Appearance",
+		"Face, build, what they wear, how they hold themselves.",
+		appFrame))
+
+	speechFrame, speechView := multilineField(c.Speech, 2)
+	f.speech = speechView
+	idCard.Append(labelledField("How They Talk",
+		"Sentence length, what they contract, what they never say out loud. The single "+
+			"most useful field here.",
+		speechFrame))
 
 	// Two images, because the crops want different things: the avatar is a
 	// face at 28px beside every message, the portrait is the whole figure
@@ -296,13 +311,13 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	f.scenario = scenView
 	sceneCard.Append(labelledField("Scenario", "Where this starts, and what is going on when it does.", scenFrame))
 
-	firstFrame, firstView := multilineField(c.FirstMes, 5)
+	firstFrame, firstView := multilineField(c.FirstMes, 3)
 	f.firstMes = firstView
 	sceneCard.Append(labelledField("Opening Message",
 		"Their first words. The model copies its length and tone, so write it the way you want the scene to read.",
 		firstFrame))
 
-	exFrame, exView := multilineField(c.MesExample, 4)
+	exFrame, exView := multilineField(c.MesExample, 3)
 	f.mesExample = exView
 	sceneCard.Append(labelledField("Example Dialogue",
 		"Optional. Put <START> between exchanges and prefix lines with {{user}}: and {{char}}:.",
@@ -311,7 +326,7 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 
 	// Instructions.
 	insOuter, insCard := groupCard("Instructions")
-	insFrame, insView := multilineField(c.Instructions, 5)
+	insFrame, insView := multilineField(c.Instructions, 3)
 	f.instructions = insView
 	if c.ID != 0 {
 		revise := gtk.NewButtonWithLabel("Revise with the Designer…")
@@ -399,6 +414,8 @@ func (a *App) saveCharacterForm(c chars.Character, f *characterForm) (chars.Char
 	c.Name = name
 	c.Description = textOf(f.description)
 	c.Personality = textOf(f.personality)
+	c.Appearance = textOf(f.appearance)
+	c.Speech = textOf(f.speech)
 	c.Scenario = textOf(f.scenario)
 	c.FirstMes = textOf(f.firstMes)
 	c.MesExample = textOf(f.mesExample)
