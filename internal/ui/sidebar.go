@@ -66,7 +66,7 @@ func NewSidebar() *Sidebar {
 
 	newBtn := gtk.NewButton()
 	newBtn.AddCSSClass("new-chat-button")
-	newBtn.SetChild(rowContent(IconAdd, "New Chat"))
+	newBtn.SetChild(navContent(IconAdd, "New Chat"))
 	newBtn.SetTooltipText("Start a new chat (Ctrl+N)")
 	newBtn.ConnectClicked(func() { fire(s.OnNewChat) })
 	head.Append(newBtn)
@@ -80,21 +80,21 @@ func NewSidebar() *Sidebar {
 	//, which, once you had opened one, meant not at all.
 	s.homeBtn = gtk.NewButton()
 	s.homeBtn.AddCSSClass("sidebar-item")
-	s.homeBtn.SetChild(rowContent(IconHome, "Home"))
+	s.homeBtn.SetChild(navContent(IconHome, "Home"))
 	s.homeBtn.SetTooltipText("Your cast and your worlds")
 	s.homeBtn.ConnectClicked(func() { fire(s.OnHome) })
 	nav.Append(s.homeBtn)
 
 	s.charsBtn = gtk.NewButton()
 	s.charsBtn.AddCSSClass("sidebar-item")
-	s.charsBtn.SetChild(rowContent(IconCharacters, "Characters"))
+	s.charsBtn.SetChild(navContent(IconCharacters, "Characters"))
 	s.charsBtn.SetTooltipText("Browse and import characters (Ctrl+K)")
 	s.charsBtn.ConnectClicked(func() { fire(s.OnCharacters) })
 	nav.Append(s.charsBtn)
 
 	worldsBtn := gtk.NewButton()
 	worldsBtn.AddCSSClass("sidebar-item")
-	worldsBtn.SetChild(rowContent(IconWorlds, "Worlds"))
+	worldsBtn.SetChild(navContent(IconWorlds, "Worlds"))
 	worldsBtn.SetTooltipText("Settings your characters live in, and what they remember (Ctrl+W)")
 	worldsBtn.ConnectClicked(func() { fire(s.OnWorlds) })
 	nav.Append(worldsBtn)
@@ -217,6 +217,26 @@ func rowContent(icon, text string) *gtk.Box {
 	l := gtk.NewLabel(text)
 	l.SetXAlign(0)
 	l.SetHExpand(true)
+	l.SetEllipsize(pango.EllipsizeEnd)
+	box.Append(l)
+	return box
+}
+
+// navContent is rowContent for the navigation buttons, where the icon and the
+// label sit together in the middle of the button rather than pinned to its left
+// edge.
+//
+// The difference is that a navigation button is a destination and a chat row is a
+// line of text. Four destinations centred read as a set; the same four pinned left
+// with a wide gap after them read as a list that has lost its right-hand column,
+// which is what a resizable sidebar makes obvious.
+func navContent(icon, text string) *gtk.Box {
+	box := gtk.NewBox(gtk.OrientationHorizontal, 10)
+	box.SetHAlign(gtk.AlignCenter)
+	if icon != "" {
+		box.Append(gtk.NewImageFromIconName(icon))
+	}
+	l := gtk.NewLabel(text)
 	l.SetEllipsize(pango.EllipsizeEnd)
 	box.Append(l)
 	return box

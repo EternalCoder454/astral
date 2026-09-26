@@ -678,7 +678,8 @@ frame:focus-within {
 
 /* A rule that is switched off. Still readable, because you are keeping it for
    later rather than hiding it, but plainly not in force. */
-.rule-off {
+.rule-off,
+.rule-off text {
 	color: @astral_muted;
 	font-style: italic;
 }
@@ -922,4 +923,16 @@ frame:focus-within {
 	font-weight: 700;
 	letter-spacing: 0.22em;
 	color: @accent_color;
+}
+
+/* The strip you drag to resize the sidebar. Invisible until pointed at, because
+   a permanent line down the middle of the window would be a border nobody asked
+   for; the cursor is what says it can be dragged. */
+.sidebar-grip {
+	background: transparent;
+	transition: background-color 120ms ease;
+}
+
+.sidebar-grip:hover {
+	background: alpha(@accent_color, 0.45);
 }

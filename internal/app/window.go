@@ -50,12 +50,11 @@ func (a *App) buildWindow() {
 	a.portraitSplit.SetShowSidebar(false)
 
 	a.split = adw.NewOverlaySplitView()
-	a.split.SetSidebar(a.sidebar.Widget())
+	a.split.SetSidebar(a.sidebarWithGrip())
 	a.split.SetContent(a.buildContent())
-	a.split.SetSidebarWidthFraction(0.22)
-	a.split.SetMaxSidebarWidth(340)
-	a.split.SetMinSidebarWidth(210)
 	a.split.SetShowSidebar(a.cfg.SidebarOpen)
+	// The width you left it at, which is the point of being able to drag it.
+	a.applySidebarWidth(a.cfg.SidebarWidth)
 	a.split.SetEnableShowGesture(true)
 	a.split.SetEnableHideGesture(true)
 

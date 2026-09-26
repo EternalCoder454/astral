@@ -282,3 +282,99 @@ func TestBuildStyleRejectsIncompleteResult(t *testing.T) {
 		t.Error("a style with no instructions was accepted")
 	}
 }
+
+// The designers exist to build what the person asked for. A designer that
+// negotiates with you about your own character is worse than no designer, and
+// this runs on somebody's own machine where nobody else reads the result.
+//
+// So the prompts carry no refusal language and no hedging, and this is the test
+// that says so. It is worth having because the drift is one-directional: every
+// edit to a prompt about writing fiction is a chance to add a clause about being
+// careful, and nothing else in the project would notice.
+var designerPrompts = map[string]string{
+	"character designer": DesignerSystem,
+	"style designer":     StyleDesignerSystem,
+	"character revision": ReviseSystem(Character{Name: "Vesper"}, Persona{Name: "Wren"}),
+}
+
+func TestDesignersCarryNoRestrictions(t *testing.T) {
+	// Phrases that cannot appear innocently in a prompt about craft. The
+	// deference clauses deliberately say "never add a warning", so "warning" and
+	// "disclaimer" are not in this list: they appear as things not to do.
+	banned := []string{
+		"inappropriate", "problematic", "as an ai", "i cannot", "content policy",
+		"not comfortable", "tasteful", "age-appropriate", "avoid depicting",
+		"sensitive topic", "tread carefully", "gently steer",
+	}
+	for name, prompt := range designerPrompts {
+		low := strings.ToLower(prompt)
+		for _, b := range banned {
+			if strings.Contains(low, b) {
+				t.Errorf("the %s prompt contains %q, which restricts what it will help build", name, b)
+			}
+		}
+	}
+}
+
+// And the other half: the prompts have to say, in as many words, that the
+// person's decisions are theirs. Without that a model reverts to improving on
+// what it was told, which reads as helpfulness and is the same problem.
+func TestDesignersDeferToTheUser(t *testing.T) {
+	for name, prompt := range designerPrompts {
+		low := strings.ToLower(prompt)
+		defers := false
+		for _, phrase := range []string{
+			"exactly as given", "exactly as asked", "every decision is theirs",
+			"theirs to make", "it is decided",
+		} {
+			if strings.Contains(low, phrase) {
+				defers = true
+				break
+			}
+		}
+		if !defers {
+			t.Errorf("the %s prompt never says the decisions are the user's", name)
+		}
+		if !strings.Contains(low, "never add a warning") && !strings.Contains(low, "do not soften") {
+			t.Errorf("the %s prompt does not tell the model to leave the premise alone", name)
+		}
+	}
+}
+
+// The craft is the part worth having an opinion about, so each prompt has to
+// carry the advice that separates a usable result from a plausible one.
+func TestDesignersTeachTheirCraft(t *testing.T) {
+	for _, tc := range []struct {
+		name, prompt string
+		wants        []string
+	}{
+		{"character designer", DesignerSystem,
+			[]string{"behaviour over adjectives", "voice", "friction"}},
+		{"style designer", StyleDesignerSystem,
+			[]string{"dialogue", "prefer a number to an adjective", "one idea per rule"}},
+	} {
+		low := strings.ToLower(tc.prompt)
+		for _, w := range tc.wants {
+			if !strings.Contains(low, w) {
+				t.Errorf("the %s prompt no longer covers %q", tc.name, w)
+			}
+		}
+	}
+}
+
+// Every designer has to tell the person how to finish, or the interview never
+// ends and the button is never found.
+func TestDesignersNameTheirButton(t *testing.T) {
+	for name, want := range map[string]string{
+		"character designer": "Create Character",
+		"style designer":     "Create Style",
+	} {
+		prompt := designerPrompts[name]
+		if !strings.Contains(prompt, want) {
+			t.Errorf("the %s prompt does not name the %q button", name, want)
+		}
+	}
+	if !strings.Contains(designerPrompts["character revision"], "Save Character") {
+		t.Error("the revision prompt does not name the Save Character button")
+	}
+}

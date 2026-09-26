@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
@@ -23,14 +24,15 @@ import (
 
 // buildRulebook is the rules card.
 func (a *App) buildRulebook() *gtk.Box {
-	outer, card := groupCard("Standing Rules")
+	outer, card := groupCard("Rules")
 
-	hint := wrappingLabel("Every scene is played under these, on top of whatever a " +
-		"character's own card says. Switch one off to try a scene without it.")
+	hint := wrappingLabel("Every scene and every chat is played under these, on top of " +
+		"whatever a character's own card says. Write {{char}} for whoever is being played and " +
+		"{{user}} for you. Switch one off to try a scene without it.")
 	hint.AddCSSClass("settings-hint")
 	card.Append(hint)
 
-	rows := gtk.NewBox(gtk.OrientationVertical, 2)
+	rows := gtk.NewBox(gtk.OrientationVertical, 8)
 	card.Append(rows)
 
 	var refresh func()
@@ -91,13 +93,22 @@ func (a *App) buildRulebook() *gtk.Box {
 }
 
 // ruleRow is one rule: a switch, the text, and the controls to move or drop it.
+//
+// The text is a wrapping box rather than a single-line field. A rule is a
+// sentence and sentences are not short: "Nobody in this scene explains their own
+// feelings out loud, and nobody says what they are about to do before doing it"
+// is a perfectly ordinary rule and was previously forty visible characters with
+// the rest off the side of a field you had to arrow through to read.
 func (a *App) ruleRow(i, n int, save, refresh func()) *gtk.Box {
 	row := gtk.NewBox(gtk.OrientationHorizontal, 6)
 	rule := a.cfg.Rulebook[i]
 
 	on := gtk.NewCheckButton()
 	on.SetActive(rule.Enabled)
-	on.SetVAlign(gtk.AlignCenter)
+	// Top rather than centre: a rule three lines tall would otherwise put its
+	// switch and its buttons halfway down, level with nothing.
+	on.SetVAlign(gtk.AlignStart)
+	on.SetMarginTop(6)
 	on.SetTooltipText("Whether this rule is in force")
 	on.ConnectToggled(func() {
 		a.cfg.Rulebook[i].Enabled = on.Active()
@@ -105,32 +116,41 @@ func (a *App) ruleRow(i, n int, save, refresh func()) *gtk.Box {
 	})
 	row.Append(on)
 
-	// Editable in place. A rule is one sentence, and a dialog to change one
+	// Editable in place, and as tall as the rule needs. A dialog to change one
 	// sentence is a dialog nobody opens to fix a word.
-	text := gtk.NewEntry()
-	text.SetText(rule.Text)
-	text.SetHExpand(true)
-	text.AddCSSClass("flat")
-	commit := func() {
-		a.cfg.Rulebook[i].Text = text.Text()
-		save()
-	}
-	text.ConnectActivate(commit)
-	// Also on losing focus, because clicking straight to Close is the ordinary
-	// way to finish typing and pressing Return first is not obvious.
-	focus := gtk.NewEventControllerFocus()
-	focus.ConnectLeave(commit)
-	text.AddController(focus)
+	frame, view := multilineField(rule.Text, 1)
+	frame.SetHExpand(true)
 	if !rule.Enabled {
-		text.AddCSSClass("rule-off")
+		view.AddCSSClass("rule-off")
 	}
-	row.Append(text)
+	// On losing focus rather than on a key: Return inside a rule is a line break,
+	// which a long rule is entitled to, and clicking away is how anyone finishes
+	// typing in a box with no button of its own.
+	focus := gtk.NewEventControllerFocus()
+	focus.ConnectLeave(func() {
+		text := strings.TrimSpace(textOf(view))
+		if text == a.cfg.Rulebook[i].Text {
+			return
+		}
+		a.cfg.Rulebook[i].Text = text
+		save()
+		// Emptied is deleted. The alternative is a blank row that does nothing
+		// and cannot be told apart from a rule you have not written yet.
+		if text == "" {
+			a.cfg.RemoveRule(i)
+			refresh()
+		}
+	})
+	view.AddController(focus)
+	row.Append(frame)
+
+	buttons := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	buttons.SetVAlign(gtk.AlignStart)
 
 	// Order is worth having even though the rules go out as one block: a model
 	// weights the end of a list, so the rule you most want obeyed belongs last.
 	up := gtk.NewButtonFromIconName("go-up-symbolic")
 	up.AddCSSClass("flat")
-	up.SetVAlign(gtk.AlignCenter)
 	up.SetTooltipText("Move this rule earlier")
 	up.SetSensitive(i > 0)
 	up.ConnectClicked(func() {
@@ -139,11 +159,10 @@ func (a *App) ruleRow(i, n int, save, refresh func()) *gtk.Box {
 			refresh()
 		}
 	})
-	row.Append(up)
+	buttons.Append(up)
 
 	down := gtk.NewButtonFromIconName("go-down-symbolic")
 	down.AddCSSClass("flat")
-	down.SetVAlign(gtk.AlignCenter)
 	down.SetTooltipText("Move this rule later, where it is weighted more")
 	down.SetSensitive(i < n-1)
 	down.ConnectClicked(func() {
@@ -152,11 +171,10 @@ func (a *App) ruleRow(i, n int, save, refresh func()) *gtk.Box {
 			refresh()
 		}
 	})
-	row.Append(down)
+	buttons.Append(down)
 
 	del := gtk.NewButtonFromIconName(ui.IconTrash)
 	del.AddCSSClass("flat")
-	del.SetVAlign(gtk.AlignCenter)
 	del.SetTooltipText("Delete this rule")
 	del.ConnectClicked(func() {
 		if a.cfg.RemoveRule(i) {
@@ -164,6 +182,7 @@ func (a *App) ruleRow(i, n int, save, refresh func()) *gtk.Box {
 			refresh()
 		}
 	})
-	row.Append(del)
+	buttons.Append(del)
+	row.Append(buttons)
 	return row
 }

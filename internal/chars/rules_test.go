@@ -113,3 +113,25 @@ func TestLiveRuleIsObeyed(t *testing.T) {
 		t.Errorf("a rule asking for one paragraph produced %.2f a turn", bound)
 	}
 }
+
+// TestRulesExpandCharAndUser is worth a test because it is invisible either way:
+// a placeholder that reaches the model is read out loud by the character, and one
+// that expands looks exactly like a rule somebody typed a name into.
+//
+// It works in all three positions a rule appears in, which is the part that could
+// have been half done.
+func TestRulesExpandCharAndUser(t *testing.T) {
+	p := Persona{Name: "Wren", GlobalInstructions: "1. {{char}} never explains themselves to {{user}}."}
+	c := Character{Name: "Vesper", Description: "A cartographer."}
+
+	if sys := BuildSystem(c, p); !strings.Contains(sys, "Vesper never explains themselves to Wren.") {
+		t.Errorf("the system prompt left a placeholder in:\n%s", sys)
+	}
+	if a := Anchor(c, Scene{Persona: p}, "Wren"); !strings.Contains(a, "Vesper never explains themselves to Wren.") {
+		t.Errorf("the closing block left a placeholder in:\n%s", a)
+	}
+	// In a group {{char}} has no single referent, so it becomes the cast.
+	if g := BuildGroupSystem(threeHanded(), p); strings.Contains(g, "{{char}}") {
+		t.Errorf("a group prompt left the placeholder in:\n%s", g)
+	}
+}
