@@ -290,10 +290,19 @@ func (a *App) openChat(id int64) error {
 		return err
 	}
 	var ca chars.Character
-	if ch.CharacterID != 0 {
+	switch {
+	case ch.CharacterID != 0:
 		// A character deleted out from under an old chat is not an error: the
 		// transcript is still readable, it just has no persona to continue with.
 		ca, _ = a.store.Character(ch.CharacterID)
+	case ch.WorldID != 0:
+		// A scene in a world with nobody in particular. Its narrator is not
+		// stored, because it is not a character anyone wrote: it is rebuilt
+		// from the world every time the chat is opened, so editing the world
+		// changes the scenes already running in it.
+		if w, err := a.store.World(ch.WorldID); err == nil {
+			ca = narratorFor(w)
+		}
 	}
 	msgs, err := a.store.Messages(id)
 	if err != nil {

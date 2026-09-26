@@ -12,7 +12,7 @@ import (
 // Worlds returns every world, newest touched first.
 func (s *Store) Worlds() ([]world.World, error) {
 	rows, err := s.db.Query(`
-		SELECT id, name, description, created_at, updated_at
+		SELECT id, name, description, rules, created_at, updated_at
 		FROM worlds ORDER BY updated_at DESC, id DESC`)
 	if err != nil {
 		return nil, err
@@ -22,7 +22,7 @@ func (s *Store) Worlds() ([]world.World, error) {
 	for rows.Next() {
 		var w world.World
 		var created, updated int64
-		if err := rows.Scan(&w.ID, &w.Name, &w.Description, &created, &updated); err != nil {
+		if err := rows.Scan(&w.ID, &w.Name, &w.Description, &w.Rules, &created, &updated); err != nil {
 			return nil, err
 		}
 		w.CreatedAt, w.UpdatedAt = fromUnix(created), fromUnix(updated)
@@ -36,8 +36,8 @@ func (s *Store) World(id int64) (world.World, error) {
 	var w world.World
 	var created, updated int64
 	err := s.db.QueryRow(`
-		SELECT id, name, description, created_at, updated_at FROM worlds WHERE id = ?`, id).
-		Scan(&w.ID, &w.Name, &w.Description, &created, &updated)
+		SELECT id, name, description, rules, created_at, updated_at FROM worlds WHERE id = ?`, id).
+		Scan(&w.ID, &w.Name, &w.Description, &w.Rules, &created, &updated)
 	if err == sql.ErrNoRows {
 		return w, fmt.Errorf("no world with id %d", id)
 	}
@@ -59,15 +59,15 @@ func (s *Store) SaveWorld(w world.World) (int64, error) {
 	now := time.Now()
 	if w.ID == 0 {
 		res, err := s.db.Exec(`
-			INSERT INTO worlds (name, description, created_at, updated_at) VALUES (?,?,?,?)`,
-			w.Name, w.Description, unix(now), unix(now))
+			INSERT INTO worlds (name, description, rules, created_at, updated_at) VALUES (?,?,?,?,?)`,
+			w.Name, w.Description, w.Rules, unix(now), unix(now))
 		if err != nil {
 			return 0, err
 		}
 		return res.LastInsertId()
 	}
-	_, err := s.db.Exec(`UPDATE worlds SET name=?, description=?, updated_at=? WHERE id=?`,
-		w.Name, w.Description, unix(now), w.ID)
+	_, err := s.db.Exec(`UPDATE worlds SET name=?, description=?, rules=?, updated_at=? WHERE id=?`,
+		w.Name, w.Description, w.Rules, unix(now), w.ID)
 	return w.ID, err
 }
 

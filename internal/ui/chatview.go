@@ -943,8 +943,15 @@ func (c *ChatView) loadLore(ca chars.Character) {
 
 // loreFor renders the lore this part of the conversation has triggered.
 func (c *ChatView) loreFor(history []ollama.Message, budget int) string {
-	if len(c.lore) == 0 || budget <= 0 {
+	if budget <= 0 {
 		return ""
+	}
+	// A world with no lore yet still has a name, a description and its rules,
+	// and those are the setting. Returning early on an empty lorebook meant a
+	// world you had just written reached the model as nothing at all until you
+	// went and filled in entries, which is not what anyone would expect of it.
+	if len(c.lore) == 0 {
+		return world.Render(c.world, nil)
 	}
 	turns := make([]string, 0, len(history))
 	for _, m := range history {

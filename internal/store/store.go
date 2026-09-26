@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS worlds (
 	id          INTEGER PRIMARY KEY AUTOINCREMENT,
 	name        TEXT    NOT NULL,
 	description TEXT    NOT NULL DEFAULT '',
+	rules       TEXT    NOT NULL DEFAULT '',
 	created_at  INTEGER NOT NULL DEFAULT 0,
 	updated_at  INTEGER NOT NULL DEFAULT 0
 );
@@ -232,6 +233,12 @@ func (s *Store) migrate() error {
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN summary_upto INTEGER NOT NULL DEFAULT 0`)
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN style_name TEXT NOT NULL DEFAULT ''`)
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN note TEXT NOT NULL DEFAULT ''`)
+
+	// What is always true in a world, as opposed to what a keyword brings in.
+	s.db.Exec(`ALTER TABLE worlds ADD COLUMN rules TEXT NOT NULL DEFAULT ''`)
+
+	// A scene set in a world with nobody in particular in it.
+	s.db.Exec(`ALTER TABLE chats ADD COLUMN world_id INTEGER NOT NULL DEFAULT 0`)
 
 	s.db.Exec(`
 		UPDATE characters SET instructions = TRIM(

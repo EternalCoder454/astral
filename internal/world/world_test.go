@@ -161,9 +161,41 @@ func TestRenderWritesFactsNotProse(t *testing.T) {
 	}
 }
 
-func TestRenderIsEmptyWithNoEntries(t *testing.T) {
-	if got := Render(World{Name: "Somewhere"}, nil); got != "" {
-		t.Errorf("render with no entries = %q, want empty", got)
+// A world you have written and not yet filled with lore is still a setting.
+// Returning nothing until an entry happened to match meant a world created five
+// minutes ago reached the model as silence, which is not what anyone would
+// expect of the thing they had just written.
+func TestRenderSendsTheSettingWithNoEntries(t *testing.T) {
+	w := World{Name: "Kestrel Bay", Description: "A harbour town under permanent rain.",
+		Rules: "Nobody sails east of the Sever. The Guild licenses every chart."}
+	got := Render(w, nil)
+	for _, want := range []string{"Kestrel Bay", "permanent rain", "east of the Sever", "Guild licenses"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("render is missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "What is true here") {
+		t.Errorf("an empty lorebook produced an empty list heading:\n%s", got)
+	}
+}
+
+// A world with nothing written in it and nothing matched is nothing to say.
+func TestRenderIsEmptyForAnEmptyWorld(t *testing.T) {
+	if got := Render(World{}, nil); got != "" {
+		t.Errorf("render of an empty world = %q, want empty", got)
+	}
+}
+
+// The rules are sent every turn out of the budget the entries share, so they
+// are bounded and cut at the end of a rule rather than mid-sentence.
+func TestRulesAreBounded(t *testing.T) {
+	long := strings.Repeat("Nobody sails east of the Sever. ", 60)
+	got := Render(World{Name: "Kestrel Bay", Rules: long}, nil)
+	if len(got) > rulesChars+200 {
+		t.Errorf("render is %d chars; the rules were not bounded", len(got))
+	}
+	if !strings.HasSuffix(strings.TrimSpace(got), ".") {
+		t.Errorf("the rules were cut mid-sentence:\n%s", got[max(0, len(got)-60):])
 	}
 }
 

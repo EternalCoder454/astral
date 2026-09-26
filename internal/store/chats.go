@@ -24,9 +24,14 @@ const (
 type Chat struct {
 	ID          int64
 	CharacterID int64
-	Title       string
-	Model       string
-	Kind        string
+	// WorldID is set when the scene is in a world rather than with a
+	// character: a world is a place, and you can be in one without anyone in
+	// particular being there. Zero for every other kind of chat, including a
+	// character's own, which takes its world from the character.
+	WorldID int64
+	Title   string
+	Model   string
+	Kind    string
 	// Summary is the running record of everything compacted out of this
 	// chat's context, and SummaryUpto is the last message id it covers.
 	Summary     string
@@ -73,7 +78,7 @@ func (s *Store) Chats() ([]Chat, error) {
 	// once for every chat in the list, so the cost grew with chats times
 	// messages — and this runs on every sidebar refresh, twice a turn.
 	rows, err := s.db.Query(`
-		SELECT c.id, c.character_id, c.title, c.model, c.kind, c.created_at, c.updated_at,
+		SELECT c.id, c.character_id, c.world_id, c.title, c.model, c.kind, c.created_at, c.updated_at,
 		       COALESCE(ch.name, ''), COALESCE(ch.accent, 0), COALESCE(n.count, 0)
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
@@ -88,7 +93,7 @@ func (s *Store) Chats() ([]Chat, error) {
 	for rows.Next() {
 		var c Chat
 		var created, updated int64
-		if err := rows.Scan(&c.ID, &c.CharacterID, &c.Title, &c.Model, &c.Kind,
+		if err := rows.Scan(&c.ID, &c.CharacterID, &c.WorldID, &c.Title, &c.Model, &c.Kind,
 			&created, &updated, &c.CharacterName, &c.Accent, &c.MessageCount); err != nil {
 			return nil, err
 		}
@@ -103,13 +108,13 @@ func (s *Store) Chat(id int64) (Chat, error) {
 	var c Chat
 	var created, updated int64
 	err := s.db.QueryRow(`
-		SELECT c.id, c.character_id, c.title, c.model, c.kind, c.summary, c.summary_upto,
+		SELECT c.id, c.character_id, c.world_id, c.title, c.model, c.kind, c.summary, c.summary_upto,
 		       c.lore_upto, c.style_name, c.note, c.created_at, c.updated_at,
 		       COALESCE(ch.name, ''), COALESCE(ch.accent, 0)
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
 		WHERE c.id = ?`, id).
-		Scan(&c.ID, &c.CharacterID, &c.Title, &c.Model, &c.Kind, &c.Summary, &c.SummaryUpto,
+		Scan(&c.ID, &c.CharacterID, &c.WorldID, &c.Title, &c.Model, &c.Kind, &c.Summary, &c.SummaryUpto,
 			&c.LoreUpto, &c.StyleName, &c.Note, &created, &updated, &c.CharacterName, &c.Accent)
 	if err == sql.ErrNoRows {
 		return c, fmt.Errorf("no chat with id %d", id)
@@ -123,6 +128,11 @@ func (s *Store) Chat(id int64) (Chat, error) {
 
 // NewChat creates a conversation and returns it.
 func (s *Store) NewChat(characterID int64, title, model, kind string) (Chat, error) {
+	return s.NewChatIn(characterID, 0, title, model, kind)
+}
+
+// NewChatIn creates a conversation set in a world, with or without a character.
+func (s *Store) NewChatIn(characterID, worldID int64, title, model, kind string) (Chat, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
@@ -131,8 +141,8 @@ func (s *Store) NewChat(characterID int64, title, model, kind string) (Chat, err
 	}
 	now := time.Now()
 	res, err := s.db.Exec(`
-		INSERT INTO chats (character_id, title, model, kind, created_at, updated_at)
-		VALUES (?,?,?,?,?,?)`, characterID, title, model, kind, unix(now), unix(now))
+		INSERT INTO chats (character_id, world_id, title, model, kind, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?)`, characterID, worldID, title, model, kind, unix(now), unix(now))
 	if err != nil {
 		return Chat{}, err
 	}
@@ -141,7 +151,7 @@ func (s *Store) NewChat(characterID int64, title, model, kind string) (Chat, err
 		return Chat{}, err
 	}
 	return Chat{
-		ID: id, CharacterID: characterID, Title: title, Model: model, Kind: kind,
+		ID: id, CharacterID: characterID, WorldID: worldID, Title: title, Model: model, Kind: kind,
 		CreatedAt: now, UpdatedAt: now,
 	}, nil
 }

@@ -209,3 +209,75 @@ func TestMigrationAddsWorlds(t *testing.T) {
 		t.Errorf("writing a world to a migrated database: %v", err)
 	}
 }
+
+// The rules are what is always true in a world, and they have to survive a
+// round trip like anything else.
+func TestWorldRulesRoundTrip(t *testing.T) {
+	s := openTest(t)
+	id, err := s.SaveWorld(world.World{
+		Name:        "Kestrel Bay",
+		Description: "A harbour town under permanent rain.",
+		Rules:       "Nobody sails east of the Sever.\nThe Guild licenses every chart.",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.World(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got.Rules, "east of the Sever") || !strings.Contains(got.Rules, "licenses every chart") {
+		t.Errorf("rules did not survive: %q", got.Rules)
+	}
+
+	got.Rules = "Only the Guild may chart."
+	if _, err := s.SaveWorld(got); err != nil {
+		t.Fatal(err)
+	}
+	again, err := s.World(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Rules != "Only the Guild may chart." {
+		t.Errorf("rules were not updated: %q", again.Rules)
+	}
+
+	list, err := s.Worlds()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) == 0 || list[0].Rules != "Only the Guild may chart." {
+		t.Errorf("the listing does not carry the rules: %+v", list)
+	}
+}
+
+// A scene can be set in a world with nobody in particular in it, and reopening
+// it has to find the world again or the setting is silently gone.
+func TestChatRemembersItsWorld(t *testing.T) {
+	s := openTest(t)
+	wid, err := s.SaveWorld(world.World{Name: "Kestrel Bay"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, err := s.NewChatIn(0, wid, "Kestrel Bay", "m", KindRoleplay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ch.WorldID != wid {
+		t.Errorf("new chat WorldID = %d, want %d", ch.WorldID, wid)
+	}
+	got, err := s.Chat(ch.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.WorldID != wid {
+		t.Errorf("reopened chat WorldID = %d, want %d", got.WorldID, wid)
+	}
+	list, err := s.Chats()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) == 0 || list[0].WorldID != wid {
+		t.Errorf("the sidebar listing lost the world: %+v", list)
+	}
+}

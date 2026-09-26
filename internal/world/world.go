@@ -21,8 +21,16 @@ type World struct {
 	ID          int64
 	Name        string
 	Description string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// Rules are what is always true here: what can and cannot happen, who
+	// holds power, what a person in this world takes for granted. Unlike a
+	// lore entry it is not waiting for a keyword, because it is not about a
+	// subject that might come up. It is the ground everything else stands on,
+	// so it is sent with the setting on every turn.
+	//
+	// That is also why it is bounded. See rulesChars.
+	Rules     string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // Entry is one thing that is true in a world: a person, a place, an object, a
@@ -167,33 +175,70 @@ func isBoundary(s string, i int) bool {
 }
 
 // Render turns matched entries into the block sent to the model.
+// rulesChars bounds the rules, which are sent on every turn.
+//
+// The lore block has a budget and the entries share it. Something unbounded
+// and always present would take that budget from the entries, which are the
+// part that changes with the scene, so the floor a world stands on is not
+// allowed to become the whole of it.
+const rulesChars = 700
+
 func Render(w World, entries []Entry) string {
-	if len(entries) == 0 {
+	name := strings.TrimSpace(w.Name)
+	desc := strings.TrimSpace(w.Description)
+	rules := truncateRules(strings.TrimSpace(w.Rules))
+	// A world with nothing written in it and nothing matched is nothing to
+	// say. Anything else is worth sending.
+	if len(entries) == 0 && name == "" && desc == "" && rules == "" {
 		return ""
 	}
+
 	var b strings.Builder
-	if name := strings.TrimSpace(w.Name); name != "" {
+	if name != "" {
 		b.WriteString("The scene takes place in ")
 		b.WriteString(name)
-		if d := strings.TrimSpace(w.Description); d != "" {
+		if desc != "" {
 			b.WriteString(". ")
-			b.WriteString(d)
+			b.WriteString(desc)
 		} else {
 			b.WriteString(".")
 		}
 		b.WriteString("\n\n")
+	} else if desc != "" {
+		b.WriteString(desc)
+		b.WriteString("\n\n")
 	}
-	b.WriteString("What is true here (established fact, treat it as already known):\n")
-	for _, e := range entries {
-		b.WriteString("- ")
-		if n := strings.TrimSpace(e.Name); n != "" {
-			b.WriteString(n)
-			b.WriteString(": ")
+	if rules != "" {
+		b.WriteString("How this world works (true everywhere in it, and always):\n")
+		b.WriteString(rules)
+		b.WriteString("\n\n")
+	}
+	if len(entries) > 0 {
+		b.WriteString("What is true here (established fact, treat it as already known):\n")
+		for _, e := range entries {
+			b.WriteString("- ")
+			if n := strings.TrimSpace(e.Name); n != "" {
+				b.WriteString(n)
+				b.WriteString(": ")
+			}
+			b.WriteString(strings.Join(strings.Fields(e.Content), " "))
+			b.WriteString("\n")
 		}
-		b.WriteString(strings.Join(strings.Fields(e.Content), " "))
-		b.WriteString("\n")
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// truncateRules bounds the rules, cutting at a line end so a rule is not left
+// half-stated.
+func truncateRules(s string) string {
+	if len(s) <= rulesChars {
+		return s
+	}
+	cut := s[:rulesChars]
+	if i := strings.LastIndexAny(cut, ".\n"); i > rulesChars/2 {
+		return strings.TrimSpace(cut[:i+1])
+	}
+	return strings.TrimSpace(cut)
 }
 
 // RecentText joins the tail of a transcript into the text Match scans.

@@ -92,7 +92,11 @@ func (c *ChatView) ensureChat(firstMessage string) error {
 	if c.chat.ID != 0 {
 		return nil
 	}
-	ch, err := c.store.NewChat(c.char.ID, store.TitleFrom(firstMessage), c.activeModel(), c.chat.Kind)
+	// The world goes on the row as well: a scene in a world with no character
+	// has nowhere else to record where it is, and without this it would reopen
+	// tomorrow as a plain conversation with the setting gone.
+	ch, err := c.store.NewChatIn(c.char.ID, c.chat.WorldID,
+		store.TitleFrom(firstMessage), c.activeModel(), c.chat.Kind)
 	if err != nil {
 		return err
 	}

@@ -91,10 +91,19 @@ func (a *App) showNewChat() {
 	// With no cast there is nothing to play, so the plain conversation takes
 	// the emphasis instead of offering a route that leads nowhere.
 	cast, _ := a.store.CountCharacters()
+	worlds, _ := a.store.Worlds()
 	if cast > 0 {
 		add(ui.IconCharacters, "Play a scene", "with someone from your cast", true, a.showCharacters)
 	}
-	add(ui.IconChat, "General chat", "", cast == 0, a.newAssistantChat)
+	// A world is a place, so it is somewhere to go rather than someone to
+	// meet. It belongs next to the cast and not buried in the worlds list,
+	// which is where it was: unreachable without first inventing a character
+	// to be met there.
+	if len(worlds) > 0 {
+		add(ui.IconWorlds, "Play in a world", "the model plays the place and whoever you meet",
+			cast == 0, a.showWorldPicker)
+	}
+	add(ui.IconChat, "General chat", "", cast == 0 && len(worlds) == 0, a.newAssistantChat)
 
 	heading("Make something")
 	add(ui.IconDesigner, "New character", "the model interviews you", false, a.newDesignerChat)

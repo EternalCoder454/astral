@@ -9,6 +9,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/pango"
 
 	"astral/internal/chars"
+	"astral/internal/store"
 	"astral/internal/ui"
 	"astral/internal/world"
 )
@@ -171,10 +172,15 @@ func (a *App) editWorld(w world.World) {
 	nameEntry.SetPlaceholderText("The Drowned Coast")
 	card.Append(labelledField("Name", "", nameEntry))
 
-	frame, view := multilineField(w.Description, 4)
+	frame, view := multilineField(w.Description, 3)
 	card.Append(labelledField("Description",
-		"One or two sentences. Sent whenever any of this world's lore is, so keep it short.",
+		"One or two sentences on what this place is like.",
 		frame))
+
+	rulesFrame, rulesView := multilineField(w.Rules, 5)
+	card.Append(labelledField("Rules",
+		"What is always true here: what can and cannot happen, who holds power. Sent every turn, so keep it to a few lines.",
+		rulesFrame))
 	page.Append(outer)
 
 	header := saveHeader(d, "", func() bool {
@@ -184,7 +190,7 @@ func (a *App) editWorld(w world.World) {
 			nameEntry.GrabFocus()
 			return false
 		}
-		w.Name, w.Description = name, textOf(view)
+		w.Name, w.Description, w.Rules = name, textOf(view), textOf(rulesView)
 		if _, err := a.store.SaveWorld(w); err != nil {
 			a.toast("Could not save: " + err.Error())
 			return false
@@ -199,6 +205,105 @@ func (a *App) editWorld(w world.World) {
 	d.SetChild(tv)
 	d.Present(a.win)
 	nameEntry.GrabFocus()
+}
+
+// showWorldPicker asks which world to play in, and goes straight there. One
+// world and there is nothing to ask.
+func (a *App) showWorldPicker() {
+	worlds, err := a.store.Worlds()
+	if err != nil {
+		a.toast("Could not read your worlds: " + err.Error())
+		return
+	}
+	switch len(worlds) {
+	case 0:
+		a.editWorld(world.World{})
+		return
+	case 1:
+		a.startWorldScene(worlds[0])
+		return
+	}
+
+	d := adw.NewDialog()
+	d.SetTitle("Play in a world")
+	d.SetContentWidth(520)
+
+	list := gtk.NewBox(gtk.OrientationVertical, 6)
+	list.SetMarginTop(14)
+	list.SetMarginBottom(14)
+	list.SetMarginStart(14)
+	list.SetMarginEnd(14)
+	for _, w := range worlds {
+		btn := gtk.NewButton()
+		btn.AddCSSClass("launch-row")
+		col := gtk.NewBox(gtk.OrientationVertical, 1)
+		title := gtk.NewLabel(w.Name)
+		title.SetXAlign(0)
+		title.AddCSSClass("launch-row-title")
+		col.Append(title)
+		if desc := strings.TrimSpace(w.Description); desc != "" {
+			note := gtk.NewLabel(ui.Snippet(desc, 90))
+			note.SetXAlign(0)
+			note.SetEllipsize(pango.EllipsizeEnd)
+			note.AddCSSClass("launch-row-note")
+			col.Append(note)
+		}
+		btn.SetChild(col)
+		btn.ConnectClicked(func() {
+			d.Close()
+			a.startWorldScene(w)
+		})
+		list.Append(btn)
+	}
+
+	tv := adw.NewToolbarView()
+	tv.AddTopBar(adw.NewHeaderBar())
+	tv.SetContent(scrolledToFit(list))
+	d.SetChild(tv)
+	d.Present(a.win)
+}
+
+// narratorFor turns a world into something a scene can be played against.
+//
+// A world is a place. You can be somewhere without anyone in particular being
+// there, and until now Astral could not express that: a scene needed a
+// character, so a world you had just written was unusable until you also
+// invented someone to meet in it. This is the missing half. The model plays the
+// place rather than a person, and whoever the scene turns out to need.
+//
+// It is never saved. There is no row for it and it never appears in a cast,
+// because it is not a character anyone wrote: it is rebuilt from the world each
+// time, so editing the world changes the scenes already running in it.
+func narratorFor(w world.World) chars.Character {
+	return chars.Character{
+		Name:    w.Name,
+		WorldID: w.ID,
+		Accent:  ui.AccentFor(w.Name),
+		Description: "You are this place itself, and everyone in it.\n\n" +
+			"There is no single character to play here. Narrate what {{user}} finds, " +
+			"and play whoever they meet: give those people names, voices and reasons " +
+			"of their own, and let them leave again. When nobody is speaking, the " +
+			"place is: weather, noise, what is happening two streets away.\n\n" +
+			"Never answer as {{user}} and never decide what they do.",
+		Scenario: strings.TrimSpace(w.Description),
+	}
+}
+
+// startWorldScene opens a scene set in a world, with no character required.
+func (a *App) startWorldScene(w world.World) {
+	a.chat.Clear()
+	ca := narratorFor(w)
+	a.chat.LoadChat(store.Chat{
+		Model:   a.cfg.Model,
+		WorldID: w.ID,
+		Kind:    store.KindRoleplay,
+		Title:   w.Name,
+	}, ca, nil)
+	a.showPortraitFor(ca)
+	a.showChat()
+	a.sidebar.Select(0)
+	a.setTitle(store.Chat{Title: w.Name}, ca)
+	a.chat.FocusComposer()
 }
 
 // showWorld is a world's own page, and the answer to a question the app had no
@@ -266,15 +371,38 @@ func (a *App) showWorld(w world.World) {
 	heading.AddCSSClass("settings-heading")
 	page.Append(heading)
 
-	if len(here) == 0 {
-		hint := gtk.NewLabel("Nobody lives in " + w.Name + " yet. A world is played through " +
-			"its characters: give it someone, and their scenes draw on this lorebook and add back to it.")
-		hint.SetXAlign(0)
-		hint.SetWrap(true)
-		hint.AddCSSClass("settings-hint")
-		page.Append(hint)
-	} else {
-		hint := gtk.NewLabel("Pick someone to start a scene. What happens in it is remembered in the lorebook below.")
+	// Straight in, with nobody in particular. A world is a place, and needing
+	// to invent a character before you could visit one was the app asking you
+	// to do its paperwork.
+	enter := gtk.NewButton()
+	enter.AddCSSClass("launch-row")
+	enter.AddCSSClass("launch-row-primary")
+	enterRow := gtk.NewBox(gtk.OrientationHorizontal, 12)
+	enterIcon := gtk.NewImageFromIconName(ui.IconWorlds)
+	enterIcon.SetPixelSize(18)
+	enterIcon.SetVAlign(gtk.AlignCenter)
+	enterRow.Append(enterIcon)
+	enterCol := gtk.NewBox(gtk.OrientationVertical, 1)
+	enterCol.SetHExpand(true)
+	enterTitle := gtk.NewLabel("Start a scene here")
+	enterTitle.SetXAlign(0)
+	enterTitle.AddCSSClass("launch-row-title")
+	enterCol.Append(enterTitle)
+	enterNote := gtk.NewLabel("No character needed. The model plays the place and whoever you meet.")
+	enterNote.SetXAlign(0)
+	enterNote.SetWrap(true)
+	enterNote.AddCSSClass("launch-row-note")
+	enterCol.Append(enterNote)
+	enterRow.Append(enterCol)
+	enter.SetChild(enterRow)
+	enter.ConnectClicked(func() {
+		d.Close()
+		a.startWorldScene(w)
+	})
+	page.Append(enter)
+
+	if len(here) > 0 {
+		hint := gtk.NewLabel("Or with someone who lives here.")
 		hint.SetXAlign(0)
 		hint.SetWrap(true)
 		hint.AddCSSClass("settings-hint")
