@@ -156,7 +156,7 @@ func Learn(ctx context.Context, client *ollama.Client, model string, w World, ex
 	entries := make([]Entry, 0, len(out.Entries))
 	for _, e := range out.Entries {
 		name := strings.TrimSpace(e.Name)
-		content := strings.Join(strings.Fields(e.Content), " ")
+		content := truncateEntry(strings.Join(strings.Fields(e.Content), " "))
 		if name == "" || content == "" {
 			continue
 		}
@@ -175,6 +175,35 @@ func Learn(ctx context.Context, client *ollama.Client, model string, w World, ex
 		})
 	}
 	return entries, nil
+}
+
+// maxEntryChars bounds one entry's content.
+//
+// The prompt asks for under sixty words and the model is free to ignore it: a
+// measured twenty-four turn scene produced a 1604-character entry, four times
+// over. That matters more than it looks, because an entry is injected whenever
+// one of its keys is mentioned and the lore block has a budget of its own, so a
+// single entry at that size spends what several were meant to share and the
+// others silently do not arrive. Eighty words is generous against the sixty
+// asked for, and still five entries to the block rather than one.
+const maxEntryChars = 480
+
+// truncateEntry bounds an entry, cutting at a sentence end so a fact is not left
+// half-stated.
+func truncateEntry(s string) string {
+	if len(s) <= maxEntryChars {
+		return s
+	}
+	cut := s[:maxEntryChars]
+	if i := strings.LastIndexAny(cut, ".!?"); i > maxEntryChars/2 {
+		return cut[:i+1]
+	}
+	// No sentence ended in the second half, so it is one long clause. Cut at a
+	// word rather than mid-word.
+	if i := strings.LastIndexByte(cut, ' '); i > maxEntryChars/2 {
+		return strings.TrimSpace(cut[:i])
+	}
+	return strings.TrimSpace(cut)
 }
 
 // summarizeExisting lists what the lorebook already holds, newest first, up to

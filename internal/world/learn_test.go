@@ -51,3 +51,36 @@ func TestCleanKeysNeedsEnoughSceneToJudge(t *testing.T) {
 		t.Errorf("dropped a good key on a two-message scene: %v", got)
 	}
 }
+
+// An entry is injected whenever one of its keys comes up, out of a budget the
+// whole lore block shares, so one entry that ignores the word limit costs every
+// other entry its place. A measured scene produced one at 1604 characters.
+func TestTruncateEntryBoundsWhatTheModelIgnores(t *testing.T) {
+	long := strings.Repeat("Kestrel Bay is a harbour town on the eastern reach. ", 30)
+	got := truncateEntry(long)
+	if len(got) > maxEntryChars {
+		t.Errorf("entry is %d chars, over the %d cap", len(got), maxEntryChars)
+	}
+	if !strings.HasSuffix(got, ".") {
+		t.Errorf("cut mid-fact, not at a sentence end: %q", got[max(0, len(got)-40):])
+	}
+}
+
+func TestTruncateEntryLeavesAShortEntryAlone(t *testing.T) {
+	short := "Kestrel Bay is a harbour town. The ferry from it is often late."
+	if got := truncateEntry(short); got != short {
+		t.Errorf("a short entry was changed:\n in:  %s\n out: %s", short, got)
+	}
+}
+
+// One clause longer than the cap with no sentence end in it must still come back
+// bounded, and must not be cut through the middle of a word.
+func TestTruncateEntryWithoutASentenceEnd(t *testing.T) {
+	got := truncateEntry(strings.Repeat("harbour ", 200))
+	if len(got) > maxEntryChars {
+		t.Errorf("entry is %d chars, over the %d cap", len(got), maxEntryChars)
+	}
+	if strings.HasSuffix(got, "harbou") || strings.HasSuffix(got, " ") {
+		t.Errorf("cut mid-word or left trailing space: %q", got[max(0, len(got)-20):])
+	}
+}

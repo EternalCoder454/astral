@@ -314,6 +314,18 @@ func TestLongScene(t *testing.T) {
 	}
 	if recap != "" {
 		t.Logf("\n  final recap:\n%s", recap)
+		// The summariser's prompt shows the model the record so far under one
+		// heading and the new turns under another. A small model will sometimes
+		// reproduce the whole thing rather than rewrite it, and what gets stored
+		// is then a transcript in the recap slot, carried in prose on every turn
+		// after it. A 4B did exactly that here, and the run passed, because
+		// nothing was looking. These are the headings chars/compact.go writes.
+		for _, heading := range []string{"Record so far:", "What happened next:", "What happened:"} {
+			if strings.Contains(recap, heading) {
+				t.Errorf("the recap contains the summariser's own heading %q, so the model read its prompt back:\n%s",
+					heading, recap)
+			}
+		}
 	}
 
 	if compactions == 0 {

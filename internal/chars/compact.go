@@ -58,10 +58,7 @@ func Compact(ctx context.Context, client *ollama.Client, model, previous string,
 		return previous, fmt.Errorf("no model selected")
 	}
 
-	msgs := []ollama.Message{
-		{Role: ollama.RoleSystem, Content: compactSystem},
-		{Role: ollama.RoleUser, Content: compactPrompt(previous, aged, c, p)},
-	}
+	prompt := compactPrompt(previous, aged, c, p)
 
 	// Low temperature: this is bookkeeping. A summary that invents a detail is
 	// worse than no summary, because it becomes fact for the rest of the scene.
@@ -73,23 +70,67 @@ func Compact(ctx context.Context, client *ollama.Client, model, previous string,
 	// models, nine a side, gave mean records of 2143 characters at the default
 	// and 2219 widened, with the same two runs in six circling either way.
 	// TestMeasureCompaction is the instrument. What actually pays is throwing
-	// the repeats away afterwards, below.
+	// the repeats away afterwards, and asking again when the answer is bad.
+	//
 	// The recap is bounded afterwards anyway, so the reply limit only has to
 	// stop a model that will not stop on its own. Leaving it unset let a
 	// verbose model spend minutes writing a record that was then cut to a
 	// fraction of its length.
 	opts.NumPredict = recapReplyTokens
 
-	noThink := false
-	reply, _, err := client.Chat(ctx, model, msgs, opts, &noThink, nil)
+	out, err := askForRecord(ctx, client, model, compactSystem, prompt, opts)
 	if err != nil {
 		return previous, err
 	}
-	out := strings.TrimSpace(reply.Content)
-	if out == "" {
-		return previous, fmt.Errorf("the model returned an empty record")
+	// A record that is not appreciably shorter than the turns it stands in for
+	// has not done its job, and it is about to be carried in the prompt for the
+	// rest of the scene. So ask once more.
+	//
+	// This is a check on the outcome rather than on any one cause, which is the
+	// only kind available: a summariser can fill its budget by circling, which
+	// the deduplication catches, and it can fill it with things that did not
+	// happen, which nothing catches because every sentence is different. A
+	// measured run produced forty statements of the form "X did not mention Y".
+	// Ten runs of the same scene afterwards produced none, so the cause cannot
+	// be reproduced to order and no prompt rule against it can be shown to
+	// work. What can be decided is whether this particular answer is any good.
+	//
+	// The retry costs a second call only when the first answer was bad. Measured
+	// on the model that produced the bad one, that is roughly one run in five,
+	// and the other four came back between a fifth and a third of their input.
+	if len(out)*2 >= totalChars(aged) {
+		again, err := askForRecord(ctx, client, model, compactSystem+"\n"+recordAgain, prompt, opts)
+		if err == nil && len(again) > 0 && len(again) < len(out) {
+			out = again
+		}
 	}
-	return truncateRecap(dedupeRecap(out), budget.Recap), nil
+	return truncateRecap(out, budget.Recap), nil
+}
+
+// recordAgain is added on the second attempt. It names both ways a record fills
+// its budget without saying anything, because by this point one of them has
+// happened and there is no way to tell which from here.
+const recordAgain = `
+Your last record was nearly as long as the scene it replaced, which is no use to anyone. Write a shorter one.
+
+Record only what happened. Never record that something did not happen, was not mentioned, or was not corrected: what did not happen is endless. Never state the same fact twice in different words. Every sentence must carry something the previous sentences did not.`
+
+// askForRecord makes one attempt, and cleans up what comes back.
+func askForRecord(ctx context.Context, client *ollama.Client, model, system, prompt string, opts ollama.Options) (string, error) {
+	noThink := false
+	reply, _, err := client.Chat(ctx, model, []ollama.Message{
+		{Role: ollama.RoleSystem, Content: system},
+		{Role: ollama.RoleUser, Content: prompt},
+	}, opts, &noThink, nil)
+	if err != nil {
+		return "", err
+	}
+	out := stripPromptEcho(strings.TrimSpace(reply.Content))
+	if out == "" {
+		// Either nothing came back, or all of it was the prompt read aloud.
+		return "", fmt.Errorf("the model returned no record of its own")
+	}
+	return dedupeRecap(out), nil
 }
 
 // compactPrompt writes the summariser's instructions: who is in the scene, the
@@ -111,11 +152,15 @@ func compactPrompt(previous string, aged []ollama.Message, c Character, p Person
 	b.WriteString(userName)
 	b.WriteString(".\n\n")
 	if prev := strings.TrimSpace(previous); prev != "" {
-		b.WriteString("Record so far:\n")
+		b.WriteString(markerRecord)
+		b.WriteString("\n")
 		b.WriteString(prev)
-		b.WriteString("\n\nWhat happened next:\n")
+		b.WriteString("\n\n")
+		b.WriteString(markerNext)
+		b.WriteString("\n")
 	} else {
-		b.WriteString("What happened:\n")
+		b.WriteString(markerFirst)
+		b.WriteString("\n")
 	}
 	for _, m := range aged {
 		who := c.Name
@@ -131,6 +176,36 @@ func compactPrompt(previous string, aged []ollama.Message, c Character, p Person
 	b.WriteString("Cover every specific fact, however small, and leave out the atmosphere. ")
 	b.WriteString("Keep it under 400 words. Output only the record.")
 	return b.String()
+}
+
+// The prompt's own section headings. They are constants because the guard below
+// looks for them in what comes back, and a guard looking for a different string
+// than the prompt wrote is a guard that does nothing.
+const (
+	markerRecord = "Record so far:"
+	markerNext   = "What happened next:"
+	markerFirst  = "What happened:"
+)
+
+// stripPromptEcho cuts a record at the point where the model started repeating
+// the instructions it was given.
+//
+// A small model asked to rewrite a record it has just been shown will sometimes
+// reproduce the whole prompt instead: the record, then "What happened next:",
+// then the transcript verbatim. Measured on a twenty-four turn scene with a 4B,
+// that is exactly what was stored, so the scene carried its own transcript in
+// the recap slot on every turn afterwards, at full length and in prose, which is
+// also the thing most likely to teach the next reply to write like a recap.
+//
+// Cutting at the first marker keeps the part that was a record.
+func stripPromptEcho(s string) string {
+	cut := len(s)
+	for _, marker := range []string{markerRecord, markerNext, markerFirst} {
+		if i := strings.Index(s, marker); i >= 0 && i < cut {
+			cut = i
+		}
+	}
+	return strings.TrimSpace(s[:cut])
 }
 
 // dedupeRecap drops a statement the record has already made.

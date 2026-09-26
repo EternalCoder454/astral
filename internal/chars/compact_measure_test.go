@@ -12,9 +12,36 @@ import (
 
 var measureRuns = flag.Int("compactruns", 3, "how many times to summarise the same scene")
 
+// padding is the shape of a record filling itself with things that did not
+// happen. A record of absences is unbounded, so it is the one failure that can
+// use the whole budget without repeating itself once, which is why the
+// deduplication cannot see it.
+var padding = []string{
+	"did not mention", "did not correct", "did not contradict", "did not move to",
+	"was not mentioned", "no mention of", "did not say anything", "did not reply",
+}
+
+func paddingStatements(s string) int {
+	n := 0
+	for _, st := range splitStatements(s) {
+		low := strings.ToLower(st.text)
+		for _, p := range padding {
+			if strings.Contains(low, p) {
+				n++
+				break
+			}
+		}
+	}
+	return n
+}
+
+// noAbsences is the rule under test: a closed one, in the form this project has
+// measured to work, rather than a request to be less verbose.
+const noAbsences = `
+Record only what happened. Never record that something did not happen, was not mentioned, was not corrected, or was not contradicted. What did not happen is endless, and a record of it tells the next model nothing.`
+
 // TestMeasureCompaction is the instrument, not a check. It sends one scene to
-// one model repeatedly, with the old sampler setting and the new one, and
-// reports how much of what it replaced each record costs.
+// one model repeatedly under each arm and reports what comes back.
 func TestMeasureCompaction(t *testing.T) {
 	client, model := liveModel(t)
 	c := Character{Name: "Vesper Quill", Description: "A cartographer."}
@@ -26,20 +53,20 @@ func TestMeasureCompaction(t *testing.T) {
 
 	arms := []struct {
 		name   string
-		repeat int
+		system string
 	}{
-		{"default (64)", 0},
-		{"wide (700)", recapReplyTokens},
+		{"as shipped", compactSystem},
+		{"no absences", compactSystem + "\n" + noAbsences},
 	}
 	for _, arm := range arms {
-		var rawTotal, dedupedTotal int
+		var rawTotal, dedupedTotal, padTotal int
+		runs := 0
 		for i := 0; i < *measureRuns; i++ {
 			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 			opts := ollama.Options{NumCtx: 8192, Temperature: 0.2, NumPredict: recapReplyTokens}
-			opts.RepeatLastN = arm.repeat
 			noThink := false
 			reply, _, err := client.Chat(ctx, model, []ollama.Message{
-				{Role: ollama.RoleSystem, Content: compactSystem},
+				{Role: ollama.RoleSystem, Content: arm.system},
 				{Role: ollama.RoleUser, Content: prompt},
 			}, opts, &noThink, nil)
 			cancel()
@@ -47,17 +74,17 @@ func TestMeasureCompaction(t *testing.T) {
 				t.Logf("  %s run %d: %v", arm.name, i+1, err)
 				continue
 			}
-			raw := strings.TrimSpace(reply.Content)
+			raw := stripPromptEcho(strings.TrimSpace(reply.Content))
 			deduped := dedupeRecap(raw)
-			rawTotal += len(raw)
-			dedupedTotal += len(deduped)
-			t.Logf("  %-13s run %d: %5d chars raw (%2d%% of input), %5d deduped, %d statements dropped",
-				arm.name, i+1, len(raw), 100*len(raw)/in, len(deduped),
-				len(splitStatements(raw))-len(splitStatements(deduped)))
+			pad := paddingStatements(deduped)
+			rawTotal, dedupedTotal, padTotal = rawTotal+len(raw), dedupedTotal+len(deduped), padTotal+pad
+			runs++
+			t.Logf("  %-12s run %d: %5d raw, %5d deduped (%2d%% of input), %2d padding statements",
+				arm.name, i+1, len(raw), len(deduped), 100*len(deduped)/in, pad)
 		}
-		if *measureRuns > 0 {
-			t.Logf("  %-13s mean: %d raw, %d deduped", arm.name,
-				rawTotal / *measureRuns, dedupedTotal / *measureRuns)
+		if runs > 0 {
+			t.Logf("  %-12s mean over %d: %d raw, %d deduped, %.1f padding",
+				arm.name, runs, rawTotal/runs, dedupedTotal/runs, float64(padTotal)/float64(runs))
 		}
 	}
 }

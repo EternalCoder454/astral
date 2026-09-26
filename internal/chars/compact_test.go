@@ -180,7 +180,9 @@ func TestCompactKeepsThePreviousRecordOnFailure(t *testing.T) {
 }
 
 func TestRecapIsBounded(t *testing.T) {
-	long := strings.Repeat("Vesper did something notable. ", 500)
+	// Distinct sentences, because identical ones are now collapsed before the
+	// bound is applied and this test would stop exercising the bound at all.
+	long := bloatedRecord(400)
 	srv := compactServer(t, long, nil)
 	defer srv.Close()
 
@@ -343,4 +345,159 @@ func FuzzDedupeRecap(f *testing.F) {
 			t.Fatalf("not idempotent:\n1: %q\n2: %q", out, again)
 		}
 	})
+}
+
+// A 4B asked to rewrite a record it had just been shown reproduced the whole
+// prompt instead: the record, the heading between the sections, and then the
+// transcript word for word. Stored as the recap, that carries the transcript in
+// the recap slot on every later turn, in prose.
+func TestStripPromptEchoKeepsOnlyTheRecord(t *testing.T) {
+	echoed := "Vesper was expelled from the Guild. The fee is unresolved.\n\n" +
+		markerNext + "\n" +
+		"Christian: \"I am not asking as a courier.\"\n\n" +
+		"Vesper Quill: *She tapped her pen against the edge of the map.*"
+	got := stripPromptEcho(echoed)
+	if strings.Contains(got, markerNext) {
+		t.Errorf("the heading survived:\n%s", got)
+	}
+	if strings.Contains(got, "not asking as a courier") {
+		t.Errorf("the transcript survived:\n%s", got)
+	}
+	if !strings.Contains(got, "expelled from the Guild") {
+		t.Errorf("the record itself was lost:\n%s", got)
+	}
+}
+
+func TestStripPromptEchoLeavesARealRecordAlone(t *testing.T) {
+	clean := "Vesper was expelled from the Guild. Christian sat without being asked."
+	if got := stripPromptEcho(clean); got != clean {
+		t.Errorf("a clean record was cut:\n in:  %s\n out: %s", clean, got)
+	}
+}
+
+// Every marker has to be caught, including the one used on the first pass when
+// there is no previous record.
+func TestStripPromptEchoCatchesEveryMarker(t *testing.T) {
+	for _, marker := range []string{markerRecord, markerNext, markerFirst} {
+		in := "A fact was established. " + marker + "\nsomething else"
+		if got := stripPromptEcho(in); got != "A fact was established." {
+			t.Errorf("marker %q not cut: %q", marker, got)
+		}
+	}
+}
+
+// And a reply that was nothing but the prompt read back has to come out empty,
+// so Compact refuses it rather than storing it.
+func TestStripPromptEchoOnNothingButAnEcho(t *testing.T) {
+	if got := stripPromptEcho(markerFirst + "\nChristian: \"Hello.\""); got != "" {
+		t.Errorf("want empty, got %q", got)
+	}
+}
+
+// scriptedServer answers each request with the next reply in the list, and
+// records the system prompt it was sent each time.
+func scriptedServer(t *testing.T, replies []string, systems *[]string) *httptest.Server {
+	t.Helper()
+	n := 0
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]any
+		json.NewDecoder(r.Body).Decode(&req)
+		if msgs, ok := req["messages"].([]any); ok && len(msgs) > 0 {
+			if first, ok := msgs[0].(map[string]any); ok {
+				*systems = append(*systems, fmt.Sprint(first["content"]))
+			}
+		}
+		reply := replies[min(n, len(replies)-1)]
+		n++
+		resp, _ := json.Marshal(map[string]any{
+			"message": map[string]string{"role": "assistant", "content": reply},
+			"done":    true, "done_reason": "stop", "eval_count": 50, "eval_duration": 1e9,
+		})
+		fmt.Fprintln(w, string(resp))
+	}))
+}
+
+// agedTurns is a transcript of a known size, so a reply can be made
+// deliberately too long or short against it.
+func agedTurns(chars int) []ollama.Message {
+	return []ollama.Message{{Role: ollama.RoleUser, Content: strings.Repeat("a", chars)}}
+}
+
+// bloatedRecord is a record that is too long without repeating itself, which is
+// the case the deduplication cannot help with and the retry exists for. Every
+// sentence is different, so nothing is dropped.
+func bloatedRecord(sentences int) string {
+	var b strings.Builder
+	for i := 0; i < sentences; i++ {
+		fmt.Fprintf(&b, "Fact number %d was established in the scene. ", i)
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// A record nearly as long as the scene it replaces is about to be carried in
+// every later prompt, so it is worth one more ask.
+func TestCompactAsksAgainWhenTheRecordDoesNotCompact(t *testing.T) {
+	long := bloatedRecord(30) // ~1250 chars, no two sentences alike
+	short := "Vesper showed Wren the coastline."
+	var systems []string
+	srv := scriptedServer(t, []string{long, short}, &systems)
+	defer srv.Close()
+
+	out, err := Compact(context.Background(), ollama.NewClient(srv.URL), "m", "",
+		agedTurns(2000), Character{Name: "Vesper"}, Persona{Name: "Wren"},
+		ollama.Options{}, testBudget())
+	if err != nil {
+		t.Fatalf("Compact: %v", err)
+	}
+	if len(systems) != 2 {
+		t.Fatalf("made %d attempts, want 2", len(systems))
+	}
+	if out != short {
+		t.Errorf("kept the long record: %q", out)
+	}
+	if !strings.Contains(systems[1], "Write a shorter one") {
+		t.Errorf("the second attempt was not told why:\n%s", systems[1])
+	}
+	if strings.Contains(systems[0], "Write a shorter one") {
+		t.Error("the first attempt was already being told off")
+	}
+}
+
+// One ask only. A model that is no better the second time must not be asked a
+// third, and the better of the two is what gets kept.
+func TestCompactAsksOnlyOnceMoreAndKeepsTheBetter(t *testing.T) {
+	first := bloatedRecord(30)  // ~1300 chars, no two sentences alike
+	second := bloatedRecord(60) // ~2700, worse than the first
+	var systems []string
+	srv := scriptedServer(t, []string{first, second}, &systems)
+	defer srv.Close()
+
+	out, err := Compact(context.Background(), ollama.NewClient(srv.URL), "m", "",
+		agedTurns(2000), Character{Name: "Vesper"}, Persona{Name: "Wren"},
+		ollama.Options{}, testBudget())
+	if err != nil {
+		t.Fatalf("Compact: %v", err)
+	}
+	if len(systems) != 2 {
+		t.Errorf("made %d attempts, want exactly 2", len(systems))
+	}
+	if len(out) > len(first) {
+		t.Errorf("kept the worse second answer (%d chars)", len(out))
+	}
+}
+
+// A record that already compacts is left alone, and costs one call.
+func TestCompactDoesNotAskAgainWhenTheRecordIsFine(t *testing.T) {
+	var systems []string
+	srv := scriptedServer(t, []string{"Vesper showed Wren the coastline."}, &systems)
+	defer srv.Close()
+
+	if _, err := Compact(context.Background(), ollama.NewClient(srv.URL), "m", "",
+		agedTurns(2000), Character{Name: "Vesper"}, Persona{Name: "Wren"},
+		ollama.Options{}, testBudget()); err != nil {
+		t.Fatalf("Compact: %v", err)
+	}
+	if len(systems) != 1 {
+		t.Errorf("made %d calls for a perfectly good record, want 1", len(systems))
+	}
 }
