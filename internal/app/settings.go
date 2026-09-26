@@ -17,10 +17,9 @@ type settingsForm struct {
 	model   *gtk.DropDown
 	models  []string
 
-	personaName  *gtk.Entry
-	personaDesc  *gtk.TextView
-	globalInstrs *gtk.TextView
-	keepAlive    *gtk.Entry
+	personaName *gtk.Entry
+	personaDesc *gtk.TextView
+	keepAlive   *gtk.Entry
 
 	theme    *gtk.DropDown
 	fontMode *gtk.DropDown
@@ -63,11 +62,13 @@ func (a *App) showSettingsPage(page string) {
 
 	f := &settingsForm{}
 	stack := gtk.NewStack()
+	// Three pages, not five. Appearance held three switches and Phone held one
+	// with a device list under it, and neither was worth a trip through a
+	// sidebar: what they had in common is that all of them are about you and
+	// this machine rather than about the model.
 	stack.AddTitled(scrolled(a.buildModelPage(f)), "model", "Model")
-	stack.AddTitled(scrolled(a.buildPersonaPage(f)), "persona", "You")
-	stack.AddTitled(scrolled(a.buildAppearancePage(f)), "appearance", "Appearance")
-	stack.AddTitled(scrolled(a.buildPhonePage(f)), "phone", "Phone")
-	stack.AddTitled(scrolled(a.buildUpdatesPage(f)), "updates", "Updates")
+	stack.AddTitled(scrolled(a.buildYouPage(f)), "you", "You")
+	stack.AddTitled(scrolled(a.buildAboutPage(f)), "about", "About")
 
 	side := gtk.NewStackSidebar()
 	side.SetStack(stack)
@@ -153,26 +154,30 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	page.Append(outer)
 
 	// Sampling.
-	sOuter, sCard := groupCard("How it writes")
+	sOuter, sCard := groupCard("Sampling")
 	f.temperature = newSlider(0, 2, 0.05, a.cfg.Temperature)
 	sCard.Append(labelledField("Temperature",
-		"Higher wanders further, lower plays safer. Around 0.85 suits roleplay.",
+		fmt.Sprintf("Higher is more erratic, lower is more consistent. Default is %.2f.",
+			store.DefaultTemperature),
 		f.temperature))
 
 	f.topP = newSlider(0.1, 1, 0.01, a.cfg.TopP)
 	sCard.Append(labelledField("Top-p",
-		"Trims the least likely words before choosing. 0.9–0.95 is the usual range.",
+		fmt.Sprintf("Lower cuts more of the unlikely words before choosing, so the prose stays "+
+			"nearer the obvious. Default is %.2f.", store.DefaultTopP),
 		f.topP))
 
 	f.repeat = newSlider(1, 1.5, 0.01, a.cfg.RepeatPenalty)
 	sCard.Append(labelledField("Repetition penalty",
-		"Pushes back when a model starts reusing the same phrases, a common failure in long scenes.",
+		fmt.Sprintf("Higher pushes harder against phrases the model has already used, at the "+
+			"cost of sounding forced. Default is %.2f.", store.DefaultRepeatPenalty),
 		f.repeat))
 
 	f.numCtx = gtk.NewEntry()
 	f.numCtx.SetText(fmt.Sprintf("%d", a.cfg.NumCtx))
 	sCard.Append(labelledField("Context size (tokens)",
-		"How much of the scene the model sees at once. Larger remembers more and uses more memory.",
+		fmt.Sprintf("Higher remembers more of the scene and uses more memory, lower forgets "+
+			"sooner and runs lighter. Default is %d.", store.DefaultNumCtx),
 		f.numCtx))
 
 	// The reply limit was already referenced by the "the model spent its whole
@@ -182,15 +187,17 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	f.numPredict.SetText(fmt.Sprintf("%d", a.cfg.NumPredict))
 	f.numPredict.SetPlaceholderText(fmt.Sprintf("%d", chars.DefaultReplyTokens))
 	sCard.Append(labelledField("Reply limit (tokens)",
-		fmt.Sprintf("The longest a single reply may run. Leave at 0 for the default of %d, which is about four paragraphs. "+
-			"This is reserved out of the context size above, so raising it leaves less room for the scene.",
-			chars.DefaultReplyTokens),
+		fmt.Sprintf("Higher allows a longer reply, lower cuts it off sooner. Reserved out of the "+
+			"context size above, so raising it leaves less room for the scene. Leave at 0 for "+
+			"the default of %d, about four paragraphs.", chars.DefaultReplyTokens),
 		f.numPredict))
 
 	f.keepAlive = gtk.NewEntry()
 	f.keepAlive.SetText(a.cfg.KeepAlive)
 	sCard.Append(labelledField("Keep the model loaded for",
-		"\"30m\", \"2h\", or \"-1\" to never unload. Ollama's own five-minute default makes a reading pause cost a full reload.",
+		"Longer means a reading pause does not cost a model reload, at the price of the memory "+
+			"it holds. Write it as \"30m\" or \"2h\", or \"-1\" to never unload. Default is "+
+			store.DefaultKeepAlive+", against Ollama's own five minutes.",
 		f.keepAlive))
 
 	f.think = gtk.NewCheckButton()
@@ -202,13 +209,22 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	return page
 }
 
-// buildUpdatesPage is version and updates. Its own page rather than a card on
-// Appearance, where it first landed: an update is not a matter of how the app
-// looks, and the version number is the thing anyone reporting a problem is
-// asked for, so it should be somewhere you would think to look for it.
-func (a *App) buildUpdatesPage(f *settingsForm) *gtk.Box {
+// buildAboutPage is which version this is and how it gets the next one.
+//
+// Its own page rather than a card on Appearance, where it first landed: an update
+// is not a matter of how the app looks, and the version number is the thing
+// anyone reporting a problem is asked for, so it should be somewhere you would
+// think to look for it. Called About rather than Updates because that is where
+// people look for a version number.
+func (a *App) buildAboutPage(f *settingsForm) *gtk.Box {
 	page := settingsPage()
-	upOuter, upCard := groupCard("Updates")
+	upOuter, upCard := groupCard("Version")
+
+	ver := gtk.NewLabel("Astral " + version)
+	ver.SetXAlign(0)
+	ver.SetSelectable(true) // so it can be copied into a bug report
+	ver.AddCSSClass("field-label")
+	upCard.Append(ver)
 
 	f.updates = gtk.NewCheckButton()
 	f.updates.SetChild(wrappingLabel("Check for a new version when Astral starts"))
@@ -230,20 +246,20 @@ func (a *App) buildUpdatesPage(f *settingsForm) *gtk.Box {
 		a.checkForUpdateNow()
 	})
 	upCard.Append(check)
-
-	ver := gtk.NewLabel("Astral " + version)
-	ver.SetXAlign(0)
-	ver.SetSelectable(true) // so it can be copied into a bug report
-	ver.AddCSSClass("settings-hint")
-	upCard.Append(ver)
 	page.Append(upOuter)
 	return page
 }
 
-func (a *App) buildPersonaPage(f *settingsForm) *gtk.Box {
+// buildYouPage is everything about you and this machine: who you play as, the
+// rules you play under, how the window looks, and which phone may use it.
+//
+// One page rather than three. Appearance was three switches and Phone was one
+// switch with a device list, and a sidebar trip to reach either of them bought
+// nothing; what the three have in common is that none of them is about the model.
+func (a *App) buildYouPage(f *settingsForm) *gtk.Box {
 	page := settingsPage()
-	outer, card := groupCard("Who you play as")
 
+	outer, card := groupCard("Your persona")
 	f.personaName = gtk.NewEntry()
 	f.personaName.SetText(a.cfg.PersonaName)
 	f.personaName.SetPlaceholderText("Leave empty to stay unnamed")
@@ -271,36 +287,30 @@ func (a *App) buildPersonaPage(f *settingsForm) *gtk.Box {
 	styleCard.Append(manage)
 	page.Append(styleOuter)
 
-	insOuter, insCard := groupCard("Instructions for every character")
-	giFrame, giView := multilineField(a.cfg.GlobalInstructions, 5)
-	f.globalInstrs = giView
-	insCard.Append(labelledField("Always apply these",
-		"Rules for every scene, one per line: \"keep replies under three paragraphs\", "+
-			"\"British spelling\". Write {{char}} and {{user}} rather than names.",
-		giFrame))
-	page.Append(insOuter)
-	return page
-}
+	page.Append(a.buildRulebook())
 
-func (a *App) buildAppearancePage(f *settingsForm) *gtk.Box {
-	page := settingsPage()
-	outer, card := groupCard("Appearance")
-
+	appOuter, appCard := groupCard("Appearance")
 	f.theme = gtk.NewDropDownFromStrings([]string{"Dark", "Light", "Follow the system"})
 	f.theme.SetSelected(uint(themeIndex(a.cfg.Theme)))
-	card.Append(labelledField("Theme", "", f.theme))
+	appCard.Append(labelledField("Theme", "", f.theme))
 
 	f.fontMode = gtk.NewDropDownFromStrings([]string{"Automatic", "Crisp (1080p screens)", "Smooth (HiDPI screens)"})
 	f.fontMode.SetSelected(uint(fontIndex(a.cfg.FontRendering)))
-	card.Append(labelledField("Text rendering",
+	appCard.Append(labelledField("Text rendering",
 		"Automatic picks per screen. Change it if text looks soft or unevenly spaced.",
 		f.fontMode))
 
 	f.showStat = gtk.NewCheckButton()
 	f.showStat.SetChild(wrappingLabel("Show generation speed and token count under each reply (for measuring the model, not for reading)"))
 	f.showStat.SetActive(a.cfg.ShowStats)
-	card.Append(f.showStat)
-	page.Append(outer)
+	appCard.Append(f.showStat)
+	page.Append(appOuter)
+
+	// The phone cards, built where they have always been built so the pairing
+	// code and the device list keep their own file.
+	for _, card := range a.phoneCards(f) {
+		page.Append(card)
+	}
 	return page
 }
 
@@ -321,7 +331,6 @@ func (a *App) applySettings(f *settingsForm) {
 	}
 	a.cfg.PersonaName = strings.TrimSpace(f.personaName.Text())
 	a.cfg.PersonaDescription = textOf(f.personaDesc)
-	a.cfg.GlobalInstructions = textOf(f.globalInstrs)
 	if k := strings.TrimSpace(f.keepAlive.Text()); k != "" {
 		a.cfg.KeepAlive = k
 	}

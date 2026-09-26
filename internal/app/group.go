@@ -103,7 +103,7 @@ func (a *App) pickCast(already []chars.Character, confirm string, onPick func([]
 	}
 
 	d := adw.NewDialog()
-	d.SetTitle("Who is in this scene?")
+	d.SetTitle("Cast")
 	d.SetContentWidth(560)
 	d.SetContentHeight(620)
 

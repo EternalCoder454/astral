@@ -78,11 +78,14 @@ func (a *App) applyPhoneAccess() {
 	a.stopPhoneAccess()
 }
 
-// buildPhonePage is the whole of the feature's interface: a switch, the
-// address to type in, a pairing code while one is open, and the list of what
-// has been let in.
-func (a *App) buildPhonePage(f *settingsForm) *gtk.Box {
-	page := settingsPage()
+// phoneCards are the whole of the feature's interface: a switch, the address to
+// type in, a pairing code while one is open, and the list of what has been let
+// in.
+//
+// Cards rather than a page of its own. One switch and a device list did not earn
+// a trip through a sidebar, so they sit at the bottom of the page about you and
+// this machine, which is what a paired phone is.
+func (a *App) phoneCards(f *settingsForm) []gtk.Widgetter {
 	outer, card := groupCard("Phone access")
 
 	f.phone = gtk.NewCheckButton()
@@ -115,8 +118,6 @@ func (a *App) buildPhonePage(f *settingsForm) *gtk.Box {
 	card.Append(pairBtn)
 
 	devicesOuter, devicesCard := groupCard("Paired devices")
-	page.Append(outer)
-	page.Append(devicesOuter)
 
 	var refresh func()
 	refresh = func() {
@@ -205,7 +206,7 @@ func (a *App) buildPhonePage(f *settingsForm) *gtk.Box {
 	})
 
 	refresh()
-	return page
+	return []gtk.Widgetter{outer, devicesOuter}
 }
 
 // deviceRow is one paired device, and the way to revoke it.

@@ -180,7 +180,7 @@ func (a *App) editStyle(st chars.WritingStyle, isNew bool) {
 		body = chars.DefaultStyle().Instructions
 	}
 	frame, view := multilineField(body, 10)
-	card.Append(labelledField("How the prose should sound",
+	card.Append(labelledField("Instructions",
 		"One instruction per line, in the imperative: length, tense, what to avoid. "+
 			"Write {{char}} and {{user}} rather than names, and leave formatting to Astral.",
 		frame))

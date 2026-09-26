@@ -294,7 +294,7 @@ func (a *App) buildMainMenu() *gio.Menu {
 
 	app := gio.NewMenu()
 	app.Append("Settings", "win.settings")
-	app.Append("Keyboard Shortcuts", "win.shortcuts")
+	app.Append("Keyboard shortcuts", "win.shortcuts")
 	app.Append("About Astral", "win.about")
 	menu.AppendSection("", app)
 

@@ -179,6 +179,7 @@ frame:focus-within {
    you are reading down the titles, and there when you are looking for it. */
 .chat-row-cast {
 	font-size: 0.74em;
+	font-feature-settings: "tnum" 1;
 	color: @astral_muted;
 	background: alpha(@astral_border, 0.55);
 	border-radius: 6px;
@@ -380,10 +381,15 @@ frame:focus-within {
 /* Timestamps and throughput. These were 0.72em in the faintest colour in the
    palette, which is two ways of being hard to read applied at once. The
    recessive colour does the job on its own. */
+/* Tabular figures rather than a monospace face, the same treatment Atlas
+   Monitor gives its readings: the digits keep a fixed width so a speed counting
+   up does not shift the text beside it, and the line still uses the window's own
+   font instead of looking like a code listing. */
 .message-meta {
 	font-size: 0.78em;
 	color: @astral_muted;
 	margin: 2px 4px 0 4px;
+	font-feature-settings: "tnum" 1;
 }
 
 /*
@@ -627,6 +633,17 @@ frame:focus-within {
 
 /* ---- Setup card (Ollama unreachable / model missing) ---- */
 
+/* Bordered and tinted, the way Atlas Monitor marks its own setup card. This is
+   the first thing a fresh install sees and the only thing on the screen that is
+   asking for something, so it should read as one object rather than as three
+   labels that happen to be stacked. */
+.setup-card {
+	padding: 14px;
+	border-radius: 12px;
+	background-color: alpha(@accent_color, 0.08);
+	border: 1px solid alpha(@accent_color, 0.35);
+}
+
 .setup-title {
 	font-weight: 700;
 	font-size: 1.05em;
@@ -652,8 +669,18 @@ frame:focus-within {
 .settings-group {
 	background-color: @astral_surface;
 	border: 1px solid @astral_border;
-	border-radius: 14px;
+	/* 12, which is what Atlas Notes gives a card. Astral had 14 here and 8 on
+	   the panels inside it, which read as two different shape languages in one
+	   dialog. */
+	border-radius: 12px;
 	padding: 14px;
+}
+
+/* A rule that is switched off. Still readable, because you are keeping it for
+   later rather than hiding it, but plainly not in force. */
+.rule-off {
+	color: @astral_muted;
+	font-style: italic;
 }
 
 .settings-heading {
@@ -890,6 +917,7 @@ frame:focus-within {
    it is set large and spaced rather than left as body text. */
 .pair-code {
 	font-family: monospace;
+	font-feature-settings: "tnum" 1;
 	font-size: 1.5em;
 	font-weight: 700;
 	letter-spacing: 0.22em;

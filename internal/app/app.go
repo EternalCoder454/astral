@@ -353,7 +353,7 @@ func (a *App) persona() chars.Persona {
 	return chars.Persona{
 		Name:               a.cfg.PersonaName,
 		Description:        a.cfg.PersonaDescription,
-		GlobalInstructions: a.cfg.GlobalInstructions,
+		GlobalInstructions: a.cfg.RulesText(),
 		Style:              a.cfg.Style(),
 	}
 }

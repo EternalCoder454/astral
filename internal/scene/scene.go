@@ -23,9 +23,12 @@ import (
 // Persona is the user, as the model is told about them.
 func Persona(cfg store.Config) chars.Persona {
 	return chars.Persona{
-		Name:               cfg.PersonaName,
-		Description:        cfg.PersonaDescription,
-		GlobalInstructions: cfg.GlobalInstructions,
+		Name:        cfg.PersonaName,
+		Description: cfg.PersonaDescription,
+		// The rulebook, rendered. It occupies exactly the position the freeform
+		// instruction block used to: stated once in the system message and
+		// restated in the closing block, which is where a model obeys it.
+		GlobalInstructions: cfg.RulesText(),
 		Style:              cfg.Style(),
 	}
 }

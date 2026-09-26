@@ -44,6 +44,10 @@ const (
 	// character's own name, which recurs legitimately on every turn.
 	DefaultRepeatLastN = 384
 	DefaultNumCtx      = 8192
+	// DefaultKeepAlive is how long Ollama holds the model after a reply.
+	// Ollama's own default is five minutes, which a reading pause routinely
+	// exceeds, and the next message then pays a full reload.
+	DefaultKeepAlive = "30m"
 )
 
 // Config holds user settings persisted to ~/.config/astral/config.json.
@@ -66,10 +70,15 @@ type Config struct {
 	PersonaName        string `json:"persona_name"`
 	PersonaDescription string `json:"persona_description"`
 
-	// GlobalInstructions apply to every character, layered underneath that
-	// character's own. Useful for the rules that are about how *you* want to
-	// read a scene rather than about any one character.
+	// GlobalInstructions is the freeform instruction block the rulebook
+	// replaced. It is emptied into Rulebook the first time a config written
+	// before rules existed is loaded, and is kept in the struct only so that
+	// migration can find it. See rules.go.
 	GlobalInstructions string `json:"global_instructions"`
+
+	// Rulebook is the standing instructions every scene is under, each one
+	// switchable on its own. See rules.go.
+	Rulebook []Rule `json:"rulebook"`
 
 	// WritingStyles are the user's own styles. The built-in default is not
 	// stored here — it is always available and cannot be edited away, so
@@ -212,7 +221,7 @@ func DefaultConfig() Config {
 		SidebarOpen:   true,
 		PortraitOpen:  true,
 		FontRendering: FontRenderingAuto,
-		KeepAlive:     "30m",
+		KeepAlive:     DefaultKeepAlive,
 		PhonePort:     DefaultPhonePort,
 		UpdateChannel: ChannelRelease,
 		CheckUpdates:  true,
@@ -248,6 +257,10 @@ func LoadConfig() (Config, error) {
 // normalize repairs values that are missing or out of range, so a hand-edited
 // or truncated config cannot produce an unusable window.
 func (c *Config) normalize() {
+	// A config written before the rulebook existed keeps its instructions in
+	// one freeform block. They become rules here, once.
+	c.adoptGlobalInstructions()
+	c.SetRules(c.Rulebook)
 	if c.BaseURL == "" {
 		c.BaseURL = "http://localhost:11434"
 	}

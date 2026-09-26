@@ -174,7 +174,7 @@ func (c *ChatView) persona() chars.Persona {
 	return chars.Persona{
 		Name:               c.cfg.PersonaName,
 		Description:        c.cfg.PersonaDescription,
-		GlobalInstructions: c.cfg.GlobalInstructions,
+		GlobalInstructions: c.cfg.RulesText(),
 		Style:              c.cfg.Style(),
 	}
 }

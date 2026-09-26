@@ -200,7 +200,7 @@ func (a *App) editCharacter(c chars.Character) { a.editCharacterWith(c, nil) }
 func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)) {
 	d := adw.NewDialog()
 	if c.ID == 0 {
-		d.SetTitle("New Character")
+		d.SetTitle("New character")
 	} else {
 		d.SetTitle("Edit " + c.Name)
 	}
@@ -279,7 +279,7 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	page.Append(idOuter)
 
 	// The scene.
-	sceneOuter, sceneCard := groupCard("The scene")
+	sceneOuter, sceneCard := groupCard("Opening")
 	scenFrame, scenView := multilineField(c.Scenario, 3)
 	f.scenario = scenView
 	sceneCard.Append(labelledField("Scenario", "Where this starts, and what is going on when it does.", scenFrame))
@@ -301,7 +301,7 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	insOuter, insCard := groupCard("Instructions")
 	insFrame, insView := multilineField(c.Instructions, 5)
 	f.instructions = insView
-	insCard.Append(labelledField("How this character should be played",
+	insCard.Append(labelledField("Rules for this character",
 		"Your own rules for them, one per line: \"keep replies to one paragraph\", "+
 			"\"{{char}} always lies about her past\".",
 		insFrame))

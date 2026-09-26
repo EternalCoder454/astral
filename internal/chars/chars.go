@@ -80,9 +80,10 @@ func (c Character) Summary() string {
 type Persona struct {
 	Name        string
 	Description string
-	// GlobalInstructions come from Settings and apply to every character.
-	// A character's own instructions are placed after these, so the specific
-	// beats the general when the two disagree.
+	// GlobalInstructions are the standing rules from Settings, rendered as a
+	// numbered list, and apply to every character. A character's own
+	// instructions are placed after these, so the specific beats the general
+	// when the two disagree. See store.Config.RulesText.
 	GlobalInstructions string
 	// Style is the active writing style. The zero value means the default.
 	Style WritingStyle

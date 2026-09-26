@@ -112,7 +112,7 @@ func (a *App) showNewChat() {
 	}
 	add(ui.IconChat, "General chat", "", cast == 0 && len(worlds) == 0, a.newAssistantChat)
 
-	heading("Make something")
+	heading("Create")
 	add(ui.IconDesigner, "New character", "the model interviews you", false, a.newDesignerChat)
 	add(ui.IconEdit, "New writing style", "changes how the prose sounds", false, a.newStyleDesignerChat)
 	add(ui.IconFolder, "Import a character", "from a .png or .json card", false, a.actionImportCharacter)

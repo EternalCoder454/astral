@@ -341,6 +341,9 @@ func (a *App) characterCard(c chars.Character) *gtk.Button {
 // answers, and guessing wrong wastes your time.
 func (a *App) buildSetupCard() *gtk.Box {
 	outer, card := groupCard("")
+	// Tinted and bordered rather than left as a plain card, because unlike
+	// everything else on this screen it is asking for something.
+	card.AddCSSClass("setup-card")
 
 	title := gtk.NewLabel("")
 	title.SetXAlign(0)
