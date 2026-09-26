@@ -3,6 +3,14 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.4.0
+- Edit any message: the transcript is what the model reads, so fixing a line steers the scene
+- Continue a reply that stopped at the reply limit, instead of rerolling it
+- Export a scene as Markdown, recap included
+- Characters offer every opening they were written with, not just the first
+- Reasoning that arrives inside a reply is hidden as it streams, not tidied away afterwards
+- Long scenes with large lorebooks build their prompt three times faster
+
 ## 0.3.1
 - The Android app updates itself: check and install from its own settings
 - Settings on your phone: model, context, reply limit, who you are, writing style
