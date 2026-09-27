@@ -141,6 +141,31 @@ func (s *Store) SaveCharacter(c chars.Character) (int64, error) {
 func (s *Store) DeleteCharacter(id int64) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	_, err := s.db.Exec(`DELETE FROM characters WHERE id = ?`, id)
-	return err
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() // no-op after a successful Commit
+
+	// Neither of these tables can have a foreign key to characters: relations
+	// predates one, and a cast row names a character that reading it joins
+	// against, so an orphan has always been survivable. It is still a row about
+	// somebody who no longer exists, kept for ever, and a scene that quietly
+	// lost a cast member has a row saying they are still in it.
+	//
+	// Ids are never reused, because the table is AUTOINCREMENT, so an orphan
+	// cannot come back attached to somebody else. That is what makes this
+	// tidying rather than a correctness fix, and why it is worth doing in the
+	// same transaction rather than with a sweep on startup.
+	if _, err := tx.Exec(`DELETE FROM relations WHERE a_id = ? OR b_id = ?`, id, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM chat_cast WHERE character_id = ?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM characters WHERE id = ?`, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
