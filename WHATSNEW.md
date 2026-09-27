@@ -4,7 +4,7 @@ This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
 ## 0.4.8
-- Ask the designer to rewrite a character you already have, keeping their scenes
+- Ask a designer to rewrite a character, a world or a style you already have
 - Swipe a character or world aside on your phone to delete it
 
 ## 0.4.8

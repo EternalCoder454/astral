@@ -126,6 +126,16 @@ func (a *App) styleRow(st chars.WritingStyle, active bool, parent *adw.Dialog) *
 		})
 		side.Append(edit)
 
+		// The designer, pointed at a style that already exists.
+		revise := gtk.NewButtonFromIconName(ui.IconDesigner)
+		revise.SetTooltipText("Talk " + style.Name + " through with the designer")
+		revise.AddCSSClass("flat")
+		revise.ConnectClicked(func() {
+			parent.Close()
+			a.reviseStyle(style)
+		})
+		side.Append(revise)
+
 		del := gtk.NewButtonFromIconName(ui.IconTrash)
 		del.SetTooltipText("Delete " + style.Name)
 		del.AddCSSClass("flat")
@@ -233,6 +243,30 @@ func (a *App) editStyle(st chars.WritingStyle, isNew bool) {
 }
 
 // newStyleDesignerChat opens a conversation whose product is a writing style.
+// reviseStyle opens a design conversation about a style that already exists.
+//
+// The style rides on the chat's note, which is the only field a designer chat has
+// spare and is unused on one. A style is identified by its name and has no id, so
+// there is nothing else to carry it by.
+func (a *App) reviseStyle(st chars.WritingStyle) {
+	if strings.TrimSpace(st.Name) == "" {
+		a.toast("Save this style first, then the designer can revise it.")
+		return
+	}
+	a.chat.Clear()
+	a.chat.LoadChat(store.Chat{
+		Model: a.cfg.Model,
+		Kind:  store.KindStyleDesigner,
+		Note:  st.Name,
+		Title: "Revising " + st.Name,
+	}, chars.Character{}, nil)
+	a.chat.ShowGreeting(chars.ReviseStyleOpening(st))
+	a.showChat()
+	a.sidebar.Select(0)
+	a.setTitle(store.Chat{Title: "Revising " + st.Name}, chars.Character{})
+	a.chat.FocusComposer()
+}
+
 func (a *App) newStyleDesignerChat() {
 	a.startPlainChat(store.KindStyleDesigner, "Designing a Writing Style", chars.StyleDesignerOpening)
 }
@@ -269,7 +303,22 @@ func (a *App) buildStyleFromChat() {
 				a.toast("Could not build the style: " + friendlyBuildError(err))
 				return false
 			}
-			a.editStyle(st, true)
+			// A revision keeps the name it started under unless the conversation
+			// changed it, so saving replaces that style rather than adding a
+			// second one beside it under a name one word different.
+			isNew := true
+			if was := strings.TrimSpace(a.chat.Chat().Note); was != "" {
+				isNew = false
+				if strings.TrimSpace(st.Name) == "" {
+					st.Name = was
+				}
+				if st.Name != was {
+					// Renamed in the conversation. The old one goes, or you are
+					// left with both.
+					a.cfg.DeleteStyle(was)
+				}
+			}
+			a.editStyle(st, isNew)
 			return false
 		})
 	}()

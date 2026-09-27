@@ -119,8 +119,24 @@ func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character,
 		}
 		return system(withSearch(cfg, chars.DesignerSystem))
 	case store.KindStyleDesigner:
+		// A style design chat whose note names a style is revising that style.
+		// The note is the only field a chat has that can carry it, and it is
+		// unused on a designer chat.
+		if name := strings.TrimSpace(ch.Note); name != "" {
+			for _, st := range cfg.Styles() {
+				if st.Name == name {
+					return system(withSearch(cfg, chars.ReviseStyleSystem(st)))
+				}
+			}
+		}
 		return system(withSearch(cfg, chars.StyleDesignerSystem))
 	case store.KindWorldDesigner:
+		// A world design chat that names a world is revising that world.
+		if ch.WorldID != 0 && st != nil {
+			if w, err := st.World(ch.WorldID); err == nil {
+				return system(withSearch(cfg, world.ReviseSystem(w, loreNames(st, w.ID))))
+			}
+		}
 		return system(withSearch(cfg, world.DesignerSystem))
 	case store.KindAssistant:
 		return Plain(cfg, ch, hist)
@@ -173,6 +189,25 @@ func Plain(cfg store.Config, ch store.Chat, hist []ollama.Message) []ollama.Mess
 		})
 	}
 	return append(msgs, hist...)
+}
+
+// loreNames is what a world's lorebook holds, by name only.
+//
+// The names rather than the contents: the entries are thousands of words and are
+// not what a revision is rewriting, and what the names give the model is a sense
+// of what the world turned out to be about.
+func loreNames(st *store.Store, worldID int64) []string {
+	entries, err := st.LoreEntries(worldID)
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if n := strings.TrimSpace(e.Name); n != "" {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 // withSearch adds the search guidance when search is switched on.

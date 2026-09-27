@@ -6,6 +6,7 @@ import (
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 
+	"astral/internal/chars"
 	"astral/internal/ollama"
 	"astral/internal/store"
 	"astral/internal/world"
@@ -23,6 +24,29 @@ import (
 // newWorldDesignerChat opens the interview.
 func (a *App) newWorldDesignerChat() {
 	a.startPlainChat(store.KindWorldDesigner, "Designing a World", world.DesignerOpening)
+}
+
+// reviseWorld opens a design conversation about a world that already exists.
+//
+// The world rides on the chat, the same way a character does: a world design chat
+// that names one is revising it, and the column was already there.
+func (a *App) reviseWorld(w world.World) {
+	if w.ID == 0 {
+		a.toast("Save this world first, then the designer can revise it.")
+		return
+	}
+	a.chat.Clear()
+	a.chat.LoadChat(store.Chat{
+		Model:   a.cfg.Model,
+		Kind:    store.KindWorldDesigner,
+		WorldID: w.ID,
+		Title:   "Revising " + w.Name,
+	}, chars.Character{}, nil)
+	a.chat.ShowGreeting(world.ReviseOpening(w))
+	a.showChat()
+	a.sidebar.Select(0)
+	a.setTitle(store.Chat{Title: "Revising " + w.Name}, chars.Character{})
+	a.chat.FocusComposer()
 }
 
 // buildWorldFromChat turns the open design conversation into a world.
@@ -61,10 +85,38 @@ func (a *App) buildWorldFromChat() {
 				a.toast("Could not build the world: " + friendlyBuildError(err))
 				return false
 			}
+			// A revision keeps the world it came from, and its lorebook with it:
+			// the entries are the world's memory and most of them were learned
+			// from play, which a rewrite would throw away.
+			if existing, ok := a.revisingWorld(); ok {
+				merged := world.Revise(existing, draft.World)
+				if _, err := a.store.SaveWorld(merged); err != nil {
+					a.toast("Could not save the world: " + err.Error())
+					return false
+				}
+				a.toast(merged.Name + " is saved. Its lorebook is untouched.")
+				a.showWorld(merged)
+				return false
+			}
 			a.saveWorldDraft(draft)
 			return false
 		})
 	}()
+}
+
+// revisingWorld is the world the open design chat is about, when it is about one.
+func (a *App) revisingWorld() (world.World, bool) {
+	ch := a.chat.Chat()
+	if ch.Kind != store.KindWorldDesigner || ch.WorldID == 0 {
+		return world.World{}, false
+	}
+	w, err := a.store.World(ch.WorldID)
+	if err != nil {
+		// Deleted while the conversation was open. What was written is still
+		// worth keeping, so it becomes a new world rather than being lost.
+		return world.World{}, false
+	}
+	return w, true
 }
 
 // saveWorldDraft writes the world and its first lorebook, then opens it.

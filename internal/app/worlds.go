@@ -338,6 +338,17 @@ func (a *App) showWorld(w world.World) {
 	})
 	header.PackEnd(edit)
 
+	// The designer, pointed at a world that already exists. The form next door
+	// edits the words; this argues about them, which is what you want when the
+	// rules have stopped describing the place it turned into.
+	revise := gtk.NewButtonFromIconName(ui.IconDesigner)
+	revise.SetTooltipText("Talk this world through with the designer")
+	revise.ConnectClicked(func() {
+		d.Close()
+		a.reviseWorld(w)
+	})
+	header.PackEnd(revise)
+
 	page := gtk.NewBox(gtk.OrientationVertical, 8)
 	page.SetMarginTop(14)
 	page.SetMarginBottom(14)

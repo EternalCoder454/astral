@@ -415,7 +415,12 @@ function swipeable(inner, label, onDelete) {
 			// started as a scroll must not turn into a swipe halfway down.
 			decided = true;
 			if (Math.abs(my) > Math.abs(mx)) { dragging = false; return; }
-			front.setPointerCapture?.(e.pointerId);
+			// Capturing keeps the moves coming when the finger leaves the row,
+			// and is not worth failing the gesture over: a WebView that objects
+			// to the capture still delivers the moves.
+			try {
+				front.setPointerCapture?.(e.pointerId);
+			} catch (_) {}
 			front.classList.add("dragging");
 		}
 		dx = Math.min(0, Math.max(-OPEN - 24, mx + (open ? -OPEN : 0)));

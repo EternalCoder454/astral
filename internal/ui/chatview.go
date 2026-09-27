@@ -903,6 +903,10 @@ func (c *ChatView) refreshActions() {
 		}
 	case store.KindStyleDesigner:
 		label, tip = "Create Style", "Turn this conversation into a writing style"
+		if name := strings.TrimSpace(c.chat.Note); name != "" {
+			label = "Save Style"
+			tip = "Write " + name + " again from this conversation"
+		}
 		fire = func() {
 			if c.OnBuildStyle != nil {
 				c.OnBuildStyle()
@@ -910,6 +914,10 @@ func (c *ChatView) refreshActions() {
 		}
 	case store.KindWorldDesigner:
 		label, tip = "Create World", "Turn this conversation into a world and its lorebook"
+		if c.chat.WorldID != 0 {
+			label = "Save World"
+			tip = "Write this world again from this conversation, keeping its lorebook"
+		}
 		fire = func() {
 			if c.OnBuildWorld != nil {
 				c.OnBuildWorld()
