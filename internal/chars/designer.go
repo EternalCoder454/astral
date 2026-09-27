@@ -148,12 +148,14 @@ var characterSchema = json.RawMessage(`{
     "name":        {"type": "string"},
     "description": {"type": "string"},
     "personality": {"type": "string"},
+    "appearance":  {"type": "string"},
+    "speech":      {"type": "string"},
     "scenario":    {"type": "string"},
     "first_mes":   {"type": "string"},
     "mes_example": {"type": "string"},
     "tags":        {"type": "array", "items": {"type": "string"}}
   },
-  "required": ["name", "description", "personality", "scenario", "first_mes"]
+  "required": ["name", "description", "personality", "appearance", "speech", "scenario", "first_mes"]
 }`)
 
 // extractInstruction is the turn appended to the conversation when the user
@@ -164,8 +166,10 @@ const extractInstruction = `Now write the character we have designed as a charac
 
 Fill each field for its own purpose:
 - name: just the name, nothing else.
-- description: who they are, how they look, how they carry themselves. Written for a model that has to play them, so concrete details beat adjectives. A short paragraph.
+- description: who they are and what they want. Written for a model that has to play them, so behaviour beats adjectives. A short paragraph. Leave appearance and voice out of it, they have their own fields.
 - personality: a handful of traits, comma-separated.
+- appearance: what they physically are. Face, build, what they wear, how they hold themselves.
+- speech: how they talk. Sentence length, what they contract, what they will not say out loud, the words they reach for. This is the field a reply is judged by, so make it specific enough to act on.
 - scenario: where the first scene takes place and what is happening as it opens.
 - first_mes: their opening message, in their voice. Put actions and narration in *asterisks* and speech in "quotes". Two or three sentences, third person. This sets the style for the whole roleplay, so make it good.
 - mes_example: one short exchange showing how they talk. Use {{user}}: and {{char}}: to mark who is speaking.

@@ -77,6 +77,8 @@ func describeCard(c Character, userName string) string {
 	field("Name", c.Name)
 	field("Description", c.Description)
 	field("Personality", c.Personality)
+	field("Appearance", c.Appearance)
+	field("How they talk", c.Speech)
 	field("Scenario", c.Scenario)
 	field("Opening message", c.FirstMes)
 	field("Example dialogue", c.MesExample)
@@ -129,6 +131,12 @@ func Revise(existing, written Character) Character {
 	}
 	if v := strings.TrimSpace(written.Personality); v != "" {
 		out.Personality = v
+	}
+	if v := strings.TrimSpace(written.Appearance); v != "" {
+		out.Appearance = v
+	}
+	if v := strings.TrimSpace(written.Speech); v != "" {
+		out.Speech = v
 	}
 	if v := strings.TrimSpace(written.Scenario); v != "" {
 		out.Scenario = v

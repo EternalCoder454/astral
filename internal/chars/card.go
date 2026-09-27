@@ -42,9 +42,14 @@ type cardFile struct {
 
 // cardData is the card's fields. The json tags are the spec's names.
 type cardData struct {
-	Name                   string   `json:"name"`
-	Description            string   `json:"description"`
-	Personality            string   `json:"personality"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Personality string `json:"personality"`
+	// Not spec fields. They are read here as well as from Extensions because a
+	// model answering the designer's schema writes them flat, and a card
+	// exported from Astral writes them nested.
+	Appearance             string   `json:"appearance,omitempty"`
+	Speech                 string   `json:"speech,omitempty"`
 	Scenario               string   `json:"scenario"`
 	FirstMes               string   `json:"first_mes"`
 	MesExample             string   `json:"mes_example"`
@@ -78,8 +83,8 @@ func (d cardData) toCharacter() Character {
 		Name:        strings.TrimSpace(d.Name),
 		Description: d.Description,
 		Personality: d.Personality,
-		Appearance:  d.Extensions.appearance(),
-		Speech:      d.Extensions.speech(),
+		Appearance:  firstOf(d.Extensions.appearance(), d.Appearance),
+		Speech:      firstOf(d.Extensions.speech(), d.Speech),
 		Scenario:    d.Scenario,
 		FirstMes:    d.FirstMes,
 		MesExample:  d.MesExample,
@@ -378,4 +383,14 @@ func newExtensions(c Character) cardExtensions {
 		return cardExtensions{}
 	}
 	return cardExtensions{Astral: &astralExtension{Appearance: appearance, Speech: speech}}
+}
+
+// firstOf is the first of two readings of the same field that has anything in
+// it: the nested one a card written by Astral carries, then the flat one the
+// designer's own answer uses.
+func firstOf(a, b string) string {
+	if strings.TrimSpace(a) != "" {
+		return a
+	}
+	return b
 }
