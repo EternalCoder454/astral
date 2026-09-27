@@ -2,6 +2,7 @@ package ui
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -16,7 +17,14 @@ var (
 	mdCode   = regexp.MustCompile("`([^`]+)`")
 	mdBold   = regexp.MustCompile(`\*\*([^*]+)\*\*`)
 	mdItalic = regexp.MustCompile(`\*([^*]+)\*`)
-	mdUnder  = regexp.MustCompile(`_([^_]+)_`)
+	// An underscore span may not cross a tag. The asterisk rules must be able
+	// to, because italic wrapping bold is ordinary and the bold tag is already
+	// in the string by then, but an underscore pair is a single word in
+	// practice, and letting it cross meant an underscore inside a bold span
+	// pairing with one outside it, opening inside the tag and closing outside.
+	// The text is escaped before any rule runs, so the only angle brackets left
+	// in the string are tags this file wrote.
+	mdUnder = regexp.MustCompile(`_([^_<>]+)_`)
 	// Dialogue in straight or typographic quotes. It will not span a line, so
 	// an unclosed quote affects one line rather than swallowing the rest of
 	// the reply.
@@ -103,7 +111,9 @@ func mdLine(line string, mode Prose) string {
 		trimmed = strings.TrimLeft(trimmed, " ")
 	}
 
-	content := mdInline(Escape(trimmed), mode) // escape, THEN tag
+	// Escape, then lift the code spans out, then tag. See protectCode.
+	body, code := protectCode(Escape(trimmed))
+	content := restoreCode(mdInline(body, mode), code)
 	if heading {
 		content = "<b>" + content + "</b>"
 	}
@@ -121,7 +131,6 @@ func mdInline(s string, mode Prose) string {
 	case RoleplayAsWritten:
 		return mdRoleplay(s, mdAsWritten)
 	}
-	s = mdCode.ReplaceAllString(s, "<tt>$1</tt>")
 	s = mdBold.ReplaceAllString(s, "<b>$1</b>")
 	s = mdItalic.ReplaceAllString(s, "<i>$1</i>")
 	return s
@@ -188,8 +197,7 @@ func within(spans [][]int, loc []int) bool {
 // mdAsWritten styles only what the author marked, and leaves the rest as body
 // text. Speech is still weighted, because the quotation marks are theirs too.
 func mdAsWritten(s string) string {
-	inner := mdCode.ReplaceAllString(s, "<tt>$1</tt>")
-	inner = mdBold.ReplaceAllString(inner, "<b>$1</b>")
+	inner := mdBold.ReplaceAllString(s, "<b>$1</b>")
 	// Marked narration gets the same treatment the model's gets, so a scene
 	// reads as one conversation rather than two typefaces. Nothing else is
 	// touched.
@@ -217,8 +225,7 @@ func mdNarration(s string) string {
 	trail := s[len(strings.TrimRight(s, " \t")):]
 	s = s[len(lead) : len(s)-len(trail)]
 
-	inner := mdCode.ReplaceAllString(s, "<tt>$1</tt>")
-	inner = mdBold.ReplaceAllString(inner, "<b>$1</b>")
+	inner := mdBold.ReplaceAllString(s, "<b>$1</b>")
 	// The asterisks were the author saying "this is narration", and all of
 	// this is narration, so the markers come out rather than nesting a second
 	// identical span inside the first.
@@ -261,7 +268,6 @@ func quoteSpan(m string) string {
 // asterisks are the speaker leaning on a word, not the author stepping outside
 // the quotation, so they become italic instead of the narration style.
 func emphasise(s string) string {
-	s = mdCode.ReplaceAllString(s, "<tt>$1</tt>")
 	s = mdBold.ReplaceAllString(s, "<b>$1</b>")
 	s = mdItalic.ReplaceAllString(s, "<i>$1</i>")
 	s = mdUnder.ReplaceAllString(s, "<i>$1</i>")
@@ -311,4 +317,42 @@ func Snippet(s string, max int) string {
 		n++
 	}
 	return b.String()
+}
+
+// Code spans are lifted out before any other rule runs, and put back after.
+//
+// The old order ran the code rule first and called that protection, but
+// replacing a span with <tt>...</tt> leaves its contents sitting in the string,
+// so every later rule could still reach inside. An asterisk within `5 * 3`
+// paired with one outside it, and the italic opened inside the tag and closed
+// outside: interleaved markup, and the wrong words emphasised.
+//
+// A placeholder carries no markers, so nothing can pair across it or reach into
+// it, and it hides a quotation mark inside a code span from the speech splitter
+// as well, which is also what anyone writing one would expect.
+const codeSentinel = "\x00"
+
+// protectCode replaces every code span with an inert placeholder.
+func protectCode(s string) (string, []string) {
+	// Any sentinel already in the text goes first, so nothing a model writes
+	// can be mistaken for one of ours. It is a control character; there is
+	// nothing to show for it anyway.
+	s = strings.ReplaceAll(s, codeSentinel, "")
+	if !strings.Contains(s, "`") {
+		return s, nil // the overwhelmingly common case, and it allocates nothing
+	}
+	var spans []string
+	out := mdCode.ReplaceAllStringFunc(s, func(m string) string {
+		spans = append(spans, "<tt>"+m[1:len(m)-1]+"</tt>")
+		return codeSentinel + strconv.Itoa(len(spans)-1) + codeSentinel
+	})
+	return out, spans
+}
+
+// restoreCode puts the code spans back where their placeholders ended up.
+func restoreCode(s string, spans []string) string {
+	for i, span := range spans {
+		s = strings.Replace(s, codeSentinel+strconv.Itoa(i)+codeSentinel, span, 1)
+	}
+	return s
 }

@@ -50,7 +50,7 @@ function escape(s) {
 }
 
 const QUOTE = /"([^"\n]*)"|“([^”\n]*)”/g;
-const MARKED = /\*\*([^*]+)\*\*|\*([^*]+)\*|_([^_]+)_/g;
+const MARKED = /\*\*([^*]+)\*\*|\*([^*]+)\*|_([^_<>]+)_/g;
 
 // The ranges the author wrapped in asterisks or underscores.
 //
@@ -69,12 +69,100 @@ function within(spans, start, end) {
 	return spans.some(([a, b]) => start >= a && end <= b);
 }
 
+// Rendering mirrors the desktop, which is a separate implementation of these
+// rules in another language, so the two are compared against one corpus by the
+// test in internal/serve. They have drifted twice, and both times the drift was
+// invisible from inside either one.
+//
+// A message is rendered one line at a time, which is the only way these rules
+// are safe to apply. A marker pairs with the next one of its kind, and the
+// pattern between a pair crosses a blank line perfectly happily, so run over a
+// whole message the opening asterisk of one paragraph would pair with the
+// closing asterisk of another three paragraphs down, swallowing everything
+// between them, quoted speech included, into a single run of narration.
+//
+// One unpaired asterisk anywhere then shifted every pairing after it, so a
+// reply came out as alternating stretches of correct and broken italics all the
+// way to the end.
+function renderMarkup(text, inline) {
+	// Trailing newlines go first, as on the desktop. A bubble is pre-wrapped,
+	// so a reply ending in blank lines otherwise ends in blank space, and a
+	// model ends one in blank lines fairly often.
+	const lines = escape(text).replace(/\n+$/, "").split("\n");
+	const out = [];
+	let inCode = false;
+	for (const line of lines) {
+		if (line.trim().startsWith("```")) {
+			inCode = !inCode; // the fence itself is dropped
+			continue;
+		}
+		// One element per line rather than one spanning the block, which would
+		// have to survive the newlines between them and renders the same.
+		out.push(inCode ? "<code>" + line + "</code>" : renderLine(line, inline));
+	}
+	return out.join("\n");
+}
+
+// renderLine handles what a line is before it handles what is in it: its
+// indent, whether it is a bullet, whether it is a heading.
+function renderLine(line, inline) {
+	let trimmed = line.replace(/^[ \t]+/, "");
+	const indent = line.slice(0, line.length - trimmed.length);
+
+	let bullet = "";
+	if (/^[-*+] /.test(trimmed)) {
+		bullet = "\u2022 ";
+		trimmed = trimmed.slice(2);
+	}
+	let heading = false;
+	while (trimmed.startsWith("#")) {
+		heading = true;
+		trimmed = trimmed.slice(1);
+	}
+	if (heading) trimmed = trimmed.replace(/^ +/, "");
+
+	// Code spans are lifted out before any other rule runs and put back after.
+	//
+	// Replacing a span with <code>...</code> up front and calling that
+	// protection leaves its contents sitting in the string, so every later rule
+	// can still reach inside: an asterisk within `5 * 3` paired with one
+	// outside it, and the emphasis opened inside the element and closed outside
+	// it. A placeholder carries no markers, so nothing can pair across it, and
+	// it hides a quotation mark inside a code span from the speech splitter as
+	// well, which is also what anyone writing one would expect.
+	const [body, code] = protectCode(trimmed);
+	const content = restoreCode(inline(body), code);
+	return indent + bullet + (heading ? "<strong>" + content + "</strong>" : content);
+}
+
+// The placeholder a code span stands in as. It carries no markers, and any
+// already in the text is dropped first so nothing a model writes can be taken
+// for one of ours; it is a control character with nothing to show for it.
+const CODE_SENTINEL = "\u0000";
+
+function protectCode(s) {
+	s = s.replace(/\u0000/g, "");
+	if (!s.includes("`")) return [s, []];
+	const spans = [];
+	const out = s.replace(/`([^`]+)`/g, (_, inner) => {
+		spans.push("<code>" + inner + "</code>");
+		return CODE_SENTINEL + (spans.length - 1) + CODE_SENTINEL;
+	});
+	return [out, spans];
+}
+
+function restoreCode(s, spans) {
+	for (let i = 0; i < spans.length; i++) {
+		s = s.replace(CODE_SENTINEL + i + CODE_SENTINEL, spans[i]);
+	}
+	return s;
+}
+
 // A model's prose: what is inside quotation marks is speech, and everything
 // else is narration whether or not it was marked, because measured over long
 // scenes it often is not.
-function renderReply(text) {
+function replyLine(s) {
 	let out = "", last = 0;
-	const s = escape(text);
 	const marked = markedSpans(s);
 	for (const m of s.matchAll(QUOTE)) {
 		if (within(marked, m.index, m.index + m[0].length)) continue;
@@ -93,16 +181,18 @@ function narration(s) {
 		// Bold survives inside narration, as it does on the desktop. Stripping
 		// it here meant the same reply read differently on the two screens.
 		.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+		// The asterisks were the author saying "this is narration", and all of
+		// this is narration, so the markers come out rather than nesting a
+		// second identical span inside the first.
 		.replace(/\*([^*]+)\*/g, "$1")
-		.replace(/_([^_]+)_/g, "$1");
+		.replace(/_([^_<>]+)_/g, "$1");
 	return lead + '<span class="narration">' + inner + "</span>" + trail;
 }
 
 // Your own words are rendered as you wrote them: what you marked is narration,
 // what you did not is left alone.
-function renderOwn(text) {
+function ownLine(s) {
 	let out = "", last = 0;
-	const s = escape(text);
 	const marked = markedSpans(s);
 	for (const m of s.matchAll(QUOTE)) {
 		if (within(marked, m.index, m.index + m[0].length)) continue;
@@ -111,6 +201,16 @@ function renderOwn(text) {
 		last = m.index + m[0].length;
 	}
 	return out + asWritten(s.slice(last));
+}
+
+function asWritten(s) {
+	return s
+		// Bold first, or ** reads as two adjacent italic markers and the span
+		// opens in the middle of its own delimiter, leaving a stray asterisk at
+		// each end.
+		.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+		.replace(/\*([^*]+)\*/g, '<span class="narration">$1</span>')
+		.replace(/_([^_<>]+)_/g, '<span class="narration">$1</span>');
 }
 
 // emphasise applies the inline markers inside a line of speech.
@@ -124,17 +224,49 @@ function emphasise(s) {
 	return s
 		.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
 		.replace(/\*([^*]+)\*/g, "<em>$1</em>")
-		.replace(/_([^_]+)_/g, "<em>$1</em>");
+		.replace(/_([^_<>]+)_/g, "<em>$1</em>");
 }
 
-function asWritten(s) {
+// plainLine is ordinary Markdown, with none of the roleplay reading applied.
+//
+// A general chat and the three designers are conversations, not scenes. Read
+// with the roleplay rules every sentence outside a quotation mark becomes
+// narration, so an answer to a question arrived on the phone dimmed and
+// italicised from end to end, with whatever it happened to quote in bold. The
+// desktop has always chosen by the kind of chat; this is the phone doing the
+// same.
+function plainLine(s) {
 	return s
-		// Bold first, or ** reads as two adjacent italic markers and the span
-		// opens in the middle of its own delimiter, leaving a stray asterisk at
-		// each end.
 		.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-		.replace(/\*([^*]+)\*/g, '<span class="narration">$1</span>')
-		.replace(/_([^_]+)_/g, '<span class="narration">$1</span>');
+		.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+}
+
+// The kinds of chat that are conversations rather than scenes, named as the
+// store names them.
+const PLAIN_KINDS = new Set(["assistant", "designer", "style", "world"]);
+
+// proseFor picks how a message body is read, which depends on the kind of chat
+// and on who wrote it.
+//
+// Inferring narration from everything outside quotation marks exists to cover
+// for a model that forgets its asterisks. That reasoning does not reach your
+// own messages: you put the asterisks where you meant them.
+function proseFor(role) {
+	if (PLAIN_KINDS.has(current?.kind)) return plainLine;
+	return role === "user" ? ownLine : replyLine;
+}
+
+function renderReply(text) {
+	return renderMarkup(text, replyLine);
+}
+
+function renderOwn(text) {
+	return renderMarkup(text, ownLine);
+}
+
+// render is what a bubble calls: the right reading for this chat and speaker.
+function render(text, role) {
+	return renderMarkup(text, proseFor(role));
 }
 
 // ---- Screens ----
@@ -575,7 +707,7 @@ function bubble(role, content, speaker, accent) {
 	}
 	const b = document.createElement("div");
 	b.className = "bubble";
-	b.innerHTML = role === "user" ? renderOwn(content) : renderReply(content);
+	b.innerHTML = render(content, role);
 	wrap.append(b);
 	return wrap;
 }
@@ -671,12 +803,12 @@ async function send(text) {
 				who.textContent = beats[0].who;
 				if (beats[0].accent > 0) who.classList.add("who-accent-" + (beats[0].accent % 4));
 			}
-			body.innerHTML = renderReply(beats[0].content);
+			body.innerHTML = render(beats[0].content, "assistant");
 			for (const b of beats.slice(1)) {
 				$("transcript").append(bubble("assistant", b.content, b.who, b.accent));
 			}
 		} else {
-			body.innerHTML = renderReply(reply);
+			body.innerHTML = render(reply, "assistant");
 		}
 		scrollDown();
 
