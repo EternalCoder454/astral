@@ -52,6 +52,7 @@ func (c *ChatView) buildDropOverlay(content gtk.Widgetter) *gtk.Overlay {
 	card.AddCSSClass("drop-card")
 	card.SetHAlign(gtk.AlignCenter)
 	card.SetVAlign(gtk.AlignCenter)
+	card.SetVExpand(true)
 
 	icon := gtk.NewImageFromIconName(IconFolder)
 	icon.SetPixelSize(32)
@@ -67,15 +68,31 @@ func (c *ChatView) buildDropOverlay(content gtk.Widgetter) *gtk.Overlay {
 	c.dropHint.SetJustify(gtk.JustifyCenter)
 	card.Append(c.dropHint)
 
+	// The veil is the revealer's child, not the revealer.
+	//
+	// A GtkRevealer with reveal-child off hides what is inside it and stays
+	// visible itself, so a background painted on the revealer is painted all
+	// the time. With the revealer filling the overlay, that dimmed the whole
+	// chat permanently and made the app look like it was waiting for a file
+	// nobody was dragging.
+	veil := gtk.NewBox(gtk.OrientationVertical, 0)
+	veil.AddCSSClass("drop-veil")
+	veil.SetHAlign(gtk.AlignFill)
+	veil.SetVAlign(gtk.AlignFill)
+	veil.Append(card)
+
 	c.dropRevealer = gtk.NewRevealer()
-	c.dropRevealer.SetChild(card)
+	c.dropRevealer.SetChild(veil)
 	c.dropRevealer.SetTransitionType(gtk.RevealerTransitionTypeCrossfade)
 	c.dropRevealer.SetTransitionDuration(90)
 	c.dropRevealer.SetRevealChild(false)
 	c.dropRevealer.SetCanTarget(false)
 	c.dropRevealer.SetHAlign(gtk.AlignFill)
 	c.dropRevealer.SetVAlign(gtk.AlignFill)
-	c.dropRevealer.AddCSSClass("drop-veil")
+	// Hidden outright as well, so nothing in this layer can draw over the chat
+	// while no drag is happening. Belt as well as braces, because the bug this
+	// replaces was exactly a layer that was only supposed to be invisible.
+	c.dropRevealer.SetVisible(false)
 
 	overlay := gtk.NewOverlay()
 	overlay.SetChild(content)
@@ -99,6 +116,7 @@ func (c *ChatView) showDrop(on bool, why string) {
 		c.dropHint.SetText(why)
 		c.dropHint.SetVisible(why != "")
 	}
+	c.dropRevealer.SetVisible(on)
 	c.dropRevealer.SetRevealChild(on)
 }
 
