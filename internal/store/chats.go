@@ -329,6 +329,18 @@ func (s *Store) DeleteMessage(id int64) error {
 	return err
 }
 
+// DeleteMessageIn removes one turn, but only if it belongs to the chat given.
+//
+// The pair is the point. A caller that knows a message id alone can delete any
+// turn in any scene; a caller that has to name the scene as well can only
+// delete what it was looking at.
+func (s *Store) DeleteMessageIn(chatID, id int64) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err := s.db.Exec(`DELETE FROM messages WHERE id = ? AND chat_id = ?`, id, chatID)
+	return err
+}
+
 // DeleteMessagesFrom removes a turn and everything after it in the same chat.
 // This is what a regenerate does: rewinding to a point in the scene means the
 // turns that followed are no longer part of it.

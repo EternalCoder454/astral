@@ -36,6 +36,10 @@ type Server struct {
 	version string
 
 	pair pairing
+	// busy stops two generations running on one chat: the window and a phone
+	// can both be in the same scene, and two replies written into it at once
+	// interleave in the transcript and load the model twice for one turn.
+	busy busyChats
 
 	mu   sync.Mutex
 	http *http.Server
@@ -129,6 +133,8 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("GET /api/chats/{id}", s.guard(s.handleChat))
 	mux.Handle("POST /api/chats", s.guard(s.handleNewChat))
 	mux.Handle("POST /api/chats/{id}/send", s.guard(s.handleSend))
+	mux.Handle("POST /api/chats/{id}/regenerate", s.guard(s.handleRegenerate))
+	mux.Handle("DELETE /api/chats/{id}/messages/{mid}", s.guard(s.handleDeleteMessage))
 	mux.Handle("DELETE /api/chats/{id}", s.guard(s.handleDeleteChat))
 	mux.Handle("DELETE /api/characters/{id}", s.guard(s.handleDeleteCharacter))
 	mux.Handle("DELETE /api/worlds/{id}", s.guard(s.handleDeleteWorld))
@@ -366,6 +372,40 @@ func (s *Server) handleDeleteChat(w http.ResponseWriter, r *http.Request, d stor
 		return
 	}
 	if err := s.store.DeleteChat(id); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"ok": "deleted"})
+}
+
+// handleDeleteMessage removes one turn from a scene.
+//
+// The chat is named in the path as well as the message, and the message has to
+// belong to it. Without that, a device could delete any turn in any scene by
+// guessing an id, which is a smaller thing than it sounds only because every
+// paired device is already trusted; saying which chat you meant costs nothing
+// and makes the check possible.
+func (s *Server) handleDeleteMessage(w http.ResponseWriter, r *http.Request, d store.Device) {
+	chatID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not a chat id"})
+		return
+	}
+	msgID, err := strconv.ParseInt(r.PathValue("mid"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not a message id"})
+		return
+	}
+	// Not while a reply is being written into the same scene: the turn being
+	// deleted may be part of the prompt that reply was built from.
+	release, free := s.busy.claim(chatID)
+	if !free {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "this chat is writing a reply"})
+		return
+	}
+	defer release()
+
+	if err := s.store.DeleteMessageIn(chatID, msgID); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}

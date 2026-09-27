@@ -678,7 +678,7 @@ async function openChat(id) {
 		$("chat-title").textContent = current.title || current.who || "Chat";
 		const t = $("transcript");
 		t.replaceChildren();
-		for (const m of current.messages || []) t.append(bubble(m.role, m.content, m.who, m.accent));
+		for (const m of current.messages || []) t.append(bubble(m.role, m.content, m.who, m.accent, m.id));
 		show("chat");
 		scrollDown(false);
 		$("composer-text").focus();
@@ -690,9 +690,11 @@ async function openChat(id) {
 // bubble is one turn. speaker names it when a scene has several characters in
 // it, so a group reads as people talking rather than as one long reply; without
 // one it falls back to the scene's single character, as it always did.
-function bubble(role, content, speaker, accent) {
+function bubble(role, content, speaker, accent, id) {
 	const wrap = document.createElement("div");
 	wrap.className = "msg" + (role === "user" ? " from-user" : "");
+	if (id) wrap.dataset.id = id;
+	wrap.dataset.role = role;
 	const name = role === "user" ? "" : speaker || current?.who || "";
 	if (name) {
 		const who = document.createElement("div");
@@ -708,8 +710,85 @@ function bubble(role, content, speaker, accent) {
 	const b = document.createElement("div");
 	b.className = "bubble";
 	b.innerHTML = render(content, role);
+	// Tapping a turn offers what to do with it. Hidden until then, because a
+	// row of buttons under every message is most of the screen on a phone, and
+	// the desktop hides the same buttons until the pointer is over a row.
+	b.addEventListener("click", (e) => {
+		// Not when the tap was to select text or follow something inside it.
+		if (window.getSelection()?.toString()) return;
+		if (e.target.closest("a")) return;
+		toggleActions(wrap);
+	});
 	wrap.append(b);
 	return wrap;
+}
+
+// toggleActions shows or hides the action row under one turn, and closes any
+// other that was open, so at most one is ever on screen.
+function toggleActions(wrap) {
+	const open = wrap.querySelector(".msg-actions");
+	for (const row of document.querySelectorAll(".msg-actions")) row.remove();
+	if (open) return;
+
+	const row = document.createElement("div");
+	row.className = "msg-actions";
+
+	const add = (label, icon, danger, onClick) => {
+		const b = document.createElement("button");
+		b.className = "msg-action" + (danger ? " danger" : "");
+		b.innerHTML = '<i class="tab-icon" data-icon="' + icon + '"></i>';
+		b.setAttribute("aria-label", label);
+		b.title = label;
+		b.addEventListener("click", (e) => { e.stopPropagation(); onClick(); });
+		row.append(b);
+	};
+
+	add("Copy this message", "copy", false, async () => {
+		const text = wrap.querySelector(".bubble")?.innerText || "";
+		try {
+			await navigator.clipboard.writeText(text);
+			toast("Copied.");
+		} catch (_) {
+			// A page served over plain http has no clipboard API in most
+			// browsers, which is exactly how this one is served on a home
+			// network. Selecting the text by hand still works.
+			toast("This browser will not let a page copy. Hold the text to select it.");
+		}
+		row.remove();
+	});
+
+	// Only the last reply, and only a reply. Writing a turn again throws away
+	// everything after it, which on a phone is one mis-tap away from losing a
+	// scene, so the one turn it can safely mean is the one at the end.
+	const last = $("transcript").lastElementChild;
+	if (wrap.dataset.role === "assistant" && wrap === last) {
+		add("Write this reply again", "regenerate", false, () => {
+			row.remove();
+			regenerate();
+		});
+	}
+
+	add("Delete this message", "trash", true, () => {
+		row.remove();
+		deleteMessage(wrap);
+	});
+
+	wrap.append(row);
+	paintIcons(row);
+}
+
+async function deleteMessage(wrap) {
+	const id = Number(wrap.dataset.id || 0);
+	if (!current || streaming) return;
+	if (!id) { wrap.remove(); return; }
+	try {
+		await api("/api/chats/" + current.id + "/messages/" + id, { method: "DELETE" });
+		wrap.remove();
+		current.messages = (current.messages || []).filter((m) => m.id !== id);
+		loadState();
+	} catch (e) {
+		toast(e.message);
+	}
 }
 
 function scrollDown(smooth = true) {
@@ -723,10 +802,31 @@ function scrollDown(smooth = true) {
 
 async function send(text) {
 	if (!current || streaming) return;
+	$("transcript").append(bubble("user", text));
+	await stream("/api/chats/" + current.id + "/send", JSON.stringify({ text }));
+}
+
+// regenerate throws away the last reply and asks for another.
+//
+// The whole of it: a group turn is several messages, one per speaker, so every
+// reply at the end of the transcript goes, which is what undoes one turn rather
+// than one voice within it. The server rewinds its own copy the same way.
+async function regenerate() {
+	if (!current || streaming) return;
+	const t = $("transcript");
+	while (t.lastElementChild && t.lastElementChild.dataset.role === "assistant") {
+		t.lastElementChild.remove();
+	}
+	await stream("/api/chats/" + current.id + "/regenerate", "{}");
+}
+
+// stream runs one turn: it opens the row the reply is written into, consumes
+// the event stream, and leaves the transcript as it will look when the scene
+// is next opened.
+async function stream(path, requestBody) {
 	streaming = true;
 	$("composer-send").disabled = true;
 
-	$("transcript").append(bubble("user", text));
 	const live = bubble("assistant", "");
 	const body = live.querySelector(".bubble");
 	body.classList.add("dots");
@@ -747,10 +847,7 @@ async function send(text) {
 		});
 	};
 	try {
-		const res = await api("/api/chats/" + current.id + "/send", {
-			method: "POST",
-			body: JSON.stringify({ text }),
-		});
+		const res = await api(path, { method: "POST", body: requestBody });
 		const reader = res.body.getReader();
 		const decoder = new TextDecoder();
 		let buffer = "";
@@ -785,6 +882,9 @@ async function send(text) {
 					// as it will when the scene is reopened.
 					beats = payload.beats || null;
 					reply = payload.content || "";
+					// The stored id, so this turn can be copied, deleted or
+					// written again without reopening the scene first.
+					if (payload.id) live.dataset.id = payload.id;
 					if (payload.title) $("chat-title").textContent = payload.title;
 				} else if (event === "searching") {
 					// A search takes seconds with nothing arriving, so the row
@@ -804,8 +904,9 @@ async function send(text) {
 				if (beats[0].accent > 0) who.classList.add("who-accent-" + (beats[0].accent % 4));
 			}
 			body.innerHTML = render(beats[0].content, "assistant");
+			if (beats[0].id) live.dataset.id = beats[0].id;
 			for (const b of beats.slice(1)) {
-				$("transcript").append(bubble("assistant", b.content, b.who, b.accent));
+				$("transcript").append(bubble("assistant", b.content, b.who, b.accent, b.id));
 			}
 		} else {
 			body.innerHTML = render(reply, "assistant");

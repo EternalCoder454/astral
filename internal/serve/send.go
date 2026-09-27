@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"astral/internal/chars"
@@ -57,12 +58,12 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 		return
 	}
 
-	cfg := s.config()
-	ca := s.characterFor(ch)
-	model := ch.Model
-	if model == "" {
-		model = cfg.Model
+	release, free := s.busy.claim(ch.ID)
+	if !free {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "this chat is already writing a reply"})
+		return
 	}
+	defer release()
 
 	if _, err := s.store.AddMessage(store.Message{
 		ChatID: ch.ID, Role: ollama.RoleUser, Content: text,
@@ -75,6 +76,70 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 		if err := s.store.RenameChat(ch.ID, store.TitleFrom(text)); err == nil {
 			ch.Title = store.TitleFrom(text)
 		}
+	}
+	s.generate(w, r, ch)
+}
+
+// handleRegenerate throws away the last reply and writes another one.
+//
+// The whole of the last reply: a group turn is stored as one message per
+// speaker, so rewinding to the first of the trailing run of them is what
+// undoes one turn rather than one voice within it.
+func (s *Server) handleRegenerate(w http.ResponseWriter, r *http.Request, d store.Device) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not a chat id"})
+		return
+	}
+	ch, err := s.store.Chat(id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such chat"})
+		return
+	}
+	release, free := s.busy.claim(ch.ID)
+	if !free {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "this chat is already writing a reply"})
+		return
+	}
+	defer release()
+
+	msgs, err := s.store.Messages(ch.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	from := int64(0)
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role != ollama.RoleAssistant {
+			break
+		}
+		from = msgs[i].ID
+	}
+	if from == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "there is no reply to write again"})
+		return
+	}
+	if err := s.store.DeleteMessagesFrom(ch.ID, from); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	s.generate(w, r, ch)
+}
+
+// generate streams one reply for a chat whose messages are already in the
+// state the model should see.
+//
+// Shared by sending and regenerating, which differ only in what they do to the
+// transcript first: one adds a turn, the other removes one. Everything after
+// that, the prompt, the search, the folding of deliberation, the storing of
+// the result and the housekeeping, is the same work, and was worth having in
+// one place rather than two that drift.
+func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat) {
+	cfg := s.config()
+	ca := s.characterFor(ch)
+	model := ch.Model
+	if model == "" {
+		model = cfg.Model
 	}
 
 	cast := s.castFor(ch)
@@ -387,4 +452,38 @@ func (s *Server) housekeep(chatID int64, cast []chars.Character) {
 		}
 	}
 	s.store.SetChatLoreUpto(chatID, lastID)
+}
+
+// busyChats is the set of chats currently having a reply written into them.
+//
+// The window and a phone can be in the same scene at the same time, and a
+// phone that loses its connection mid-turn will happily send again. Two
+// generations on one chat interleave their turns in the transcript and ask the
+// model for two replies to answer one message, so the second is refused rather
+// than queued: the caller is a person waiting, and telling them now is better
+// than making them wait twice as long for a reply to a prompt that has since
+// changed underneath it.
+type busyChats struct {
+	mu sync.Mutex
+	on map[int64]bool
+}
+
+// claim marks a chat as busy. The returned function frees it, and free says
+// whether the claim succeeded; a refused claim still returns a usable no-op so
+// a caller cannot deadlock on the difference.
+func (b *busyChats) claim(id int64) (release func(), free bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.on[id] {
+		return func() {}, false
+	}
+	if b.on == nil {
+		b.on = make(map[int64]bool)
+	}
+	b.on[id] = true
+	return func() {
+		b.mu.Lock()
+		delete(b.on, id)
+		b.mu.Unlock()
+	}, true
 }

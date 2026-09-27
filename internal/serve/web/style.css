@@ -668,3 +668,43 @@ a.row { text-decoration: none; }
 	border-radius: 4px;
 	padding: 0 4px;
 }
+
+/*
+ * What to do with one turn, shown when it is tapped.
+ *
+ * Hidden until then: a row of buttons under every message is most of a phone
+ * screen, and the window hides the same buttons until the pointer is over a
+ * row. Only one is open at a time, so the transcript never grows two of them.
+ */
+.msg-actions {
+	display: flex;
+	gap: 4px;
+	margin: 4px 0 0;
+}
+
+.from-user .msg-actions {
+	justify-content: flex-end;
+}
+
+.msg-action {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	/* A comfortable target: these sit under a paragraph of text and a near
+	   miss taps the paragraph, which reopens the row that was just used. */
+	width: 40px;
+	height: 40px;
+	border: none;
+	border-radius: 999px;
+	background: var(--md-surface-container-high);
+	color: var(--md-on-surface-variant);
+}
+
+.msg-action.danger {
+	color: var(--md-error, #ef9aa0);
+}
+
+.msg-action .tab-icon {
+	width: 18px;
+	height: 18px;
+}
