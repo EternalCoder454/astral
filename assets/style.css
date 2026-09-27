@@ -350,6 +350,19 @@ frame:focus-within {
 	color: @window_fg_color;
 }
 
+/*
+ * Selected text, so a phrase can be dragged over and copied out of a reply.
+ *
+ * GTK draws a selectable label's selection in its own `selection` subnode,
+ * which inherits nothing from the label, so without a rule here the highlight
+ * comes out as stock Adwaita blue in the middle of a warm transcript.
+ */
+.message-body selection,
+.thinking-body selection {
+	background-color: @accent_bg_color;
+	color: @accent_fg_color;
+}
+
 /* A model's reasoning, shown collapsed. Recessive and monospaced: it is
    machinery, not narration. */
 .thinking-toggle {

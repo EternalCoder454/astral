@@ -639,3 +639,21 @@ a.row { text-decoration: none; }
 .swipe-delete:active {
 	filter: brightness(0.9);
 }
+
+/*
+ * Selected text, so a phrase can be held down on and copied out of a reply.
+ *
+ * Stated rather than left to the default because a bubble is the one place in
+ * the app where selecting text is the point, and the highlight has to be the
+ * app's accent rather than the browser's.
+ */
+.bubble,
+.bubble * {
+	-webkit-user-select: text;
+	user-select: text;
+}
+
+::selection {
+	background: var(--accent);
+	color: var(--accent-ink);
+}

@@ -159,8 +159,16 @@ func NewMessageRow(o MessageOpts) *MessageRow {
 	m.body.SetMaxWidthChars(bubbleChars)   // see the constant: this is what makes wrapping work
 	m.body.SetXAlign(0)
 	m.body.SetYAlign(0)
+	// Selectable, and allowed to take focus, because in GTK4 a label holds a
+	// selection only while it can be focused. Setting can-focus false here read
+	// as "selectable but do not steal focus from the composer" and actually
+	// meant the selection could never be made: the label highlighted nothing and
+	// there was no way to copy part of a reply.
+	//
+	// What it costs is a stop in the Tab chain per message. The composer is
+	// focused on opening a chat and after every send, so the cursor still starts
+	// and returns where it should.
 	m.body.SetSelectable(true)
-	m.body.SetCanFocus(false) // selectable, but it must not steal focus from the composer
 	m.body.SetHExpand(false)
 	m.body.AddCSSClass("message-body")
 	m.bubble.Append(m.body)
@@ -249,8 +257,8 @@ func (m *MessageRow) ensureThinking() {
 	m.thinkLabel.SetWrapMode(pango.WrapWordChar)
 	m.thinkLabel.SetMaxWidthChars(bubbleChars)
 	m.thinkLabel.SetXAlign(0)
-	m.thinkLabel.SetSelectable(true)
-	m.thinkLabel.SetCanFocus(false)
+	m.thinkLabel.SetSelectable(true) // and focusable: see typingGoesToComposer
+
 	m.thinkLabel.AddCSSClass("thinking-body")
 
 	m.thinkRevea = gtk.NewRevealer()

@@ -264,6 +264,8 @@ func NewChatView(client *ollama.Client, st *store.Store, cfg store.Config) *Chat
 	c.widget.Append(c.scroll)
 
 	c.widget.Append(c.buildComposer())
+	// After the composer exists, because it is the thing keys are sent to.
+	typingGoesToComposer(c.scroll, c.composer)
 	return c
 }
 
