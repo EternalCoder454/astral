@@ -50,6 +50,24 @@ function escape(s) {
 }
 
 const QUOTE = /"([^"\n]*)"|“([^”\n]*)”/g;
+const MARKED = /\*\*([^*]+)\*\*|\*([^*]+)\*|_([^_]+)_/g;
+
+// The ranges the author wrapped in asterisks or underscores.
+//
+// A quotation inside one of these is part of that narration rather than speech.
+// Treating it as speech cuts the narration in two and leaves an unpaired
+// asterisk at each end, which is how a reply came out with its markers showing
+// and its italics starting in the wrong places, one paragraph right and the next
+// wrong all the way down.
+function markedSpans(s) {
+	const out = [];
+	for (const m of s.matchAll(MARKED)) out.push([m.index, m.index + m[0].length]);
+	return out;
+}
+
+function within(spans, start, end) {
+	return spans.some(([a, b]) => start >= a && end <= b);
+}
 
 // A model's prose: what is inside quotation marks is speech, and everything
 // else is narration whether or not it was marked, because measured over long
@@ -57,7 +75,9 @@ const QUOTE = /"([^"\n]*)"|“([^”\n]*)”/g;
 function renderReply(text) {
 	let out = "", last = 0;
 	const s = escape(text);
+	const marked = markedSpans(s);
 	for (const m of s.matchAll(QUOTE)) {
+		if (within(marked, m.index, m.index + m[0].length)) continue;
 		out += narration(s.slice(last, m.index));
 		out += m[0][0] + '<span class="speech">' + m[0].slice(1, -1) + "</span>" + m[0].slice(-1);
 		last = m.index + m[0].length;
@@ -81,7 +101,9 @@ function narration(s) {
 function renderOwn(text) {
 	let out = "", last = 0;
 	const s = escape(text);
+	const marked = markedSpans(s);
 	for (const m of s.matchAll(QUOTE)) {
+		if (within(marked, m.index, m.index + m[0].length)) continue;
 		out += asWritten(s.slice(last, m.index));
 		out += m[0][0] + '<span class="speech">' + m[0].slice(1, -1) + "</span>" + m[0].slice(-1);
 		last = m.index + m[0].length;
@@ -91,6 +113,10 @@ function renderOwn(text) {
 
 function asWritten(s) {
 	return s
+		// Bold first, or ** reads as two adjacent italic markers and the span
+		// opens in the middle of its own delimiter, leaving a stray asterisk at
+		// each end.
+		.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
 		.replace(/\*([^*]+)\*/g, '<span class="narration">$1</span>')
 		.replace(/_([^_]+)_/g, '<span class="narration">$1</span>');
 }

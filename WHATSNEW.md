@@ -3,6 +3,10 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.4.9
+- A quoted word inside *narration* no longer breaks the italics around it
+- Your own **bold** shows as bold on your phone
+
 ## 0.4.8
 - Every character has a page now: their world, their scenes, and who they know
 - Say how two characters know each other, and a scene with both of them is told

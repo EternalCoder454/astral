@@ -139,14 +139,50 @@ func mdInline(s string, mode Prose) string {
 func mdRoleplay(s string, outside func(string) string) string {
 	var b strings.Builder
 	b.Grow(len(s) + 48)
+	marked := markedSpans(s)
 	last := 0
 	for _, loc := range mdQuote.FindAllStringIndex(s, -1) {
+		// A quotation inside a span the author marked as narration is part of
+		// that narration, not speech. Treating it as speech cuts the narration
+		// in two and leaves an unpaired asterisk at each end, which is how
+		// "*She said the word "late" as though it were an accusation.*" came
+		// out with its markers showing and its italics starting in the wrong
+		// places.
+		if within(marked, loc) {
+			continue
+		}
 		b.WriteString(outside(s[last:loc[0]]))
 		b.WriteString(quoteSpan(s[loc[0]:loc[1]]))
 		last = loc[1]
 	}
 	b.WriteString(outside(s[last:]))
 	return b.String()
+}
+
+// markedSpans are the ranges the author wrapped in asterisks or underscores.
+//
+// Bold first, because ** would otherwise be read as two adjacent italic markers
+// and the span it opens would end in the middle of its own delimiter.
+func markedSpans(s string) [][]int {
+	var out [][]int
+	out = append(out, mdBold.FindAllStringIndex(s, -1)...)
+	for _, loc := range mdItalic.FindAllStringIndex(s, -1) {
+		if !within(out, loc) {
+			out = append(out, loc)
+		}
+	}
+	out = append(out, mdUnder.FindAllStringIndex(s, -1)...)
+	return out
+}
+
+// within reports whether loc falls inside one of the spans.
+func within(spans [][]int, loc []int) bool {
+	for _, sp := range spans {
+		if loc[0] >= sp[0] && loc[1] <= sp[1] {
+			return true
+		}
+	}
+	return false
 }
 
 // mdAsWritten styles only what the author marked, and leaves the rest as body
