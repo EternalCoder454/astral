@@ -48,7 +48,13 @@ func Anchor(c Character, sc Scene, userName string) string {
 	b.WriteString(c.Name)
 	b.WriteString("'s words and actions. Never write, decide or narrate ")
 	b.WriteString(userName)
-	b.WriteString("'s words, thoughts or actions.\n\n")
+	b.WriteString("'s words, thoughts or actions.\n")
+	// The closing block is where an instruction is obeyed, and this is the one
+	// that decays first in a long scene: the recap above names everyone,
+	// including the user, and by turn thirty the model has read it forty times.
+	b.WriteString("Write to ")
+	b.WriteString(userName)
+	b.WriteString(" as you, never by name: your sister, not her sister.\n\n")
 
 	if sc.NarrationDrifted {
 		b.WriteString(anchorFormatFirm)

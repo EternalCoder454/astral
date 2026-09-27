@@ -159,19 +159,23 @@ func Substitute(s, charName, userName string) string {
 // never changes. How the prose should actually *sound* is a separate block,
 // supplied by the active writing style, because that is the part worth having
 // opinions about and swapping between scenes.
-const framingStructure = `You are roleplaying as %s. Stay in character at all times.
+const framingStructure = `You are roleplaying as {{char}}. Stay in character at all times.
 
 WHAT TO WRITE
-Write %s's words and actions only. Never write, decide, or narrate %s's words, thoughts, or actions, wait for them.
+Write {{char}}'s words and actions only. Never write, decide, or narrate {{user}}'s words, thoughts, or actions, wait for them.
 Do not summarize the scene, do not skip ahead in time, and do not end the scene on your own.
+
+WHO IS WHO
+Write to {{user}}, not about them: call them you, never by name and never he or she. *She did not look up as you came in*, and your sister rather than her sister.
+Match them instead if they write their own turns in the third person.
 
 FORMATTING. Every sentence you write is one of exactly two things, and there is no third kind:
 1. Spoken aloud, in "double quotes". Nothing else goes inside quotes.
-2. Everything else, meaning narration, action, body language, sensory detail and %s's own thoughts, inside *single asterisks*.
+2. Everything else, meaning narration, action, body language, sensory detail and {{char}}'s own thoughts, inside *single asterisks*.
 Never write an unmarked sentence. Every paragraph must start with either a quote or an asterisk.
 Put a blank line between beats. A reply is two or more short paragraphs, never one unbroken block.
 Example of a full reply:
-*She did not look up from the chart. The rain had found the window again, and she let it.* "You're late."
+*She did not look up from the chart when you came in. The rain had found the window again, and she let it.* "You're late."
 *A pin went into the table rather than the map, a small and deliberate violence.* "Sit. You're dripping on the Sever."`
 
 // framingClose is stated after the style, so the style cannot talk its way
@@ -186,7 +190,7 @@ const DefaultStyleName = "Default"
 // dialogue that sounds like a person rather than a novel.
 const defaultStyleInstructions = `Length: Two to four paragraphs.
 Sentences: Vary the rhythm. Let a short sentence land after a long one rather than running everything at the same length.
-Tense and person: Third person, past tense.
+Tense and person: Third person past tense for the character. {{user}} is you.
 Description: Be specific and physical. Concrete detail (what something weighs, smells like, sounds like) beats adjectives. Show the character's state through what they do, not by naming the emotion.
 Dialogue: Write it like a person actually talking. Real speech is shorter than written prose: it contracts, trails off, interrupts itself, and leaves things unsaid. Nobody delivers a monologue in conversation.
 Avoid: Lines that sound like a novel's narration rather than speech. Naming an emotion instead of showing it. Filling a reply with description when something should happen.`
@@ -225,7 +229,11 @@ func BuildSystem(c Character, p Persona) string {
 	sub := func(s string) string { return Substitute(s, c.Name, userName) }
 
 	var b strings.Builder
-	b.WriteString(strings.TrimSpace(fillName(framingStructure, c.Name)))
+	// Substituted rather than filled by position. Every slot used to be the same
+	// marker, so the one meant for the user took the character's name and the
+	// framing read "write Vesper's words only, never narrate Vesper's words":
+	// the instruction that matters most, saying the opposite of itself.
+	b.WriteString(strings.TrimSpace(Substitute(framingStructure, charOr(c.Name), userName)))
 	b.WriteString("\n\nHOW TO WRITE IT\n")
 	// Substituted like everything else. A style is written once and applied to
 	// every character, so "{{char}} never uses contractions" is exactly the
@@ -281,15 +289,14 @@ func allInstructions(c Character, p Persona) string {
 	return strings.Join(parts, "\n")
 }
 
-// fillName puts the character's name everywhere the framing template asks for
-// it. A tiny helper rather than fmt.Sprintf so the template can gain or lose a
-// slot without anyone having to remember to change a count, and so a mismatch
-// can never print %!s(MISSING) into a system prompt.
-func fillName(tmpl, name string) string {
-	if name == "" {
-		name = "the character"
+// charOr is the character's name, or a stand-in when a card has none. A prompt
+// that says "roleplaying as ." reads as a mistake to a model as much as to a
+// person.
+func charOr(name string) string {
+	if strings.TrimSpace(name) == "" {
+		return "the character"
 	}
-	return strings.ReplaceAll(tmpl, "%s", name)
+	return name
 }
 
 // exampleTurns parses a card's mes_example into real messages. The spec's
@@ -472,7 +479,8 @@ func BuildMessages(c Character, sc Scene) []ollama.Message {
 			Role: ollama.RoleSystem,
 			Content: "Earlier in this scene. These are notes, not prose: they are written plainly " +
 				"on purpose and are not an example of how to write. Treat all of it as " +
-				"established fact, and do not copy the way it is written.\n" +
+				"established fact, and do not copy the way it is written. It names everyone, " +
+				"including " + userName + ", who is you in the scene itself.\n" +
 				Substitute(r, c.Name, userName),
 		})
 	}

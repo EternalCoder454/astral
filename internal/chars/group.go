@@ -39,6 +39,7 @@ They talk to each other, not only to %[3]s. Let them disagree, interrupt, answer
 
 WHAT TO WRITE
 Write only the words and actions of the characters listed below. Never write, decide, or narrate %[3]s's words, thoughts, or actions, wait for them.
+You are writing to %[3]s, not about them. Call them you: *She did not look up as you came in*, never *as %[3]s came in*, and your sister rather than her sister.
 Do not summarize the scene, do not skip ahead in time, and do not end the scene on your own.
 
 FORMATTING. Inside a beat, every sentence you write is one of exactly two things, and there is no third kind:
@@ -205,7 +206,9 @@ func GroupAnchor(cast []Character, sc Scene, userName string) string {
 	b.WriteString(strings.Join(names, ", "))
 	b.WriteString(". Never write, decide or narrate ")
 	b.WriteString(userName)
-	b.WriteString("'s words, thoughts or actions.\n\n")
+	b.WriteString("'s words, thoughts or actions. Write to ")
+	b.WriteString(userName)
+	b.WriteString(" as you, never by name and never as he or she.\n\n")
 
 	b.WriteString("WHO SPEAKS. Start every beat with the speaker's name and a colon, like \"")
 	b.WriteString(names[0])
