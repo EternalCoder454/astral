@@ -964,3 +964,30 @@ frame:focus-within {
 	font-size: 1.45em;
 	font-weight: 700;
 }
+
+/*
+ * Dragging an image onto a design chat.
+ *
+ * The veil covers the whole chat rather than outlining the composer, because
+ * the drop is accepted anywhere in it: an indicator on one small target would
+ * be describing a rule that is not the rule.
+ *
+ * Nothing here can be dropped on. The revealer is can-target false in code,
+ * which is the half of this that matters and cannot be said in CSS.
+ */
+.drop-veil {
+	background-color: alpha(@astral_canvas, 0.88);
+}
+
+.drop-card {
+	padding: 26px 34px;
+	border-radius: 14px;
+	border: 2px dashed alpha(@accent_bg_color, 0.85);
+	background-color: @astral_surface;
+	color: @window_fg_color;
+}
+
+.drop-card-title {
+	font-size: 1.15em;
+	font-weight: 700;
+}

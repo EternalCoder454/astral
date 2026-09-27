@@ -161,6 +161,9 @@ func (a *App) runDevView() {
 			}
 		case "demo":
 			a.devDemoScene()
+		case "drop":
+			a.devDemoScene()
+			a.chat.DevShowDrop(arg == "refused")
 		case "rowmenu":
 			a.devRowMenu()
 		case "measure":

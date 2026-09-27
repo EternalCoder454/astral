@@ -80,6 +80,19 @@ func (a *App) importImage(src, prefix string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not read that file: %w", err)
 	}
+	return a.importImageBytes(data, prefix)
+}
+
+// importImageBytes is the same for an image that never was a file: one pasted
+// from the clipboard, or dropped out of a browser, which arrives as pixels.
+func (a *App) importImageBytes(data []byte, prefix string) (string, error) {
+	if len(data) == 0 {
+		return "", fmt.Errorf("that image was empty")
+	}
+	if len(data) > maxImageBytes {
+		return "", fmt.Errorf("that image is %d MB; the limit is %d MB",
+			len(data)>>20, maxImageBytes>>20)
+	}
 
 	// WebP and friends become PNG here. Ollama's vision path expects PNG or
 	// JPEG, and showing a WebP needs a gdk-pixbuf loader that is a separate

@@ -121,8 +121,18 @@ type ChatView struct {
 	// from something you have rather than something you can describe.
 	attachPath string
 	attachBtn  *gtk.Button
-	attachChip *gtk.Box
-	attachName *gtk.Label
+	// canAttach mirrors the attach button's visibility, because pasting and
+	// dropping have to answer the same question the button does and a hidden
+	// widget is a poor place to keep the answer.
+	canAttach bool
+	// The drop indicator: a veil over the whole chat while a file is held over
+	// it, saying what will happen to it or why nothing will.
+	dropRevealer *gtk.Revealer
+	dropTitle    *gtk.Label
+	dropHint     *gtk.Label
+	root         *gtk.Overlay
+	attachChip   *gtk.Box
+	attachName   *gtk.Label
 	// lastImage is the most recent image sent in this chat, offered as the
 	// character's portrait when the card is built.
 	lastImage string
@@ -207,6 +217,11 @@ type ChatView struct {
 	// OnAttachImage asks the app to choose an image. The app calls
 	// AttachImage with the result.
 	OnAttachImage func()
+	// OnImageFile is an image dropped on the chat as a file on disk, and
+	// OnImageBytes is one pasted or dropped as pixels with no file behind it.
+	// Both end the same way, with the app calling AttachImage.
+	OnImageFile  func(path string)
+	OnImageBytes func(data []byte)
 	// OnEditDirection is the direction chip being clicked. The dialog lives in
 	// the app layer, like the other editors.
 	OnEditDirection func()
@@ -264,13 +279,17 @@ func NewChatView(client *ollama.Client, st *store.Store, cfg store.Config) *Chat
 	c.widget.Append(c.scroll)
 
 	c.widget.Append(c.buildComposer())
-	// After the composer exists, because it is the thing keys are sent to.
+	// Both of these need the composer, which is what a key ends up in.
 	typingGoesToComposer(c.scroll, c.composer)
+	c.pasteImageIntoComposer()
+
+	c.root = c.buildDropOverlay(c.widget)
+	c.installImageDrop(c.root)
 	return c
 }
 
 // Widget returns the panel's root widget.
-func (c *ChatView) Widget() gtk.Widgetter { return c.widget }
+func (c *ChatView) Widget() gtk.Widgetter { return c.root }
 
 // SetConfig updates the sampling and display settings used for the next turn.
 func (c *ChatView) SetConfig(cfg store.Config) {
@@ -1090,6 +1109,7 @@ func (c *ChatView) LastImage() string { return c.lastImage }
 // SetCanAttachImages shows or hides the attach control. The app decides, since
 // it is the one that knows whether the model can see.
 func (c *ChatView) SetCanAttachImages(can bool) {
+	c.canAttach = can
 	if c.attachBtn != nil {
 		c.attachBtn.SetVisible(can)
 	}

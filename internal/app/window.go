@@ -199,6 +199,25 @@ func (a *App) buildCenter() {
 			a.chat.AttachImage(path)
 		})
 	}
+	// Dropped on the chat, or pasted into it. Both go through the same importer
+	// the file chooser uses, so a dropped WebP is converted and a truncated one
+	// is refused here rather than three steps later.
+	a.chat.OnImageFile = func(path string) {
+		saved, err := a.importImage(path, "reference")
+		if err != nil {
+			a.toast(err.Error())
+			return
+		}
+		a.chat.AttachImage(saved)
+	}
+	a.chat.OnImageBytes = func(data []byte) {
+		saved, err := a.importImageBytes(data, "reference")
+		if err != nil {
+			a.toast(err.Error())
+			return
+		}
+		a.chat.AttachImage(saved)
+	}
 
 	a.stack = gtk.NewStack()
 	a.stack.SetTransitionType(gtk.StackTransitionTypeCrossfade)
