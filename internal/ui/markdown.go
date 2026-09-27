@@ -243,10 +243,29 @@ func quoteSpan(m string) string {
 	}
 	if strings.HasPrefix(m, "\u201c") {
 		inner := strings.TrimSuffix(strings.TrimPrefix(m, "\u201c"), "\u201d")
-		return "\u201c" + `<span weight="600">` + inner + "</span>\u201d"
+		return "\u201c" + `<span weight="600">` + emphasise(inner) + "</span>\u201d"
 	}
 	open, close := m[:1], m[len(m)-1:]
-	return open + `<span weight="600">` + m[1:len(m)-1] + `</span>` + close
+	return open + `<span weight="600">` + emphasise(m[1:len(m)-1]) + `</span>` + close
+}
+
+// emphasise applies the inline markers inside a line of speech.
+//
+// Speech was the one place they were never applied. Narration ran all four
+// rules and the plain renderer ran three, but anything between quotation marks
+// went through untouched, so a model writing `"I said it was **drawn**"` got
+// its asterisks shown instead of the word weighted, in the middle of a
+// sentence where every other marker worked.
+//
+// Marked words are emphasis here rather than narration: inside speech the
+// asterisks are the speaker leaning on a word, not the author stepping outside
+// the quotation, so they become italic instead of the narration style.
+func emphasise(s string) string {
+	s = mdCode.ReplaceAllString(s, "<tt>$1</tt>")
+	s = mdBold.ReplaceAllString(s, "<b>$1</b>")
+	s = mdItalic.ReplaceAllString(s, "<i>$1</i>")
+	s = mdUnder.ReplaceAllString(s, "<i>$1</i>")
+	return s
 }
 
 // Snippet collapses a message to a single line for the sidebar, stripping the

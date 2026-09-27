@@ -79,7 +79,7 @@ function renderReply(text) {
 	for (const m of s.matchAll(QUOTE)) {
 		if (within(marked, m.index, m.index + m[0].length)) continue;
 		out += narration(s.slice(last, m.index));
-		out += m[0][0] + '<span class="speech">' + m[0].slice(1, -1) + "</span>" + m[0].slice(-1);
+		out += m[0][0] + '<span class="speech">' + emphasise(m[0].slice(1, -1)) + "</span>" + m[0].slice(-1);
 		last = m.index + m[0].length;
 	}
 	return out + narration(s.slice(last));
@@ -90,7 +90,9 @@ function narration(s) {
 	const lead = s.slice(0, s.length - s.trimStart().length);
 	const trail = s.slice(s.trimEnd().length);
 	const inner = s.slice(lead.length, s.length - trail.length)
-		.replace(/\*\*([^*]+)\*\*/g, "$1")
+		// Bold survives inside narration, as it does on the desktop. Stripping
+		// it here meant the same reply read differently on the two screens.
+		.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
 		.replace(/\*([^*]+)\*/g, "$1")
 		.replace(/_([^_]+)_/g, "$1");
 	return lead + '<span class="narration">' + inner + "</span>" + trail;
@@ -105,10 +107,24 @@ function renderOwn(text) {
 	for (const m of s.matchAll(QUOTE)) {
 		if (within(marked, m.index, m.index + m[0].length)) continue;
 		out += asWritten(s.slice(last, m.index));
-		out += m[0][0] + '<span class="speech">' + m[0].slice(1, -1) + "</span>" + m[0].slice(-1);
+		out += m[0][0] + '<span class="speech">' + emphasise(m[0].slice(1, -1)) + "</span>" + m[0].slice(-1);
 		last = m.index + m[0].length;
 	}
 	return out + asWritten(s.slice(last));
+}
+
+// emphasise applies the inline markers inside a line of speech.
+//
+// Speech was the one place they were never applied, on either screen: a reply
+// written as "I said it was **drawn**" showed its asterisks in the middle of a
+// sentence where every other marker worked. Inside speech a marked word is the
+// speaker leaning on it, not the author stepping outside the quotation, so it
+// is emphasis rather than the narration style.
+function emphasise(s) {
+	return s
+		.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+		.replace(/\*([^*]+)\*/g, "<em>$1</em>")
+		.replace(/_([^_]+)_/g, "<em>$1</em>");
 }
 
 function asWritten(s) {

@@ -255,3 +255,47 @@ func TestTheTwoRoleplayModesDifferOnlyOnUnmarkedText(t *testing.T) {
 		}
 	}
 }
+
+// Speech was the one run of text the inline rules never touched, so a model
+// writing a weighted word inside dialogue got its asterisks shown. Narration
+// either side of the same sentence rendered correctly, which is what made it
+// look like a model problem rather than a renderer one.
+func TestMarkersInsideSpeechAreRendered(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"bold", `"I said it was **drawn**."`, "<b>drawn</b>"},
+		{"italic", `"I said it was *drawn*."`, "<i>drawn</i>"},
+		{"underscore", `"I said it was _drawn_."`, "<i>drawn</i>"},
+		{"code", "\"Run `make` first.\"", "<tt>make</tt>"},
+		{"curly quotes", "“It was **drawn**.”", "<b>drawn</b>"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, mode := range []Prose{Roleplay, RoleplayAsWritten} {
+				got := Markup(tc.in, mode)
+				if !strings.Contains(got, tc.want) {
+					t.Errorf("mode %d: want %q in %q", mode, tc.want, got)
+				}
+				// The markers themselves must be gone, or the reader sees both
+				// the styling and the punctuation that asked for it.
+				for _, marker := range []string{"**", "*", "_", "`"} {
+					if strings.Contains(got, marker) {
+						t.Errorf("mode %d: marker %q left in %q", mode, marker, got)
+					}
+				}
+			}
+		})
+	}
+}
+
+// Narration and speech have to agree about bold, or the same word reads
+// differently depending on which side of a quotation mark it fell on.
+func TestBoldWorksOnBothSidesOfAQuotation(t *testing.T) {
+	got := Markup(`*She was **certain**.* "It was **drawn**."`, Roleplay)
+	if n := strings.Count(got, "<b>"); n != 2 {
+		t.Errorf("want bold on both sides, got %d in %q", n, got)
+	}
+}
