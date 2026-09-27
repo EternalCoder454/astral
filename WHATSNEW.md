@@ -4,15 +4,11 @@ This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
 ## 0.4.8
-- Ask a designer to rewrite a character, a world or a style you already have
-- Swipe a character or world aside on your phone to delete it
-
-## 0.4.8
-- Settings and the character editor show twice as much at once, and read more clearly
 - Every character has a page now: their world, their scenes, and who they know
 - Say how two characters know each other, and a scene with both of them is told
+- Ask a designer to rewrite a character, a world or a style you already have
+- Settings and the character editor show twice as much at once
 - Two new character fields: Appearance, and how they talk
-- Ask the designer to rewrite a character you already have, keeping their scenes
 - Drag the sidebar to the width you want, and its buttons are centred
 - Swipe a character or world aside on your phone to delete it
 
