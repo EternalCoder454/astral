@@ -6,6 +6,7 @@ heading, a few plain lines each. The detailed history is in the git log.
 ## 0.4.9
 - A quoted word inside *narration* no longer breaks the italics around it
 - Your own **bold** shows as bold on your phone
+- General Chat answers straight, without the preamble and the bulleted headings
 
 ## 0.4.8
 - Every character has a page now: their world, their scenes, and who they know
