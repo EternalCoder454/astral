@@ -3,6 +3,14 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.11
+- Phone: swipe to delete stays open, and no red strip shows under rows
+- Phone: replies keep their italics when they finish, and designer chats read as plain text
+- Phone: a popup offers each new app version, and Settings text no longer runs off the edge
+- Phone: portrait scenes show more of the picture, and you can switch personas in Settings
+- Phone: the keyboard and the status bar no longer cover the app on Android 15
+- Every hint on the desktop is one short sentence, and every heading a proper title
+
 ## 0.5.10
 - Long text boxes scroll on their own, so typing at the end of a long writing style stays in view
 
