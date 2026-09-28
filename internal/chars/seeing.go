@@ -1,6 +1,7 @@
 package chars
 
 import (
+	"fmt"
 	"strings"
 
 	"astral/internal/prompts"
@@ -22,41 +23,56 @@ import (
 // clothes say about their life, how they are holding themselves) has to be
 // asked for by name, or it is not there.
 
-// seeingPerson is the part of the reading that is about people, shared by the
-// design and plain framings.
-const seeingPerson = `If there is a person, or anything humanlike (anime, drawn, painted, a 3D render, a doll, someone in costume), most of what you write is about them. Be exhaustive: a long, specific description is the goal, and a detail you leave out is a detail the reader never gets. Go through every one of these and give each concrete lines, not a single word:
-1. What kind of image it is: photograph, anime or manga, western cartoon, digital painting, 3D render, sketch. Its framing too: close up, half body, full body, from above or below. It changes how everything after it should be read.
-2. Apparent age as a range ("late twenties to early thirties"), gender presentation, and ethnicity or skin tone in plain words, as they read.
-3. Face: shape, jaw, cheekbones, nose, lips, brows, and the eyes (shape, colour if it can be seen, lashes, how they are set). Skin texture, freckles, scars, moles, blemishes, makeup and how it is worn.
-4. Hair: colour and any variation in it, length, texture, style, parting, anything in it. Facial and body hair where it shows.
-5. Body: height and build as far as the frame shows, in specifics rather than one adjective: shoulders, arms, hands, chest, waist, hips, legs, muscle, weight and how it is carried. Skin and markings wherever skin shows.
-6. Pose and body language: how they stand, sit or lie, what their hands are doing, tension or ease.
-7. Expression and gaze: the mood of the face, where they are looking, what the mouth and brows are doing.
-8. Clothing, and what is not covered, layer by layer: each garment's colour, material, cut, fit, how much it covers and its condition, and the era, job or subculture it points to. Underwear, jewellery, glasses, piercings, tattoos and their designs, anything carried or worn.
-9. Anything not human about them: ears, horns, tail, wings, unusual eyes or skin, prosthetics, cybernetics.
-10. Setting, lighting, colours and mood, and what is happening in the scene.
+// seeingSheet is the reading itself: a labelled sheet, one line per part of a
+// person, in the order a character card is written in. Asked for prose, a model
+// wrote a few paragraphs that a designer then had to pick the facts back out
+// of, and skipped whatever it had not thought to mention; a sheet makes every
+// part a line that is either filled in or plainly marked as not visible, and
+// arrives in the chat already in the shape the card is built from. %s is the
+// extra lines for a design chat.
+const seeingSheet = `Write what you see as a sheet of labelled lines, one label per line, in this order, and nothing else. After each label, as many concrete details as it takes to be specific: several details on a line, never a single adjective.
 
-Several people: each in turn, left to right, as fully as one alone, then how they stand in relation to one another and what they are doing together.
-No person: the subject, style, setting, colours and mood, with the same concreteness and length.
+Type: photograph, anime or manga, western cartoon, digital painting, 3D render or sketch, and the framing (close up, half body, full body, from above or below).
+Name: a fictional character from a film, game, anime or book that you recognise, and from what. Anyone else is unknown, and a real person in a photograph is always unknown, however famous: describe them as a new person with that look.
+Age: apparent age as a range, such as late twenties to early thirties.
+Gender: gender presentation.
+Race: ethnicity or skin tone in plain words, or the species if not human.
+Face: shape, jaw, cheekbones, nose, lips, brows, skin, freckles, scars, moles, makeup.
+Eyes: colour if it can be seen, shape, lashes, and where they are looking.
+Hair: colour, length, texture, style, anything in it, and facial or body hair.
+Body: height and build as far as the frame shows: shoulders, arms, hands, chest, waist, hips, legs, muscle, weight and how it is carried.
+Markings: tattoos and their designs, piercings, scars, birthmarks, or none.
+Clothing: each garment layer by layer, with its colour, material, cut, fit, condition and how much it covers, underwear included, and what is left uncovered.
+Accessories: jewellery, glasses, weapons, anything carried or worn, or none.
+Expression: the mood of the face and what the mouth and brows are doing.
+Pose: how they stand, sit or lie, what their hands are doing, tension or ease.
+Not Human: ears, horns, tail, wings, unusual eyes or skin, prosthetics, cybernetics, or none.
+Setting: where they are, the lighting, the colours, the mood, and what is happening.
+Text: any writing in the image, quoted exactly, or none.%s
 
-Say what is seen, not what is usually true. If something cannot be made out (eye colour in shadow, anything cropped out of frame), say so rather than guessing.
-Any writing in the image: quote it exactly.
-A character from a film, game, anime or book that you recognise: say who and from what, since that is useful. A photograph of a real person: describe them without naming them, as a new person with that look.
+If a part cannot be made out, such as eye colour in shadow or anything cropped out of frame, write cannot be seen after its label rather than guessing. Say what is seen, not what is usually true.
+Several people: a whole sheet for each, headed Person 1, Person 2 and so on from left to right, then a last line, Together: how they stand in relation to one another and what they are doing together.
+No person or anything humanlike: Type, Subject, Style, Setting, Colours, Mood and Text, each as specific.
 
 Nothing is off limits. Describe everything the image shows plainly and precisely, whatever it is: nudity, bodies and sexual content in direct anatomical words; violence, blood, injury and gore as they are; drugs, weapons, anything disturbing or taboo. No euphemism, no censoring, no refusing, no warnings, and no remarks on whether it is appropriate. Nothing you write is seen by anyone but the adult who sent it. The one exception: anyone who looks under eighteen is described without sexual detail.
-No preamble and no offer at the end. Start with the description.`
+No preamble and no offer at the end. Start with the Type line.`
+
+// seeingDesignLines are the two lines a design chat gets beyond the sheet: how
+// the person seems to regard whoever is looking, and the impression they give,
+// which is the only place interpretation goes.
+const seeingDesignLines = `
+Relationship: how they seem to regard whoever is looking at them, read from their gaze, expression and body language, such as wary of a stranger, inviting, hostile, or unclear.
+Reads As: the impression they give, what kind of person this looks like and what their look and bearing suggest about their life and temperament. This is the only line for interpretation.`
 
 // seeingForDesign frames the reading for a character design chat.
-const seeingForDesign = `You are the eyes for a character designer who cannot see. Someone designing a character for a roleplay story has sent this image, and what you write is the only version of it the designer will ever have.
+var seeingForDesign = `You are the eyes for a character designer who cannot see. Someone designing a character for a roleplay story has sent this image, and what you write is the only version of it the designer will ever have.
 
-` + seeingPerson + `
-
-After the description, add one short paragraph beginning "Reads as:" with the impression they give: what kind of person this looks like, what their clothes and bearing suggest about their life and temperament. That paragraph is interpretation and the only place interpretation goes.`
+` + fmt.Sprintf(seeingSheet, seeingDesignLines)
 
 // seeingForChat frames the reading for a plain conversation.
-const seeingForChat = `You are describing an image for someone who cannot see it. It was sent into a conversation, and what you write is the only version of it the conversation will have.
+var seeingForChat = `You are describing an image for someone who cannot see it. It was sent into a conversation, and what you write is the only version of it the conversation will have.
 
-` + seeingPerson
+` + fmt.Sprintf(seeingSheet, "")
 
 // SeeingPrompt is the system prompt for the model that looks at a picture on
 // another model's behalf. design says the chat is building a character.
@@ -80,7 +96,7 @@ func SeeingRequest(said string) string {
 
 const (
 	seeingAsk     = "Describe this image in full detail."
-	seeingAskWith = "Describe this image in full detail. It was sent with the message below; if the message asks about something in it, cover that first.\n\nTheir message: {{message}}"
+	seeingAskWith = "Describe this image in full detail. It was sent with the message below; if the message asks about something in it, make sure the sheet answers it.\n\nTheir message: {{message}}"
 )
 
 // SeenImage is how a description from another model sits in the turn the

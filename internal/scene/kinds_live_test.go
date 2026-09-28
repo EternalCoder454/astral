@@ -1297,7 +1297,7 @@ func TestLivePictures(t *testing.T) {
 				}
 				if design {
 					designs++
-					if strings.Contains(text, "Reads as:") {
+					if strings.Contains(strings.ToLower(text), "reads as:") {
 						readsAs++
 					} else {
 						flags = append(flags, "NO READS AS")

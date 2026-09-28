@@ -28,7 +28,12 @@ what is actually there. Plain chats take pictures too.
 
 The model you are talking to does not need to be able to see. When it cannot,
 a model that can looks at the picture first and writes down what it shows,
-and that description goes into the conversation in its place. Which model
+and that description goes into the conversation in its place. It writes it as
+a sheet, one labelled line per part, in the order a card is built from: Type,
+Name, Age, Gender, Race, Face, Eyes, Hair, Body, Markings, Clothing,
+Accessories, Expression, Pose, Not Human, Setting and Text, and in a design
+chat Relationship and Reads As. Anything it cannot make out says so, and a real
+person in a photograph is never named. Which model
 looks is **Settings, Image Model**: Automatic picks the chat's own model when
 it can see, and otherwise the largest one that can and that fits in video
 memory by itself. Whatever is loaded is set aside while it looks and comes back
