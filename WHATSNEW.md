@@ -3,6 +3,14 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.24
+- Stock phrases like "a shiver ran down her spine" and "smirk" are cut out of replies as they are written
+- Continue this reply no longer writes the whole reply out again on Gemma-based models such as SOMPOA
+- Where and When keeps up with the scene by itself after each reply, until you write your own
+- Phone: a reply that finishes while the phone is put away sends a notification, once the app updates
+- Phone: the screen stays on while a reply is written, and a light tap says it has arrived
+- Phone: swipe the last reply sideways to go between its versions, or past the newest for another
+
 ## 0.5.23
 - Widening a narrowed window no longer opens an empty dark panel down the right side
 - A sidebar or portrait you closed stays closed when the window is narrowed and widened again
