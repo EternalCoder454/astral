@@ -3,6 +3,12 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.17
+- Phone: replies show their italics paragraph by paragraph as they arrive, not all at the end
+- Phone: characters' pictures in the lists, and search finds chats by anything said in them
+- Long chats open three times faster on the desktop, and older messages load as you scroll up
+- General Chat's key rules are protected from the Prompt Optimizer
+
 ## 0.5.16
 - Characters have Age, Gender, Race, Occupation and Relationship to You fields, filled by the designer
 - New Persona in New Chat opens the Persona Creator, and the list there is labels only
