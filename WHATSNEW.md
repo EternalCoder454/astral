@@ -3,6 +3,13 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.3
+- Prompt Optimizer: a design chat that improves any of Astral's prompts, or one of your own
+- It can read every prompt Astral sends, and the last request of each kind exactly as it went out
+- Prompts in the sidebar: read every prompt, change it by hand, or put the original back
+- Your version of a prompt is used everywhere that prompt is sent
+- Revising a writing style no longer turns into designing a new one after the first reply
+
 ## 0.5.2
 - Writing a reply again keeps the old one: arrows under it flip between every version
 - Search your chats by anything said in them, from the box over the chat list (Ctrl+F)
