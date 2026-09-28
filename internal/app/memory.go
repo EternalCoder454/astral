@@ -40,13 +40,25 @@ func (a *App) editMemory() {
 
 	// Where and when the scene is now, in a line sent every turn.
 	nowOuter, nowCard := groupCard("")
+	oldSetting, oldAuto := a.chat.Setting()
 	setting := gtk.NewEntry()
-	setting.SetText(a.chat.Setting())
+	setting.SetText(oldSetting)
 	setting.SetPlaceholderText("Her flat, two in the morning, rain on the windows")
 	setting.SetMaxLength(chars.SettingChars)
 	setting.SetHExpand(true)
 	suggest := gtk.NewButtonWithLabel("Suggest")
 	suggest.SetTooltipText("Have the model say where and when the scene is now")
+	// Kept up to date by Astral after each reply until you write your own,
+	// and then left alone unless this is switched back on.
+	auto := gtk.NewSwitch()
+	auto.SetActive(oldAuto)
+	auto.SetVAlign(gtk.AlignCenter)
+	suggesting := false
+	setting.ConnectChanged(func() {
+		if !suggesting {
+			auto.SetActive(false)
+		}
+	})
 	suggest.ConnectClicked(func() {
 		suggest.SetSensitive(false)
 		suggest.SetLabel("Thinking…")
@@ -58,7 +70,9 @@ func (a *App) editMemory() {
 				return
 			}
 			if line != "" {
+				suggesting = true
 				setting.SetText(line)
+				suggesting = false
 			}
 		})
 	})
@@ -67,6 +81,14 @@ func (a *App) editMemory() {
 	nowRow.Append(suggest)
 	nowCard.Append(labelledField("Where and When",
 		"Sent every turn, so the scene keeps track of the room it is in.", nowRow))
+	autoRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	autoLabel := gtk.NewLabel("Update as the Scene Moves")
+	autoLabel.SetXAlign(0)
+	autoLabel.SetHExpand(true)
+	autoLabel.SetTooltipText("Astral rewrites this line after each reply; writing your own turns it off")
+	autoRow.Append(autoLabel)
+	autoRow.Append(auto)
+	nowCard.Append(autoRow)
 	page.Append(nowOuter)
 
 	recap, upto := a.chat.Recap()
@@ -102,7 +124,6 @@ func (a *App) editMemory() {
 	header.PackStart(cancel)
 	save := gtk.NewButtonWithLabel("Save")
 	save.AddCSSClass("suggested-action")
-	oldSetting := a.chat.Setting()
 	save.ConnectClicked(func() {
 		text := strings.TrimSpace(textOf(view))
 		changed := false
@@ -113,8 +134,8 @@ func (a *App) editMemory() {
 			}
 			changed = true
 		}
-		if now := strings.TrimSpace(setting.Text()); now != oldSetting {
-			if err := a.chat.SetSetting(now); err != nil {
+		if now := strings.TrimSpace(setting.Text()); now != oldSetting || auto.Active() != oldAuto {
+			if err := a.chat.SetSetting(now, auto.Active()); err != nil {
 				a.toast("Could not save where and when: " + err.Error())
 				return
 			}

@@ -480,6 +480,13 @@ html, body {
 .draft:active { transform: scale(0.92); }
 .draft:disabled { opacity: 0.45; }
 
+/* A reply follows a sideways swipe a little, and springs back. Vertical
+   scrolling stays the browser's. */
+.msg:not(.from-user) .bubble {
+	touch-action: pan-y;
+	transition: transform 160ms ease;
+}
+
 /* The reply being read aloud, so it is plain which one the voice is on. */
 .msg.reading .bubble {
 	outline: 2px solid color-mix(in srgb, var(--md-primary) 70%, transparent);
@@ -952,6 +959,17 @@ a.row { text-decoration: none; }
 	margin: 4px 4px 0;
 }
 .msg.from-user.hidden-msg::after { text-align: right; }
+
+.sheet-check {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 40px;
+	font-size: 0.9rem;
+	color: var(--md-on-surface-variant);
+}
+
+.sheet-check input { width: 20px; height: 20px; accent-color: var(--md-primary); }
 
 .sheet-chips {
 	display: flex;

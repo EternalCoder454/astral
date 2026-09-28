@@ -1044,6 +1044,7 @@ async function waitForReply(chatId) {
 				continue; // still out of reach; keep waiting
 			}
 			if (!chat.writing) {
+				nativeReply("done", chatId, chat.who || chat.title || "Astral", "");
 				if (current?.id === chatId && !streamingIn.has(chatId)) showChat(chat);
 				return;
 			}
@@ -1089,7 +1090,53 @@ function bubble(role, content, speaker, accent, id, versions, version) {
 	});
 	wrap.append(b);
 	if (versions > 1) addPager(wrap, versions, version || 0);
+	if (role !== "user") swipeVersions(wrap, b);
 	return wrap;
+}
+
+// swipeVersions lets the last reply be swiped sideways, the way every other
+// roleplay app does it: left for the next version, or past the newest for
+// another one written, right for the one before. Only the last reply, as the
+// arrows are only there, and only a clearly sideways swipe, so reading
+// down the chat is never taken for one.
+function swipeVersions(wrap, b) {
+	let x0 = 0, y0 = 0, tracking = false, sideways = false;
+	b.addEventListener("touchstart", (e) => {
+		if (e.touches.length !== 1 || wrap !== $("transcript").lastElementChild || busyHere()) return;
+		x0 = e.touches[0].clientX;
+		y0 = e.touches[0].clientY;
+		tracking = true;
+		sideways = false;
+	}, { passive: true });
+	b.addEventListener("touchmove", (e) => {
+		if (!tracking) return;
+		const dx = e.touches[0].clientX - x0, dy = e.touches[0].clientY - y0;
+		if (!sideways && Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx)) { tracking = false; return; }
+		if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy) * 1.5) sideways = true;
+		if (sideways) {
+			b.style.transition = "none";
+			b.style.transform = "translateX(" + Math.max(-60, Math.min(60, dx / 2)) + "px)";
+		}
+	}, { passive: true });
+	const end = (e) => {
+		if (!tracking) return;
+		tracking = false;
+		b.style.transition = "";
+		b.style.transform = "";
+		if (!sideways) return;
+		const dx = (e.changedTouches?.[0]?.clientX ?? x0) - x0;
+		if (Math.abs(dx) < 70) return;
+		const v = wrap._versions;
+		if (dx > 0) {
+			if (v && v.at() > 0) v.go(v.at() - 1);
+		} else if (v && v.at() < v.count - 1) {
+			v.go(v.at() + 1);
+		} else {
+			regenerate();
+		}
+	};
+	b.addEventListener("touchend", end);
+	b.addEventListener("touchcancel", () => { tracking = false; b.style.transform = ""; });
 }
 
 // addPager puts the arrows under a reply that was written more than once,
@@ -1130,6 +1177,8 @@ function addPager(wrap, versions, version) {
 	};
 	prev.addEventListener("click", (e) => { e.stopPropagation(); go(at - 1); });
 	next.addEventListener("click", (e) => { e.stopPropagation(); go(at + 1); });
+	// For a swipe on the reply itself; see swipeVersions.
+	wrap._versions = { go, at: () => at, count: versions };
 	pager.append(prev, label, next);
 	show();
 	wrap.append(pager);
@@ -1274,6 +1323,7 @@ function scrollDown(smooth = true) {
 async function send(text) {
 	if (!current || busyHere()) return;
 	stopSpeaking();
+	if (inApp() && typeof window.AstralApp.tick === "function") window.AstralApp.tick();
 	document.querySelector("#transcript .empty-chat")?.remove();
 	const mine = bubble("user", text);
 	$("transcript").append(mine);
@@ -1351,6 +1401,8 @@ async function stream(path, requestBody, mine) {
 	const here = () => current?.id === chatId;
 	streamingIn.add(chatId);
 	setComposerBusy(true);
+	const who = current.who || current.title || "Astral";
+	nativeReply("start", chatId, who);
 	const settle = () => {
 		streamingIn.delete(chatId);
 		if (here()) setComposerBusy(false);
@@ -1493,6 +1545,9 @@ async function stream(path, requestBody, mine) {
 	settle();
 	final = true;
 	body.classList.remove("dots");
+	// Dropped means the PC is still writing: the app goes on waiting for it,
+	// and announces it if the phone is put away before it lands.
+	if (outcome !== "dropped") nativeReply(outcome === "done" ? "done" : "failed", chatId, who, reply);
 
 	if (outcome === "dropped") {
 		// The PC is still writing it, or has stored it. Asking is how to
@@ -1778,6 +1833,17 @@ $("menu-cancel").addEventListener("click", () => { $("menu-sheet").hidden = true
 // own sheets do.
 for (const id of ["menu-sheet", "note-sheet", "memory-sheet", "persona-sheet"]) {
 	$(id).addEventListener("click", (e) => { if (e.target === $(id)) $(id).hidden = true; });
+}
+
+// nativeReply tells the Android app a reply has started or ended, so it keeps
+// the screen on while one is written, taps when it lands, and announces one
+// that finishes while the phone is put away. A browser has none of this.
+function nativeReply(what, chatId, who, text = "") {
+	if (!inApp() || typeof window.AstralApp.replyStarted !== "function") return;
+	try {
+		if (what === "start") window.AstralApp.replyStarted(String(chatId), who, token);
+		else window.AstralApp.replyEnded(what === "done", who, text || "");
+	} catch (_) {}
 }
 
 // ---- Read Aloud ----
@@ -2100,6 +2166,8 @@ async function openMemory() {
 	recap.disabled = !mem.covers;
 	$("memory-setting").value = mem.setting || "";
 	$("memory-setting").dataset.was = mem.setting || "";
+	$("memory-auto").checked = !!mem.setting_auto;
+	$("memory-auto").dataset.was = mem.setting_auto ? "1" : "";
 	const u = mem.usage;
 	if (u) {
 		const used = u.used + u.reply;
@@ -2149,6 +2217,8 @@ async function openMemory() {
 	$("memory-sheet").hidden = false;
 }
 $("memory-cancel").addEventListener("click", () => { $("memory-sheet").hidden = true; });
+// Writing your own line stops Astral rewriting it.
+$("memory-setting").addEventListener("input", () => { $("memory-auto").checked = false; });
 $("memory-suggest").addEventListener("click", async () => {
 	if (!current) return;
 	const b = $("memory-suggest");
@@ -2158,6 +2228,7 @@ $("memory-suggest").addEventListener("click", async () => {
 		const res = await api("/api/chats/" + current.id + "/setting/suggest", { method: "POST", body: "{}" });
 		const out = await res.json();
 		if (out.setting) $("memory-setting").value = out.setting;
+		// A suggested line is still Astral's, so keeping it up to date stays on.
 	} catch (e) {
 		toast(e.message);
 	} finally {
@@ -2170,6 +2241,7 @@ $("memory-save").addEventListener("click", async () => {
 	const body = {};
 	if (!$("memory-recap").disabled) body.recap = $("memory-recap").value;
 	if ($("memory-setting").value.trim() !== ($("memory-setting").dataset.was || "")) body.setting = $("memory-setting").value;
+	if ($("memory-auto").checked !== !!$("memory-auto").dataset.was) body.setting_auto = $("memory-auto").checked;
 	try {
 		await api("/api/chats/" + current.id + "/memory", {
 			method: "POST", body: JSON.stringify(body),

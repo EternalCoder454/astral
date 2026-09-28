@@ -212,7 +212,12 @@ func (c *ChatView) WriteForMe() {
 		defer cancel()
 		client.UseForReplies(ctx, model)
 		noThink := false
-		msg, _, err := client.Chat(ctx, model, msgs, opts, &noThink, func(d ollama.Delta) {
+		chat := func(ctx context.Context, m []ollama.Message, d func(ollama.Delta)) (ollama.Message, ollama.Stats, error) {
+			return client.Chat(ctx, model, m, opts, &noThink, d)
+		}
+		// Through the stock phrase filter: your turn deserves it as much as
+		// the character's.
+		msg, _, err := scene.Unslop(ctx, chat, msgs, func(d ollama.Delta) {
 			shown, _ := think.Next(d.Content)
 			mu.Lock()
 			if sofar.Len() < scene.DraftChars {
@@ -292,7 +297,10 @@ func (c *ChatView) rewriteMine(row *MessageRow) {
 		noThink := false
 		var think ollama.ThinkStream
 		var sofar strings.Builder
-		_, _, err := client.Chat(ctx, model, msgs, opts, &noThink, func(d ollama.Delta) {
+		chat := func(ctx context.Context, m []ollama.Message, d func(ollama.Delta)) (ollama.Message, ollama.Stats, error) {
+			return client.Chat(ctx, model, m, opts, &noThink, d)
+		}
+		_, _, err := scene.Unslop(ctx, chat, msgs, func(d ollama.Delta) {
 			shown, _ := think.Next(d.Content)
 			if sofar.Len() < scene.DraftChars*2 {
 				sofar.WriteString(shown)
@@ -464,18 +472,54 @@ func (c *ChatView) turnChip() *gtk.MenuButton {
 	return btn
 }
 
-// Setting is where and when this scene is now, in a line.
-func (c *ChatView) Setting() string { return c.chat.Setting }
+// Setting is where and when this scene is now, in a line, and whether Astral
+// keeps it up to date.
+func (c *ChatView) Setting() (string, bool) { return c.chat.Setting, c.chat.SettingAuto }
 
-// SetSetting stores where and when the scene is now. It is sent from the
-// next turn on.
-func (c *ChatView) SetSetting(setting string) error {
+// SetSetting stores where and when the scene is now, and whether Astral keeps
+// it up to date from here. It is sent from the next turn on.
+func (c *ChatView) SetSetting(setting string, auto bool) error {
 	setting = strings.TrimSpace(setting)
-	c.chat.Setting = setting
+	c.chat.Setting, c.chat.SettingAuto = setting, auto
 	if c.chat.ID == 0 {
 		return nil
 	}
+	if err := c.store.SetChatSettingAuto(c.chat.ID, auto); err != nil {
+		return err
+	}
 	return c.store.SetChatSetting(c.chat.ID, setting)
+}
+
+// maybeTrackSetting brings the scene's setting line up to date after a
+// reply, in the background lane, when Astral is keeping it. See
+// scene.TrackSetting.
+func (c *ChatView) maybeTrackSetting() {
+	if c.bg.running || c.chat.ID == 0 || !c.chat.SettingAuto || !c.canDraft() {
+		return
+	}
+	ctx, ok := c.bg.take("setting", 90*time.Second)
+	if !ok {
+		return
+	}
+	chatID := c.chat.ID
+	client, model := c.client, c.activeModel()
+	st, cfg, ch, cast, hist := c.store, c.cfg, c.chat, c.sceneCast(), c.history()
+	go func() {
+		line := scene.TrackSetting(ctx, client, st, cfg, ch, cast, hist, model)
+		coreglib.IdleAdd(func() bool {
+			c.bg.done()
+			// Only onto the chat it was worked out for, and only if nobody
+			// wrote their own in the meantime.
+			if line == "" || c.chat.ID != chatID || !c.chat.SettingAuto {
+				return false
+			}
+			if err := c.store.SetChatSetting(chatID, line); err != nil {
+				return false
+			}
+			c.chat.Setting = line
+			return false
+		})
+	}()
 }
 
 // Usage is how full the model's memory is on the next turn, and what with.

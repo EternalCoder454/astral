@@ -126,7 +126,11 @@ func (s *Server) handleDraft(w http.ResponseWriter, r *http.Request, d store.Dev
 	}
 	s.client().UseForReplies(ctx, model)
 	noThink := false
-	_, _, err = s.client().Chat(ctx, model, msgs, scene.DraftOptions(cfg, ch.Kind), &noThink, onDelta)
+	draftOpts := scene.DraftOptions(cfg, ch.Kind)
+	chat := func(ctx context.Context, m []ollama.Message, d func(ollama.Delta)) (ollama.Message, ollama.Stats, error) {
+		return s.client().Chat(ctx, model, m, draftOpts, &noThink, d)
+	}
+	_, _, err = scene.Unslop(ctx, chat, msgs, onDelta)
 	text := chars.CleanDraft(sofar.String(), userName)
 	if err != nil && !stopped() && text == "" {
 		send("error", map[string]string{"error": err.Error()})
@@ -246,9 +250,11 @@ func (s *Server) handleMemory(w http.ResponseWriter, r *http.Request, d store.De
 		Covers  bool     `json:"covers"`
 		Pins    []pinOut `json:"pins"`
 		Setting string   `json:"setting"`
+		// SettingAuto says Astral keeps the setting up to date.
+		SettingAuto bool `json:"setting_auto"`
 		// Usage is how full the model's memory is on the next turn.
 		Usage *scene.Usage `json:"usage,omitempty"`
-	}{Recap: ch.Summary, Covers: ch.SummaryUpto != 0, Pins: []pinOut{}, Setting: ch.Setting}
+	}{Recap: ch.Summary, Covers: ch.SummaryUpto != 0, Pins: []pinOut{}, Setting: ch.Setting, SettingAuto: ch.SettingAuto}
 	if hist, err := s.history(ch, castNames(cast)); err == nil {
 		u := scene.MeasureUsage(s.store, cfg, ch, castFor(cast, ca), hist)
 		out.Usage = &u
@@ -277,8 +283,9 @@ func (s *Server) handleSaveMemory(w http.ResponseWriter, r *http.Request, d stor
 	}
 	// Either or both: a scene too young for a record still has a setting.
 	var body struct {
-		Recap   *string `json:"recap"`
-		Setting *string `json:"setting"`
+		Recap       *string `json:"recap"`
+		Setting     *string `json:"setting"`
+		SettingAuto *bool   `json:"setting_auto"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256<<10)).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unreadable request"})
@@ -305,6 +312,12 @@ func (s *Server) handleSaveMemory(w http.ResponseWriter, r *http.Request, d stor
 	}
 	if body.Setting != nil {
 		if err := s.store.SetChatSetting(id, *body.Setting); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+	}
+	if body.SettingAuto != nil {
+		if err := s.store.SetChatSettingAuto(id, *body.SettingAuto); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
@@ -375,8 +388,11 @@ func (s *Server) handleRewriteMine(w http.ResponseWriter, r *http.Request, d sto
 	noThink := false
 	var think ollama.ThinkStream
 	var sofar strings.Builder
-	_, _, err = s.client().Chat(ctx, model, scene.Draft(s.store, cfg, ch, cast, hist, mine.Content),
-		scene.DraftOptions(cfg, ch.Kind), &noThink, func(d ollama.Delta) {
+	mineOpts := scene.DraftOptions(cfg, ch.Kind)
+	chat := func(ctx context.Context, m []ollama.Message, d func(ollama.Delta)) (ollama.Message, ollama.Stats, error) {
+		return s.client().Chat(ctx, model, m, mineOpts, &noThink, d)
+	}
+	_, _, err = scene.Unslop(ctx, chat, scene.Draft(s.store, cfg, ch, cast, hist, mine.Content), func(d ollama.Delta) {
 			shown, _ := think.Next(d.Content)
 			if sofar.Len() < scene.DraftChars*2 {
 				sofar.WriteString(shown)

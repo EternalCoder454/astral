@@ -409,3 +409,90 @@ func TestLivePacing(t *testing.T) {
 		t.Logf("%s: %d of %d replies ran ahead, %d narrated in the first person", arm, ahead, total, slips)
 	}
 }
+
+// slopWords is the wider measure: the banned phrases and the words that
+// travel with them, most of which are not banned because they have honest
+// uses. A filter that only moved the slop to its neighbours would show here.
+var slopWords = []string{"shiver", "barely above a whisper", "a mix of", "mixture of", "ministrations", "mischie",
+	"glint", "smirk", "breath hitch", "knowing smile", "wicked grin", "low chuckle", "testament to",
+	"pregnant pause", "ozone", "couldn't help but", "dripping with", "laced with", "eyes darken",
+	"the air is thick", "the air was thick", "electric", "predatory", "purr", "a beat", "for what felt like"}
+
+func slopCount(s string) int {
+	low := strings.ToLower(strings.ReplaceAll(s, "’", "'"))
+	n := 0
+	for _, w := range slopWords {
+		n += strings.Count(low, w)
+	}
+	return n
+}
+
+func TestLiveUnslop(t *testing.T) {
+	client, model := designModel(t)
+	st := liveStore(t)
+	cfg := store.DefaultConfig()
+	cfg.WebSearch = false
+	cfg.PersonaName = livePlayer
+	rep := newReport(t, "unslop.txt")
+	controlPrompts(t)
+	cfg.SetStyle(chars.WritingStyle{Name: "Long and Vivid", Instructions: "Length: Five to seven long paragraphs.\n" +
+		"Pacing: Keep the story moving. Something should happen in every reply, and the character acts on what they want.\n" +
+		"Description: Rich sensory detail, what things feel, smell and sound like.\n" +
+		"Dialogue: Natural, flirtatious where it fits."})
+	cfg.NumPredict = 2048
+	p := Persona(cfg)
+	ch := store.Chat{Kind: store.KindRoleplay}
+	one := []chars.Character{mara}
+	opts := Options(cfg)
+
+	for _, arm := range []string{"control", "unslop"} {
+		var n, words, slop, banned, requests int
+		var took time.Duration
+		for _, pc := range paceCases {
+			hist := []ollama.Message{
+				{Role: ollama.RoleAssistant, Content: chars.Greeting(mara, p)},
+				{Role: ollama.RoleUser, Content: `"Walk you somewhere? I could be persuaded." *I finish my drink.*`},
+				{Role: ollama.RoleAssistant, Content: `*She laughs, low, and tucks a loose strand of hair behind her ear.* "Persuaded. Listen to you." *Her knee bumps yours under the bar and stays there.* "I've had a twelve-hour shift and a very long week, Wren. Persuade me faster."`},
+				{Role: ollama.RoleUser, Content: pc.turn},
+			}
+			for r := 0; r < liveRuns()*4; r++ {
+				msgs := BuildFor(st, cfg, ch, one, hist)
+				calls := 0
+				chat := func(ctx context.Context, m []ollama.Message, onDelta func(ollama.Delta)) (ollama.Message, ollama.Stats, error) {
+					calls++
+					no := false
+					return client.Chat(ctx, model, m, opts, &no, onDelta)
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+				start := time.Now()
+				var msg ollama.Message
+				var err error
+				if arm == "unslop" {
+					msg, _, err = Unslop(ctx, chat, msgs, nil)
+				} else {
+					msg, _, err = chat(ctx, msgs, nil)
+				}
+				took += time.Since(start)
+				cancel()
+				if err != nil {
+					t.Fatalf("the model failed: %v", err)
+				}
+				_, reply := ollama.SplitThinking(msg.Content)
+				n++
+				requests += calls
+				words += len(strings.Fields(reply))
+				slop += slopCount(reply)
+				if phrase, at, _ := chars.FindStock(reply, nil); at >= 0 {
+					banned++
+					rep.printf("\n(still holds %q)", phrase)
+				}
+				rep.printf("\n--- %s, %s, %d requests\n%s\n", arm, pc.name, calls, reply)
+			}
+		}
+		line := "%s: %d replies, mean %d words, %.2f slop per reply, %d still holding a banned phrase, %.2f requests per reply, %.1fs per reply"
+		args := []any{arm, n, words / max(n, 1), float64(slop) / float64(max(n, 1)), banned,
+			float64(requests) / float64(max(n, 1)), took.Seconds() / float64(max(n, 1))}
+		rep.printf("\n== "+line+"\n", args...)
+		t.Logf(line, args...)
+	}
+}

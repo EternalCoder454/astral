@@ -1,6 +1,7 @@
 package scene
 
 import (
+	"context"
 	"strings"
 
 	"astral/internal/chars"
@@ -91,4 +92,29 @@ func SuggestOptions(cfg store.Config, kind string) ollama.Options {
 func SuggestSetting(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Character, hist []ollama.Message) []ollama.Message {
 	msgs := BuildFor(st, cfg, ch, cast, hist)
 	return chars.SettingMessages(msgs, strings.Join(chars.CastNames(cast), ", "), userNameOf(cfg))
+}
+
+// TrackSetting asks where and when the scene is now, after a reply, for a
+// chat whose setting Astral keeps up to date. It answers the new line, or ""
+// when there is nothing to change.
+//
+// The scene's own model and prompt, with the closing block swapped, so the
+// prefix the reply just computed is used again and this costs about a second
+// rather than another read of the whole scene.
+func TrackSetting(ctx context.Context, client *ollama.Client, st *store.Store, cfg store.Config, ch store.Chat,
+	cast []chars.Character, hist []ollama.Message, model string) string {
+	if !ch.SettingAuto || !CanDraft(ch, cast) || len(hist) < 2 {
+		return ""
+	}
+	noThink := false
+	msg, _, err := client.Chat(ctx, model, SuggestSetting(st, cfg, ch, cast, hist), DraftOptions(cfg, ch.Kind), &noThink, nil)
+	if err != nil {
+		return ""
+	}
+	_, text := ollama.SplitThinking(msg.Content)
+	line := chars.CleanSetting(text)
+	if line == "" || line == strings.TrimSpace(ch.Setting) {
+		return ""
+	}
+	return line
 }

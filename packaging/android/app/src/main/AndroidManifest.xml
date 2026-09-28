@@ -15,6 +15,12 @@
     -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- A reply finished while you are elsewhere is announced: the watcher
+         that waits for it runs as a foreground service, and says so. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
     <!-- Read Aloud uses the phone's own text to speech engine. Since Android
          11 an app can only reach another app's service it declares here. -->
     <queries>
@@ -43,6 +49,10 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".ReplyWatcher"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <!-- The installer runs in another process, so the downloaded file has
              to be handed over as a content URI rather than a path. -->
         <provider

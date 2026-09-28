@@ -111,6 +111,9 @@ func System(id string) string {
 
 	b.WriteString("\n\nASTRAL'S PROMPTS\n")
 	for _, p := range prompts.All() {
+		if p.List {
+			continue
+		}
 		fmt.Fprintf(&b, "- %s: %s (%s). %s", p.ID, p.Name, p.Group, firstSentence(p.About))
 		if prompts.Overridden(p.ID) {
 			b.WriteString(" They have rewritten this one.")

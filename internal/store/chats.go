@@ -68,9 +68,12 @@ type Chat struct {
 	// Setting is where and when the scene is now, in a line: "her flat, two
 	// in the morning, rain". Sent every turn, so a long scene does not lose
 	// track of the room it is in. See extras.go.
-	Setting   string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Setting string
+	// SettingAuto says Astral keeps Setting up to date after each reply,
+	// which it does until you write your own.
+	SettingAuto bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 
 	// Filled in by Chats() for the sidebar, not stored.
 	CharacterName string
@@ -169,13 +172,13 @@ func (s *Store) Chat(id int64) (Chat, error) {
 	var created, updated int64
 	err := s.db.QueryRow(`
 		SELECT c.id, c.character_id, c.world_id, c.title, c.model, c.kind, c.summary, c.summary_upto,
-		       c.lore_upto, c.style_name, c.note, c.persona_id, c.setting, c.created_at, c.updated_at,
+		       c.lore_upto, c.style_name, c.note, c.persona_id, c.setting, c.setting_auto, c.created_at, c.updated_at,
 		       COALESCE(ch.name, ''), COALESCE(ch.accent, 0)
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
 		WHERE c.id = ?`, id).
 		Scan(&c.ID, &c.CharacterID, &c.WorldID, &c.Title, &c.Model, &c.Kind, &c.Summary, &c.SummaryUpto,
-			&c.LoreUpto, &c.StyleName, &c.Note, &c.PersonaID, &c.Setting, &created, &updated, &c.CharacterName, &c.Accent)
+			&c.LoreUpto, &c.StyleName, &c.Note, &c.PersonaID, &c.Setting, &c.SettingAuto, &created, &updated, &c.CharacterName, &c.Accent)
 	if err == sql.ErrNoRows {
 		return c, fmt.Errorf("no chat with id %d", id)
 	}
@@ -212,7 +215,7 @@ func (s *Store) NewChatIn(characterID, worldID int64, title, model, kind string)
 	}
 	return Chat{
 		ID: id, CharacterID: characterID, WorldID: worldID, Title: title, Model: model, Kind: kind,
-		CreatedAt: now, UpdatedAt: now,
+		SettingAuto: true, CreatedAt: now, UpdatedAt: now,
 	}, nil
 }
 

@@ -4,12 +4,16 @@ import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.text.InputType
+import android.view.HapticFeedbackConstants
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -21,6 +25,8 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -162,6 +168,24 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun stopSpeaking() {
             runOnUiThread { tts?.stop() }
+        }
+
+        /** A reply has started: keep the screen on, and watch for it. */
+        @JavascriptInterface
+        fun replyStarted(chat: String, who: String, token: String) {
+            runOnUiThread { watchReply(chat, who, token) }
+        }
+
+        /** The reply has arrived, or failed; ok says which. */
+        @JavascriptInterface
+        fun replyEnded(ok: Boolean, who: String, text: String) {
+            runOnUiThread { replyDone(ok, who, text) }
+        }
+
+        /** A light tap, for sending. */
+        @JavascriptInterface
+        fun tick() {
+            runOnUiThread { web.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP) }
         }
 
         /** Tells the page it is running inside the app rather than a browser. */
@@ -308,8 +332,65 @@ class MainActivity : AppCompatActivity() {
         return s
     }
 
+    override fun onStart() {
+        super.onStart()
+        visible = true
+        // Back in sight: a reply's announcement has done its job.
+        ReplyWatcher.clear(this)
+    }
+
+    override fun onStop() {
+        visible = false
+        super.onStop()
+    }
+
+    /** Starts waiting on a reply, in case the app is left before it lands. */
+    private fun watchReply(chat: String, who: String, token: String) {
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        askToNotify()
+        val intent = Intent(this, ReplyWatcher::class.java)
+            .putExtra(ReplyWatcher.EXTRA_ADDRESS, home().trimEnd('/'))
+            .putExtra(ReplyWatcher.EXTRA_TOKEN, token)
+            .putExtra(ReplyWatcher.EXTRA_CHAT, chat)
+            .putExtra(ReplyWatcher.EXTRA_WHO, who)
+        try {
+            ContextCompat.startForegroundService(this, intent)
+        } catch (e: Exception) {
+            // Refused: the reply still lands on the PC, unannounced.
+        }
+    }
+
+    /** Stops waiting, the reply having arrived on the page. */
+    private fun replyDone(ok: Boolean, who: String, text: String) {
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        stopService(Intent(this, ReplyWatcher::class.java))
+        if (!ok) return
+        if (visible) {
+            val tick = if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.VIRTUAL_KEY
+            web.performHapticFeedback(tick)
+        } else {
+            // The page heard it first, while out of sight.
+            ReplyWatcher.announce(this, who, text)
+        }
+    }
+
+    /** Asks once for permission to announce replies, on Android 13 and later. */
+    private fun askToNotify() {
+        if (Build.VERSION.SDK_INT < 33 || prefs.getBoolean(KEY_ASKED_NOTIFY, false)) return
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) return
+        prefs.edit().putBoolean(KEY_ASKED_NOTIFY, true).apply()
+        ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+    }
+
     companion object {
         private const val KEY_ADDRESS = "address"
+        private const val KEY_ASKED_NOTIFY = "asked_notify"
         private const val DEFAULT_PORT = 8765
+
+        /** Whether the app is on screen, for the watcher deciding to announce. */
+        @Volatile
+        var visible = false
     }
 }

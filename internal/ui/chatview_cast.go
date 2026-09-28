@@ -337,6 +337,7 @@ func (c *ChatView) finishGroupTurn(content, thinking string, stats ollama.Stats,
 	// outgrown its window needs the recap before it needs new lore.
 	c.maybeCompact()
 	c.maybeLearn()
+	c.maybeTrackSetting()
 }
 
 // greetingSpeaker is who opens a scene. In a group that is the first member of

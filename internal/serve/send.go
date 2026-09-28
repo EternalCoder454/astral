@@ -336,7 +336,10 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat,
 		}
 		reply, stats, rounds, err = runner.Run(ctx, msgs, onDelta)
 	} else {
-		reply, stats, err = s.client().Chat(ctx, model, msgs, opts, &noThink, onDelta)
+		chat := func(ctx context.Context, m []ollama.Message, d func(ollama.Delta)) (ollama.Message, ollama.Stats, error) {
+			return s.client().Chat(ctx, model, m, opts, &noThink, d)
+		}
+		reply, stats, err = scene.Stream(ctx, chat, ch.Kind, msgs, onDelta)
 	}
 	flush(true)
 	// A loop stopped by the server keeps what came before it, as the window
@@ -513,6 +516,17 @@ func (s *Server) housekeep(chatID int64, cast []chars.Character) {
 		nameOf = nil
 	}
 	hist, ids := scene.HistoryWithIDs(stored, nameOf)
+
+	// Where and when the scene is now, first, with the scene's own model
+	// while its prefix is still cached. A reply asked for meanwhile waits
+	// about a second behind it.
+	if ch.SettingAuto {
+		if line := scene.TrackSetting(ctx, s.client(), s.store, cfg, ch, castFor(s.castFor(ch), ca), hist, sceneModel); line != "" {
+			if fresh, err := s.store.Chat(chatID); err == nil && fresh.SettingAuto {
+				s.store.SetChatSetting(chatID, line)
+			}
+		}
+	}
 
 	if chars.NeedsCompaction(hist, budget) {
 		aged, _ := chars.SplitForCompaction(hist, budget)

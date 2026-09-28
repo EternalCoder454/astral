@@ -50,7 +50,12 @@ func (a *App) startOptimizeAll() {
 		a.toast("Choose a model first.")
 		return
 	}
-	all := prompts.All()
+	var all []prompts.Prompt
+	for _, p := range prompts.All() {
+		if !p.List {
+			all = append(all, p)
+		}
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	b := &promptBatch{cancel: cancel, total: len(all), model: model}
 	a.batch = b

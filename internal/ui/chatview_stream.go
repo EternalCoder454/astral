@@ -427,7 +427,12 @@ func (c *ChatView) startStream() {
 			// knowing that.
 			msg, stats, rounds, err = searcher.Run(ctx, msgs, onDelta)
 		} else {
-			msg, stats, err = c.client.Chat(ctx, model, msgs, opts, &think, onDelta)
+			// Through scene.Stream, which cuts stock phrases out of a
+			// scene and takes the copy off a continuation.
+			chat := func(ctx context.Context, m []ollama.Message, d func(ollama.Delta)) (ollama.Message, ollama.Stats, error) {
+				return c.client.Chat(ctx, model, m, opts, &think, d)
+			}
+			msg, stats, err = scene.Stream(ctx, chat, kind, msgs, onDelta)
 		}
 
 		coreglib.IdleAdd(func() bool {
@@ -656,6 +661,7 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	// without it the next turn starts dropping the oldest messages unread.
 	c.maybeCompact()
 	c.maybeLearn()
+	c.maybeTrackSetting()
 }
 
 // maybeLearn teaches the world's lorebook from the scene.

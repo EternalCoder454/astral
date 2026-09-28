@@ -45,6 +45,11 @@ type Prompt struct {
 	// were measured, and the ones a rewrite that tidies up is likely to lose.
 	// The optimizer is told them, and a rewrite without one is flagged.
 	Anchors []string
+	// List marks a list the app reads rather than a prompt sent to a model,
+	// such as the stock phrases a reply may not keep. It is edited in Prompts
+	// like the rest, and the Prompt Optimizer leaves it alone: rewriting a
+	// list into prose would break the code that reads it.
+	List bool
 
 	// seq is the order it was registered in, which within a package is the
 	// order it is declared in, most important first.

@@ -14,6 +14,9 @@ func (s *Store) migrateExtras() {
 	s.db.Exec(`ALTER TABLE characters ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0`)
 	s.db.Exec(`ALTER TABLE messages ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0`)
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN setting TEXT NOT NULL DEFAULT ''`)
+	// Whether Astral keeps the setting up to date as the scene moves. On
+	// until you write your own.
+	s.db.Exec(`ALTER TABLE chats ADD COLUMN setting_auto INTEGER NOT NULL DEFAULT 1`)
 }
 
 func boolInt(b bool) int {
@@ -38,6 +41,14 @@ func (s *Store) SetMessageHidden(id int64, hidden bool) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	_, err := s.db.Exec(`UPDATE messages SET hidden = ? WHERE id = ?`, boolInt(hidden), id)
+	return err
+}
+
+// SetChatSettingAuto says whether Astral keeps a scene's setting up to date.
+func (s *Store) SetChatSettingAuto(id int64, auto bool) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err := s.db.Exec(`UPDATE chats SET setting_auto = ? WHERE id = ?`, boolInt(auto), id)
 	return err
 }
 
