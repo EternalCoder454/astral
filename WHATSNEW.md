@@ -3,6 +3,12 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.8
+- Personas: play as several people, each with a name, age, gender, race, appearance and background
+- The Persona Creator builds one with you, the way the character designer builds a character
+- Every chat remembers who you played it as, and the button beside the model changes it
+- Switch personas from the menu under your name; Settings shows who is in use
+
 ## 0.5.7
 - Character descriptions show names instead of {{char}} and {{user}}, when starting a scene and everywhere else
 
