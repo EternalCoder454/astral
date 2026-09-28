@@ -1,6 +1,8 @@
 package serve
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"embed"
 	"encoding/json"
@@ -150,6 +152,7 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("POST /api/chats/{id}/messages/{mid}/rewrite", s.guard(s.handleRewriteMine))
 	mux.Handle("POST /api/chats/{id}/messages/{mid}/hide", s.guard(s.handleHide))
 	mux.Handle("POST /api/chats/{id}/suggest", s.guard(s.handleSuggest))
+	mux.Handle("POST /api/chats/{id}/warm", s.guard(s.handleWarm))
 	mux.Handle("POST /api/chats/{id}/setting/suggest", s.guard(s.handleSuggestSetting))
 	mux.Handle("POST /api/characters/{id}/favorite", s.guard(s.handleFavorite))
 	mux.Handle("POST /api/characters/import", s.guard(s.handleImportLink))
@@ -187,9 +190,30 @@ func (s *Server) guard(h func(http.ResponseWriter, *http.Request, store.Device))
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "not paired"})
 			return
 		}
+		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			w = gzipOK{w}
+		}
 		h(w, r, d)
 	})
 }
+
+// gzipOK marks a response whose request accepts gzip, for writeJSON. Only
+// writeJSON looks at it: the reply streams flush every few tokens and are not
+// worth compressing, and pass straight through.
+type gzipOK struct{ http.ResponseWriter }
+
+// Flush passes through, so a stream written to a marked response still
+// arrives as it is written.
+func (g gzipOK) Flush() {
+	if f, ok := g.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// gzipOver is the size from which a JSON answer is compressed. A long chat is
+// the case: every message of a scene played for months, sent to open it,
+// which gzip takes to about a fifth. Small answers are sent as they are.
+const gzipOver = 16 << 10
 
 func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 	var body struct {
@@ -611,8 +635,25 @@ func (s *Server) characterFor(ch store.Chat) chars.Character {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
+	b, err := json.Marshal(v)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	b = append(b, '\n')
+	if _, ok := w.(gzipOK); ok && len(b) >= gzipOver {
+		var z bytes.Buffer
+		zw, _ := gzip.NewWriterLevel(&z, gzip.BestSpeed)
+		zw.Write(b)
+		zw.Close()
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Set("Vary", "Accept-Encoding")
+		w.WriteHeader(status)
+		w.Write(z.Bytes())
+		return
+	}
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	w.Write(b)
 }
 
 // Addresses lists the addresses this machine can be reached on, for showing

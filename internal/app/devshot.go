@@ -88,6 +88,9 @@ func (a *App) runDevView() {
 		if os.Getenv("ASTRAL_DEV_FRAMES") != "" {
 			a.devTimeFrames()
 		}
+		if os.Getenv("ASTRAL_DEV_STARTUP") != "" {
+			a.devTimeStartup()
+		}
 		// Split first, then lowercase only the name: the argument can be a
 		// filesystem path, and lowercasing the whole value turned one into a
 		// path that does not exist.
@@ -551,6 +554,43 @@ func (a *App) devToggle(n int) {
 // to lay out and draw, and a summary every few seconds. A frame is what the
 // person sees stall, so this is the number a profile has to be read against:
 // CPU spent where no frame was waiting on it is CPU nobody notices.
+// processStart is when this process began, near enough: package variables are
+// set before main runs. For timing a dev run's startup.
+var processStart = time.Now()
+
+// devTimeStartup logs how long after the process began the window drew its
+// first frame, and what the process holds in memory then, when timing a
+// capture run (ASTRAL_DEV_STARTUP).
+func (a *App) devTimeStartup() {
+	clock := gdk.BaseFrameClock(gtk.BaseWidget(a.win).FrameClock())
+	if clock == nil {
+		return
+	}
+	var handle glib.SignalHandle
+	handle = clock.ConnectAfterPaint(func() {
+		clock.HandlerDisconnect(handle)
+		log.Printf("astral: startup: first frame %v after the process began, %s", time.Since(processStart).Round(time.Millisecond), rss())
+		coreglib.TimeoutAdd(3000, func() bool {
+			log.Printf("astral: startup: settled, %s", rss())
+			return false
+		})
+	})
+}
+
+// rss is the process's resident memory, from /proc.
+func rss() string {
+	b, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		return "memory unknown"
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(line, "VmRSS:") {
+			return "resident " + strings.TrimSpace(strings.TrimPrefix(line, "VmRSS:"))
+		}
+	}
+	return "memory unknown"
+}
+
 func (a *App) devTimeFrames() {
 	clock := gdk.BaseFrameClock(gtk.BaseWidget(a.win).FrameClock())
 	if clock == nil {

@@ -521,12 +521,11 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 			return
 		}
 		c.refreshDraftButton()
-		// The first keystroke after a pause starts loading the model, so the
-		// load happens while the message is written rather than after it is
-		// sent. See scene.PreloadForTyping for when it declines.
+		// The first keystroke after a pause gets the model loaded and the
+		// scene read, so both happen while the message is written rather
+		// than after it is sent. See scene.WarmForTyping for when it declines.
 		if !c.busy && c.composerText() != "" {
-			client, model := c.client, c.activeModel()
-			go scene.PreloadForTyping(client, model)
+			c.warmForTyping()
 		}
 	})
 

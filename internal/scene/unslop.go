@@ -24,8 +24,10 @@ const maxCuts = 8
 // streams: long enough that a stock phrase is always complete, and caught,
 // before any of it is shown. So a cut never has to take back text the reader
 // has already seen, and neither the window nor the phone needs to know it
-// happened.
-const holdBack = chars.MaxStockChars + 16
+// happened. The longest phrase on the list sets it, which for Astral's list is
+// about half of the fixed eighty characters it was, and so about a tenth of a
+// second off the wait for the first words.
+func holdBack() int { return min(chars.StockLen(), chars.MaxStockChars) + 6 }
 
 // Unslop streams a reply, and when the model writes one of the stock phrases,
 // cuts the reply back to just before it and has the model carry on from there
@@ -142,7 +144,7 @@ func stream(ctx context.Context, chat ChatFunc, msgs []ollama.Message, onDelta f
 			}
 			hold := 0
 			if unslop {
-				hold = holdBack
+				hold = holdBack()
 			}
 			if safe := len(text) - hold; safe > forwarded {
 				for safe > forwarded && safe < len(text) && !utf8.RuneStart(text[safe]) {

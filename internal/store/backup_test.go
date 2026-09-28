@@ -29,7 +29,14 @@ func TestBackupDaily(t *testing.T) {
 		t.Errorf("a second copy on the same day: %q %v", again, err)
 	}
 
-	copy, _, err := Open(path)
+	if filepath.Ext(path) != ".gz" {
+		t.Errorf("the copy was not compressed: %s", path)
+	}
+	unpacked := filepath.Join(dir, "unpacked.db")
+	if err := gunzipFile(path, unpacked); err != nil {
+		t.Fatal(err)
+	}
+	copy, _, err := Open(unpacked)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +64,7 @@ func TestBackupDaily(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(backups, "notes.txt")); err != nil {
 		t.Error("a file that was not a backup was removed")
 	}
-	if _, err := os.Stat(filepath.Join(backups, "astral-2026-09-01.db")); err == nil {
+	if _, err := os.Stat(filepath.Join(backups, "astral-2026-09-01.db.gz")); err == nil {
 		t.Error("the oldest copy was kept past the week")
 	}
 }
@@ -108,5 +115,43 @@ func TestRestoreBackup(t *testing.T) {
 	os.WriteFile(bad, []byte("not a database at all"), 0o600)
 	if _, err := RestoreBackup(path, bad, time.Now()); err == nil {
 		t.Error("a file that is not a database was restored")
+	}
+}
+
+// A copy made before backups were compressed still restores.
+func TestRestoreAPlainBackup(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "astral.db")
+	st, _, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.NewChat(0, "In the old copy", "m", KindRoleplay)
+	backups := filepath.Join(dir, "backups")
+	gz, err := st.BackupDaily(backups, time.Date(2026, 9, 1, 12, 0, 0, 0, time.Local))
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.NewChat(0, "Made later", "m", KindRoleplay)
+	st.Close()
+	plain := filepath.Join(backups, "astral-2026-08-31.db")
+	if err := gunzipFile(gz, plain); err != nil {
+		t.Fatal(err)
+	}
+	os.Remove(gz)
+	if list := Backups(backups); len(list) != 1 || list[0].Path != plain {
+		t.Fatalf("listed %+v", list)
+	}
+	if _, err := RestoreBackup(path, plain, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	st, _, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	chats, _ := st.Chats()
+	if len(chats) != 1 || chats[0].Title != "In the old copy" {
+		t.Fatalf("restored %+v", chats)
 	}
 }

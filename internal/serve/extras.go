@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
@@ -191,4 +192,45 @@ func userName(cfg store.Config) string {
 		return n
 	}
 	return chars.DefaultPersonaName
+}
+
+// handleWarm gets the model and a chat's prompt ready while a message is typed
+// on the phone, as the window does at its first keystroke. It answers at once;
+// the warm-up runs on after it. See scene.WarmForTyping.
+func (s *Server) handleWarm(w http.ResponseWriter, r *http.Request, d store.Device) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not a chat id"})
+		return
+	}
+	ch, err := s.store.Chat(id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such chat"})
+		return
+	}
+	if s.busy.writing(id) {
+		writeJSON(w, http.StatusAccepted, map[string]bool{"warming": false})
+		return
+	}
+	cfg := s.playedAs(s.config(), ch)
+	stored := s.castFor(ch)
+	cast := castFor(stored, s.characterFor(ch))
+	hist, err := s.history(ch, castNames(stored))
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	msgs := scene.BuildFor(s.store, cfg, ch, cast, hist)
+	model := ch.Model
+	if model == "" {
+		model = cfg.Model
+	}
+	client := s.client()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		opts := scene.FitContext(ctx, client, model, ch.Kind, scene.OptionsFor(cfg, ch.Kind), msgs)
+		cancel()
+		scene.WarmForTyping(client, model, strconv.FormatInt(ch.ID, 10), msgs, opts)
+	}()
+	writeJSON(w, http.StatusAccepted, map[string]bool{"warming": true})
 }

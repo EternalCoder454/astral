@@ -41,9 +41,9 @@ func (f *fakeServer) start(t *testing.T) *ollama.Client {
 				out.Models = append(out.Models, map[string]any{"name": n, "size": s})
 			}
 			json.NewEncoder(w).Encode(out)
-		case "/api/generate":
+		case "/api/generate", "/api/chat":
 			f.loads++
-			w.Write([]byte(`{"done":true}`))
+			w.Write([]byte(`{"message":{"role":"assistant","content":""},"done":true}`))
 		}
 	}))
 	t.Cleanup(srv.Close)
@@ -53,15 +53,25 @@ func (f *fakeServer) start(t *testing.T) *ollama.Client {
 func resetPreload() {
 	preloadMu.Lock()
 	preloadLast = map[string]time.Time{}
+	lastUsed = map[string]string{}
 	preloadMu.Unlock()
 }
 
-func TestAModelAlreadyLoadedIsNotLoadedAgain(t *testing.T) {
+var warmMsgs = []ollama.Message{{Role: ollama.RoleSystem, Content: "You are Vesper."}}
+
+func TestAModelAlreadyHoldingTheChatIsLeftAlone(t *testing.T) {
 	resetPreload()
 	f := &fakeServer{loaded: []string{"small:4b"}, sizes: map[string]int64{"small:4b": 3 << 30}}
-	PreloadForTyping(f.start(t), "small:4b")
+	c := f.start(t)
+	NoteUsed("small:4b", "chat 1")
+	WarmForTyping(c, "small:4b", "chat 1", warmMsgs, ollama.Options{})
 	if f.loads != 0 {
-		t.Errorf("a resident model was loaded again")
+		t.Errorf("a model that already read this chat was asked to read it again")
+	}
+	// Another chat on the same model is read, so its reply finds it cached.
+	WarmForTyping(c, "small:4b", "chat 2", warmMsgs, ollama.Options{})
+	if f.loads != 1 {
+		t.Errorf("switching chats warmed %d times, want 1", f.loads)
 	}
 }
 
@@ -70,7 +80,7 @@ func TestPreloadingIsNotRepeatedForEveryKeystroke(t *testing.T) {
 	f := &fakeServer{sizes: map[string]int64{"tiny:1b": 1}}
 	c := f.start(t)
 	for i := 0; i < 5; i++ {
-		PreloadForTyping(c, "tiny:1b")
+		WarmForTyping(c, "tiny:1b", "chat", warmMsgs, ollama.Options{})
 	}
 	// At most once, and not at all on a machine whose free memory cannot be
 	// read and so is treated as having room.
@@ -82,8 +92,19 @@ func TestPreloadingIsNotRepeatedForEveryKeystroke(t *testing.T) {
 func TestAModelThatIsNotInstalledIsNotPreloaded(t *testing.T) {
 	resetPreload()
 	f := &fakeServer{sizes: map[string]int64{}}
-	PreloadForTyping(f.start(t), "missing:7b")
+	WarmForTyping(f.start(t), "missing:7b", "chat", warmMsgs, ollama.Options{})
 	if f.loads != 0 {
 		t.Error("a model with no known size was preloaded")
+	}
+}
+
+func TestAModelIsWarmedOnAnEmptyCardHoweverLarge(t *testing.T) {
+	resetPreload()
+	// Far larger than any card: on an empty one it is the load the reply
+	// would do anyway.
+	f := &fakeServer{sizes: map[string]int64{"huge:26b": 1 << 45}}
+	WarmForTyping(f.start(t), "huge:26b", "chat", warmMsgs, ollama.Options{})
+	if f.loads != 1 {
+		t.Errorf("warmed %d times on an empty card", f.loads)
 	}
 }

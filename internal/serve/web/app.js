@@ -1734,6 +1734,18 @@ $("set-update-app").addEventListener("click", startAppUpdate);
 $("set-forget").addEventListener("click", forgetDevice);
 
 const composer = $("composer-text");
+// The first keystroke after a pause asks the PC to load the model and read
+// the chat, so a reply after a break starts in under a second instead of
+// ten. Once a minute at most; the PC skips it when there is nothing to do.
+let warmedAt = 0, warmedChat = 0;
+composer.addEventListener("input", () => {
+	if (current && composer.value && !busyHere() &&
+		(warmedChat !== current.id || Date.now() - warmedAt > 60000)) {
+		warmedAt = Date.now();
+		warmedChat = current.id;
+		api("/api/chats/" + current.id + "/warm", { method: "POST", body: "{}" }).catch(() => {});
+	}
+});
 composer.addEventListener("input", () => {
 	composer.style.height = "auto";
 	composer.style.height = Math.min(composer.scrollHeight, window.innerHeight * 0.4) + "px";

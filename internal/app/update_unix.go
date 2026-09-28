@@ -45,6 +45,11 @@ func (a *App) installUpdate(branch string, onStatus func(text string, done bool)
 //
 // A login shell keeps go, make and git on PATH even when Astral was launched
 // from the application grid, which does not inherit a terminal's environment.
+//
+// Only the latest version is kept, and not the binary the build leaves in the
+// clone once it is installed: the clone was 42 megabytes, of which the whole
+// history was ten and a second copy of the installed app was twenty-six. A
+// clone made before this is made shallow by its next update.
 func updateScript(branch string) string {
 	src := canonicalSourceDir()
 	parent := filepath.Dir(src)
@@ -52,12 +57,16 @@ func updateScript(branch string) string {
 if [ ! -d %[1]q/.git ]; then
   rm -rf %[1]q
   mkdir -p %[4]q
-  git clone %[2]q %[1]q
+  git clone --depth 1 --branch %[3]q %[2]q %[1]q
 fi
-git -C %[1]q fetch --prune origin
-git -C %[1]q checkout %[3]q
-git -C %[1]q reset --hard origin/%[3]q
-make -C %[1]q install`, src, repoURL, branch, parent)
+git -C %[1]q fetch --depth 1 --prune origin %[3]q
+git -C %[1]q checkout -B %[3]q FETCH_HEAD
+git -C %[1]q reset --hard FETCH_HEAD
+make -C %[1]q install
+rm -f %[1]q/bin/astral
+git -C %[1]q for-each-ref --format='%%(refname)' refs/remotes refs/tags | while read -r ref; do git -C %[1]q update-ref -d "$ref"; done
+git -C %[1]q reflog expire --expire=now --all || true
+git -C %[1]q gc --prune=now --quiet || true`, src, repoURL, branch, parent)
 }
 
 // canonicalSourceDir is the clone updates are built from. Under the user's

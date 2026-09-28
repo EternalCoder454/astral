@@ -1,12 +1,15 @@
 package store
 
 import (
+	"compress/gzip"
 	"database/sql"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -24,7 +27,8 @@ const keepBackups = 7
 // BackupDir is where the daily copies are kept.
 func BackupDir() string { return filepath.Join(dataDir(), "backups") }
 
-var backupName = regexp.MustCompile(`^astral-\d{4}-\d{2}-\d{2}\.db$`)
+// backupName matches a daily copy: compressed since 0.5.25, plain before.
+var backupName = regexp.MustCompile(`^astral-\d{4}-\d{2}-\d{2}\.db(\.gz)?$`)
 
 // BackupDaily writes today's copy if there is not one yet, and removes the
 // oldest beyond the week. It returns the path it wrote, or "" when today's copy
@@ -42,11 +46,16 @@ func (s *Store) BackupDaily(dir string, now time.Time) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	dst := filepath.Join(dir, "astral-"+now.Format("2006-01-02")+".db")
-	if _, err := os.Stat(dst); err == nil {
-		return "", nil
+	// Compressed: a library is prose, which gzip takes to about a third, and
+	// seven days of copies were seven whole libraries.
+	plain := filepath.Join(dir, "astral-"+now.Format("2006-01-02")+".db")
+	dst := plain + ".gz"
+	for _, p := range []string{dst, plain} {
+		if _, err := os.Stat(p); err == nil {
+			return "", nil
+		}
 	}
-	tmp := dst + ".partial"
+	tmp := plain + ".partial"
 	_ = os.Remove(tmp)
 
 	db, err := sql.Open("sqlite", dsnFor(s.path))
@@ -59,12 +68,63 @@ func (s *Store) BackupDaily(dir string, now time.Time) (string, error) {
 		_ = os.Remove(tmp)
 		return "", err
 	}
-	if err := os.Rename(tmp, dst); err != nil {
-		_ = os.Remove(tmp)
+	err = gzipFile(tmp, dst+".partial")
+	_ = os.Remove(tmp)
+	if err != nil {
+		_ = os.Remove(dst + ".partial")
+		return "", err
+	}
+	if err := os.Rename(dst+".partial", dst); err != nil {
+		_ = os.Remove(dst + ".partial")
 		return "", err
 	}
 	pruneBackups(dir, keepBackups)
 	return dst, nil
+}
+
+// gzipFile writes src compressed to dst.
+func gzipFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	zw := gzip.NewWriter(out)
+	if _, err := io.Copy(zw, in); err != nil {
+		out.Close()
+		return err
+	}
+	if err := zw.Close(); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
+}
+
+// gunzipFile writes src decompressed to dst.
+func gunzipFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	zr, err := gzip.NewReader(in)
+	if err != nil {
+		return fmt.Errorf("the backup is damaged: %w", err)
+	}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, zr); err != nil {
+		out.Close()
+		return fmt.Errorf("the backup is damaged: %w", err)
+	}
+	return out.Close()
 }
 
 // pruneBackups removes the oldest daily copies past keep. The names sort by
@@ -126,7 +186,19 @@ func Backups(dir string) []Backup {
 // chosen by mistake can itself be undone. The copy is checked before anything
 // is moved, so a damaged one leaves the library as it was.
 func RestoreBackup(dbPath, backupPath string, now time.Time) (keptAs string, err error) {
-	check, err := sql.Open("sqlite", dsnFor(backupPath)+"&mode=ro")
+	// A compressed copy is unpacked beside the library first, and it is that
+	// unpacked file which is checked and then put in place.
+	unpacked := dbPath + ".unpacked"
+	_ = os.Remove(unpacked)
+	defer os.Remove(unpacked)
+	source := backupPath
+	if strings.HasSuffix(backupPath, ".gz") {
+		if err := gunzipFile(backupPath, unpacked); err != nil {
+			return "", err
+		}
+		source = unpacked
+	}
+	check, err := sql.Open("sqlite", dsnFor(source)+"&mode=ro")
 	if err != nil {
 		return "", err
 	}
@@ -139,7 +211,7 @@ func RestoreBackup(dbPath, backupPath string, now time.Time) (keptAs string, err
 	if verdict != "ok" {
 		return "", fmt.Errorf("the backup is damaged: %s", verdict)
 	}
-	data, err := os.ReadFile(backupPath)
+	data, err := os.ReadFile(source)
 	if err != nil {
 		return "", err
 	}

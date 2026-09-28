@@ -86,7 +86,18 @@ var (
 	stockMu    sync.Mutex
 	stockText  string
 	stockCache []StockPhrase
+	stockLen   int
 )
+
+// StockLen is the most characters a phrase on the list can take, a * counted
+// as a long word. It is how much of a reply is held back while it streams:
+// the shorter it is, the sooner the first words show.
+func StockLen() int {
+	StockPhrases()
+	stockMu.Lock()
+	defer stockMu.Unlock()
+	return stockLen
+}
 
 // StockPhrase is one phrase and the pattern that finds it.
 type StockPhrase struct {
@@ -105,11 +116,13 @@ func StockPhrases() []StockPhrase {
 	}
 	stockText = text
 	stockCache = nil
+	stockLen = 0
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.ToLower(strings.TrimSpace(line))
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+		stockLen = max(stockLen, len(line)+strings.Count(line, "*")*(stockWord-1))
 		var parts []string
 		for _, w := range strings.Fields(line) {
 			if w == "*" {
@@ -129,6 +142,12 @@ func StockPhrases() []StockPhrase {
 	}
 	return stockCache
 }
+
+// stockWord is how long a word a * is allowed to stand for, in the reckoning
+// of how much to hold back. A phrase whose * words run longer can have its
+// start shown before it is complete, and is then left to stand: a rare miss,
+// against every reply's first words waiting on the longest word there is.
+const stockWord = 14
 
 // MaxStockChars is the longest a stock phrase is likely to run, which is how
 // much of a reply is held back while it streams so a phrase is caught before

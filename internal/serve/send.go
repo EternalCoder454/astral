@@ -300,6 +300,7 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat,
 	// phone draws on what the window saved.
 	msgs = scene.WithKnowledge(ctx, s.store, s.client(), cfg, ch.Kind, msgs, hist)
 	scene.RecordSent(ch, len(cast) > 1, msgs)
+	scene.NoteUsed(model, strconv.FormatInt(ch.ID, 10))
 
 	var reply ollama.Message
 	var stats ollama.Stats
@@ -541,6 +542,8 @@ func (s *Server) housekeep(chatID int64, cast []chars.Character) {
 			} else {
 				next, err = chars.CompactFor(ctx, s.client(), model, ch.Summary, aged, cast, p, opts, budget)
 			}
+			scene.NoteUsed(model, "")
+			scene.NoteUsed(sceneModel, "")
 			if err != nil {
 				log.Printf("astral: compacting %d from a phone: %v", chatID, err)
 			} else if err := s.store.SetChatSummary(chatID, next, upto); err != nil {
@@ -577,6 +580,7 @@ func (s *Server) housekeep(chatID int64, cast []chars.Character) {
 		return
 	}
 	learned, err := world.Learn(ctx, s.client(), model, wd, existing, fresh, ca.Name, p.Name, opts)
+	scene.NoteUsed(model, "")
 	if err != nil {
 		log.Printf("astral: learning lore from a phone: %v", err)
 		return

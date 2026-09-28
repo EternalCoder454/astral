@@ -385,6 +385,7 @@ func (c *ChatView) startStream() {
 	client := c.client
 	st, cfg, kind, hist := c.store, c.cfg, c.chat.Kind, c.history()
 	chatNow, group := c.chat, c.isGroup()
+	warmKey := c.warmKey()
 	go func() {
 		defer cancel()
 		if picture.image != "" {
@@ -405,6 +406,9 @@ func (c *ChatView) startStream() {
 		}
 		// A copy for the Prompt Optimizer, as it goes out.
 		scene.RecordSent(chatNow, group, msgs)
+		// The model now holds this chat, so typing the next message has
+		// nothing to warm.
+		scene.NoteUsed(model, warmKey)
 		if searcher != nil {
 			searcher.KeepPage = func(r websearch.Round) { scene.KeepPage(st, cfg, r) }
 		}
@@ -697,6 +701,9 @@ func (c *ChatView) maybeLearn() {
 	go func() {
 		model := scene.FitHousekeeping(ctx, client, model, sceneModel)
 		learned, err := world.Learn(ctx, client, model, w, existing, turns, charName, userName, opts)
+		// A different prompt went through the model, so it no longer holds
+		// the scene: typing the next message should read it again.
+		scene.NoteUsed(model, "")
 
 		coreglib.IdleAdd(func() bool {
 			c.bg.done()
@@ -801,6 +808,9 @@ func (c *ChatView) maybeCompact() {
 			}
 		}
 		next, err := compact(ctx, client, model, prev, aged, cast, persona, opts, budget)
+		// Likewise, and the recap it wrote changes the scene's prompt too.
+		scene.NoteUsed(model, "")
+		scene.NoteUsed(sceneModel, "")
 
 		coreglib.IdleAdd(func() bool {
 			c.bg.done()

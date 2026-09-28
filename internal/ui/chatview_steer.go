@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -344,6 +345,34 @@ func (c *ChatView) lastUserRow() *MessageRow {
 		}
 	}
 	return nil
+}
+
+// warmKey names this conversation to the warm-up, which keeps track of the
+// chat each model last read.
+func (c *ChatView) warmKey() string {
+	if c.chat.ID != 0 {
+		return strconv.FormatInt(c.chat.ID, 10)
+	}
+	return "new " + c.char.Name
+}
+
+// warmForTyping starts the model and the scene's prompt on their way while a
+// message is typed. See scene.WarmForTyping.
+func (c *ChatView) warmForTyping() {
+	model := c.activeModel()
+	if model == "" {
+		return
+	}
+	msgs := c.buildRequest()
+	client, kind, opts, key := c.client, c.chat.Kind, c.options(), c.warmKey()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		// The same context size the reply will ask for, or the model is
+		// loaded twice.
+		opts = scene.FitContext(ctx, client, model, kind, opts, msgs)
+		cancel()
+		scene.WarmForTyping(client, model, key, msgs, opts)
+	}()
 }
 
 // notice says an action worked, in a toast.
