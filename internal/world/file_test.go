@@ -7,14 +7,14 @@ import (
 
 func sampleWorld() (World, []Entry) {
 	return World{
-			Name:        "Sever Reach",
-			Description: "A port city where the tide comes in wrong.",
-			Rules:       "Nobody sails after dark.",
-		}, []Entry{
-			{Name: "The Harbour", Keys: []string{"harbour", "docks"}, Content: "Silted since the war.", Enabled: true},
-			{Name: "Tide Charts", Keys: []string{"charts"}, Content: "Reissued every spring.", Enabled: true, Constant: true, Priority: 3},
-			{Name: "Learned Thing", Keys: []string{"rumour"}, Content: "Overheard in play.", Enabled: false, Auto: true},
-		}
+		Name:        "Sever Reach",
+		Description: "A port city where the tide comes in wrong.",
+		Rules:       "Nobody sails after dark.",
+	}, []Entry{
+		{Name: "The Harbour", Keys: []string{"harbour", "docks"}, Content: "Silted since the war.", Enabled: true},
+		{Name: "Tide Charts", Keys: []string{"charts"}, Content: "Reissued every spring.", Enabled: true, Constant: true, Priority: 3},
+		{Name: "Learned Thing", Keys: []string{"rumour"}, Content: "Overheard in play.", Enabled: false, Auto: true},
+	}
 }
 
 func TestWorldFileRoundTrips(t *testing.T) {

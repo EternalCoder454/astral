@@ -98,7 +98,7 @@ func New(assets Assets) *App {
 	// Astral is single-instance: launching it again raises the window that is
 	// already open. Capture runs opt out, so they neither hand off to nor
 	// disturb a copy you happen to be using.
-	flags := gio.ApplicationFlagsNone
+	flags := gio.ApplicationDefaultFlags
 	if devRun() {
 		flags = gio.ApplicationNonUnique
 	}

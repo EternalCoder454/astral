@@ -61,6 +61,34 @@ func ImageSuffixes() []string {
 	return suffixes
 }
 
+// goImageTypes are the MIME types of the formats Go decodes itself.
+var goImageTypes = []string{"image/png", "image/jpeg", "image/gif", "image/bmp", "image/tiff", "image/webp"}
+
+// ImageMIMETypes lists the MIME types an import can read, for a file chooser
+// to match pictures by what they contain as well as by their names.
+func ImageMIMETypes() []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(t string) {
+		if t = strings.ToLower(strings.TrimSpace(t)); t != "" && !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	for _, t := range goImageTypes {
+		add(t)
+	}
+	for _, f := range gdkpixbuf.PixbufGetFormats() {
+		if f.IsDisabled() {
+			continue
+		}
+		for _, t := range f.MIMETypes() {
+			add(t)
+		}
+	}
+	return out
+}
+
 // looksLikeImage reports whether a name is one an import can read. It is a
 // first pass on the name only: the importer decodes the bytes and is the thing
 // that actually decides, which is what catches a .png that is not one.

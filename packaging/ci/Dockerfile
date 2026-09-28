@@ -18,9 +18,11 @@ RUN dnf -y install --setopt=install_weak_deps=False \
         gcc pkgconf-pkg-config git tar gzip diffutils findutils \
     && dnf clean all
 
-# Go from upstream, so the version here is the one go.mod asks for rather than
-# whatever the distribution is on.
-ARG GO_VERSION=1.26.0
+# Go from upstream, the version Astral is developed with rather than whatever
+# the distribution is on. It can be newer than go.mod's minimum, but it has to
+# match the one the code is written with: gofmt's output changes between
+# versions, and 1.27 indents a multi-value return differently from 1.26.
+ARG GO_VERSION=1.27.1
 RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tgz \
     && tar -C /usr/local -xzf /tmp/go.tgz \
     && rm /tmp/go.tgz

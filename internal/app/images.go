@@ -31,15 +31,17 @@ const maxImageBytes = 48 << 20 // 48 MiB
 //
 // Suffixes rather than patterns: a pattern's case sensitivity depends on the
 // platform, and on Linux "*.jpg" hides every photograph a camera named
-// IMG_0001.JPG. The gdk-pixbuf formats are added as well, which matches files
-// by what they contain.
+// IMG_0001.JPG. Their MIME types are added as well, which matches files by
+// what they contain.
 func imageFilters() *gio.ListStore {
 	images := gtk.NewFileFilter()
 	images.SetName("Images")
 	for _, ext := range ui.ImageSuffixes() {
 		images.AddSuffix(ext)
 	}
-	images.AddPixbufFormats()
+	for _, t := range ui.ImageMIMETypes() {
+		images.AddMIMEType(t)
+	}
 	all := gtk.NewFileFilter()
 	all.SetName("All Files")
 	all.AddPattern("*")
@@ -77,7 +79,9 @@ func (a *App) pickAttachment() {
 		for _, ext := range ui.ImageSuffixes() {
 			both.AddSuffix(ext)
 		}
-		both.AddPixbufFormats()
+		for _, t := range ui.ImageMIMETypes() {
+			both.AddMIMEType(t)
+		}
 		filters.Append(both.Object)
 	}
 	filters.Append(text.Object)
