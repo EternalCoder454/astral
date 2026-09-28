@@ -117,10 +117,19 @@ type Options struct {
 	// window and the penalty never sees it. The collapse that prompted this
 	// ran about 225 tokens per cycle.
 	RepeatLastN int
-	NumCtx      int
-	NumPredict  int
-	Seed        int
-	Stop        []string
+	// FrequencyPenalty lowers a token's odds in proportion to how often it has
+	// already appeared. Measured on Ollama 0.34's engine, which runs the Qwen
+	// 3.5 and Gemma 4 models: this and repeat_penalty change the output, and
+	// presence_penalty is accepted and ignored, so it is not offered.
+	FrequencyPenalty float64
+	// MinP discards any token less likely than this fraction of the most
+	// likely one. It trims the long tail that top_p lets through when the
+	// distribution is flat, which is where a word salad starts.
+	MinP       float64
+	NumCtx     int
+	NumPredict int
+	Seed       int
+	Stop       []string
 }
 
 // toMap renders only the options that were actually set. Ollama treats an
@@ -143,6 +152,12 @@ func (o Options) toMap() map[string]any {
 	if o.RepeatLastN > 0 {
 		m["repeat_last_n"] = o.RepeatLastN
 	}
+	if o.FrequencyPenalty > 0 {
+		m["frequency_penalty"] = o.FrequencyPenalty
+	}
+	if o.MinP > 0 {
+		m["min_p"] = o.MinP
+	}
 	if o.NumCtx > 0 {
 		m["num_ctx"] = o.NumCtx
 	}
@@ -161,15 +176,12 @@ func (o Options) toMap() map[string]any {
 	return m
 }
 
-// DefaultKeepAlive is how long Ollama is asked to hold the model in memory
-// after a reply.
+// DefaultKeepAlive is empty, which leaves the decision to the server.
 //
-// This is the single biggest thing separating a fast session from a slow one.
-// Ollama's own default is five minutes, and roleplay has long gaps, reading
-// the reply, deciding what to do, so the model is routinely evicted between
-// turns and the next message pays a full reload. On a 27B model that is tens
-// of seconds of staring at nothing before the first token.
-const DefaultKeepAlive = "30m"
+// A keep-alive sent with a request overrides the server's own, so a client
+// that always sends one makes the server's setting meaningless. See the
+// longer note on store.DefaultKeepAlive.
+const DefaultKeepAlive = ""
 
 // Client talks to a local Ollama server.
 type Client struct {
@@ -349,6 +361,10 @@ func (c *Client) Structured(ctx context.Context, model string, msgs []Message, o
 // instead breaks the moment the wording changes.
 var ErrUnreachable = errors.New("cannot reach the model server")
 
+// ErrRepeatLimit is Ollama stopping a reply that fell into a loop. It comes
+// with whatever was written before the loop, which is usually worth keeping.
+var ErrRepeatLimit = errors.New("the model started repeating itself and was stopped")
+
 // rejectsThinking reports whether an error is the server refusing the think
 // parameter, rather than a failure worth surfacing.
 func rejectsThinking(err error) bool {
@@ -389,6 +405,13 @@ func (c *Client) chat(ctx context.Context, model string, msgs []Message, opts Op
 		return Message{}, Stats{}, fmt.Errorf("ollama returned %s: %s", resp.Status, strings.TrimSpace(string(b)))
 	}
 
+	// Stray characters from another script are taken out as they arrive,
+	// unless the conversation is itself written in one. See script.go.
+	var guard *strayFilter
+	if needsScriptGuard(msgs) {
+		guard = &strayFilter{}
+	}
+
 	sc := bufio.NewScanner(resp.Body)
 	// A single NDJSON line holds one delta, but a model that emits a long
 	// stretch without a newline (or a thinking block flushed at once) can make
@@ -408,12 +431,25 @@ func (c *Client) chat(ctx context.Context, model string, msgs []Message, opts Op
 			continue // a partial or non-JSON line: the next one usually parses
 		}
 		if cr.Error != "" {
+			// Ollama stops a reply that has fallen into a loop, and says so
+			// in the stream. What came before the loop is kept and handed
+			// back with the error, so the caller can keep the reply up to the
+			// point it went wrong rather than losing all of it.
+			if strings.Contains(cr.Error, "repeat limit") {
+				return Message{
+					Role: RoleAssistant, Content: strings.TrimSpace(content.String()),
+					Thinking: strings.TrimSpace(thinking.String()), ToolCalls: toolCalls,
+				}, stats, fmt.Errorf("%w: %s", ErrRepeatLimit, cr.Error)
+			}
 			return Message{}, Stats{}, fmt.Errorf("ollama: %s", cr.Error)
 		}
 		// Collected rather than replaced: a model may spread its calls over
 		// several chunks, and the last chunk of a stream carries none of them.
 		toolCalls = append(toolCalls, cr.Message.ToolCalls...)
 		d := Delta{Content: cr.Message.Content, Thinking: cr.Message.Thinking}
+		if guard != nil {
+			d.Content = guard.Next(d.Content)
+		}
 		if d.Content != "" {
 			content.WriteString(d.Content)
 		}

@@ -29,9 +29,9 @@ const groupStructure = `You are running a scene with several characters in it. Y
 
 WHO SPEAKS
 Mark every beat with the speaker's name, on its own line start, exactly like this:
-%[1]s: *She did not look up from the chart.* "You're late."
+%[1]s: *...* "..."
 
-%[2]s: "She's been saying that since noon."
+%[2]s: "..."
 
 Not everyone speaks every turn. One, two, or three of them react; the rest are present and quiet. Pick whoever would actually respond to what just happened, and let the others stay out of it.
 Never give all of them one line each. A reply in which every character speaks exactly once, turn after turn, is the single thing that makes a scene like this read as a list rather than a conversation, and shuffling the order does not fix it.
@@ -39,8 +39,10 @@ They talk to each other, not only to %[3]s. Let them disagree, interrupt, answer
 
 WHAT TO WRITE
 Write only the words and actions of the characters listed below. Never write, decide, or narrate %[3]s's words, thoughts, or actions, wait for them.
-You are writing to %[3]s, not about them. Call them you: *She did not look up as you came in*, never *as %[3]s came in*, and your sister rather than her sister.
+You are writing to %[3]s, not about them. Call them you: write *as you came in*, never *as %[3]s came in*, and your sister rather than her sister.
 Do not summarize the scene, do not skip ahead in time, and do not end the scene on your own.
+If any of them swears, or is described as crude or vulgar, that is how they talk: it lands on frustration, surprise and emphasis, not on the person they are talking to unless they mean to insult them. Vary the words rather than leaning on one.
+Give new people names that fit the setting, not stock names like Elara, Seraphina, Kael, Lyra or Vance.
 
 FORMATTING. Inside a beat, every sentence you write is one of exactly two things, and there is no third kind:
 1. Spoken aloud, in "double quotes". Nothing else goes inside quotes.
@@ -246,6 +248,8 @@ func GroupAnchor(cast []Character, sc Scene, userName string) string {
 		b.WriteString(Substitute(ins, allNames, userName))
 	}
 
+	b.WriteString(freshWording(sc.Overused, allNames, userName))
+
 	if d := strings.TrimSpace(sc.Direction); d != "" {
 		b.WriteString("\n\nDIRECTION. Where the user wants this scene to go. Your next reply " +
 			"must take a visible step toward it: have someone say or do something that " +
@@ -312,7 +316,13 @@ func BuildGroupMessages(cast []Character, sc Scene) []ollama.Message {
 	// characters are not there. The cast's voices have to come from their
 	// descriptions until the transcript can do the job.
 
-	history := trimHistory(sc.History, budget.History)
+	// As in a two-hander, the room for recalled moments goes to the
+	// transcript when there are none.
+	historyBudget := budget.History
+	if strings.TrimSpace(sc.Memory) == "" {
+		historyBudget += budget.Memory
+	}
+	history := trimHistory(sc.History, historyBudget)
 	for _, m := range history {
 		m.Content = Substitute(m.Content, allNames, userName)
 		msgs = append(msgs, m)
@@ -326,6 +336,10 @@ func BuildGroupMessages(cast []Character, sc Scene) []ollama.Message {
 				"notes rather than prose, and are not an example of how to write.\n" +
 				Substitute(lore, allNames, userName),
 		})
+	}
+	if memory := strings.TrimSpace(truncateTo(sc.Memory, budget.Memory)); memory != "" {
+		msgs = append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: MemoryHeading + "\n" +
+			Substitute(memory, allNames, userName)})
 	}
 	if a := GroupAnchor(cast, sc, userName); a != "" {
 		msgs = append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: a})

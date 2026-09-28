@@ -164,9 +164,11 @@ const framingStructure = `You are roleplaying as {{char}}. Stay in character at 
 WHAT TO WRITE
 Write {{char}}'s words and actions only. Never write, decide, or narrate {{user}}'s words, thoughts, or actions, wait for them.
 Do not summarize the scene, do not skip ahead in time, and do not end the scene on your own.
+If {{char}} swears, or is described as crude or vulgar, that is how they talk: it lands on frustration, surprise and emphasis, not on the person they are talking to unless they mean to insult them. Vary the words rather than leaning on one.
+Give new people names that fit the setting, not stock names like Elara, Seraphina, Kael, Lyra or Vance.
 
 WHO IS WHO
-Write to {{user}}, not about them: call them you, never by name and never he or she. *She did not look up as you came in*, and your sister rather than her sister.
+Write to {{user}}, not about them: call them you, never by name and never he or she. Write *as you came in*, never *as {{user}} came in*, and your sister rather than her sister.
 Match them instead if they write their own turns in the third person.
 
 FORMATTING. Every sentence you write is one of exactly two things, and there is no third kind:
@@ -174,9 +176,10 @@ FORMATTING. Every sentence you write is one of exactly two things, and there is 
 2. Everything else, meaning narration, action, body language, sensory detail and {{char}}'s own thoughts, inside *single asterisks*.
 Never write an unmarked sentence. Every paragraph must start with either a quote or an asterisk.
 Put a blank line between beats. A reply is two or more short paragraphs, never one unbroken block.
-Example of a full reply:
-*She did not look up from the chart when you came in. The rain had found the window again, and she let it.* "You're late."
-*A pin went into the table rather than the map, a small and deliberate violence.* "Sit. You're dripping on the Sever."`
+The shape of a reply, with ... where your own words go:
+*...* "..."
+
+*...* "..."`
 
 // framingClose is stated after the style, so the style cannot talk its way
 // past it.
@@ -430,6 +433,16 @@ type Scene struct {
 	// cast degenerates into. The anchor argues against it only when it is
 	// happening.
 	RollCall bool
+	// Memory is moments from earlier in the scene that the conversation has
+	// just touched, recalled from the part of the transcript the model can no
+	// longer see, rendered by the caller. Empty in a scene that has not grown
+	// past its window, or has nothing relevant to recall.
+	Memory string
+	// Overused is the phrasing the recent replies keep coming back to, found by
+	// Overused. The anchor names it so the next reply reaches for something
+	// else. Empty in a fresh scene and in one that is not repeating itself, and
+	// then the anchor says nothing about it at all.
+	Overused Repetition
 	// Direction is where the user wants this scene to go next: "she is about
 	// to realise he lied", "move them toward the docks". It is not a standing
 	// rule like a character's instructions, it is a nudge for the next few
@@ -495,7 +508,15 @@ func BuildMessages(c Character, sc Scene) []ollama.Message {
 
 	// The transcript is append-only, which is the best possible shape for a
 	// prefix cache: every turn adds to the end and disturbs nothing before it.
-	history = trimHistory(history, budget.History)
+	//
+	// The room kept for recalled moments goes to the transcript when there are
+	// none, which is every scene short enough never to have been folded into
+	// a recap.
+	historyBudget := budget.History
+	if strings.TrimSpace(sc.Memory) == "" {
+		historyBudget += budget.Memory
+	}
+	history = trimHistory(history, historyBudget)
 	for _, m := range history {
 		m.Content = Substitute(m.Content, c.Name, userName)
 		msgs = append(msgs, m)
@@ -511,11 +532,23 @@ func BuildMessages(c Character, sc Scene) []ollama.Message {
 				Substitute(lore, c.Name, userName),
 		})
 	}
+	if memory := strings.TrimSpace(truncateTo(sc.Memory, budget.Memory)); memory != "" {
+		msgs = append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: MemoryHeading + "\n" +
+			Substitute(memory, c.Name, userName)})
+	}
 	if a := Anchor(c, sc, userName); a != "" {
 		msgs = append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: a})
 	}
 	return msgs
 }
+
+// MemoryHeading introduces recalled moments. It says what they are for, which
+// is consistency, and what they are not, which is material to replay: a model
+// handed a quotation from forty turns ago will otherwise quote it back.
+const MemoryHeading = "EARLIER IN THIS SCENE. Moments from before the part of the scene above, " +
+	"recalled because what is happening now touches them. They happened. Stay consistent with " +
+	"them, names, promises, what was revealed, what was said, but do not repeat them word for " +
+	"word or bring them up unless the scene calls for it."
 
 // truncateTo bounds a block to a character budget, cutting at a line break so
 // a lore entry or a recap does not stop mid-fact.

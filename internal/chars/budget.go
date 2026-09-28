@@ -36,6 +36,10 @@ type Budget struct {
 	// on their own and neither should be able to crowd out the scene.
 	Lore  int
 	Recap int
+	// Memory is room for moments recalled from earlier in a long scene, the
+	// ones the recap left out. A scene with nothing to recall hands it back to
+	// the transcript (see BuildMessages), so a short scene loses nothing.
+	Memory int
 	// Compact is the transcript size at which a scene is folded into the
 	// recap, and Keep is how much stays verbatim afterwards. They are derived
 	// so that compaction always triggers before History is exceeded.
@@ -50,16 +54,18 @@ type Budget struct {
 // Share of the usable window each capped part may take. The remainder is the
 // transcript, which is the part worth spending on.
 const (
-	loreShare  = 0.16
-	recapShare = 0.12
+	loreShare   = 0.16
+	recapShare  = 0.12
+	memoryShare = 0.08
 )
 
 // Floors, so a small context window degrades to something still playable
 // rather than to nothing. Below these the scene is not worth the lorebook's
 // space at all, and Plan says so by returning zero.
 const (
-	minLoreChars  = 600
-	minRecapChars = 500
+	minLoreChars   = 600
+	minRecapChars  = 500
+	minMemoryChars = 500
 )
 
 // Plan divides a context window between the parts of a prompt. fixedChars is
@@ -104,8 +110,9 @@ func Plan(numCtx, numPredict, fixedChars int) Budget {
 	}
 	b.Lore = take(loreShare, minLoreChars, remaining)
 	b.Recap = take(recapShare, minRecapChars, remaining-b.Lore)
+	b.Memory = take(memoryShare, minMemoryChars, remaining-b.Lore-b.Recap)
 
-	b.History = remaining - b.Lore - b.Recap
+	b.History = remaining - b.Lore - b.Recap - b.Memory
 	if b.History < 0 {
 		b.History = 0
 	}

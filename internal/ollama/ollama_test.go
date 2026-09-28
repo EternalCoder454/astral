@@ -263,20 +263,22 @@ func TestChatSendsKeepAlive(t *testing.T) {
 	}))
 	defer srv.Close()
 
+	// A chosen keep-alive is sent as it is.
 	c := NewClient(srv.URL)
-	if c.KeepAlive != DefaultKeepAlive {
-		t.Errorf("new client KeepAlive = %q, want %q", c.KeepAlive, DefaultKeepAlive)
-	}
+	c.KeepAlive = "30m"
 	if _, _, err := c.Chat(context.Background(), "m",
 		[]Message{{Role: RoleUser, Content: "hi"}}, Options{}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if req["keep_alive"] != DefaultKeepAlive {
-		t.Errorf("keep_alive = %v, want %q", req["keep_alive"], DefaultKeepAlive)
+	if req["keep_alive"] != "30m" {
+		t.Errorf("keep_alive = %v, want 30m", req["keep_alive"])
 	}
 
-	// An empty setting must send nothing at all rather than an empty string,
-	// which Ollama would reject.
+	// The default, and an empty setting, send nothing at all: the server's own
+	// keep-alive applies, and an empty string would be rejected.
+	if NewClient(srv.URL).KeepAlive != "" {
+		t.Errorf("a new client overrides the server's keep-alive with %q", NewClient(srv.URL).KeepAlive)
+	}
 	req = nil
 	c.KeepAlive = ""
 	if _, _, err := c.Chat(context.Background(), "m",

@@ -10,7 +10,7 @@ func TestPlanFitsTheWindow(t *testing.T) {
 	for _, numCtx := range []int{4096, 8192, 16384, 32768, 131072} {
 		for _, fixed := range []int{1500, 4000, 9000} {
 			b := Plan(numCtx, 0, fixed)
-			used := fixed + b.History + b.Lore + b.Recap
+			used := fixed + b.History + b.Lore + b.Recap + b.Memory
 			// Everything sent, plus the reply, plus the safety margin, must
 			// fit inside the window.
 			tokens := int(float64(used)/charsPerToken) + DefaultReplyTokens + safetyTokens
@@ -53,7 +53,7 @@ func TestReplyLimitComesOutOfTheBudget(t *testing.T) {
 // rather than to a negative one.
 func TestTinyWindowDegrades(t *testing.T) {
 	b := Plan(1024, 0, 9000)
-	if b.History < 0 || b.Lore < 0 || b.Recap < 0 {
+	if b.History < 0 || b.Lore < 0 || b.Recap < 0 || b.Memory < 0 {
 		t.Errorf("negative budget: %+v", b)
 	}
 }

@@ -17,21 +17,29 @@ import (
 // writes. It costs its own length every turn, which is the price of the only
 // position that works.
 
-// anchorFormat is the markup rule with an example, which matters more than the
-// rule: a model shown the shape reproduces it, one told about it often does
-// not.
-const anchorFormat = `FORMAT. Every sentence is one of exactly two things, and there is no third kind: spoken aloud in "double quotes", or everything else in *single asterisks*. This holds for every paragraph of this reply, and for this reply even where the messages above did not do it. Never write an unmarked sentence; every paragraph starts with a quote or an asterisk. Put a blank line between beats rather than running them together. Example:
-*She did not look up from the chart.* "You're late."
+// anchorFormat is the markup rule with the shape of a reply, which matters more
+// than the rule: a model shown the shape reproduces it, one told about it often
+// does not.
+//
+// The shape and not an example. It used to be two lines of Vesper at her map
+// table, and this block is re-sent on every turn in the position a model obeys
+// most, so every scene got them: measured on a salvage yard at two in the
+// morning, 42 replies in 48 contained "you're dripping on the Sever" or "a pin
+// went into the table", and each copy then became precedent for the next reply.
+// The dots show where the markup goes and give the model nothing to copy.
+const anchorFormat = `FORMAT. Every sentence is one of exactly two things, and there is no third kind: spoken aloud in "double quotes", or everything else in *single asterisks*. This holds for every paragraph of this reply, and for this reply even where the messages above did not do it. Never write an unmarked sentence; every paragraph starts with a quote or an asterisk. Put a blank line between beats rather than running them together. ` + replyShape
 
-*A pin went into the table rather than the map.* "Sit."`
+// replyShape is the example with the content taken out. See anchorFormat.
+const replyShape = `The shape of a reply, with ... where your own words go:
+*...* "..."
+
+*...* "..."`
 
 // anchorFormatFirm is used when the recent transcript shows the rule has
 // already slipped. Restating it more forcefully only where it is being
 // disobeyed keeps the usual case cheap, and stops as soon as the model
 // complies.
-const anchorFormatFirm = `FORMAT. Your recent replies have been getting this wrong, so correct it now. Every sentence is one of exactly two things and there is no third kind: spoken aloud in "double quotes", or everything else (narration, action, body language, thought) wrapped in *single asterisks*. Go paragraph by paragraph: each one must start with a quote or an asterisk, and no sentence may be left unmarked. Example:
-*She did not look up from the chart. The rain had found the window again, and she let it.* "You're late."
-*A pin went into the table rather than the map, a small and deliberate violence.* "Sit. You're dripping on the Sever."`
+const anchorFormatFirm = `FORMAT. Your recent replies have been getting this wrong, so correct it now. Every sentence is one of exactly two things and there is no third kind: spoken aloud in "double quotes", or everything else (narration, action, body language, thought) wrapped in *single asterisks*. Go paragraph by paragraph: each one must start with a quote or an asterisk, and no sentence may be left unmarked. ` + replyShape
 
 // Anchor builds the closing block: the last thing in the context before the
 // model writes its reply.
@@ -79,6 +87,8 @@ func Anchor(c Character, sc Scene, userName string) string {
 		b.WriteString("\n\nThe user's own instructions, which outrank everything else here:\n")
 		b.WriteString(Substitute(ins, c.Name, userName))
 	}
+
+	b.WriteString(freshWording(sc.Overused, c.Name, userName))
 
 	// Last of all, and so weighted most. A direction is about where the scene
 	// is going rather than how it is written, which is why it sits apart from
@@ -198,4 +208,50 @@ func RestorePrefill(reply string) string {
 		return reply // already balanced: the template closed the prefill off
 	}
 	return NarrationPrefill + reply
+}
+
+// freshWording is the section of the closing block that names what the recent
+// replies keep repeating, or nothing when they are not.
+//
+// It says what may repeat as well as what may not. Names and objects recur in
+// any scene for good reason, the chart on the table is still the chart, and a
+// model told only "do not repeat these" starts renaming the furniture to
+// comply.
+func freshWording(r Repetition, charName, userName string) string {
+	if r.Empty() {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n\nFRESH WORDING. Your recent replies keep reusing the same words. ")
+	if len(r.Phrases) > 0 {
+		b.WriteString("Do not use any of these again in this reply, and do not swap in a near copy; " +
+			"describe the moment differently or leave that detail out. Names of people, places and " +
+			"objects may repeat; the wording around them should not:\n")
+		for _, ph := range r.Phrases {
+			b.WriteString("- ")
+			b.WriteString(Substitute(ph, charName, userName))
+			b.WriteString("\n")
+		}
+	}
+	if r.Opening != "" {
+		b.WriteString("Most of your recent replies opened with \"")
+		b.WriteString(r.Opening)
+		b.WriteString("\". Open this one differently.\n")
+	}
+	if len(r.Swears) > 0 {
+		// Worded so the swearing survives. The complaint was never that a
+		// character swears; it was the same word standing in for every
+		// feeling, and a model told only "stop" turns a foul-mouthed character
+		// polite.
+		b.WriteString("Swearing: keep it if it suits the character, but you have leaned on \"")
+		b.WriteString(strings.Join(r.Swears, "\", \""))
+		b.WriteString("\" in most recent replies. Do not use ")
+		if len(r.Swears) == 1 {
+			b.WriteString("it")
+		} else {
+			b.WriteString("them")
+		}
+		b.WriteString(" in this reply; where a line wants a swear, pick a different word, or let the sentence carry it.")
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
