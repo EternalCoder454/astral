@@ -2,15 +2,18 @@ package imageconv
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"hash/crc32"
 	"image"
 	"image/color"
+	"image/jpeg"
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
-
-	_ "image/jpeg"
-	_ "image/png"
 )
 
 func read(t *testing.T, name string) []byte {
@@ -222,5 +225,177 @@ func TestThumbnailRejectsJunk(t *testing.T) {
 	}
 	if _, err := Thumbnail(read(t, "sample.png"), 0); err == nil {
 		t.Error("a zero size was accepted")
+	}
+}
+
+// withOrientation puts an EXIF block carrying one orientation tag at the front
+// of a JPEG, the way a phone does. Built by hand because no encoder in the
+// standard library writes EXIF, and the test should not depend on one that
+// happens to be installed.
+func withOrientation(jpg []byte, o uint16, order binary.ByteOrder) []byte {
+	tiff := make([]byte, 8+2+12+4)
+	if order == binary.LittleEndian {
+		copy(tiff, "II")
+	} else {
+		copy(tiff, "MM")
+	}
+	order.PutUint16(tiff[2:], 42)
+	order.PutUint32(tiff[4:], 8) // the first directory follows the header
+	order.PutUint16(tiff[8:], 1) // with one entry in it
+	e := tiff[10:]
+	order.PutUint16(e[0:], 0x0112) // orientation
+	order.PutUint16(e[2:], 3)      // SHORT
+	order.PutUint32(e[4:], 1)      // one of them
+	order.PutUint16(e[8:], o)
+
+	payload := append([]byte("Exif\x00\x00"), tiff...)
+	seg := []byte{0xFF, 0xE1, 0, 0}
+	binary.BigEndian.PutUint16(seg[2:], uint16(len(payload)+2))
+	seg = append(seg, payload...)
+
+	out := append([]byte{}, jpg[:2]...) // SOI
+	out = append(out, seg...)
+	return append(out, jpg[2:]...)
+}
+
+// halves is an opaque image, red on the left and blue on the right.
+func halves(w, h int) *image.RGBA {
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			c := color.RGBA{220, 30, 30, 255}
+			if x >= w/2 {
+				c = color.RGBA{30, 30, 220, 255}
+			}
+			img.SetRGBA(x, y, c)
+		}
+	}
+	return img
+}
+
+func isRed(c color.Color) bool {
+	r, _, b, _ := c.RGBA()
+	return r > 0x9000 && b < 0x6000
+}
+
+// A portrait taken on a phone is stored lying on its side with a note saying
+// which way up it goes. Handed over as stored, a vision model is describing a
+// face turned ninety degrees, which is the easiest way there is to get a worse
+// description of a person.
+func TestPhonePortraitIsTurnedUpright(t *testing.T) {
+	var src bytes.Buffer
+	if err := jpeg.Encode(&src, halves(64, 32), &jpeg.Options{Quality: 95}); err != nil {
+		t.Fatal(err)
+	}
+	for _, order := range []binary.ByteOrder{binary.LittleEndian, binary.BigEndian} {
+		in := withOrientation(src.Bytes(), 6, order)
+		if got := jpegOrientation(in); got != 6 {
+			t.Fatalf("%v: read orientation %d, want 6", order, got)
+		}
+		out, ext, err := Normalize(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ext != ".jpg" {
+			t.Errorf("ext %q", ext)
+		}
+		img, _, err := image.Decode(bytes.NewReader(out))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if b := img.Bounds(); b.Dx() != 32 || b.Dy() != 64 {
+			t.Fatalf("%v: %dx%d, want 32x64", order, b.Dx(), b.Dy())
+		}
+		// A quarter turn clockwise brings the left half to the top.
+		if !isRed(img.At(16, 12)) || isRed(img.At(16, 52)) {
+			t.Errorf("%v: turned the wrong way", order)
+		}
+	}
+}
+
+// Every orientation, against pictures of the answer drawn by hand rather than
+// the formula the code uses.
+func TestUprightAllOrientations(t *testing.T) {
+	// A B C
+	// D E F
+	src := image.NewRGBA(image.Rect(0, 0, 3, 2))
+	names := "ABCDEF"
+	for i := range names {
+		src.Pix[i*4] = names[i]
+		src.Pix[i*4+3] = 255
+	}
+	want := map[int][]string{
+		1: {"ABC", "DEF"},
+		2: {"CBA", "FED"},
+		3: {"FED", "CBA"},
+		4: {"DEF", "ABC"},
+		5: {"AD", "BE", "CF"},
+		6: {"DA", "EB", "FC"},
+		7: {"FC", "EB", "DA"},
+		8: {"CF", "BE", "AD"},
+	}
+	for o, rows := range want {
+		got := Upright(src, o).(*image.RGBA)
+		var lines []string
+		for y := 0; y < got.Rect.Dy(); y++ {
+			line := ""
+			for x := 0; x < got.Rect.Dx(); x++ {
+				line += string(got.Pix[got.PixOffset(x, y)])
+			}
+			lines = append(lines, line)
+		}
+		if fmt.Sprint(lines) != fmt.Sprint(rows) {
+			t.Errorf("orientation %d: got %v, want %v", o, lines, rows)
+		}
+	}
+}
+
+// Anything larger than a vision model reads at comes down to MaxSide, keeping
+// its shape. A photograph stays a JPEG.
+func TestLargeImagesAreBroughtDown(t *testing.T) {
+	var src bytes.Buffer
+	if err := png.Encode(&src, halves(4000, 1000)); err != nil {
+		t.Fatal(err)
+	}
+	out, ext, err := Normalize(src.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ext != ".jpg" {
+		t.Errorf("an opaque picture became %q", ext)
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(out))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Width != MaxSide || cfg.Height != MaxSide/4 {
+		t.Errorf("%dx%d, want %dx%d", cfg.Width, cfg.Height, MaxSide, MaxSide/4)
+	}
+}
+
+// A file claiming to be enormous is refused before anything is allocated for
+// it, from its header alone.
+func TestAnEnormousImageIsRefused(t *testing.T) {
+	var src bytes.Buffer
+	if err := png.Encode(&src, halves(4, 4)); err != nil {
+		t.Fatal(err)
+	}
+	b := src.Bytes()
+	// IHDR is the first chunk: 8 bytes of signature, 8 of length and type,
+	// then width and height, then the rest, then a checksum over type+data.
+	binary.BigEndian.PutUint32(b[16:], 40000)
+	binary.BigEndian.PutUint32(b[20:], 40000)
+	binary.BigEndian.PutUint32(b[29:], crc32.ChecksumIEEE(b[12:29]))
+	if _, _, err := Normalize(b); err == nil || !strings.Contains(err.Error(), "too large") {
+		t.Errorf("a 1.6 gigapixel image was not refused: %v", err)
+	}
+}
+
+// Bytes none of these decoders know are reported as such, so the caller can
+// try a decoder of its own before giving up.
+func TestUnknownBytesSayWhy(t *testing.T) {
+	_, _, err := Normalize([]byte("\x00\x00\x00\x1cftypheic this is not decodable here"))
+	if !errors.Is(err, ErrUnknownFormat) {
+		t.Errorf("got %v, want ErrUnknownFormat", err)
 	}
 }

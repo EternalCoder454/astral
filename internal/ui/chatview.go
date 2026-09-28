@@ -137,9 +137,9 @@ type ChatView struct {
 	// lastImage is the most recent image sent in this chat, offered as the
 	// character's portrait when the card is built.
 	lastImage string
-	// pendingImage is the base64 of an attachment waiting to go out with the
-	// turn that is being assembled.
-	pendingImage string
+	// picture is an attachment waiting to go out with the turn that is being
+	// assembled.
+	picture pendingPicture
 
 	// prefilled records that this turn's request ended in a partial assistant
 	// message, so the reply has to be joined back onto it. See

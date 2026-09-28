@@ -21,15 +21,27 @@ opens in, and an opening message.
 
 **Pictures.** A character can have two images: a small avatar shown beside
 every message, and a larger portrait displayed beside the scene while you play.
-If the model you are using can see images, you can also attach a reference
-picture while designing a character and have it write the description from
-what is actually in the image.
+While designing a character you can also give it a reference picture, and it
+reads the person in it closely (apparent age, build, face, hair, clothing down
+to material and wear, expression and posture) and builds the appearance from
+what is actually there. Plain chats take pictures too.
 
-PNG, JPEG, WebP, GIF, BMP and TIFF are all accepted. Anything that is not
-already PNG or JPEG is converted on import, because those are what a vision
-model reads and what displays without an extra system package. Images with
-transparency become PNG, and everything else becomes JPEG, so a photograph does
-not grow tenfold on its way in.
+The model you are talking to does not need to be able to see. When it cannot,
+a model that can looks at the picture first and writes down what it shows,
+and that description goes into the conversation in its place. Which model
+looks is **Settings, Image Model**: Automatic picks the chat's own model when
+it can see, and otherwise the largest one that can and that fits in video
+memory by itself. Whatever is loaded is set aside while it looks and comes back
+for the reply, so two models are never on the card together unless there is
+room for both.
+
+Almost any image format is accepted: PNG, JPEG, WebP, GIF, BMP and TIFF are
+read directly, and HEIC, AVIF, JPEG XL, SVG, icons and the rest go through the
+system's image loaders, so what is offered is whatever this machine can open.
+Everything is converted on import to PNG or JPEG, which is what a vision model
+reads, turned the right way up (a phone stores a portrait on its side), and
+brought down to 1536 pixels on its longest side, which is more than a vision
+model reads at and a fraction of the time to send.
 
 **Scenes.** Pick a character and start playing. Astral keeps the transcript,
 remembers which model a scene was started with, and reopens where you left off.
@@ -247,9 +259,10 @@ Then open Astral and press **New chat**. You will be offered four ways in:
 * **Just chat.** A plain conversation with the model, no character.
 * **Import a character card.** Load a `.png` or `.json` card you already have.
 
-While designing a character, a paperclip appears next to the model name if the
-model supports vision. Attach a picture and the model will describe what it
-sees. That image is offered as the character's portrait when the card is built.
+While designing a character, a paperclip appears next to the model name. Attach
+a picture, drop one on the chat, or paste one, and the designer reads it and
+builds from it. That image is offered as the character's portrait when the card
+is built.
 
 Tell Astral who you are under **Settings, You**. Characters address you by that
 name, and it is what `{{user}}` expands to.

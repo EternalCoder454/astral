@@ -196,7 +196,7 @@ func (a *App) devImage(src string) {
 		log.Printf("astral: image: %v", err)
 		return
 	}
-	dst, err := a.importImage(src, "devtest")
+	dst, _, err := importImage(src, "devtest")
 	if err != nil {
 		log.Printf("astral: image: import failed: %v", err)
 		return

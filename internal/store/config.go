@@ -160,6 +160,12 @@ type Config struct {
 	// Ollama keeps both loaded rather than swapping. See ollama.Running.
 	HousekeepingModel string `json:"housekeeping_model"`
 
+	// VisionModel looks at the pictures sent into a chat. Empty means choose:
+	// the chat's own model when it can see, and otherwise the largest model
+	// that can and that fits on the card by itself. Named, it reads every
+	// picture, even for a chat whose model could have looked for itself.
+	VisionModel string `json:"vision_model"`
+
 	Temperature   float64 `json:"temperature"`
 	TopP          float64 `json:"top_p"`
 	TopK          int     `json:"top_k"`

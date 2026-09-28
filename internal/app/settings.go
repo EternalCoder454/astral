@@ -44,6 +44,7 @@ type settingsForm struct {
 	numPredict  *gtk.Entry
 
 	housekeeping *gtk.DropDown
+	vision       *gtk.DropDown
 }
 
 // showSettings opens the settings dialog.
@@ -163,6 +164,16 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 			"model; when it would not, your main model does the work instead, rather than both "+
 			"crowding the card.",
 		f.housekeeping))
+
+	// Same shape as the background model: row 0 is the automatic choice,
+	// which is what an empty setting means.
+	f.vision = gtk.NewDropDownFromStrings(f.visionLabels(a))
+	f.vision.SetSelected(uint(housekeepingRow(f.models, a.cfg.VisionModel)))
+	card.Append(labelledField("Image Model",
+		"Looks at the pictures you give a design chat or a plain chat. Automatic uses the chat's own "+
+			"model when it can see, and otherwise the largest one that can and fits in video memory. "+
+			"Only one model is in memory while it looks.",
+		f.vision))
 
 	f.baseURL = gtk.NewEntry()
 	f.baseURL.SetText(a.cfg.BaseURL)
@@ -347,6 +358,11 @@ func (a *App) applySettings(f *settingsForm) {
 	} else {
 		a.cfg.HousekeepingModel = ""
 	}
+	if i := int(f.vision.Selected()) - 1; i >= 0 && i < len(f.models) {
+		a.cfg.VisionModel = f.models[i]
+	} else {
+		a.cfg.VisionModel = ""
+	}
 	if u := strings.TrimSpace(f.baseURL.Text()); u != "" {
 		a.cfg.BaseURL = u
 	}
@@ -396,6 +412,7 @@ func (a *App) applySettings(f *settingsForm) {
 	if a.chat != nil {
 		a.chat.SetClient(a.client)
 		a.chat.SetConfig(a.cfg)
+		a.refreshAttachAvailability()
 	}
 	if a.sidebar != nil {
 		a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.PersonaDescription)
@@ -458,6 +475,10 @@ func (a *App) showModelPicker() {
 		a.chat.SetConfig(a.cfg)
 		a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.PersonaDescription)
 		a.refreshWelcome()
+		// A model that can see, or one that cannot, changes whether the chat
+		// takes pictures, and it used to go on answering for the old model
+		// until the chat was reopened.
+		a.refreshAttachAvailability()
 	})
 	d.Present(a.win)
 }
@@ -504,6 +525,18 @@ func housekeepingRow(models []string, want string) int {
 // front, which is both the default and what an empty setting means.
 func (f *settingsForm) housekeepingLabels(a *App) []string {
 	out := []string{"Same as the scene's model"}
+	for _, m := range a.models {
+		out = append(out, m.Label())
+	}
+	return out
+}
+
+// visionLabels is the model list with an automatic row in front. The choice
+// of every model rather than only those that can see is deliberate: the list
+// is built without asking the server about each one, and a choice that cannot
+// see is passed over for the automatic one rather than failing.
+func (f *settingsForm) visionLabels(a *App) []string {
+	out := []string{"Automatic"}
 	for _, m := range a.models {
 		out = append(out, m.Label())
 	}

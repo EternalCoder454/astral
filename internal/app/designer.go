@@ -12,6 +12,7 @@ import (
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
+	"astral/internal/scene"
 	"astral/internal/store"
 	"astral/internal/ui"
 )
@@ -188,15 +189,18 @@ func (a *App) startPlainChat(kind, title, opening string) {
 
 // refreshAttachAvailability decides whether the attach control is offered.
 //
-// Only a character design chat, and only when the model can actually see: a
-// text-only model handed an image either ignores it, which looks like the
-// feature is broken, or rejects the whole request and loses the message with
-// it. Asking costs one small call and is done off the UI thread.
+// A design chat and a plain chat take pictures; a scene does not, since a
+// character has no way to be shown one. Whether the chat's model can see does
+// not decide it any more: when it cannot, another model that can looks at the
+// picture on its behalf (see scene.Seer), so the only chat that refuses is one
+// on a machine where nothing can see at all. Asking takes a few small calls and
+// is done off the UI thread.
 func (a *App) refreshAttachAvailability() {
 	if a.chat == nil {
 		return
 	}
-	if a.chat.Chat().Kind != store.KindDesigner {
+	kind := a.chat.Chat().Kind
+	if kind != store.KindDesigner && kind != store.KindAssistant {
 		a.chat.SetCanAttachImages(false)
 		return
 	}
@@ -208,14 +212,14 @@ func (a *App) refreshAttachAvailability() {
 		a.chat.SetCanAttachImages(false)
 		return
 	}
-	client := a.client
+	client, chosen := a.client, a.cfg.VisionModel
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 		defer cancel()
-		can, err := client.CanSee(ctx, model)
+		can := scene.CanTakePictures(ctx, client, chosen, model)
 		coreglib.IdleAdd(func() bool {
-			if a.chat.Chat().Kind == store.KindDesigner {
-				a.chat.SetCanAttachImages(err == nil && can)
+			if a.chat.Chat().Kind == kind {
+				a.chat.SetCanAttachImages(can)
 			}
 			return false
 		})

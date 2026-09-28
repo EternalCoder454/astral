@@ -50,20 +50,27 @@ func (c *ChatView) Send() {
 
 	// An attached image rides with this turn only. The base64 is not stored:
 	// it would be megabytes per message in the database, and what actually
-	// needs to survive is the model's description of the picture, which is in
-	// the reply.
+	// needs to survive is a description of the picture, which is in the reply,
+	// or in this turn itself when another model did the looking (lookAt).
+	var picture pendingPicture
 	if c.attachPath != "" {
 		data, err := os.ReadFile(c.attachPath)
 		if err != nil {
 			c.fail("Could not read that image: " + err.Error())
 		} else {
-			c.pendingImage = base64.StdEncoding.EncodeToString(data)
+			picture.image = base64.StdEncoding.EncodeToString(data)
+			picture.said = text
 			c.lastImage = c.attachPath
 			note := "[attached an image: " + filepath.Base(c.attachPath) + "]"
-			if text == "" {
-				text = note + " Describe what you see, in detail."
-			} else {
+			switch {
+			case text != "":
 				text = text + "\n\n" + note
+			case c.chat.Kind == store.KindDesigner:
+				// The designer's prompt says what to do with a picture, and
+				// a request to describe it would make that all it does.
+				text = note
+			default:
+				text = note + " Describe what you see, in detail."
 			}
 		}
 		c.AttachImage("")
@@ -76,6 +83,10 @@ func (c *ChatView) Send() {
 		c.fail("Could not save your message: " + err.Error())
 	} else {
 		row.ID = id
+	}
+	if picture.image != "" {
+		picture.row, picture.id, picture.text = row, row.ID, text
+		c.picture = picture
 	}
 	c.setComposerText("")
 	// Glide rather than snap: this is the one scroll the reader asked for by
@@ -287,17 +298,12 @@ func (c *ChatView) startStream() {
 	// by the second. Repeating it forever would be its own kind of drift.
 	c.recordStyle()
 
-	// The image goes on the most recent user turn, which is the one it was
-	// attached to.
-	if c.pendingImage != "" {
-		for i := len(msgs) - 1; i >= 0; i-- {
-			if msgs[i].Role == ollama.RoleUser {
-				msgs[i].Images = []string{c.pendingImage}
-				break
-			}
-		}
-		c.pendingImage = ""
-	}
+	// A picture rides with this turn only, and is dealt with on the stream's
+	// goroutine, because dealing with it may mean another model looking at it
+	// first. See lookAt.
+	picture := c.picture
+	c.picture = pendingPicture{}
+	visionModel := c.cfg.VisionModel
 
 	// A scene whose own replies have stopped marking narration will keep not
 	// marking it, however firmly the prompt asks: the transcript is the
@@ -356,6 +362,9 @@ func (c *ChatView) startStream() {
 	st, cfg, kind, hist := c.store, c.cfg, c.chat.Kind, c.history()
 	go func() {
 		defer cancel()
+		if picture.image != "" {
+			msgs = c.lookAt(ctx, gen, msgs, picture, client, st, visionModel, model, kind)
+		}
 		// A different model from the last reply releases that one first, so
 		// the two are never resident together. See UseForReplies.
 		client.UseForReplies(ctx, model)
@@ -1091,4 +1100,88 @@ func (c *ChatView) checkModelFits(model string) {
 			return false
 		})
 	}()
+}
+
+// pendingPicture is a picture sent with the turn being answered.
+type pendingPicture struct {
+	image string // base64
+	said  string // what the person wrote with it, without the attachment note
+	row   *MessageRow
+	id    int64
+	text  string // the stored turn, which a description is added to
+}
+
+// lookAt puts the picture sent with this turn in front of the model: the
+// picture itself when the model can see, and another model's description of
+// it when it cannot. Runs on the stream's goroutine, so it touches no widget
+// directly.
+//
+// A description is written into the stored turn as well as the request, so
+// the picture is still in the conversation on the next turn, after a
+// regenerate, and when the character is built from the chat. The picture
+// itself is sent once and not stored: it would be megabytes a message.
+func (c *ChatView) lookAt(ctx context.Context, gen int, msgs []ollama.Message, p pendingPicture,
+	client *ollama.Client, st *store.Store, visionModel, model, kind string) []ollama.Message {
+	last := -1
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == ollama.RoleUser {
+			last = i
+			break
+		}
+	}
+	if last < 0 {
+		return msgs
+	}
+	later := func(f func()) {
+		coreglib.IdleAdd(func() bool {
+			if gen == c.gen {
+				f()
+			}
+			return false
+		})
+	}
+
+	seer, direct, err := scene.Seer(ctx, client, visionModel, model)
+	switch {
+	case err != nil:
+		if ctx.Err() == nil {
+			later(func() { c.fail("Nothing could look at that image: " + err.Error()) })
+		}
+		return msgs
+	case direct:
+		msgs[last].Images = []string{p.image}
+		return msgs
+	}
+
+	c.setStatus("Looking at the image with " + shortModel(seer) + "…")
+	desc, err := scene.Describe(ctx, client, seer, model, p.image, p.said, kind == store.KindDesigner)
+	if err != nil {
+		if ctx.Err() == nil {
+			later(func() { c.fail("Could not look at that image: " + err.Error()) })
+		}
+		return msgs
+	}
+	block := chars.SeenImage(shortModel(seer), desc)
+	msgs[last].Content += "\n" + block
+	stored := p.text + "\n" + block
+	if p.id != 0 {
+		if err := st.SetMessageContent(p.id, stored); err != nil {
+			later(func() { c.fail("Could not save what the image shows: " + err.Error()) })
+		}
+	}
+	later(func() {
+		if p.row != nil {
+			p.row.SetMarkdown(stored)
+		}
+	})
+	c.setStatus("Image read by " + shortModel(seer))
+	return msgs
+}
+
+// setStatus puts a line in the footer of the reply being written. Safe from
+// any goroutine: the flush timer carries it to the row.
+func (c *ChatView) setStatus(s string) {
+	c.pendMu.Lock()
+	c.pendStatus = s
+	c.pendMu.Unlock()
 }

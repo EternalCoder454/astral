@@ -1,11 +1,15 @@
 package ui
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
+)
 
 func TestLooksLikeImage(t *testing.T) {
 	yes := []string{
-		"/home/zach/a.png", "/home/zach/a.PNG", "a.jpg", "a.jpeg",
-		"a.webp", "a.gif", "a.bmp", "/a b/c.d.png",
+		"/home/zach/a.png", "/home/zach/a.PNG", "a.jpg", "a.JPG", "a.jpeg", "a.jfif",
+		"a.webp", "a.gif", "a.bmp", "a.tif", "a.tiff", "/a b/c.d.png",
 	}
 	for _, p := range yes {
 		if !looksLikeImage(p) {
@@ -17,7 +21,7 @@ func TestLooksLikeImage(t *testing.T) {
 		// A character card is a PNG and is imported elsewhere; what matters
 		// here is only that the name test does not accept something that is
 		// obviously not an image at all.
-		"a.exe", "a.mp4",
+		"a.exe", "a.mp4", "a.gz",
 	}
 	for _, p := range no {
 		if looksLikeImage(p) {
@@ -26,32 +30,21 @@ func TestLooksLikeImage(t *testing.T) {
 	}
 }
 
-// The extension list and the media type list describe the same set from two
-// directions: a dropped file is judged by its name, a pasted one by what the
-// clipboard says it is. Adding a format to one and not the other means an
-// image that can be dropped but not pasted, or the reverse.
-func TestImageExtensionsAndMediaTypesAgree(t *testing.T) {
-	byExt := map[string]bool{}
-	for _, e := range imageExts {
-		switch e {
-		case ".jpg", ".jpeg":
-			byExt["jpeg"] = true
-		default:
-			byExt[e[1:]] = true
+// What a phone saves is HEIC, and the formats beyond Go's own come from the
+// system's gdk-pixbuf loaders. Whatever this machine can load has to be
+// offered, or a picture that would import fine is refused by name.
+func TestSystemFormatsAreOffered(t *testing.T) {
+	for _, f := range gdkpixbuf.PixbufGetFormats() {
+		if f.IsDisabled() {
+			continue
 		}
-	}
-	byMIME := map[string]bool{}
-	for _, m := range imageMIMEs {
-		byMIME[m[len("image/"):]] = true
-	}
-	for k := range byExt {
-		if !byMIME[k] {
-			t.Errorf("%q can be dropped but not pasted: no image/%s media type", k, k)
-		}
-	}
-	for k := range byMIME {
-		if !byExt[k] {
-			t.Errorf("image/%s can be pasted but not dropped: no matching extension", k)
+		for _, ext := range f.Extensions() {
+			if ext == "svg.gz" {
+				continue
+			}
+			if !looksLikeImage("photo." + ext) {
+				t.Errorf("%s loads through gdk-pixbuf (%s) but is not offered", ext, f.Name())
+			}
 		}
 	}
 }

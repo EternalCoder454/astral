@@ -609,6 +609,12 @@ func (c *Client) CanSee(ctx context.Context, model string) (bool, error) {
 			return true, nil
 		}
 	}
+	// A capabilities list is the server's answer, so its silence is a no. A
+	// gemma3 downloaded without its vision projector still names the gemma3
+	// family, and reading the family would call it sighted.
+	if len(sr.Capabilities) > 0 {
+		return false, nil
+	}
 	// Older Ollama builds predate the capabilities list and only name the
 	// families. A vision model carries a projector family alongside its own.
 	for _, f := range append(sr.Details.Families, sr.Details.Family) {
@@ -618,6 +624,21 @@ func (c *Client) CanSee(ctx context.Context, model string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// VisionModels returns the installed models that can see images.
+func (c *Client) VisionModels(ctx context.Context) ([]Model, error) {
+	models, err := c.Models(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []Model
+	for _, m := range models {
+		if ok, err := c.CanSee(ctx, m.Name); err == nil && ok {
+			out = append(out, m)
+		}
+	}
+	return out, nil
 }
 
 // Probe reports whether the server is reachable and which models it has. It is
