@@ -3,6 +3,12 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.18
+- Group scenes: the characters you speak to answer, not everyone at once every turn
+- Restore a daily backup from Settings; your current library is kept beside it
+- Phone: a rewritten reply keeps the old one, with arrows to go between them
+- Phone: a scene's top bar shows who you are in it, and switches persona for that chat
+
 ## 0.5.17
 - Phone: replies show their italics paragraph by paragraph as they arrive, not all at the end
 - Phone: characters' pictures in the lists, and search finds chats by anything said in them
