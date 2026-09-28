@@ -462,10 +462,11 @@ func (a *App) devOpenLong(n int) {
 			return false
 		})
 		// And again later, after whatever scrolling a driver has done.
-		for _, at := range []uint{5000, 9000} {
+		for _, at := range []uint{5000, 9000, 13000, 17000} {
 			coreglib.TimeoutAdd(at, func() bool {
 				built, pending := a.chat.DevRowCount()
-				log.Printf("astral: open: later, %d rows built, %d waiting", built, pending)
+				v, upper, page := a.chat.DevScroll()
+				log.Printf("astral: open: later, %d rows built, %d waiting, scrolled to %.0f of %.0f, page %.0f", built, pending, v, upper, page)
 				return false
 			})
 		}
@@ -577,13 +578,18 @@ func (a *App) devCycle(rounds int) {
 		return
 	}
 	round, i, settle := 0, 0, 0
+	var spent, slowest time.Duration
 	ui.DevRows = &struct{ Built, Freed atomic.Int64 }{}
 	// gotk4 logs its object lifecycle at debug level, with GOTK4_DEBUG set.
 	if os.Getenv("ASTRAL_DEV_SLOG") != "" {
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	}
 	log.Printf("astral: cycle: before, %s", rss())
-	coreglib.TimeoutAdd(40, func() bool {
+	every := uint(40)
+	if ms, err := strconv.Atoi(os.Getenv("ASTRAL_DEV_CYCLE_MS")); err == nil && ms > 0 {
+		every = uint(ms)
+	}
+	coreglib.TimeoutAdd(every, func() bool {
 		// Between rounds, time for what was let go to be freed: a widget tree
 		// can take several garbage collections to come apart.
 		if settle > 0 {
@@ -607,11 +613,20 @@ func (a *App) devCycle(rounds int) {
 			}
 			return round < rounds
 		}
+		t0 := time.Now()
 		_ = a.openChat(chats[i].ID)
+		took := time.Since(t0)
+		spent += took
+		if took > slowest {
+			slowest = took
+		}
 		i++
 		if i < len(chats) {
 			return true
 		}
+		log.Printf("astral: cycle: opening a chat took %v on average, %v at most",
+			(spent / time.Duration(len(chats))).Round(time.Microsecond*100), slowest.Round(time.Microsecond*100))
+		spent, slowest = 0, 0
 		i = 0
 		round++
 		settle = 25
@@ -758,10 +773,12 @@ func (a *App) devTimeFrames() {
 		log.Printf("astral: frames: no frame clock yet")
 		return
 	}
-	var start time.Time
+	var start, layout, paint time.Time
 	var frames, slow int
 	var worst, total time.Duration
 	clock.ConnectUpdate(func() { start = time.Now() })
+	clock.ConnectLayout(func() { layout = time.Now() })
+	clock.ConnectPaint(func() { paint = time.Now() })
 	clock.ConnectAfterPaint(func() {
 		if start.IsZero() {
 			return
@@ -774,7 +791,10 @@ func (a *App) devTimeFrames() {
 		}
 		if d > 16*time.Millisecond {
 			slow++
-			log.Printf("astral: frames: a frame took %v", d.Round(time.Millisecond))
+			// Where it went: laying out, which is the app's widgets, or
+			// painting, which under Xvfb is a software renderer.
+			log.Printf("astral: frames: a frame took %v, layout %v, paint %v", d.Round(time.Millisecond),
+				paint.Sub(layout).Round(time.Millisecond), time.Since(paint).Round(time.Millisecond))
 		}
 	})
 	coreglib.TimeoutAdd(3000, func() bool {

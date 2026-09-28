@@ -49,11 +49,25 @@ const transcriptMaxWidth = 950
 // Nothing is hidden from the model by this. The context sent on each turn is
 // read from the database (see history), not from the rows on screen.
 //
-// It was 120, and a row's first layout costs about 5ms, so opening a long
-// scene held the window for 650ms before its first frame. It is 40 now, and the
-// rest arrive 40 at a time as you scroll towards them (see watchForEarlier), so
-// nobody has to find a button to read back.
-const renderWindow = 40
+// It was 120, and a row's first layout costs about 4ms, nearly all of it
+// Pango shaping the text again for each width GTK asks about. GtkBox lays out
+// every row, on screen or not, so opening a scene held the window for 650ms,
+// and at 40 still for 160ms, measured on a library of 150 scenes. A window
+// shows three to five replies, so 16 fills it with room to scroll, and the
+// rest arrive as you scroll towards them (see watchForEarlier), so nobody has
+// to find a button to read back.
+const renderWindow = 16
+
+// earlierBatch is how many older messages are built at a time as you scroll
+// back. Small, because each batch is one frame's work: 16 held the window for
+// about 95ms while scrolling, and a few at a time, built again for as long as
+// you are near the top, keeps each frame short.
+const earlierBatch = 6
+
+// earlierAhead is how far from the top of the transcript, in pixels, the next
+// older batch starts being built: far enough that it is usually there before
+// you reach it.
+const earlierAhead = 1200
 
 // learnTimeout bounds the background lorebook pass. Like compaction it is not
 // blocking anything, so it can afford to be patient.
@@ -1043,13 +1057,13 @@ func (c *ChatView) refreshEarlierButton() {
 		c.earlierBtn.ConnectClicked(c.loadEarlier)
 		c.column.Prepend(c.earlierBtn)
 	}
-	c.earlierBtn.SetLabel(fmt.Sprintf("Show %d Earlier Messages", min(len(c.older), renderWindow)))
+	c.earlierBtn.SetLabel(fmt.Sprintf("Show %d Earlier Messages", min(len(c.older), earlierBatch)))
 }
 
 // loadEarlier builds the next batch of older messages above what is already
 // on screen.
 func (c *ChatView) loadEarlier() {
-	n := min(len(c.older), renderWindow)
+	n := min(len(c.older), earlierBatch)
 	batch := c.older[len(c.older)-n:]
 	c.older = c.older[:len(c.older)-n]
 
@@ -1084,8 +1098,8 @@ func (c *ChatView) loadEarlier() {
 // arrive above it, so the view moves down by exactly their height.
 func (c *ChatView) watchForEarlier() {
 	adj := c.scroll.VAdjustment()
-	adj.ConnectValueChanged(func() {
-		if c.loadingEarlier || len(c.older) == 0 || adj.Value() > 400 {
+	load := func() {
+		if c.loadingEarlier || len(c.older) == 0 || adj.Value() > earlierAhead {
 			return
 		}
 		c.loadingEarlier = true
@@ -1116,6 +1130,15 @@ func (c *ChatView) watchForEarlier() {
 			c.loadEarlier()
 			return false
 		})
+	}
+	adj.ConnectValueChanged(load)
+	// A tail too short to scroll gives no scrolling to wait for, in a tall
+	// window or a scene of short lines, so the next batch is built straight
+	// away, until the window is full or there is nothing older.
+	adj.ConnectChanged(func() {
+		if adj.PageSize() > 0 && adj.Upper() <= adj.PageSize() {
+			load()
+		}
 	})
 }
 
@@ -1363,6 +1386,12 @@ func (c *ChatView) DevActionCounts() (first, last int) {
 // DevRowCount reports how many rows are built and how many are still waiting
 // behind the "show earlier" button.
 func (c *ChatView) DevRowCount() (built, pending int) { return len(c.rows), len(c.older) }
+
+// DevScroll is where the transcript is scrolled to, for the dev harness.
+func (c *ChatView) DevScroll() (value, upper, page float64) {
+	adj := c.scroll.VAdjustment()
+	return adj.Value(), adj.Upper(), adj.PageSize()
+}
 
 // DevColumnWidth is the width the transcript column is laid out at.
 func (c *ChatView) DevColumnWidth() int { return c.column.Width() }
