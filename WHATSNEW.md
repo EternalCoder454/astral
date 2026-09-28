@@ -3,6 +3,10 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.6
+- Designers and plain chats read text files: drop a .md or .txt on the chat, paste it, or attach it
+- A long paste goes with the message as a file instead of filling the message box
+
 ## 0.5.5
 - Select chats with Ctrl or Shift and a click, then delete them all at once
 - Deleting a chat no longer asks first: Undo puts it back
