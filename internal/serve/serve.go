@@ -134,6 +134,7 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("POST /api/chats", s.guard(s.handleNewChat))
 	mux.Handle("POST /api/chats/{id}/send", s.guard(s.handleSend))
 	mux.Handle("POST /api/chats/{id}/regenerate", s.guard(s.handleRegenerate))
+	mux.Handle("POST /api/chats/{id}/stop", s.guard(s.handleStop))
 	mux.Handle("DELETE /api/chats/{id}/messages/{mid}", s.guard(s.handleDeleteMessage))
 	mux.Handle("DELETE /api/chats/{id}", s.guard(s.handleDeleteChat))
 	mux.Handle("DELETE /api/characters/{id}", s.guard(s.handleDeleteCharacter))
@@ -292,7 +293,11 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, d store.Devi
 		Kind     string    `json:"kind"`
 		Cast     []nameOut `json:"cast,omitempty"`
 		Messages []msgOut  `json:"messages"`
-	}{ID: ch.ID, Title: ch.Title, Who: ch.CharacterName, Accent: ch.Accent, Kind: ch.Kind}
+		// Writing says a reply is still being written into this chat, so a
+		// phone that dropped its connection mid-reply knows to wait for it.
+		Writing bool `json:"writing"`
+	}{ID: ch.ID, Title: ch.Title, Who: ch.CharacterName, Accent: ch.Accent, Kind: ch.Kind,
+		Writing: s.busy.writing(id)}
 	cast := s.castFor(ch)
 	tint := make(map[int64]int, len(cast))
 	for _, member := range cast {

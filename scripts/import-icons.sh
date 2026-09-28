@@ -29,6 +29,7 @@ out_dir=internal/icons/svg
 # <source name>:<installed name, without the astral-/-symbolic wrapper>
 map=(
     arrow_upward:send
+    arrow_back:back
     stop:stop
     content_copy:copy
     reset:regenerate

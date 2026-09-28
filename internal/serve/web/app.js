@@ -12,7 +12,13 @@ const $ = (id) => document.getElementById(id);
 let token = localStorage.getItem(TOKEN_KEY) || "";
 let state = { chats: [], characters: [], worlds: [] };
 let current = null; // the open chat
-let streaming = false;
+// The chats a reply is streaming into right now. Per chat, because leaving one
+// mid-reply for another must not make the second think it is busy.
+const streamingIn = new Set();
+// waitingFor is the chat whose reply the PC is finishing after the stream to
+// this phone was cut; see waitForReply.
+let waitingFor = 0;
+const busyHere = () => !!current && (streamingIn.has(current.id) || waitingFor === current.id);
 
 // ---- Talking to the PC ----
 
@@ -327,8 +333,15 @@ function appVersion() { try { return window.AstralApp.version(); } catch (_) { r
 
 let pendingVersion = "";
 
-async function checkForAppUpdate() {
+// lastUpdateCheck is when GitHub was last asked, through the PC. Opening the
+// Settings tab asked every time, and GitHub allows an address sixty questions
+// an hour without an account.
+let lastUpdateCheck = 0;
+
+async function checkForAppUpdate(force = false) {
 	if (!inApp()) return;
+	if (!force && Date.now() - lastUpdateCheck < 30 * 60 * 1000) return;
+	lastUpdateCheck = Date.now();
 	const btn = $("set-update-app");
 	setUpdateRow("Checking…", "");
 	try {
@@ -353,7 +366,7 @@ function setUpdateRow(title, note) {
 }
 
 function startAppUpdate() {
-	if (!pendingVersion) { checkForAppUpdate(); return; }
+	if (!pendingVersion) { checkForAppUpdate(true); return; }
 	if (!window.AstralApp.canInstall()) {
 		// Android will not let an app install anything until you say so, per
 		// app, on a settings page it has to be sent to.
@@ -394,9 +407,11 @@ async function saveSettings() {
 		style: $("set-style").value,
 		persona: $("set-persona").value,
 		persona_note: $("set-persona-note").value,
-		num_ctx: Number($("set-numctx").value) || 0,
-		num_predict: Number($("set-numpredict").value) || 0,
-		temperature: Number($("set-temperature").value),
+		// A box left empty means "leave it as it is", not zero. Sending zero
+		// for an empty temperature box set the model to its most rigid.
+		num_ctx: numberOrNull($("set-numctx").value),
+		num_predict: numberOrNull($("set-numpredict").value),
+		temperature: numberOrNull($("set-temperature").value),
 	};
 	try {
 		const res = await api("/api/settings", { method: "POST", body: JSON.stringify(body) });
@@ -406,6 +421,13 @@ async function saveSettings() {
 	} catch (e) {
 		toast(e.message);
 	}
+}
+
+function numberOrNull(v) {
+	v = String(v ?? "").trim();
+	if (v === "") return null;
+	const n = Number(v);
+	return Number.isFinite(n) ? n : null;
 }
 
 async function forgetDevice() {
@@ -511,11 +533,11 @@ async function loadState() {
 		p.textContent = "Nothing yet.";
 		recent.append(p);
 	}
-	for (const c of chats.slice(0, 6)) recent.append(chatRow(c));
+	for (const c of chats.slice(0, 6)) recent.append(deletableChat(c));
 
 	const all = $("chats-list");
 	all.replaceChildren();
-	for (const c of chats) all.append(chatRow(c));
+	for (const c of chats) all.append(deletableChat(c));
 
 	const cs = $("cast-characters");
 	cs.replaceChildren();
@@ -530,6 +552,7 @@ async function loadState() {
 				await api("/api/characters/" + c.id, { method: "DELETE" });
 				state.characters = state.characters.filter((x) => x.id !== c.id);
 				toast(c.name + " deleted. Scenes you played with them are kept.");
+				loadState().catch(() => {});
 			},
 		));
 	}
@@ -546,6 +569,7 @@ async function loadState() {
 				await api("/api/worlds/" + w.id, { method: "DELETE" });
 				state.worlds = state.worlds.filter((x) => x.id !== w.id);
 				toast(w.name + " deleted, with its lorebook.");
+				loadState().catch(() => {});
 			},
 		));
 	}
@@ -660,6 +684,16 @@ function closeSwipes(except) {
 	}
 }
 
+// deletableChat is a chat's row, pulled aside to delete it the same way a
+// character is.
+function deletableChat(c) {
+	return swipeable(chatRow(c), c.title || "this chat", async () => {
+		await api("/api/chats/" + c.id, { method: "DELETE" });
+		toast("Chat deleted.");
+		loadState().catch(() => {});
+	});
+}
+
 function chatRow(c) {
 	return row({
 		title: c.title || "Untitled",
@@ -685,16 +719,72 @@ async function newChat(body) {
 async function openChat(id) {
 	try {
 		const res = await api("/api/chats/" + id);
-		current = await res.json();
-		$("chat-title").textContent = current.title || current.who || "Chat";
-		const t = $("transcript");
-		t.replaceChildren();
-		for (const m of current.messages || []) t.append(bubble(m.role, m.content, m.who, m.accent, m.id));
-		show("chat");
-		scrollDown(false);
+		showChat(await res.json());
+		// A history entry per open chat, so Back (the phone's own button
+		// included) closes the chat rather than the app. The page had no
+		// history at all, so the app's Back handler saw nothing to go back to
+		// and quit.
+		if (history.state?.chat !== id) history.pushState({ chat: id }, "");
 		$("composer-text").focus();
 	} catch (e) {
 		toast(e.message);
+	}
+}
+
+// showChat draws a chat as the PC has it.
+function showChat(chat) {
+	current = chat;
+	$("chat-title").textContent = chat.title || chat.who || "Chat";
+	const t = $("transcript");
+	t.replaceChildren();
+	for (const m of chat.messages || []) t.append(bubble(m.role, m.content, m.who, m.accent, m.id));
+	show("chat");
+	scrollDown(false);
+	setComposerBusy(streamingIn.has(chat.id));
+	if (chat.writing && !streamingIn.has(chat.id)) waitForReply(chat.id);
+}
+
+// leaveChat goes back to the lists, fetched again so what was said here, and
+// anything started on the PC meanwhile, is in them.
+function leaveChat() {
+	current = null;
+	show("home");
+	loadState().catch(() => {});
+}
+
+// waitForReply is for a chat whose reply the PC is still writing, because the
+// connection it was streaming over went away: the screen locked, or the phone
+// left the Wi-Fi for a moment. The PC carries on and stores the reply, so the
+// chat is asked again every couple of seconds until it has.
+async function waitForReply(chatId) {
+	if (waitingFor === chatId) return;
+	waitingFor = chatId;
+	const t = $("transcript");
+	const note = bubble("assistant", "");
+	note.querySelector(".bubble").classList.add("dots");
+	note.dataset.waiting = "1";
+	t.append(note);
+	scrollDown();
+	setComposerBusy(true);
+	try {
+		for (let i = 0; i < 450 && current?.id === chatId; i++) {
+			await new Promise((r) => setTimeout(r, 2000));
+			if (current?.id !== chatId || streamingIn.has(chatId)) return;
+			let chat;
+			try {
+				chat = await (await api("/api/chats/" + chatId)).json();
+			} catch (_) {
+				continue; // still out of reach; keep waiting
+			}
+			if (!chat.writing) {
+				if (current?.id === chatId && !streamingIn.has(chatId)) showChat(chat);
+				return;
+			}
+		}
+	} finally {
+		if (waitingFor === chatId) waitingFor = 0;
+		note.remove();
+		if (current?.id === chatId && !streamingIn.has(chatId)) setComposerBusy(false);
 	}
 }
 
@@ -757,12 +847,9 @@ function toggleActions(wrap) {
 	add("Copy this message", "copy", false, async () => {
 		const text = wrap.querySelector(".bubble")?.innerText || "";
 		try {
-			await navigator.clipboard.writeText(text);
+			await copyText(text);
 			toast("Copied.");
 		} catch (_) {
-			// A page served over plain http has no clipboard API in most
-			// browsers, which is exactly how this one is served on a home
-			// network. Selecting the text by hand still works.
 			toast("This browser will not let a page copy. Hold the text to select it.");
 		}
 		row.remove();
@@ -799,9 +886,34 @@ function toggleActions(wrap) {
 	paintIcons(row);
 }
 
+// copyText puts text on the clipboard.
+//
+// The clipboard API only exists on a secure page, and this one is served over
+// plain http on a home network, so in the app it was never there and Copy
+// always failed. The older way, copying a selection, is not held to that, so
+// it is what a plain http page uses.
+async function copyText(text) {
+	if (navigator.clipboard && window.isSecureContext) {
+		await navigator.clipboard.writeText(text);
+		return;
+	}
+	const ta = document.createElement("textarea");
+	ta.value = text;
+	ta.setAttribute("readonly", "");
+	ta.style.position = "fixed";
+	ta.style.top = "0";
+	ta.style.opacity = "0";
+	document.body.append(ta);
+	ta.select();
+	ta.setSelectionRange(0, text.length);
+	const ok = document.execCommand("copy");
+	ta.remove();
+	if (!ok) throw new Error("copy refused");
+}
+
 async function deleteMessage(wrap) {
 	const id = Number(wrap.dataset.id || 0);
-	if (!current || streaming) return;
+	if (busyHere()) return;
 	if (!id) { wrap.remove(); return; }
 	try {
 		await api("/api/chats/" + current.id + "/messages/" + id, { method: "DELETE" });
@@ -823,9 +935,20 @@ function scrollDown(smooth = true) {
 }
 
 async function send(text) {
-	if (!current || streaming) return;
-	$("transcript").append(bubble("user", text));
-	await stream("/api/chats/" + current.id + "/send", JSON.stringify({ text }));
+	if (!current || busyHere()) return;
+	const mine = bubble("user", text);
+	$("transcript").append(mine);
+	const outcome = await stream("/api/chats/" + current.id + "/send", JSON.stringify({ text }), mine);
+	if (outcome === "refused") {
+		// The PC never took it (busy, or out of reach), so nothing was saved.
+		// The words go back where they were typed rather than being lost.
+		mine.remove();
+		const box = $("composer-text");
+		if (!box.value.trim()) {
+			box.value = text;
+			box.dispatchEvent(new Event("input"));
+		}
+	}
 }
 
 // regenerate throws away the last reply and asks for another.
@@ -834,20 +957,65 @@ async function send(text) {
 // reply at the end of the transcript goes, which is what undoes one turn rather
 // than one voice within it. The server rewinds its own copy the same way.
 async function regenerate() {
-	if (!current || streaming) return;
+	if (!current || busyHere()) return;
 	const t = $("transcript");
-	while (t.lastElementChild && t.lastElementChild.dataset.role === "assistant") {
-		t.lastElementChild.remove();
+	const old = [];
+	for (let el = t.lastElementChild; el && el.dataset.role === "assistant"; el = el.previousElementSibling) {
+		old.push(el);
 	}
-	await stream("/api/chats/" + current.id + "/regenerate", "{}");
+	// Hidden rather than removed until the PC has agreed: a refused
+	// regenerate used to leave the screen without replies the PC still had.
+	for (const el of old) el.hidden = true;
+	const outcome = await stream("/api/chats/" + current.id + "/regenerate", "{}");
+	for (const el of old) {
+		if (outcome === "refused") el.hidden = false;
+		else el.remove();
+	}
+}
+
+// stopReply asks the PC to stop the reply being written into the open chat.
+// What was written so far is kept, there and here.
+async function stopReply() {
+	if (!current) return;
+	try {
+		await api("/api/chats/" + current.id + "/stop", { method: "POST", body: "{}" });
+	} catch (e) {
+		toast(e.message);
+	}
+}
+
+// setComposerBusy turns Send into Stop while a reply is being written, the
+// way the window does, since that is the only time stopping means anything.
+function setComposerBusy(on) {
+	const btn = $("composer-send");
+	btn.classList.toggle("is-stop", on);
+	btn.setAttribute("aria-label", on ? "Stop" : "Send");
+	const icon = btn.querySelector(".send-icon");
+	icon.dataset.icon = on ? "stop" : "send";
+	paintIcons(btn);
 }
 
 // stream runs one turn: it opens the row the reply is written into, consumes
 // the event stream, and leaves the transcript as it will look when the scene
-// is next opened.
-async function stream(path, requestBody) {
-	streaming = true;
-	$("composer-send").disabled = true;
+// is next opened. mine is the turn just sent, which is told its stored id.
+//
+// It answers how the turn went: "refused" when the PC did not take it at all
+// (nothing was stored), "failed" for an error after it did, "dropped" when the
+// connection went before the end (the PC finishes the reply regardless), and
+// "done".
+//
+// Everything it draws is drawn only while the chat it started in is still the
+// one on screen. Leaving a chat mid-reply used to carry on writing into
+// whichever chat was opened next: its title, and in a group, its transcript.
+async function stream(path, requestBody, mine) {
+	const chatId = current.id;
+	const here = () => current?.id === chatId;
+	streamingIn.add(chatId);
+	setComposerBusy(true);
+	const settle = () => {
+		streamingIn.delete(chatId);
+		if (here()) setComposerBusy(false);
+	};
 
 	const live = bubble("assistant", "");
 	const body = live.querySelector(".bubble");
@@ -857,6 +1025,8 @@ async function stream(path, requestBody) {
 
 	let reply = "";
 	let beats = null;
+	let finished = false;
+	let stopped = false;
 	// Plain text while it streams: half an asterisk is not markup.
 	let painting = false;
 	const paint = () => {
@@ -864,12 +1034,24 @@ async function stream(path, requestBody) {
 		painting = true;
 		requestAnimationFrame(() => {
 			painting = false;
+			if (!here()) return;
 			body.textContent = reply;
 			scrollDown(false);
 		});
 	};
+
+	let res;
 	try {
-		const res = await api(path, { method: "POST", body: requestBody });
+		res = await api(path, { method: "POST", body: requestBody });
+	} catch (e) {
+		live.remove();
+		toast(e.message);
+		settle();
+		return "refused";
+	}
+
+	let outcome = "done";
+	try {
 		const reader = res.body.getReader();
 		const decoder = new TextDecoder();
 		let buffer = "";
@@ -888,7 +1070,11 @@ async function stream(path, requestBody) {
 				const data = /^data: (.+)$/m.exec(block)?.[1];
 				if (!data) continue;
 				const payload = JSON.parse(data);
-				if (event === "token") {
+				if (event === "accepted") {
+					// The turn just sent is stored, and this is its id, so it
+					// can be deleted or copied without reopening the chat.
+					if (mine && payload.user_id) mine.dataset.id = payload.user_id;
+				} else if (event === "token") {
 					body.classList.remove("dots");
 					if (!reply) body.textContent = "";
 					reply += payload.t;
@@ -898,16 +1084,18 @@ async function stream(path, requestBody) {
 					// draw it, which on a phone is heat rather than speed.
 					paint();
 				} else if (event === "done") {
+					finished = true;
+					stopped = !!payload.stopped;
 					// A group reply comes back already split by speaker. The
 					// row it streamed into becomes the first beat and the rest
 					// are appended, so the transcript ends up looking the same
 					// as it will when the scene is reopened.
 					beats = payload.beats || null;
-					reply = payload.content || "";
+					reply = payload.content ?? reply;
 					// The stored id, so this turn can be copied, deleted or
 					// written again without reopening the scene first.
 					if (payload.id) live.dataset.id = payload.id;
-					if (payload.title) $("chat-title").textContent = payload.title;
+					if (payload.title && here()) $("chat-title").textContent = payload.title;
 				} else if (event === "searching") {
 					// A search takes seconds with nothing arriving, so the row
 					// says what is being looked up rather than sitting on dots.
@@ -928,7 +1116,30 @@ async function stream(path, requestBody) {
 				}
 			}
 		}
-		body.classList.remove("dots");
+		if (!finished) outcome = "dropped";
+	} catch (e) {
+		// A read that fails partway is the connection going, the same as one
+		// that ends early; an error event is the PC saying something went
+		// wrong, which is worth showing.
+		outcome = e instanceof TypeError ? "dropped" : "failed";
+		if (outcome === "failed" && here()) toast(e.message);
+	}
+
+	settle();
+	body.classList.remove("dots");
+
+	if (outcome === "dropped") {
+		// The PC is still writing it, or has stored it. Asking is how to
+		// find out which, and the chat is shown as the PC has it either way.
+		live.remove();
+		if (here()) waitForReply(chatId);
+		return outcome;
+	}
+	if (outcome === "failed" || (stopped && !reply.trim() && !beats?.length)) {
+		live.remove();
+		return outcome;
+	}
+	if (here()) {
 		if (beats && beats.length) {
 			const who = live.querySelector(".who");
 			if (who) {
@@ -944,16 +1155,9 @@ async function stream(path, requestBody) {
 			body.innerHTML = render(reply, "assistant");
 		}
 		scrollDown();
-
-		loadState();
-	} catch (e) {
-		body.classList.remove("dots");
-		if (!reply) live.remove();
-		toast(e.message);
-	} finally {
-		streaming = false;
-		$("composer-send").disabled = false;
 	}
+	loadState().catch(() => {});
+	return outcome;
 }
 
 // ---- Wiring ----
@@ -980,17 +1184,44 @@ $("pair-go").addEventListener("click", async () => {
 	}
 });
 
-$("chat-back").addEventListener("click", () => { current = null; show("home"); });
+// The on-screen Back goes through history too, so it and the phone's own Back
+// button leave the same way and the history never holds a chat that is shut.
+$("chat-back").addEventListener("click", () => {
+	if (history.state?.chat) history.back();
+	else leaveChat();
+});
+window.addEventListener("popstate", () => {
+	if (current && !history.state?.chat) leaveChat();
+});
 
 for (const tab of document.querySelectorAll(".tab")) {
 	tab.addEventListener("click", () => {
 		current = null;
 		show(tab.dataset.screen);
 		if (tab.dataset.screen === "settings") {
-			loadSettings().then(checkForAppUpdate).catch((e) => toast(e.message));
+			loadSettings().then(() => checkForAppUpdate()).catch((e) => toast(e.message));
+		} else {
+			// The lists as the PC has them now. They used to be fetched once,
+			// so a scene started on the PC never appeared here.
+			loadState().catch((e) => toast(e.message));
 		}
 	});
 }
+
+// Coming back to the app, after the screen was off or another app was in
+// front, the lists and the open chat are fetched again: the PC may have
+// finished a reply, or been used, in the meantime.
+document.addEventListener("visibilitychange", () => {
+	if (document.visibilityState !== "visible" || !token) return;
+	loadState().catch(() => {});
+	if (current && !busyHere()) {
+		const id = current.id;
+		api("/api/chats/" + id)
+			.then((r) => r.json())
+			.then((chat) => { if (current?.id === id && !busyHere()) showChat(chat); })
+			.catch(() => {});
+	}
+});
 
 $("set-save").addEventListener("click", saveSettings);
 $("set-update-app").addEventListener("click", startAppUpdate);
@@ -1004,6 +1235,10 @@ composer.addEventListener("input", () => {
 
 $("composer").addEventListener("submit", (e) => {
 	e.preventDefault();
+	if (busyHere()) {
+		stopReply();
+		return;
+	}
 	const text = composer.value.trim();
 	if (!text) return;
 	composer.value = "";
@@ -1028,7 +1263,17 @@ async function start() {
 		// Astral opens on Home, here as well as on the PC.
 		show("home");
 	} catch (e) {
-		if (token) toast(e.message);
+		if (!token) return; // unpaired; the pairing screen is up
+		// Home, with a way to try again, rather than a blank page and a toast
+		// that goes away.
+		show("home");
+		const start_ = $("home-start");
+		start_.replaceChildren(row({
+			title: "Could Not Reach Your PC",
+			note: e.message + ". Tap to try again.",
+			primary: true,
+			onClick: start,
+		}));
 	}
 }
 

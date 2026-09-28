@@ -50,6 +50,17 @@ func TestPhoneServesWhatTheAppLoads(t *testing.T) {
 			t.Errorf("the script is missing %q", want)
 		}
 	}
+	// What the phone's own fixes rest on: a history entry per chat (without
+	// one the Android Back button closes the app), the Stop route, and the
+	// copy that works on a plain http page.
+	for _, want := range []string{"history.pushState", "popstate", "/stop", "execCommand(\"copy\")", "/api/chats/\" + c.id"} {
+		if !strings.Contains(js, want) {
+			t.Errorf("the script is missing %q", want)
+		}
+	}
+	if !strings.Contains(html, `data-icon="back"`) {
+		t.Error("the chat's Back button is not a back arrow")
+	}
 
 	// And the state the page renders from.
 	charID, err := s.store.SaveCharacter(chars.Character{Name: "Vesper", Description: "A cartographer."})

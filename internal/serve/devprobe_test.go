@@ -34,19 +34,31 @@ func TestDevServe(t *testing.T) {
 		Content: `"You're late again." *I set the ruined chart on her desk.*`})
 	st.AddMessage(store.Message{ChatID: ch.ID, Role: ollama.RoleAssistant,
 		Content: `She did not look up. "The tide was wrong, and so was the wind." *The pen kept moving, marking a line that would not hold by morning.*`})
+	st.NewChatIn(0, 0, "A plain question", "m", store.KindAssistant)
 
 	cfg := store.DefaultConfig()
 	cfg.PersonaName = "Wren"
 	// The small model, so a message sent from this harness cannot load a large
 	// one beside whatever is already on the card.
 	cfg.Model = "huihui_ai/qwen3.5-abliterated:4b"
+	ollamaURL := ""
+	if os.Getenv("ASTRAL_DEV_SERVE_FAKE") != "" {
+		// No model at all: a fake that writes a long reply a word at a time,
+		// slowly enough to press Stop, lock the screen or walk away mid-reply.
+		ollamaURL = slowModelEvery(t, 120, 80*time.Millisecond)
+		cfg.Model = "fake"
+		cfg.WebSearch = false
+	}
 	s := New(st, func() store.Config { return cfg },
-		func() *ollama.Client { return ollama.NewClient("") },
+		func() *ollama.Client { return ollama.NewClient(ollamaURL) },
 		func(next store.Config) error { cfg = next; return nil }, "0.3.0")
 	if err := s.Start(8799); err != nil {
 		t.Fatal(err)
 	}
 	code, _ := s.OpenPairing()
 	t.Logf("serving on http://127.0.0.1:8799  pairing code %s", code)
+	if f := os.Getenv("ASTRAL_DEV_SERVE_CODE"); f != "" {
+		os.WriteFile(f, []byte(code), 0o600)
+	}
 	time.Sleep(4 * time.Minute)
 }

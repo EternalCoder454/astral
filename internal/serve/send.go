@@ -66,9 +66,10 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 	}
 	defer release()
 
-	if _, err := s.store.AddMessage(store.Message{
+	userID, err := s.store.AddMessage(store.Message{
 		ChatID: ch.ID, Role: ollama.RoleUser, Content: text,
-	}); err != nil {
+	})
+	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
@@ -78,7 +79,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 			ch.Title = store.TitleFrom(text)
 		}
 	}
-	s.generate(w, r, ch)
+	s.generate(w, r, ch, userID)
 }
 
 // handleRegenerate throws away the last reply and writes another one.
@@ -124,7 +125,7 @@ func (s *Server) handleRegenerate(w http.ResponseWriter, r *http.Request, d stor
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	s.generate(w, r, ch)
+	s.generate(w, r, ch, 0)
 }
 
 // generate streams one reply for a chat whose messages are already in the
@@ -135,7 +136,11 @@ func (s *Server) handleRegenerate(w http.ResponseWriter, r *http.Request, d stor
 // that, the prompt, the search, the folding of deliberation, the storing of
 // the result and the housekeeping, is the same work, and was worth having in
 // one place rather than two that drift.
-func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat) {
+//
+// userID is the turn a send just stored, told to the phone first so the turn
+// it drew can be deleted or copied without reopening the chat. Zero for a
+// regenerate, which stores no turn of its own.
+func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat, userID int64) {
 	cfg := s.config()
 	ca := s.characterFor(ch)
 	model := ch.Model
@@ -161,7 +166,15 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat)
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
 
+	// Once the phone has gone, writing to it is pointless, and the reply is
+	// still being written for when it comes back.
+	gone := r.Context().Done()
 	send := func(event string, v any) {
+		select {
+		case <-gone:
+			return
+		default:
+		}
 		b, err := json.Marshal(v)
 		if err != nil {
 			return
@@ -169,11 +182,19 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat)
 		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, b)
 		flusher.Flush()
 	}
+	if userID != 0 {
+		send("accepted", map[string]int64{"user_id": userID})
+	}
 
-	// The request's own context, so closing the app on the phone stops the
-	// generation on the PC rather than leaving it running for nobody.
-	ctx, cancel := context.WithTimeout(r.Context(), sendTimeout)
+	// Not the request's context. A phone that locks its screen, or walks out
+	// of Wi-Fi for a moment, drops the connection, and tying the reply to it
+	// threw away every reply that took longer than someone kept looking at the
+	// screen. So the reply is finished and stored on the PC regardless, and the
+	// phone picks it up when it comes back. Stopping is an explicit request
+	// (handleStop) rather than a side effect of the connection.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), sendTimeout)
 	defer cancel()
+	stopped := s.busy.onStop(ch.ID, cancel)
 
 	// The same fold the window applies while streaming: deliberation that
 	// arrives inside the reply never reaches the phone, rather than appearing
@@ -203,10 +224,14 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat)
 	}
 
 	noThink := false
+	// Everything the model has written so far, kept so a reply stopped
+	// halfway is stored as far as it got, as the window does.
+	var sofar strings.Builder
 	onDelta := func(delta ollama.Delta) {
 		if delta.Content == "" {
 			return
 		}
+		sofar.WriteString(delta.Content)
 		if shown, _ := think.Next(delta.Content); shown != "" {
 			pending.WriteString(shown)
 		}
@@ -238,6 +263,7 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat)
 			// response, so nothing else is mid-write.
 			OnDiscard: func() {
 				pending.Reset()
+				sofar.Reset()
 				think = ollama.ThinkStream{}
 				send("reset", map[string]string{})
 			},
@@ -266,10 +292,18 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat)
 	if errors.Is(err, ollama.ErrRepeatLimit) && strings.TrimSpace(reply.Content) != "" {
 		err = nil
 	}
-	if err != nil {
-		if ctx.Err() != nil {
-			return // the phone went away; nothing to report to it
+	if err != nil && stopped() {
+		// Stopped on purpose: keep what was written, the way the window does,
+		// rather than making the person who pressed Stop lose the half they
+		// wanted.
+		reply = ollama.Message{Role: ollama.RoleAssistant, Content: sofar.String()}
+		if strings.TrimSpace(reply.Content) == "" {
+			send("done", map[string]any{"stopped": true, "title": ch.Title})
+			return
 		}
+		err = nil
+	}
+	if err != nil {
 		send("error", map[string]string{"error": err.Error()})
 		return
 	}
@@ -333,7 +367,7 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat)
 			}
 			out = append(out, beatOut{ID: id, Who: who.Name, Accent: who.Accent, Content: b.Text})
 		}
-		send("done", map[string]any{"beats": out, "title": ch.Title})
+		send("done", map[string]any{"beats": out, "title": ch.Title, "stopped": stopped()})
 	} else {
 		msgID, err := s.store.AddMessage(store.Message{
 			ChatID: ch.ID, Role: ollama.RoleAssistant, Content: content,
@@ -343,7 +377,7 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat)
 			send("error", map[string]string{"error": err.Error()})
 			return
 		}
-		send("done", map[string]any{"id": msgID, "content": content, "title": ch.Title})
+		send("done", map[string]any{"id": msgID, "content": content, "title": ch.Title, "stopped": stopped()})
 	}
 
 	// The housekeeping the window does in the background. Without it a scene
@@ -493,7 +527,12 @@ func (s *Server) housekeep(chatID int64, cast []chars.Character) {
 // changed underneath it.
 type busyChats struct {
 	mu sync.Mutex
-	on map[int64]bool
+	on map[int64]*busyChat
+}
+
+type busyChat struct {
+	stop    context.CancelFunc
+	stopped bool
 }
 
 // claim marks a chat as busy. The returned function frees it, and free says
@@ -502,16 +541,64 @@ type busyChats struct {
 func (b *busyChats) claim(id int64) (release func(), free bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.on[id] {
+	if b.on[id] != nil {
 		return func() {}, false
 	}
 	if b.on == nil {
-		b.on = make(map[int64]bool)
+		b.on = make(map[int64]*busyChat)
 	}
-	b.on[id] = true
+	b.on[id] = &busyChat{}
 	return func() {
 		b.mu.Lock()
 		delete(b.on, id)
 		b.mu.Unlock()
 	}, true
+}
+
+// onStop records how to stop the reply being written into a claimed chat, and
+// returns a function saying whether it was stopped that way.
+func (b *busyChats) onStop(id int64, stop context.CancelFunc) (stopped func() bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	c := b.on[id]
+	if c == nil {
+		return func() bool { return false }
+	}
+	c.stop = stop
+	return func() bool {
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		return c.stopped
+	}
+}
+
+// stop ends the reply being written into a chat, if there is one.
+func (b *busyChats) stop(id int64) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	c := b.on[id]
+	if c == nil || c.stop == nil {
+		return false
+	}
+	c.stopped = true
+	c.stop()
+	return true
+}
+
+// writing reports whether a reply is being written into a chat now.
+func (b *busyChats) writing(id int64) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.on[id] != nil
+}
+
+// handleStop stops the reply being written into a chat. What was written so
+// far is kept.
+func (s *Server) handleStop(w http.ResponseWriter, r *http.Request, d store.Device) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not a chat id"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"stopped": s.busy.stop(id)})
 }
