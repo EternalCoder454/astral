@@ -3,6 +3,11 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.9
+- Personas can have a picture, shown beside your messages and under your name
+- Files up to 200,000 characters, and designers widen their memory so a big file arrives whole
+- The picture reader describes people head to foot, holds nothing back, and is editable in Prompts
+
 ## 0.5.8
 - Personas: play as several people, each with a name, age, gender, race, appearance and background
 - The Persona Creator builds one with you, the way the character designer builds a character
