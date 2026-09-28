@@ -1,29 +1,17 @@
 package ui
 
 import (
+	"astral/internal/chars"
+
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
 
 // AccentCount is how many character tints the stylesheet defines.
-const AccentCount = 8
+const AccentCount = chars.AccentCount
 
-// AccentFor derives a stable tint from a character's name, so the same
-// character keeps the same colour across machines without it being stored,
-// and so importing a folder of cards produces a varied cast rather than eight
-// shades of clay. FNV-1a because it is three lines and spreads short strings
-// well; nothing here needs a cryptographic hash.
-func AccentFor(name string) int {
-	const (
-		offset = 2166136261
-		prime  = 16777619
-	)
-	h := uint32(offset)
-	for i := 0; i < len(name); i++ {
-		h ^= uint32(name[i])
-		h *= prime
-	}
-	return int(h % AccentCount)
-}
+// AccentFor derives a stable tint from a character's name; see
+// chars.AccentFor, which the phone's server uses too.
+func AccentFor(name string) int { return chars.AccentFor(name, AccentCount) }
 
 // NewAvatar builds a character's avatar: a tinted rounded square carrying the
 // first letter of their name.

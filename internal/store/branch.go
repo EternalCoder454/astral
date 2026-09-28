@@ -41,7 +41,7 @@ func (s *Store) Pinned(chatID, upto int64) ([]Moment, error) {
 	}
 	rows, err := s.db.Query(`
 		SELECT id, role, character_id, content, created_at
-		FROM messages WHERE chat_id = ? AND pinned = 1 AND id <= ?
+		FROM messages WHERE chat_id = ? AND pinned = 1 AND hidden = 0 AND id <= ?
 		ORDER BY id`, chatID, upto)
 	if err != nil {
 		return nil, err
@@ -107,10 +107,10 @@ func (s *Store) BranchChat(chatID, uptoID int64, title string) (Chat, error) {
 	now := time.Now()
 	res, err := tx.Exec(`
 		INSERT INTO chats (character_id, world_id, title, model, kind, style_name, note, persona_id,
-		                   created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?)`,
+		                   setting, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
 		src.CharacterID, src.WorldID, title, src.Model, src.Kind, src.StyleName, src.Note, src.PersonaID,
-		unix(now), unix(now))
+		src.Setting, unix(now), unix(now))
 	if err != nil {
 		return Chat{}, err
 	}
@@ -133,10 +133,10 @@ func (s *Store) BranchChat(chatID, uptoID int64, title string) (Chat, error) {
 		}
 		r, err := tx.Exec(`
 			INSERT INTO messages (chat_id, role, content, thinking, character_id, eval_count, tok_per_sec,
-			                      created_at, versions, version, pinned)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+			                      created_at, versions, version, pinned, hidden)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
 			id, m.Role, m.Content, m.Thinking, m.CharacterID, m.EvalCount, m.TokPerSec,
-			unix(m.CreatedAt), encodeVersions(m.Versions), m.Version, pin)
+			unix(m.CreatedAt), encodeVersions(m.Versions), m.Version, pin, boolInt(m.Hidden))
 		if err != nil {
 			return Chat{}, err
 		}

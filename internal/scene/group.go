@@ -79,6 +79,7 @@ func BuildTurn(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Ch
 		Speakers: speakers(cast, hist, t),
 		Note:     t.Note,
 		Onward:   t.Onward,
+		Setting:  ch.Setting,
 	}
 	sc.Lore = GroupLore(st, cast, hist, sc.Budget.Lore)
 	byID := make(map[int64]string, len(cast))
@@ -197,11 +198,23 @@ func GroupLore(st *store.Store, cast []chars.Character, hist []ollama.Message, b
 // between them, and merging those would change the prompt of a conversation that
 // has nothing to do with groups.
 func History(msgs []store.Message, nameOf func(int64) string) []ollama.Message {
+	out, _ := HistoryWithIDs(msgs, nameOf)
+	return out
+}
+
+// HistoryWithIDs is History, with the id of the last stored message each turn
+// was made from. A turn is not always one message: a group's beats merge, and
+// empty and hidden messages are left out. So a recap that covers the first n
+// turns covers stored messages up to ids[n-1], and pairing turns with stored
+// messages by position would put that boundary in the wrong place.
+func HistoryWithIDs(msgs []store.Message, nameOf func(int64) string) ([]ollama.Message, []int64) {
 	out := make([]ollama.Message, 0, len(msgs))
+	ids := make([]int64, 0, len(msgs))
 	merged := false // the previous message was a beat, so a beat can join it
 	for _, m := range msgs {
 		content := strings.TrimSpace(m.Content)
-		if content == "" {
+		// A hidden message is yours to read and not the model's.
+		if content == "" || m.Hidden {
 			continue
 		}
 		beat := m.Role == ollama.RoleAssistant && m.CharacterID != 0 && nameOf != nil
@@ -210,12 +223,14 @@ func History(msgs []store.Message, nameOf func(int64) string) []ollama.Message {
 		}
 		if beat && merged && len(out) > 0 {
 			out[len(out)-1].Content += "\n\n" + content
+			ids[len(ids)-1] = m.ID
 			continue
 		}
 		out = append(out, ollama.Message{Role: m.Role, Content: content})
+		ids = append(ids, m.ID)
 		merged = beat
 	}
-	return out
+	return out, ids
 }
 
 // assistantTurns is the cast's replies from a history, oldest last, for the

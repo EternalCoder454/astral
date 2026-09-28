@@ -220,7 +220,7 @@ func importImageBytes(data []byte, prefix string) (path, note string, err error)
 	}
 	// Stamped, so replacing an image does not fight the old one for the same
 	// filename while GTK still has the decoded texture cached against it.
-	name := fmt.Sprintf("%s-%d%s", safeFileName(prefix), time.Now().UnixNano(), ext)
+	name := fmt.Sprintf("%s-%d%s", store.SafeFileName(prefix), time.Now().UnixNano(), ext)
 	dst := filepath.Join(store.AvatarDir(), name)
 	if err := os.WriteFile(dst, data, 0o644); err != nil {
 		return "", "", fmt.Errorf("could not save the image: %w", err)

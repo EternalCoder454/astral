@@ -122,3 +122,41 @@ func TestDraftStatesYourLength(t *testing.T) {
 		t.Fatalf("the draft does not say how long Wren writes:\n%s", a)
 	}
 }
+
+func TestHistoryLeavesOutHiddenAndKnowsWhereTurnsEnd(t *testing.T) {
+	msgs := []store.Message{
+		{ID: 1, Role: ollama.RoleUser, Content: "Hello."},
+		{ID: 2, Role: ollama.RoleAssistant, Content: "Out of character aside.", Hidden: true},
+		{ID: 3, Role: ollama.RoleAssistant, Content: "*Vesper nods.*", CharacterID: 7},
+		{ID: 4, Role: ollama.RoleAssistant, Content: "*Ilse shrugs.*", CharacterID: 8},
+		{ID: 5, Role: ollama.RoleUser, Content: "Right."},
+	}
+	names := map[int64]string{7: "Vesper", 8: "Ilse"}
+	out, ids := HistoryWithIDs(msgs, func(id int64) string { return names[id] })
+	if len(out) != 3 || strings.Contains(out[1].Content, "aside") {
+		t.Fatalf("history %+v", out)
+	}
+	if want := []int64{1, 4, 5}; len(ids) != 3 || ids[0] != want[0] || ids[1] != want[1] || ids[2] != want[2] {
+		t.Fatalf("ids %v, want %v", ids, want)
+	}
+}
+
+func TestUsageAddsUpTheRequest(t *testing.T) {
+	cfg := store.DefaultConfig()
+	cfg.NumCtx = 8192
+	one := []chars.Character{{Name: "Vesper", Description: "A cartographer."}}
+	hist := []ollama.Message{{Role: ollama.RoleUser, Content: strings.Repeat("I wait. ", 100)}}
+	u := MeasureUsage(nil, cfg, store.Chat{Kind: store.KindRoleplay, Setting: "Her map room, midnight"}, one, hist)
+	if u.Window != 8192 || u.Used == 0 || u.Conversation == 0 || u.FoldsAt == 0 {
+		t.Fatalf("usage %+v", u)
+	}
+	sum := 0
+	names := []string{}
+	for _, p := range u.Parts {
+		sum += p.Tokens
+		names = append(names, p.Name)
+	}
+	if sum != u.Used || !strings.Contains(strings.Join(names, ","), "Closing Rules") {
+		t.Fatalf("parts %v add to %d, used %d", names, sum, u.Used)
+	}
+}

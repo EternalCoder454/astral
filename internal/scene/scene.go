@@ -201,6 +201,7 @@ func buildOne(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Charact
 		// from 0.87 to 0.78 and from 0.93 to 0.68.
 		Overused: chars.Overused(hist),
 		Note:     note,
+		Setting:  ch.Setting,
 	}
 	sc.Lore = Lore(st, ca, hist, sc.Budget.Lore)
 	sc.Memory = Memory(st, ch, hist, nil, ca.Name, userNameOf(cfg), sc.Budget.Memory)

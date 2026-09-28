@@ -512,12 +512,12 @@ func (s *Server) housekeep(chatID int64, cast []chars.Character) {
 	if len(cast) < 2 {
 		nameOf = nil
 	}
-	hist := scene.History(stored, nameOf)
+	hist, ids := scene.HistoryWithIDs(stored, nameOf)
 
 	if chars.NeedsCompaction(hist, budget) {
 		aged, _ := chars.SplitForCompaction(hist, budget)
 		if len(aged) > 0 {
-			upto := stored[len(aged)-1].ID
+			upto := ids[len(aged)-1]
 			// A conversation and a scene need different questions asked of the
 			// summariser: what was decided against who is standing where.
 			var next string

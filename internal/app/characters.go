@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
@@ -26,12 +26,32 @@ func (a *App) showCharacters() {
 
 	header := adw.NewHeaderBar()
 
-	importBtn := gtk.NewButtonFromIconName(ui.IconFolder)
-	importBtn.SetTooltipText("Import a Character Card (.png or .json)")
-	importBtn.ConnectClicked(func() {
-		d.Close()
-		a.actionImportCharacter()
-	})
+	// A file, or a link: a Chub character page or a card's own address.
+	importBtn := gtk.NewMenuButton()
+	importBtn.SetIconName(ui.IconFolder)
+	importBtn.SetTooltipText("Import a Character Card")
+	importMenu := gtk.NewBox(gtk.OrientationVertical, 2)
+	importPop := gtk.NewPopover()
+	for _, it := range []struct {
+		label string
+		fire  func()
+	}{
+		{"Import a File…", a.actionImportCharacter},
+		{"Import from a Link…", a.importFromLink},
+	} {
+		fire := it.fire
+		b := gtk.NewButtonWithLabel(it.label)
+		b.AddCSSClass("flat")
+		gtk.BaseWidget(b.Child()).SetHAlign(gtk.AlignStart)
+		b.ConnectClicked(func() {
+			importPop.Popdown()
+			d.Close()
+			fire()
+		})
+		importMenu.Append(b)
+	}
+	importPop.SetChild(importMenu)
+	importBtn.SetPopover(importPop)
 	header.PackStart(importBtn)
 
 	newBtn := gtk.NewButtonFromIconName(ui.IconAdd)
@@ -151,6 +171,39 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 	side.SetVAlign(gtk.AlignCenter)
 	side.AddCSSClass("card-actions")
 	row.AddCSSClass("card-row")
+
+	// Favorites come first in every list. The star stays lit when the rest
+	// of the row's buttons are dimmed, so which ones they are shows.
+	star := gtk.NewButtonFromIconName(ui.IconStarOff)
+	star.AddCSSClass("flat")
+	star.AddCSSClass("favorite-star")
+	star.SetVAlign(gtk.AlignCenter)
+	setStar := func(on bool) {
+		if on {
+			star.SetIconName(ui.IconStar)
+			star.AddCSSClass("favorite-on")
+			star.SetTooltipText("Remove " + c.Name + " from your favorites")
+		} else {
+			star.SetIconName(ui.IconStarOff)
+			star.RemoveCSSClass("favorite-on")
+			star.SetTooltipText("Add " + c.Name + " to your favorites")
+		}
+	}
+	setStar(c.Favorite)
+	fav := c.Favorite
+	star.ConnectClicked(func() {
+		if err := a.store.SetFavorite(c.ID, !fav); err != nil {
+			a.toast("Could not change that: " + err.Error())
+			return
+		}
+		fav = !fav
+		setStar(fav)
+		a.refreshWelcome()
+	})
+	// Beside the other buttons rather than among them: they are dimmed
+	// together, and a lit star inside them would be dimmed too.
+	row.Append(star)
+
 	edit := gtk.NewButtonFromIconName(ui.IconEdit)
 	edit.SetTooltipText("Edit " + c.Name)
 	edit.AddCSSClass("flat")
@@ -501,7 +554,7 @@ func (a *App) exportCharacter(c chars.Character) {
 
 	dialog := gtk.NewFileDialog()
 	dialog.SetTitle("Export " + c.Name)
-	dialog.SetInitialName(safeFileName(c.Name) + ".json")
+	dialog.SetInitialName(store.SafeFileName(c.Name) + ".json")
 	dialog.Save(context.Background(), &a.win.Window, func(res gio.AsyncResulter) {
 		file, err := dialog.SaveFinish(res)
 		if err != nil || file == nil {
@@ -543,6 +596,40 @@ func (a *App) actionImportCharacter() {
 	})
 }
 
+// importFromLink imports a character from a Chub page or a card's address.
+func (a *App) importFromLink() {
+	d := adw.NewAlertDialog("Import from a Link", "A Chub character page, or a link to a card's .png or .json.")
+	entry := gtk.NewEntry()
+	entry.SetPlaceholderText("https://chub.ai/characters/…")
+	entry.SetHExpand(true)
+	entry.SetActivatesDefault(true)
+	d.SetExtraChild(entry)
+	d.AddResponse("cancel", "Cancel")
+	d.AddResponse("ok", "Import")
+	d.SetResponseAppearance("ok", adw.ResponseSuggested)
+	d.SetDefaultResponse("ok")
+	d.SetCloseResponse("cancel")
+	d.ConnectResponse(func(response string) {
+		if response != "ok" {
+			return
+		}
+		link := entry.Text()
+		a.toast("Downloading the card…")
+		go func() {
+			c, avatar, err := chars.FetchCard(context.Background(), link)
+			coreglib.IdleAdd(func() {
+				if err != nil {
+					a.toast("Could not import it: " + err.Error())
+					return
+				}
+				a.saveImported(c, avatar)
+			})
+		}()
+	})
+	d.Present(a.win)
+	entry.GrabFocus()
+}
+
 // importCard reads a card from disk and saves it as a character.
 func (a *App) importCard(path string) {
 	if path == "" {
@@ -553,6 +640,12 @@ func (a *App) importCard(path string) {
 		a.toast("Could not import that file: " + err.Error())
 		return
 	}
+	a.saveImported(c, avatar)
+}
+
+// saveImported stores a character read from a card, with its picture, and
+// opens a scene with them.
+func (a *App) saveImported(c chars.Character, avatar []byte) {
 	c.Accent = ui.AccentFor(c.Name)
 	if len(avatar) > 0 {
 		if p, err := saveAvatar(c.Name, avatar); err == nil {
@@ -571,37 +664,4 @@ func (a *App) importCard(path string) {
 }
 
 // saveAvatar copies an imported card's image into the data directory.
-func saveAvatar(name string, data []byte) (string, error) {
-	if err := os.MkdirAll(store.AvatarDir(), 0o755); err != nil {
-		return "", err
-	}
-	path := filepath.Join(store.AvatarDir(), safeFileName(name)+".png")
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return "", err
-	}
-	return path, nil
-}
-
-// safeFileName reduces a character's name to something safe to write to disk.
-// A card is a downloaded file and its name is attacker-controlled, so this
-// keeps only characters that cannot traverse or escape a directory, rather
-// than trying to escape the ones that can.
-func safeFileName(name string) string {
-	var b strings.Builder
-	for _, r := range name {
-		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
-			b.WriteRune(r)
-		case r == ' ' || r == '-' || r == '_':
-			b.WriteByte('-')
-		}
-	}
-	out := strings.Trim(b.String(), "-")
-	if out == "" {
-		return "character"
-	}
-	if len(out) > 64 {
-		out = out[:64]
-	}
-	return out
-}
+func saveAvatar(name string, data []byte) (string, error) { return store.SaveAvatar(name, data) }

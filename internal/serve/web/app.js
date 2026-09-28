@@ -644,12 +644,19 @@ async function loadState() {
 	}
 	filterChats();
 
+	const ci = $("cast-import");
+	ci.replaceChildren(row({
+		title: "Import from a Link",
+		note: "A Chub character page, or a card's .png or .json.",
+		icon: "add",
+		onClick: openImport,
+	}));
 	const cs = $("cast-characters");
 	cs.replaceChildren();
 	for (const c of state.characters || []) {
 		cs.append(swipeable(
 			row({
-				title: c.name, note: c.note, initial: initialOf(c.name),
+				title: c.favorite ? c.name + "  ★" : c.name, note: c.note, initial: initialOf(c.name),
 				picture: c.avatar ? c.id : 0,
 				onClick: () => newChat({ character_id: c.id }),
 			}),
@@ -1706,6 +1713,7 @@ composer.addEventListener("keydown", (e) => {
 function storedBubble(m) {
 	const el = bubble(m.role, m.content, m.who, m.accent, m.id, m.versions, m.version);
 	if (m.pinned) el.classList.add("pinned");
+	if (m.hidden) el.classList.add("hidden-msg");
 	return el;
 }
 
@@ -1737,6 +1745,12 @@ function moreFor(wrap, isLastReply) {
 	if (id) {
 		items.push({ title: "Branch from Here", note: "A new chat that is this one up to here.",
 			icon: "branch", onClick: () => branch(id) });
+		const hidden = wrap.classList.contains("hidden-msg");
+		items.push({
+			title: hidden ? "Show to the Model" : "Hide from the Model",
+			note: hidden ? "The model reads it again." : "It stays here, and the model stops reading it.",
+			icon: "hidden", onClick: () => hideMessage(wrap, !hidden),
+		});
 	}
 	return items;
 }
@@ -1918,9 +1932,24 @@ async function branch(id) {
 function chatMenu() {
 	if (!current) return;
 	const items = [];
+	if (current.can_draft) {
+		items.push({ title: "Suggest Replies", note: "Three things you could say next.",
+			icon: "ideas", onClick: suggestReplies });
+	}
 	if (current.remembers) {
 		items.push({ title: "Scene Memory", note: "See and correct what this scene remembers.",
 			icon: "history", onClick: openMemory });
+	}
+	// One character's scene: a group's is named after its first member, and
+	// starring them from there would star somebody at random.
+	if (current.character && (current.cast || []).length < 2) {
+		const fav = !!current.favorite;
+		items.push({
+			title: fav ? "Remove from Favorites" : "Add to Favorites",
+			note: fav ? "Stop listing " + current.who + " first." : "List " + current.who + " first in the Cast.",
+			icon: fav ? "star-outline" : "star",
+			onClick: () => favorite(!fav),
+		});
 	}
 	const cast = current.cast || [];
 	if (cast.length > 1) {
@@ -1939,6 +1968,97 @@ function chatMenu() {
 	openMenu(current.title || "This Chat", items);
 }
 $("chat-more").addEventListener("click", chatMenu);
+
+// hideMessage hides a message from the model, or shows it again.
+async function hideMessage(wrap, on) {
+	if (!current) return;
+	try {
+		await api("/api/chats/" + current.id + "/messages/" + wrap.dataset.id + "/hide", {
+			method: "POST", body: JSON.stringify({ hidden: on }),
+		});
+		wrap.classList.toggle("hidden-msg", on);
+		const m = (current.messages || []).find((x) => String(x.id) === wrap.dataset.id);
+		if (m) m.hidden = on;
+		toast(on ? "Hidden. The model no longer reads it." : "The model reads it again.");
+	} catch (e) {
+		toast(e.message);
+	}
+}
+
+// favorite marks the chat's character as a favorite, or not.
+async function favorite(on) {
+	if (!current?.character) return;
+	try {
+		await api("/api/characters/" + current.character + "/favorite", {
+			method: "POST", body: JSON.stringify({ favorite: on }),
+		});
+		current.favorite = on;
+		toast(on ? current.who + " is a favorite." : current.who + " is no longer a favorite.");
+		loadState().catch(() => {});
+	} catch (e) {
+		toast(e.message);
+	}
+}
+
+// suggestReplies offers three things you could say next; one tapped goes in
+// the message box, to send or change.
+async function suggestReplies() {
+	if (!current || busyHere()) return;
+	const chatId = current.id;
+	openMenu("Suggest Replies", [{ title: "Thinking of three…", note: "", icon: "ideas", onClick: () => {} }]);
+	streamingIn.add(chatId);
+	setComposerBusy(true);
+	let options = null;
+	try {
+		const res = await api("/api/chats/" + chatId + "/suggest", { method: "POST", body: "{}" });
+		options = (await res.json()).options || [];
+	} catch (e) {
+		$("menu-sheet").hidden = true;
+		toast(e.message);
+	} finally {
+		streamingIn.delete(chatId);
+		if (current?.id === chatId) setComposerBusy(false);
+	}
+	if (!options || current?.id !== chatId || $("menu-sheet").hidden) return;
+	openMenu("Suggest Replies", options.map((o) => ({
+		// Shown without its markup; what goes in the box keeps it.
+		title: o.replace(/\*/g, ""), note: "", icon: "ideas",
+		onClick: () => {
+			const box = $("composer-text");
+			box.value = o;
+			box.dispatchEvent(new Event("input"));
+			box.focus();
+		},
+	})));
+}
+
+// openImport asks for a link to a character.
+function openImport() {
+	$("import-url").value = "";
+	$("import-sheet").hidden = false;
+	$("import-url").focus();
+}
+$("import-cancel").addEventListener("click", () => { $("import-sheet").hidden = true; });
+$("import-sheet").addEventListener("click", (e) => { if (e.target === $("import-sheet")) $("import-sheet").hidden = true; });
+$("import-go").addEventListener("click", async () => {
+	const url = $("import-url").value.trim();
+	if (!url) return;
+	const go = $("import-go");
+	go.disabled = true;
+	go.textContent = "Importing…";
+	try {
+		const res = await api("/api/characters/import", { method: "POST", body: JSON.stringify({ url }) });
+		const out = await res.json();
+		$("import-sheet").hidden = true;
+		toast("Imported " + out.name + ".");
+		await loadState();
+	} catch (e) {
+		toast(e.message);
+	} finally {
+		go.disabled = false;
+		go.textContent = "Import";
+	}
+});
 
 // groupTurn sends what is typed with somebody chosen to answer, or with
 // nothing typed, has the cast carry on.
@@ -1978,7 +2098,19 @@ async function openMemory() {
 	const recap = $("memory-recap");
 	recap.value = mem.recap || "";
 	recap.disabled = !mem.covers;
-	$("memory-save").disabled = !mem.covers;
+	$("memory-setting").value = mem.setting || "";
+	$("memory-setting").dataset.was = mem.setting || "";
+	const u = mem.usage;
+	if (u) {
+		const used = u.used + u.reply;
+		const pct = Math.min(100, Math.round((used / Math.max(u.window, 1)) * 100));
+		$("memory-usage-fill").style.width = pct + "%";
+		const parts = (u.parts || []).map((p) => p.name + " " + p.tokens.toLocaleString()).join(", ");
+		$("memory-usage").textContent = "About " + u.used.toLocaleString() + " of " + u.window.toLocaleString() +
+			" tokens, " + pct + "% with the reply's room. " + parts + "." +
+			(u.folds_at ? " The conversation folds into the record at " + u.folds_at.toLocaleString() +
+				" tokens; it is at " + u.conversation.toLocaleString() + "." : "");
+	}
 	$("memory-hint").textContent = mem.covers
 		? "What the model is told about the part of the scene it can no longer see."
 		: "Written once the scene outgrows the model's memory. Until then it reads every turn.";
@@ -2017,11 +2149,30 @@ async function openMemory() {
 	$("memory-sheet").hidden = false;
 }
 $("memory-cancel").addEventListener("click", () => { $("memory-sheet").hidden = true; });
+$("memory-suggest").addEventListener("click", async () => {
+	if (!current) return;
+	const b = $("memory-suggest");
+	b.disabled = true;
+	b.textContent = "Thinking…";
+	try {
+		const res = await api("/api/chats/" + current.id + "/setting/suggest", { method: "POST", body: "{}" });
+		const out = await res.json();
+		if (out.setting) $("memory-setting").value = out.setting;
+	} catch (e) {
+		toast(e.message);
+	} finally {
+		b.disabled = false;
+		b.textContent = "Suggest";
+	}
+});
 $("memory-save").addEventListener("click", async () => {
 	if (!current) return;
+	const body = {};
+	if (!$("memory-recap").disabled) body.recap = $("memory-recap").value;
+	if ($("memory-setting").value.trim() !== ($("memory-setting").dataset.was || "")) body.setting = $("memory-setting").value;
 	try {
 		await api("/api/chats/" + current.id + "/memory", {
-			method: "POST", body: JSON.stringify({ recap: $("memory-recap").value }),
+			method: "POST", body: JSON.stringify(body),
 		});
 		$("memory-sheet").hidden = true;
 		toast("Saved, from your next message on.");

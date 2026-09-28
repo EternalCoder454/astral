@@ -30,6 +30,20 @@ func slowModelEvery(t *testing.T, words int, every time.Duration) string {
 		switch r.URL.Path {
 		case "/api/chat":
 			fl := w.(http.Flusher)
+			// A request for structured output gets it, so what reads the
+			// answer as JSON can be exercised too.
+			var req struct {
+				Format json.RawMessage `json:"format"`
+			}
+			json.NewDecoder(r.Body).Decode(&req)
+			if len(req.Format) > 0 {
+				json.NewEncoder(w).Encode(map[string]any{
+					"message": map[string]string{"role": "assistant",
+						"content": `{"options":["*I nod.* \"Go on.\"","*I stand.* \"We leave now.\"","*I laugh.* \"Make me.\""]}`},
+					"done": true, "done_reason": "stop",
+				})
+				return
+			}
 			for i := 0; i < words; i++ {
 				select {
 				case <-r.Context().Done():

@@ -75,7 +75,7 @@ func (s *Store) Moments(chatID, upto int64, text string, limit int) ([]Moment, e
 		FROM messages_fts f
 		JOIN messages m ON m.id = f.rowid
 		WHERE messages_fts MATCH ? AND m.chat_id = ? AND m.id <= ?
-		  AND length(m.content) >= ?
+		  AND length(m.content) >= ? AND m.hidden = 0
 		ORDER BY bm25(messages_fts)
 		LIMIT ?`, q, chatID, upto, minMomentChars, limit)
 	if err != nil {

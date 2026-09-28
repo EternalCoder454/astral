@@ -91,6 +91,7 @@ func Anchor(c Character, sc Scene, userName string) string {
 	}
 
 	b.WriteString(freshWording(sc.Overused, c.Name, userName))
+	b.WriteString(SettingBlock(sc.Setting, c.Name, userName))
 	b.WriteString(PaceBlock(c.Name, userName))
 
 	// Last of all, and so weighted most. A direction is about where the scene

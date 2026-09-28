@@ -529,6 +529,15 @@ frame:focus-within {
 	color: @window_fg_color;
 }
 
+/* A message hidden from the model is set back, and says so under it. */
+.hidden-from-model .bubble {
+	opacity: 0.45;
+}
+
+.hide-mark {
+	font-style: italic;
+}
+
 /* A pinned message keeps a small mark in its footer, in the accent, so what
  * the scene will never forget is findable at a glance. */
 .pin-mark {
@@ -730,6 +739,23 @@ frame:focus-within {
 .card-row:hover .card-actions,
 .card-row:focus-within .card-actions {
 	opacity: 1;
+}
+
+/* A favorite's star is lit whether or not the row is pointed at; an unlit
+ * one is dimmed with the row's other buttons. */
+.card-row .favorite-star {
+	opacity: 0.45;
+	transition: opacity 120ms ease;
+}
+
+.card-row:hover .favorite-star,
+.card-row:focus-within .favorite-star,
+.card-row .favorite-star.favorite-on {
+	opacity: 1;
+}
+
+.favorite-star.favorite-on {
+	color: @accent_color;
 }
 
 .character-card-name {

@@ -71,3 +71,24 @@ func HistoryBefore(st *store.Store, ch store.Chat, nameOf func(int64) string, me
 	}
 	return History(before, nameOf), nil
 }
+
+// Suggest is the request for three suggestions of what you could say next.
+func Suggest(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Character, hist []ollama.Message) []ollama.Message {
+	msgs := BuildFor(st, cfg, ch, cast, hist)
+	return chars.SuggestMessages(msgs, strings.Join(chars.CastNames(cast), ", "), userNameOf(cfg))
+}
+
+// SuggestOptions leave room for three messages.
+func SuggestOptions(cfg store.Config, kind string) ollama.Options {
+	opts := OptionsFor(cfg, kind)
+	if opts.NumPredict <= 0 || opts.NumPredict > 3*draftTokens {
+		opts.NumPredict = 3 * draftTokens
+	}
+	return opts
+}
+
+// SuggestSetting is the request for where and when the scene is now.
+func SuggestSetting(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Character, hist []ollama.Message) []ollama.Message {
+	msgs := BuildFor(st, cfg, ch, cast, hist)
+	return chars.SettingMessages(msgs, strings.Join(chars.CastNames(cast), ", "), userNameOf(cfg))
+}

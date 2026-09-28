@@ -764,14 +764,14 @@ func (c *ChatView) maybeCompact() {
 	// Labelled, so the recap can say which of them did what. A group's turns
 	// summarised without their names come back as things "the group" did, and
 	// which of five people admitted something is the detail a scene turns on.
-	wire := scene.History(stored, c.nameOf)
+	wire, ids := scene.HistoryWithIDs(stored, c.nameOf)
 	budget := c.sceneBudget()
 	aged, _ := chars.SplitForCompaction(wire, budget)
 	if len(aged) == 0 {
 		return
 	}
 	// The recap will cover everything up to and including this message.
-	upto := stored[len(aged)-1].ID
+	upto := ids[len(aged)-1]
 
 	ctx, ok := c.bg.take("recap", compactTimeout)
 	if !ok {

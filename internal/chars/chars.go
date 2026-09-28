@@ -74,8 +74,11 @@ type Character struct {
 	PortraitPath string
 	// WorldID is the setting this character belongs to, or 0 for none. A scene
 	// inherits its lorebook from here.
-	WorldID   int64
-	Accent    int // index into the palette's secondary accents
+	WorldID int64
+	Accent  int // index into the palette's secondary accents
+	// Favorite characters come first in every list. Set on its own, never
+	// by saving the character, so editing one cannot change it.
+	Favorite  bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -515,6 +518,8 @@ type Scene struct {
 	// Onward says nobody spoke this turn: the cast carry the scene on among
 	// themselves. Only a group scene has anyone to carry it.
 	Onward bool
+	// Setting is where and when the scene is now, in a line.
+	Setting string
 }
 
 // BuildMessages assembles the full request.

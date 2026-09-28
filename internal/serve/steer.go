@@ -243,9 +243,16 @@ func (s *Server) handleMemory(w http.ResponseWriter, r *http.Request, d store.De
 		Recap string `json:"recap"`
 		// Covers says a record exists: until a scene outgrows the model's
 		// memory there is nothing to correct.
-		Covers bool     `json:"covers"`
-		Pins   []pinOut `json:"pins"`
-	}{Recap: ch.Summary, Covers: ch.SummaryUpto != 0, Pins: []pinOut{}}
+		Covers  bool     `json:"covers"`
+		Pins    []pinOut `json:"pins"`
+		Setting string   `json:"setting"`
+		// Usage is how full the model's memory is on the next turn.
+		Usage *scene.Usage `json:"usage,omitempty"`
+	}{Recap: ch.Summary, Covers: ch.SummaryUpto != 0, Pins: []pinOut{}, Setting: ch.Setting}
+	if hist, err := s.history(ch, castNames(cast)); err == nil {
+		u := scene.MeasureUsage(s.store, cfg, ch, castFor(cast, ca), hist)
+		out.Usage = &u
+	}
 	for _, p := range pins {
 		who := you
 		if p.Role == ollama.RoleAssistant {
@@ -268,8 +275,10 @@ func (s *Server) handleSaveMemory(w http.ResponseWriter, r *http.Request, d stor
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not a chat id"})
 		return
 	}
+	// Either or both: a scene too young for a record still has a setting.
 	var body struct {
-		Recap string `json:"recap"`
+		Recap   *string `json:"recap"`
+		Setting *string `json:"setting"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256<<10)).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unreadable request"})
@@ -280,7 +289,7 @@ func (s *Server) handleSaveMemory(w http.ResponseWriter, r *http.Request, d stor
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such chat"})
 		return
 	}
-	if ch.SummaryUpto == 0 {
+	if body.Recap != nil && ch.SummaryUpto == 0 {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "this chat has no record yet"})
 		return
 	}
@@ -288,9 +297,17 @@ func (s *Server) handleSaveMemory(w http.ResponseWriter, r *http.Request, d stor
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "wait for the reply to finish"})
 		return
 	}
-	if err := s.store.SetChatSummary(id, strings.TrimSpace(body.Recap), ch.SummaryUpto); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
+	if body.Recap != nil {
+		if err := s.store.SetChatSummary(id, strings.TrimSpace(*body.Recap), ch.SummaryUpto); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+	}
+	if body.Setting != nil {
+		if err := s.store.SetChatSetting(id, *body.Setting); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"saved": true})
 }

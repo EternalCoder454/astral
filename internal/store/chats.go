@@ -65,6 +65,10 @@ type Chat struct {
 	// whichever is in use by default, which is what every chat from before
 	// there were several of you has.
 	PersonaID int64
+	// Setting is where and when the scene is now, in a line: "her flat, two
+	// in the morning, rain". Sent every turn, so a long scene does not lose
+	// track of the room it is in. See extras.go.
+	Setting   string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
@@ -107,6 +111,9 @@ type Message struct {
 	// Pinned messages are sent word for word however long the scene grows.
 	// See branch.go.
 	Pinned bool
+	// Hidden messages stay in the transcript and are never sent to the
+	// model. See extras.go.
+	Hidden bool
 }
 
 // Version is one of the replies written for the same turn. Writing a reply
@@ -162,13 +169,13 @@ func (s *Store) Chat(id int64) (Chat, error) {
 	var created, updated int64
 	err := s.db.QueryRow(`
 		SELECT c.id, c.character_id, c.world_id, c.title, c.model, c.kind, c.summary, c.summary_upto,
-		       c.lore_upto, c.style_name, c.note, c.persona_id, c.created_at, c.updated_at,
+		       c.lore_upto, c.style_name, c.note, c.persona_id, c.setting, c.created_at, c.updated_at,
 		       COALESCE(ch.name, ''), COALESCE(ch.accent, 0)
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
 		WHERE c.id = ?`, id).
 		Scan(&c.ID, &c.CharacterID, &c.WorldID, &c.Title, &c.Model, &c.Kind, &c.Summary, &c.SummaryUpto,
-			&c.LoreUpto, &c.StyleName, &c.Note, &c.PersonaID, &created, &updated, &c.CharacterName, &c.Accent)
+			&c.LoreUpto, &c.StyleName, &c.Note, &c.PersonaID, &c.Setting, &created, &updated, &c.CharacterName, &c.Accent)
 	if err == sql.ErrNoRows {
 		return c, fmt.Errorf("no chat with id %d", id)
 	}
@@ -284,7 +291,7 @@ func (s *Store) Messages(chatID int64) ([]Message, error) {
 func (s *Store) messages(chatID, afterID int64) ([]Message, error) {
 	rows, err := s.db.Query(`
 		SELECT id, chat_id, role, content, thinking, character_id, eval_count, tok_per_sec, created_at,
-		       versions, version, pinned
+		       versions, version, pinned, hidden
 		FROM messages WHERE chat_id = ? AND id > ? ORDER BY id`, chatID, afterID)
 	if err != nil {
 		return nil, err
@@ -296,7 +303,7 @@ func (s *Store) messages(chatID, afterID int64) ([]Message, error) {
 		var created int64
 		var versions string
 		if err := rows.Scan(&m.ID, &m.ChatID, &m.Role, &m.Content, &m.Thinking,
-			&m.CharacterID, &m.EvalCount, &m.TokPerSec, &created, &versions, &m.Version, &m.Pinned); err != nil {
+			&m.CharacterID, &m.EvalCount, &m.TokPerSec, &created, &versions, &m.Version, &m.Pinned, &m.Hidden); err != nil {
 			return nil, err
 		}
 		m.CreatedAt = fromUnix(created)

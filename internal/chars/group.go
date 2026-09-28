@@ -267,6 +267,7 @@ func GroupAnchor(cast []Character, sc Scene, userName string) string {
 	b.WriteString(freshWording(sc.Overused, allNames, userName))
 	// Not when nobody is waiting on the person: carrying the scene on
 	// without them is exactly moving it along.
+	b.WriteString(SettingBlock(sc.Setting, allNames, userName))
 	if !sc.Onward {
 		b.WriteString(PaceBlock(allNames, userName))
 	}

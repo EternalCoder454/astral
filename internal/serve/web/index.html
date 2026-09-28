@@ -54,6 +54,7 @@
   <header class="topbar"><h1>Cast</h1></header>
   <div class="scroll">
     <h2 class="heading">Characters</h2>
+    <div id="cast-import" class="rows"></div>
     <div id="cast-characters" class="rows"></div>
     <h2 class="heading">Worlds</h2>
     <div id="cast-worlds" class="rows"></div>
@@ -219,14 +220,35 @@
 <div id="memory-sheet" class="sheet-backdrop" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="memory-heading">
     <h2 id="memory-heading" class="sheet-kicker">Scene Memory</h2>
+    <label class="sheet-label" for="memory-setting">Where and When</label>
+    <div class="sheet-inline">
+      <input id="memory-setting" class="sheet-field" type="text" maxlength="200" placeholder="Her flat, two in the morning, rain" autocomplete="off">
+      <button id="memory-suggest" class="chip chip-button" type="button">Suggest</button>
+    </div>
     <label class="sheet-label" for="memory-recap">Record of the Scene So Far</label>
     <textarea id="memory-recap" class="sheet-field" rows="6"></textarea>
     <p id="memory-hint" class="muted sheet-hint"></p>
     <h3 class="sheet-label">Pinned</h3>
     <div id="memory-pins" class="rows"></div>
+    <h3 class="sheet-label">Memory Use</h3>
+    <div class="usage-bar"><div id="memory-usage-fill"></div></div>
+    <p id="memory-usage" class="muted sheet-hint"></p>
     <div class="sheet-buttons">
       <button id="memory-cancel" class="sheet-button">Cancel</button>
       <button id="memory-save" class="sheet-button primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- A character from a link: a Chub page or a card's own address. -->
+<div id="import-sheet" class="sheet-backdrop" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="import-heading">
+    <h2 id="import-heading" class="sheet-kicker">Import from a Link</h2>
+    <input id="import-url" class="sheet-field" type="url" placeholder="https://chub.ai/characters/…" autocomplete="off" aria-label="Link">
+    <p class="muted sheet-hint">A Chub character page, or a link to a card's .png or .json.</p>
+    <div class="sheet-buttons">
+      <button id="import-cancel" class="sheet-button">Cancel</button>
+      <button id="import-go" class="sheet-button primary">Import</button>
     </div>
   </div>
 </div>

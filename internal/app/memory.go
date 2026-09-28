@@ -1,7 +1,11 @@
 package app
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
+
+	"astral/internal/chars"
 
 	"astral/internal/store"
 	"astral/internal/ui"
@@ -34,6 +38,37 @@ func (a *App) editMemory() {
 	page.SetMarginStart(16)
 	page.SetMarginEnd(16)
 
+	// Where and when the scene is now, in a line sent every turn.
+	nowOuter, nowCard := groupCard("")
+	setting := gtk.NewEntry()
+	setting.SetText(a.chat.Setting())
+	setting.SetPlaceholderText("Her flat, two in the morning, rain on the windows")
+	setting.SetMaxLength(chars.SettingChars)
+	setting.SetHExpand(true)
+	suggest := gtk.NewButtonWithLabel("Suggest")
+	suggest.SetTooltipText("Have the model say where and when the scene is now")
+	suggest.ConnectClicked(func() {
+		suggest.SetSensitive(false)
+		suggest.SetLabel("Thinking…")
+		a.chat.SuggestSetting(func(line string, err error) {
+			suggest.SetSensitive(true)
+			suggest.SetLabel("Suggest")
+			if err != nil {
+				a.toast("Could not suggest one: " + err.Error())
+				return
+			}
+			if line != "" {
+				setting.SetText(line)
+			}
+		})
+	})
+	nowRow := gtk.NewBox(gtk.OrientationHorizontal, 6)
+	nowRow.Append(setting)
+	nowRow.Append(suggest)
+	nowCard.Append(labelledField("Where and When",
+		"Sent every turn, so the scene keeps track of the room it is in.", nowRow))
+	page.Append(nowOuter)
+
 	recap, upto := a.chat.Recap()
 	outer, card := groupCard("")
 	frame, view := multilineField(recap, 8)
@@ -58,6 +93,7 @@ func (a *App) editMemory() {
 		pinsCard.Append(a.pinRow(p, pinsCard))
 	}
 	page.Append(pinsOuter)
+	page.Append(a.usageCard())
 
 	header := adw.NewHeaderBar()
 	header.SetShowEndTitleButtons(false)
@@ -66,19 +102,28 @@ func (a *App) editMemory() {
 	header.PackStart(cancel)
 	save := gtk.NewButtonWithLabel("Save")
 	save.AddCSSClass("suggested-action")
-	save.SetSensitive(upto != 0)
+	oldSetting := a.chat.Setting()
 	save.ConnectClicked(func() {
 		text := strings.TrimSpace(textOf(view))
-		if text == strings.TrimSpace(recap) {
-			d.Close()
-			return
+		changed := false
+		if upto != 0 && text != strings.TrimSpace(recap) {
+			if err := a.chat.SetRecap(text); err != nil {
+				a.toast("Could not save the record: " + err.Error())
+				return
+			}
+			changed = true
 		}
-		if err := a.chat.SetRecap(text); err != nil {
-			a.toast("Could not save the record: " + err.Error())
-			return
+		if now := strings.TrimSpace(setting.Text()); now != oldSetting {
+			if err := a.chat.SetSetting(now); err != nil {
+				a.toast("Could not save where and when: " + err.Error())
+				return
+			}
+			changed = true
 		}
 		d.Close()
-		a.toast("Saved, from your next message on.")
+		if changed {
+			a.toast("Saved, from your next message on.")
+		}
 	})
 	header.PackEnd(save)
 
@@ -87,6 +132,50 @@ func (a *App) editMemory() {
 	tv.SetContent(scrolledToFit(page))
 	d.SetChild(tv)
 	d.Present(a.win)
+}
+
+// usageCard shows how full the model's memory is on the next turn, and what
+// with, the way Character.AI's memory meter does.
+func (a *App) usageCard() *gtk.Box {
+	u := a.chat.Usage()
+	outer, card := groupCard("Memory Use")
+	total := u.Used + u.Reply
+	frac := float64(total) / float64(max(u.Window, 1))
+	bar := gtk.NewLevelBar()
+	bar.SetMinValue(0)
+	bar.SetMaxValue(1)
+	bar.SetValue(min(frac, 1))
+	bar.SetHExpand(true)
+	card.Append(bar)
+	head := gtk.NewLabel(fmt.Sprintf("About %s of the %s tokens the model holds, %d%%, with %s kept for the reply.",
+		thousands(u.Used), thousands(u.Window), int(frac*100+0.5), thousands(u.Reply)))
+	head.SetXAlign(0)
+	head.SetWrap(true)
+	card.Append(head)
+	for _, p := range u.Parts {
+		l := gtk.NewLabel(fmt.Sprintf("%s: %s", p.Name, thousands(p.Tokens)))
+		l.SetXAlign(0)
+		l.AddCSSClass("settings-hint")
+		card.Append(l)
+	}
+	if u.FoldsAt > 0 {
+		note := gtk.NewLabel(fmt.Sprintf("The conversation is %s of %s tokens before its oldest turns fold into the record.",
+			thousands(u.Conversation), thousands(u.FoldsAt)))
+		note.SetXAlign(0)
+		note.SetWrap(true)
+		note.AddCSSClass("settings-hint")
+		card.Append(note)
+	}
+	return outer
+}
+
+// thousands writes a count with separators: 12,480.
+func thousands(n int) string {
+	s := strconv.Itoa(n)
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	return s
 }
 
 // pinRow is one pinned message: who said it, the start of it, and Unpin.

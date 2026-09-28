@@ -22,10 +22,10 @@ const DefaultReplyTokens = 1024
 const safetyTokens = 256
 
 // blockFramingChars is the fixed wording around the recap and lore blocks,
-// and the pace rule in the closing block, which are in every prompt carrying
+// and the pace rule and the setting line in the closing block, which are in every prompt carrying
 // them and so come off the top. Lengthening that wording without raising this
 // overruns the window; TestWorstCaseNowFits holds it.
-const blockFramingChars = 460 + len(paceRule)
+const blockFramingChars = 460 + len(paceRule) + 140 + SettingChars
 
 // Budget is how many characters each part of a prompt may spend.
 type Budget struct {

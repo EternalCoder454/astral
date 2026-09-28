@@ -319,6 +319,9 @@ func (s *Store) migrate() error {
 	// Pinned messages. See branch.go.
 	s.migratePins()
 
+	// Favorites, hidden messages and a scene's setting. See extras.go.
+	s.migrateExtras()
+
 	s.db.Exec(`
 		UPDATE characters SET instructions = TRIM(
 			COALESCE(system_prompt, '') ||

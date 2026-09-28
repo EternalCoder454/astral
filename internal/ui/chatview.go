@@ -278,6 +278,7 @@ type ChatView struct {
 	drafting    bool
 	draftCancel context.CancelFunc
 	draftBtn    *gtk.Button
+	ideasBtn    *gtk.MenuButton
 
 	// cast is every character in this scene. One member, or none, is an
 	// ordinary conversation and behaves exactly as it did before there were
@@ -429,6 +430,10 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 	c.draftBtn.SetVisible(false)
 	c.draftBtn.ConnectClicked(c.WriteForMe)
 	tools.Append(c.draftBtn)
+
+	c.ideasBtn = c.ideasButton()
+	c.ideasBtn.SetVisible(false)
+	tools.Append(c.ideasBtn)
 
 	c.attachBtn = gtk.NewButtonFromIconName(IconFolder)
 	c.attachBtn.AddCSSClass("composer-model")
@@ -716,6 +721,9 @@ func (c *ChatView) LoadScene(ch store.Chat, cast []chars.Character, msgs []store
 		if m.Pinned {
 			row.SetPinned(true)
 		}
+		if m.Hidden {
+			row.SetHidden(true)
+		}
 		if m.TokPerSec > 0 && c.cfg.ShowStats {
 			row.SetMeta(ollama.Stats{Tokens: m.EvalCount, TokPerSec: m.TokPerSec}.Summary())
 		}
@@ -900,17 +908,30 @@ func (c *ChatView) attachActions(row *MessageRow) {
 			c.togglePin(row)
 		})
 	}
-	row.AddAction(IconBranch, "Branch from here: a new chat that is this one up to this message", func() {
-		c.branchFrom(row)
-	})
+	// The rest behind More: used too rarely for a button each, and a row of
+	// ten icons under every reply is harder to read than a menu.
+	more := []RowMenuItem{{
+		Label:   func() string { return "Branch from Here" },
+		OnClick: func() { c.branchFrom(row) },
+	}, {
+		Label: func() string {
+			if row.Hidden {
+				return "Show to the Model"
+			}
+			return "Hide from the Model"
+		},
+		OnClick: func() { c.toggleHidden(row) },
+	}}
 	// Keeping an answer, in the conversations that draw on what is kept. A
 	// scene's replies are fiction, and saving them as knowledge would put a
 	// character's opinions in front of the next real question.
 	if row.Role == ollama.RoleAssistant && scene.UsesKnowledge(c.chat.Kind) && c.OnSaveToKnowledge != nil {
-		row.AddAction(IconKnowledge, "Save this to Knowledge", func() {
-			c.OnSaveToKnowledge(row.Text(), c.chat.Title, c.chat.ID)
+		more = append(more, RowMenuItem{
+			Label:   func() string { return "Save to Knowledge" },
+			OnClick: func() { c.OnSaveToKnowledge(row.Text(), c.chat.Title, c.chat.ID) },
 		})
 	}
+	row.AddMenu(more)
 	row.AddAction(IconTrash, "Delete this message", func() {
 		c.deleteRow(row)
 	})
@@ -1042,6 +1063,9 @@ func (c *ChatView) loadEarlier() {
 		row.Versions, row.Version = m.Versions, m.Version
 		if m.Pinned {
 			row.SetPinned(true)
+		}
+		if m.Hidden {
+			row.SetHidden(true)
 		}
 		if m.TokPerSec > 0 && c.cfg.ShowStats {
 			row.SetMeta(ollama.Stats{Tokens: m.EvalCount, TokPerSec: m.TokPerSec}.Summary())

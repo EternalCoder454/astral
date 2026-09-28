@@ -131,6 +131,53 @@ func TestLiveSteering(t *testing.T) {
 		}
 	}
 
+	if only == "" || strings.Contains("suggest", only) {
+		var n, three, her, first, you, long, samey, total int
+		for r := 0; r < runs*4; r++ {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			raw, _, err := client.Structured(ctx, model, Suggest(st, cfg, ch, one, hist), SuggestOptions(cfg, ch.Kind), chars.SuggestSchema)
+			cancel()
+			if err != nil {
+				t.Fatalf("the model failed: %v", err)
+			}
+			opts := chars.ParseSuggestions(raw, livePlayer)
+			n++
+			if len(opts) == 3 {
+				three++
+			}
+			for i, o := range opts {
+				total += words(o)
+				if herAction.MatchString(o) {
+					her++
+				}
+				if firstPers.MatchString(o) {
+					first++
+				}
+				if regexp.MustCompile(`\*You\b`).MatchString(o) {
+					you++
+				}
+				if words(o) > 3*userWords/userTurns {
+					long++
+				}
+				for _, other := range opts[i+1:] {
+					if overlap(o, other) > 0.6 {
+						samey++
+					}
+				}
+				rep.printf("\n--- suggestion %d.%d\n%s\n", r+1, i+1, o)
+			}
+		}
+		line := "Suggest: %d asks, %d gave three, mean %d words, %d narrating Odile, %d in the first person, %d narrating you, %d over three times Wren's length, %d pairs alike"
+		rep.printf("\n== "+line+"\n", n, three, total/max(3*n, 1), her, first, you, long, samey)
+		t.Logf(line, n, three, total/max(3*n, 1), her, first, you, long, samey)
+
+		for r := 0; r < runs*3; r++ {
+			reply := chars.CleanSetting(ask(SuggestSetting(st, cfg, ch, one, hist), DraftOptions(cfg, ch.Kind)))
+			rep.printf("\n--- setting\n%s\n", reply)
+			t.Logf("Setting: %d words: %s", words(reply), reply)
+		}
+	}
+
 	if only == "" || strings.Contains("mine", only) {
 		// A message typed in a hurry, and a bare note of intent: both should
 		// come back as Wren's message, better, meaning the same thing.

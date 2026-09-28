@@ -1,6 +1,7 @@
 package chars
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -88,9 +89,28 @@ var promptPace = prompts.Register(prompts.Prompt{
 	Anchors: []string{"Go no further than {{user}}'s last message goes", "Do not arrive, go inside, skip time"},
 })
 
-// PaceBlock is the pace rule for the closing block, with names in.
+// PaceBlock is the pace rule for the closing block, with names in, and the
+// scene's setting line before it when it has one: the rule says to stay in
+// the moment, and the line says which moment that is.
 func PaceBlock(charName, userName string) string {
 	return "\n\n" + Substitute(prompts.Text(promptPace), charName, userName)
+}
+
+// SettingChars bounds a scene's setting line, which is sent every turn.
+const SettingChars = 200
+
+// SettingBlock is the closing block's line saying where and when the scene
+// is, empty without one.
+func SettingBlock(setting, charName, userName string) string {
+	setting = strings.TrimSpace(setting)
+	if setting == "" {
+		return ""
+	}
+	if r := []rune(setting); len(r) > SettingChars {
+		setting = string(r[:SettingChars])
+	}
+	return "\n\nNOW. Where and when the scene is, and what matters about it at this moment. Keep to it unless the scene itself moves on: " +
+		Substitute(setting, charName, userName)
 }
 
 // rewriteNote introduces a note on a reply being written again.
@@ -214,4 +234,96 @@ func CleanDraft(s, userName string) string {
 		}
 	}
 	return s
+}
+
+// suggestAnchor replaces the closing block to offer three things you could
+// do next. Three rather than one, because what they are for is choice: Write
+// for Me is the button that writes one.
+const suggestAnchor = `[This time you are not writing {{char}}. Suggest three different things {{user}} could say or do next in this scene, for them to pick from.
+
+Each is a complete message written as {{user}}, exactly as they would type it themselves: their person, so if they write *I lean in* you write I and never you, their tense, their way of marking speech and action, and about their usual length. Make the three truly different: one that answers what was just said or done, one that takes the scene somewhere new, and one bolder than the other two. Only what {{user}} says and does; never a line or an action for {{char}}.]`
+
+// settingAnchor replaces the closing block to ask where the scene is now.
+const settingAnchor = `[This time you are not writing {{char}}. Say where and when this scene is right now, as a single line of at most twenty five words: the place, the time of day, and whatever about the moment matters, such as what they are wearing or who else is there. Only the line: no label, and nothing about what should happen next.]`
+
+var (
+	promptSuggest = prompts.Register(prompts.Prompt{
+		ID: "scene.suggest", Name: "Suggested Replies", Group: "Scenes",
+		About: "Sent in place of the closing block when you ask for suggestions of what to say next. " +
+			"The answer is three messages, as a list.",
+		Keep:    "{{char}} becomes the character's name, or the whole cast's, and {{user}} yours.",
+		Default: suggestAnchor,
+		Anchors: []string{"you are not writing {{char}}", "never a line or an action for {{char}}"},
+	})
+	promptSetting = prompts.Register(prompts.Prompt{
+		ID: "scene.setting", Name: "Suggest the Setting", Group: "Scenes",
+		About:   "Sent in place of the closing block when Scene Memory suggests where and when the scene is now.",
+		Keep:    "{{char}} becomes the character's name, or the whole cast's, and {{user}} yours.",
+		Default: settingAnchor,
+		Anchors: []string{"you are not writing {{char}}"},
+	})
+)
+
+// SuggestSchema is the answer to Suggested Replies: three messages.
+var SuggestSchema = json.RawMessage(`{"type":"object","properties":{"options":{"type":"array","items":{"type":"string"},"minItems":3,"maxItems":3}},"required":["options"]}`)
+
+// swapClosing replaces a scene request's closing block with another.
+func swapClosing(msgs []ollama.Message, text string) []ollama.Message {
+	out := append([]ollama.Message(nil), msgs...)
+	if n := len(out); n > 0 && out[n-1].Role == ollama.RoleSystem && strings.HasPrefix(out[n-1].Content, "[") {
+		out = out[:n-1]
+	}
+	return append(out, ollama.Message{Role: ollama.RoleSystem, Content: text})
+}
+
+// SuggestMessages turns a scene's request into one for three suggestions.
+func SuggestMessages(msgs []ollama.Message, charName, userName string) []ollama.Message {
+	text := Substitute(prompts.Text(promptSuggest), charName, userName)
+	if words, paras := yourShape(msgs); words > 0 {
+		text = strings.TrimSuffix(text, "]") + "\n" + fmt.Sprintf(yourLength, userName, words, paras, plural(paras, "paragraph")) + "]"
+	}
+	return swapClosing(msgs, text)
+}
+
+// ParseSuggestions reads the three suggestions, tidied, leaving out blanks
+// and repeats.
+func ParseSuggestions(raw []byte, userName string) []string {
+	var out struct {
+		Options []string `json:"options"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var list []string
+	for _, o := range out.Options {
+		o = CleanDraft(o, userName)
+		if o == "" || seen[strings.ToLower(o)] {
+			continue
+		}
+		seen[strings.ToLower(o)] = true
+		list = append(list, o)
+	}
+	return list
+}
+
+// SettingMessages turns a scene's request into one asking where it is now.
+func SettingMessages(msgs []ollama.Message, charName, userName string) []ollama.Message {
+	return swapClosing(msgs, Substitute(prompts.Text(promptSetting), charName, userName))
+}
+
+// CleanSetting tidies a suggested setting line: one line, no label, bounded.
+func CleanSetting(s string) string {
+	s = strings.TrimSpace(s)
+	if first, _, ok := strings.Cut(s, "\n"); ok {
+		s = strings.TrimSpace(first)
+	}
+	for _, label := range []string{"Setting:", "NOW:", "Now:", "Where:"} {
+		s = strings.TrimSpace(strings.TrimPrefix(s, label))
+	}
+	s = strings.Trim(s, `"*`)
+	if r := []rune(s); len(r) > SettingChars {
+		s = string(r[:SettingChars])
+	}
+	return strings.TrimSpace(s)
 }

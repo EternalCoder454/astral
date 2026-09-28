@@ -14,7 +14,7 @@ import (
 // with every query.
 const characterColumns = `id, name, description, personality, appearance, speech,
 	age, gender, race, occupation, relationship, scenario, first_mes, mes_example, instructions, alt_greetings, creator, notes,
-	version, tags, avatar_path, portrait_path, world_id, accent, created_at, updated_at`
+	version, tags, avatar_path, portrait_path, world_id, accent, created_at, updated_at, favorite`
 
 // scanCharacter reads one row in characterColumns order.
 func scanCharacter(sc interface{ Scan(...any) error }) (chars.Character, error) {
@@ -24,7 +24,7 @@ func scanCharacter(sc interface{ Scan(...any) error }) (chars.Character, error) 
 	err := sc.Scan(&c.ID, &c.Name, &c.Description, &c.Personality, &c.Appearance, &c.Speech,
 		&c.Age, &c.Gender, &c.Race, &c.Occupation, &c.Relationship, &c.Scenario, &c.FirstMes, &c.MesExample, &c.Instructions, &altJSON,
 		&c.Creator, &c.Notes, &c.Version, &tagsJSON, &c.AvatarPath, &c.PortraitPath, &c.WorldID, &c.Accent,
-		&created, &updated)
+		&created, &updated, &c.Favorite)
 	if err != nil {
 		return c, err
 	}
@@ -59,9 +59,9 @@ func decodeList(s string) []string {
 	return out
 }
 
-// Characters returns every character, newest first.
+// Characters returns every character, favorites first, then newest first.
 func (s *Store) Characters() ([]chars.Character, error) {
-	rows, err := s.db.Query(`SELECT ` + characterColumns + ` FROM characters ORDER BY updated_at DESC, id DESC`)
+	rows, err := s.db.Query(`SELECT ` + characterColumns + ` FROM characters ORDER BY favorite DESC, updated_at DESC, id DESC`)
 	if err != nil {
 		return nil, err
 	}

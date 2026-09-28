@@ -72,8 +72,9 @@ type MessageRow struct {
 	built   bool
 	// buttons are the built actions by icon, so one whose meaning flips,
 	// pinning, can say what it will do now.
-	buttons map[string]*gtk.Button
-	pinMark *gtk.Image
+	buttons  map[string]*gtk.Button
+	pinMark  *gtk.Image
+	hideMark *gtk.Label
 
 	dots      *TypingDots
 	streaming bool
@@ -109,6 +110,8 @@ type MessageRow struct {
 	Version  int
 	// Pinned mirrors the stored flag; SetPinned changes both it and the mark.
 	Pinned bool
+	// Hidden mirrors the stored flag; see SetHidden.
+	Hidden bool
 
 	foot      *gtk.Box
 	pager     *gtk.Box
@@ -325,15 +328,66 @@ func (m *MessageRow) Widget() gtk.Widgetter { return m.widget }
 // So the description is kept and the widget is made the first time the row is
 // hovered or focused, which is the first moment anyone could use it.
 func (m *MessageRow) AddAction(iconName, tooltip string, onClick func()) {
-	m.pending = append(m.pending, rowAction{iconName, tooltip, onClick})
+	m.pending = append(m.pending, rowAction{icon: iconName, tooltip: tooltip, onClick: onClick})
 	m.armActions()
 }
 
-// rowAction is a button that has not been built yet.
+// rowAction is a button that has not been built yet, or with menu set, a
+// More button whose menu lists the rest.
 type rowAction struct {
 	icon    string
 	tooltip string
 	onClick func()
+	menu    []RowMenuItem
+}
+
+// RowMenuItem is one entry in a row's More menu. Label is asked each time the
+// menu opens, so an entry whose meaning flips, hiding, says what it will do.
+type RowMenuItem struct {
+	Label   func() string
+	OnClick func()
+}
+
+// AddMenu adds the row's More button, listing the actions used too rarely to
+// earn a button of their own.
+func (m *MessageRow) AddMenu(items []RowMenuItem) {
+	if len(items) == 0 {
+		return
+	}
+	m.pending = append(m.pending, rowAction{icon: IconMore, tooltip: "More", menu: items})
+	m.armActions()
+}
+
+// menuButton builds a More button.
+func menuButton(items []RowMenuItem) *gtk.MenuButton {
+	mb := gtk.NewMenuButton()
+	mb.SetIconName(IconMore)
+	mb.SetTooltipText("More")
+	mb.AddCSSClass("message-action")
+	pop := gtk.NewPopover()
+	box := gtk.NewBox(gtk.OrientationVertical, 2)
+	var buttons []*gtk.Button
+	for _, it := range items {
+		it := it
+		b := gtk.NewButtonWithLabel(it.Label())
+		b.AddCSSClass("flat")
+		gtk.BaseWidget(b.Child()).SetHAlign(gtk.AlignStart)
+		b.ConnectClicked(func() {
+			pop.Popdown()
+			it.OnClick()
+		})
+		box.Append(b)
+		buttons = append(buttons, b)
+	}
+	pop.ConnectShow(func() {
+		for i, it := range items {
+			buttons[i].SetLabel(it.Label())
+			gtk.BaseWidget(buttons[i].Child()).SetHAlign(gtk.AlignStart)
+		}
+	})
+	pop.SetChild(box)
+	mb.SetPopover(pop)
+	return mb
 }
 
 // armActions makes sure something is watching for the first hover.
@@ -363,6 +417,10 @@ func (m *MessageRow) buildActions() {
 	m.built = true
 	m.buttons = make(map[string]*gtk.Button, len(m.pending))
 	for _, a := range m.pending {
+		if a.menu != nil {
+			m.actions.Append(menuButton(a.menu))
+			continue
+		}
 		b := gtk.NewButtonFromIconName(a.icon)
 		b.SetTooltipText(a.tooltip)
 		b.AddCSSClass("message-action")
@@ -383,6 +441,29 @@ func (m *MessageRow) SetActionTooltip(icon, tooltip string) {
 	if b, ok := m.buttons[icon]; ok {
 		b.SetTooltipText(tooltip)
 	}
+}
+
+// SetHidden shows whether this message is hidden from the model: set back,
+// and saying so under it.
+func (m *MessageRow) SetHidden(hidden bool) {
+	m.Hidden = hidden
+	if hidden {
+		m.widget.AddCSSClass("hidden-from-model")
+		m.SetActionTooltip(IconHidden, "Show this to the model again")
+	} else {
+		m.widget.RemoveCSSClass("hidden-from-model")
+		m.SetActionTooltip(IconHidden, "Hide this from the model, and keep it here")
+	}
+	if m.hideMark == nil {
+		if !hidden {
+			return
+		}
+		m.hideMark = gtk.NewLabel("Hidden from the model")
+		m.hideMark.AddCSSClass("message-meta")
+		m.hideMark.AddCSSClass("hide-mark")
+		m.foot.Append(m.hideMark)
+	}
+	m.hideMark.SetVisible(hidden)
 }
 
 // SetPinned shows whether this message is pinned, with a mark in its footer

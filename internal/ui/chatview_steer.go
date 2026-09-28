@@ -2,8 +2,10 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
@@ -53,6 +55,30 @@ func (c *ChatView) togglePin(row *MessageRow) {
 		c.notice("Pinned. This scene will keep it in mind however long it grows.")
 	} else {
 		c.notice("Unpinned.")
+	}
+}
+
+// toggleHidden hides a message from the model, or shows it again. It stays
+// in the transcript either way.
+func (c *ChatView) toggleHidden(row *MessageRow) {
+	if c.busy {
+		c.fail("Wait for the reply to finish first.")
+		return
+	}
+	if row.ID == 0 {
+		c.fail("Send a message first: there is nothing stored to hide yet.")
+		return
+	}
+	hide := !row.Hidden
+	if err := c.store.SetMessageHidden(row.ID, hide); err != nil {
+		c.fail("Could not change that: " + err.Error())
+		return
+	}
+	row.SetHidden(hide)
+	if hide {
+		c.notice("Hidden. The model no longer sees it; it stays here for you.")
+	} else {
+		c.notice("The model sees it again.")
 	}
 }
 
@@ -110,6 +136,10 @@ func (c *ChatView) refreshDraftButton() {
 		return
 	}
 	c.draftBtn.SetVisible(c.canDraft())
+	if c.ideasBtn != nil {
+		c.ideasBtn.SetVisible(c.canDraft())
+		c.ideasBtn.SetSensitive(!c.busy)
+	}
 	switch {
 	case c.drafting:
 		c.draftBtn.SetIconName(IconStop)
@@ -416,5 +446,158 @@ func (c *ChatView) turnChip() *gtk.MenuButton {
 	}
 	pop.SetChild(box)
 	btn.SetPopover(pop)
+	return btn
+}
+
+// Setting is where and when this scene is now, in a line.
+func (c *ChatView) Setting() string { return c.chat.Setting }
+
+// SetSetting stores where and when the scene is now. It is sent from the
+// next turn on.
+func (c *ChatView) SetSetting(setting string) error {
+	setting = strings.TrimSpace(setting)
+	c.chat.Setting = setting
+	if c.chat.ID == 0 {
+		return nil
+	}
+	return c.store.SetChatSetting(c.chat.ID, setting)
+}
+
+// Usage is how full the model's memory is on the next turn, and what with.
+func (c *ChatView) Usage() scene.Usage {
+	return scene.MeasureUsage(c.store, c.cfg, c.chat, c.sceneCast(), c.history())
+}
+
+// SuggestSetting asks the model where and when the scene is now, and hands
+// the line to done on the UI thread. Nothing is stored.
+func (c *ChatView) SuggestSetting(done func(string, error)) {
+	if c.busy || c.drafting {
+		done("", fmt.Errorf("wait for the reply to finish"))
+		return
+	}
+	model := c.activeModel()
+	if model == "" {
+		done("", fmt.Errorf("choose a model first"))
+		return
+	}
+	msgs := scene.SuggestSetting(c.store, c.cfg, c.chat, c.sceneCast(), c.history())
+	opts := scene.DraftOptions(c.cfg, c.chat.Kind)
+	client := c.client
+	c.drafting = true
+	c.refreshDraftButton()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer cancel()
+		client.UseForReplies(ctx, model)
+		noThink := false
+		msg, _, err := client.Chat(ctx, model, msgs, opts, &noThink, nil)
+		_, text := ollama.SplitThinking(msg.Content)
+		coreglib.IdleAdd(func() {
+			c.drafting = false
+			c.refreshDraftButton()
+			done(chars.CleanSetting(text), err)
+		})
+	}()
+}
+
+// Suggest asks for three things you could say next, and hands them to done
+// on the UI thread.
+func (c *ChatView) Suggest(done func([]string, error)) {
+	if c.busy || c.drafting {
+		done(nil, fmt.Errorf("wait for the reply to finish"))
+		return
+	}
+	model := c.activeModel()
+	if model == "" {
+		done(nil, fmt.Errorf("choose a model first"))
+		return
+	}
+	msgs := scene.Suggest(c.store, c.cfg, c.chat, c.sceneCast(), c.history())
+	opts := scene.SuggestOptions(c.cfg, c.chat.Kind)
+	client := c.client
+	userName := c.youName()
+	c.drafting = true
+	c.refreshDraftButton()
+	c.sendBtn.SetSensitive(false)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer cancel()
+		client.UseForReplies(ctx, model)
+		raw, _, err := client.Structured(ctx, model, msgs, opts, chars.SuggestSchema)
+		options := chars.ParseSuggestions(raw, userName)
+		coreglib.IdleAdd(func() {
+			c.drafting = false
+			c.refreshDraftButton()
+			c.sendBtn.SetSensitive(strings.TrimSpace(c.composerText()) != "")
+			if err == nil && len(options) == 0 {
+				err = fmt.Errorf("the model offered nothing usable, so try again")
+			}
+			done(options, err)
+		})
+	}()
+}
+
+// UseSuggestion puts a suggestion in the message box, to send or change.
+func (c *ChatView) UseSuggestion(text string) {
+	c.setComposerText(text)
+	c.focusComposer()
+	buf := c.composer.Buffer()
+	buf.PlaceCursor(buf.EndIter())
+}
+
+// ideasButton offers three things you could say next, in a popover.
+func (c *ChatView) ideasButton() *gtk.MenuButton {
+	btn := gtk.NewMenuButton()
+	btn.SetIconName(IconIdeas)
+	btn.AddCSSClass("composer-model")
+	btn.SetTooltipText("Suggest three things you could say next")
+	pop := gtk.NewPopover()
+	box := gtk.NewBox(gtk.OrientationVertical, 4)
+	box.SetMarginTop(6)
+	box.SetMarginBottom(6)
+	box.SetMarginStart(6)
+	box.SetMarginEnd(6)
+	pop.SetChild(box)
+	btn.SetPopover(pop)
+	clear := func() {
+		for ch := box.FirstChild(); ch != nil; ch = box.FirstChild() {
+			box.Remove(ch)
+		}
+	}
+	say := func(text string) {
+		l := gtk.NewLabel(text)
+		l.SetWrap(true)
+		l.SetMaxWidthChars(48)
+		l.AddCSSClass("dim-label")
+		box.Append(l)
+	}
+	pop.ConnectShow(func() {
+		clear()
+		say("Thinking of three…")
+		c.Suggest(func(options []string, err error) {
+			clear()
+			if err != nil {
+				say("Could not suggest anything: " + err.Error())
+				return
+			}
+			for _, o := range options {
+				o := o
+				b := gtk.NewButton()
+				b.AddCSSClass("flat")
+				// Shown without its markup; what goes in the box keeps it.
+				l := gtk.NewLabel(strings.ReplaceAll(o, "*", ""))
+				l.SetWrap(true)
+				l.SetMaxWidthChars(48)
+				l.SetXAlign(0)
+				b.SetChild(l)
+				b.SetTooltipText("Put this in the message box")
+				b.ConnectClicked(func() {
+					pop.Popdown()
+					c.UseSuggestion(o)
+				})
+				box.Append(b)
+			}
+		})
+	})
 	return btn
 }

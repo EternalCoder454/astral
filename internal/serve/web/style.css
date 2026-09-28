@@ -917,6 +917,42 @@ a.row { text-decoration: none; }
 .pin-row .row-text { flex: 1 1 auto; min-width: 0; }
 .pin-row .chip-button { flex: none; }
 
+.sheet-inline {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+.sheet-inline .sheet-field { flex: 1 1 auto; min-width: 0; }
+.sheet-inline .chip-button { flex: none; min-height: 44px; padding: 0 14px; max-width: none; }
+
+/* How full the model's memory is. */
+.usage-bar {
+	height: 8px;
+	border-radius: 999px;
+	background: var(--md-surface-container-highest, var(--md-surface));
+	overflow: hidden;
+}
+
+.usage-bar > div {
+	height: 100%;
+	width: 0;
+	background: var(--md-primary);
+	border-radius: 999px;
+}
+
+/* A message hidden from the model: set back, and saying so. */
+.msg.hidden-msg .bubble { opacity: 0.45; }
+.msg.hidden-msg::after {
+	content: "Hidden from the model";
+	display: block;
+	font-size: 0.72rem;
+	font-style: italic;
+	color: var(--faint);
+	margin: 4px 4px 0;
+}
+.msg.from-user.hidden-msg::after { text-align: right; }
+
 .sheet-chips {
 	display: flex;
 	flex-wrap: wrap;
