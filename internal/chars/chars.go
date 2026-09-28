@@ -36,10 +36,20 @@ type Character struct {
 	// Astral's own designer prompt calls voice the highest-value thing on a card,
 	// and there was nowhere to put it. A character with a distinct voice survives
 	// a weak description; one without it sounds like the model.
-	Speech     string
-	Scenario   string // the situation the roleplay opens in
-	FirstMes   string // the opening message, in the character's voice
-	MesExample string // few-shot examples of how they talk
+	Speech string
+	// Age, Gender, Race, Occupation and Relationship are the facts a scene
+	// reaches for first, in fields of their own, as a persona has them. On a
+	// card they were buried in a description paragraph, where the model had
+	// to find them and a person editing the card had to hunt for them.
+	// Relationship is what they are to you, and may use {{user}}.
+	Age          string
+	Gender       string
+	Race         string
+	Occupation   string
+	Relationship string
+	Scenario     string // the situation the roleplay opens in
+	FirstMes     string // the opening message, in the character's voice
+	MesExample   string // few-shot examples of how they talk
 	// Instructions are your own directions for how this character should be
 	// played, "never break the fourth wall", "keep replies to one paragraph",
 	// "she always lies about her past".
@@ -68,6 +78,35 @@ type Character struct {
 	Accent    int // index into the palette's secondary accents
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+// FactLines is the character's age, gender, race, occupation and relationship
+// to you, one labelled line each, leaving out any that are empty. userName is
+// who "you" are, for the relationship's label.
+func (c Character) FactLines(userName string) string {
+	var lines []string
+	add := func(label, v string) {
+		if v = strings.TrimSpace(v); v != "" {
+			lines = append(lines, label+": "+v)
+		}
+	}
+	add("Age", c.Age)
+	add("Gender", c.Gender)
+	add("Race", c.Race)
+	add("Occupation", c.Occupation)
+	add("Relationship to "+userName, c.Relationship)
+	return strings.Join(lines, "\n")
+}
+
+// joinNonEmpty joins the parts that have anything in them with a blank line.
+func joinNonEmpty(parts ...string) string {
+	var kept []string
+	for _, p := range parts {
+		if strings.TrimSpace(p) != "" {
+			kept = append(kept, strings.TrimSpace(p))
+		}
+	}
+	return strings.Join(kept, "\n\n")
 }
 
 // Initial is the letter drawn in the character's avatar when it has no image.
@@ -271,7 +310,9 @@ func BuildSystem(c Character, p Persona) string {
 		b.WriteString("\n")
 		b.WriteString(sub(strings.TrimSpace(body)))
 	}
-	section("## "+c.Name, c.Description)
+	// Their age, gender, race, occupation and what they are to you open their
+	// section, one labelled line each, above the description.
+	section("## "+c.Name, joinNonEmpty(c.FactLines(userName), c.Description))
 	section("## Personality", c.Personality)
 	section("## Appearance", c.Appearance)
 	// Last of the three, and labelled as the thing to imitate rather than to

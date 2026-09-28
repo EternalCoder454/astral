@@ -168,6 +168,11 @@ var characterSchema = json.RawMessage(`{
   "type": "object",
   "properties": {
     "name":        {"type": "string"},
+    "age":         {"type": "string"},
+    "gender":      {"type": "string"},
+    "race":        {"type": "string"},
+    "occupation":  {"type": "string"},
+    "relationship": {"type": "string"},
     "description": {"type": "string"},
     "personality": {"type": "string"},
     "appearance":  {"type": "string"},
@@ -177,7 +182,7 @@ var characterSchema = json.RawMessage(`{
     "mes_example": {"type": "string"},
     "tags":        {"type": "array", "items": {"type": "string"}}
   },
-  "required": ["name", "description", "personality", "appearance", "speech", "scenario", "first_mes", "mes_example", "tags"]
+  "required": ["name", "age", "gender", "race", "occupation", "relationship", "description", "personality", "appearance", "speech", "scenario", "first_mes", "mes_example", "tags"]
 }`)
 
 // extractInstruction is the turn appended to the conversation when the user
@@ -188,6 +193,11 @@ const extractInstruction = `Now write the character we have designed as a charac
 
 Fill each field for its own purpose:
 - name: just the name, nothing else. One that fits the setting and where the character comes from, never a stock name like Elara, Seraphina, Lyra, Kael, Vance, Thorne, Evelyn or Elias.
+- age: their age, as a number or in words, such as 34 or early forties.
+- gender: as we settled it, in a word or two.
+- race: their race or species, in a word or two, such as human or half-elf.
+- occupation: what they do, in a few words.
+- relationship: what they are to {{user}} when the story opens, in a few words, such as an old friend, a rival, or a stranger.
 - description: who they are and what they want. Written for a model that has to play them, so behaviour beats adjectives. A short paragraph. Leave appearance and voice out of it, they have their own fields.
 - personality: a handful of traits, comma-separated.
 - appearance: what they physically are, consistent with who we settled they are (gender, age, era). Face, build, what they wear, how they hold themselves. If a picture was shared, this comes from the picture, specifically: colours, cut, marks and all.
@@ -234,6 +244,7 @@ func buildCard(ctx context.Context, client *ollama.Client, model string, history
 	// and the card then shows a literal backslash and n where a new line was
 	// meant, most often between the turns of the example dialogue.
 	for _, f := range []*string{&c.Description, &c.Personality, &c.Appearance, &c.Speech,
+		&c.Age, &c.Gender, &c.Race, &c.Occupation, &c.Relationship,
 		&c.Scenario, &c.FirstMes, &c.MesExample} {
 		*f = strings.ReplaceAll(*f, `\n`, "\n")
 		// And sometimes doubles an apostrophe, as SQL would escape one.

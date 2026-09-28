@@ -89,6 +89,11 @@ func describeCardWith(c Character, sub func(string) string) string {
 		b.WriteString("\n")
 	}
 	field("Name", c.Name)
+	field("Age", c.Age)
+	field("Gender", c.Gender)
+	field("Race", c.Race)
+	field("Occupation", c.Occupation)
+	field("Relationship to {{user}}", c.Relationship)
 	field("Description", c.Description)
 	field("Personality", c.Personality)
 	field("Appearance", c.Appearance)
@@ -166,6 +171,17 @@ func Revise(existing, written Character) Character {
 
 	if n := strings.TrimSpace(written.Name); n != "" {
 		out.Name = n
+	}
+	for _, f := range []struct {
+		to   *string
+		from string
+	}{
+		{&out.Age, written.Age}, {&out.Gender, written.Gender}, {&out.Race, written.Race},
+		{&out.Occupation, written.Occupation}, {&out.Relationship, written.Relationship},
+	} {
+		if v := strings.TrimSpace(f.from); v != "" {
+			*f.to = v
+		}
 	}
 	if v := strings.TrimSpace(written.Description); v != "" {
 		out.Description = v

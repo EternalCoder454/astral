@@ -80,6 +80,12 @@ While anything is selected, a click selects too, and the bar under the list
 deletes them all (Delete) or lets them go (Escape). A deleted chat can be put
 back with Undo on the message that follows, until that message goes away.
 
+**Character facts.** A character's age, gender, race, occupation and
+relationship to you have fields of their own on the card, as a persona's do.
+They open the character's section of the prompt, one labelled line each, the
+Character Designer fills them in when it builds a card, and a revision keeps
+them. Cards exported from Astral carry them in the card's Astral extension.
+
 **Personas.** The people you play as, as many as you like, from the menu under
 your name. Each has a name, an age, a gender, a race, an appearance, a
 personality, a background and anything else in a field of its own, which is how

@@ -206,6 +206,11 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 // characterForm holds the editor's widgets so Save can read them back.
 type characterForm struct {
 	name         *gtk.Entry
+	age          *gtk.Entry
+	gender       *gtk.Entry
+	race         *gtk.Entry
+	occupation   *gtk.Entry
+	relationship *gtk.Entry
 	description  *gtk.TextView
 	personality  *gtk.TextView
 	appearance   *gtk.TextView
@@ -250,6 +255,28 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	f.name.SetText(c.Name)
 	f.name.SetPlaceholderText("Who is this?")
 	idCard.Append(labelledField("Name", "", f.name))
+
+	// The facts a scene reaches for first, in fields of their own, as a
+	// persona has them; see chars.Character.
+	entry := func(text, placeholder string) *gtk.Entry {
+		e := gtk.NewEntry()
+		e.SetText(text)
+		e.SetPlaceholderText(placeholder)
+		return e
+	}
+	f.age = entry(c.Age, "34, or early forties")
+	f.gender = entry(c.Gender, "Woman, man…")
+	f.race = entry(c.Race, "Human, elf…")
+	facts := gtk.NewBox(gtk.OrientationHorizontal, 10)
+	facts.SetHomogeneous(true)
+	facts.Append(labelledField("Age", "", f.age))
+	facts.Append(labelledField("Gender", "", f.gender))
+	facts.Append(labelledField("Race", "", f.race))
+	idCard.Append(facts)
+	f.occupation = entry(c.Occupation, "What they do")
+	idCard.Append(labelledField("Occupation", "", f.occupation))
+	f.relationship = entry(c.Relationship, "An old friend, a rival, a stranger")
+	idCard.Append(labelledField("Relationship to You", "", f.relationship))
 
 	descFrame, descView := multilineField(c.Description, 3)
 	f.description = descView
@@ -425,6 +452,11 @@ func (a *App) saveCharacterForm(c chars.Character, f *characterForm) (chars.Char
 		return c, false
 	}
 	c.Name = name
+	c.Age = strings.TrimSpace(f.age.Text())
+	c.Gender = strings.TrimSpace(f.gender.Text())
+	c.Race = strings.TrimSpace(f.race.Text())
+	c.Occupation = strings.TrimSpace(f.occupation.Text())
+	c.Relationship = strings.TrimSpace(f.relationship.Text())
 	c.Description = textOf(f.description)
 	c.Personality = textOf(f.personality)
 	c.Appearance = textOf(f.appearance)

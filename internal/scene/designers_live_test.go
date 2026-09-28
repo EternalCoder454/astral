@@ -304,6 +304,7 @@ func TestLiveDesignersHeavy(t *testing.T) {
 				t.Errorf("%s: building the character failed: %v", sc.name, err)
 				break
 			}
+			rep.printf("\n=== FACTS age=%q gender=%q race=%q occupation=%q relationship=%q\n", c.Age, c.Gender, c.Race, c.Occupation, c.Relationship)
 			rep.printf("\n=== BUILT CHARACTER\nname: %s\ndescription: %s\npersonality: %s\nappearance: %s\nspeech: %s\nscenario: %s\nfirst_mes: %s\nmes_example: %s\ntags: %v\n",
 				c.Name, c.Description, c.Personality, c.Appearance, c.Speech, c.Scenario, c.FirstMes, c.MesExample, c.Tags)
 			var miss []string

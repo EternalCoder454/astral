@@ -313,11 +313,22 @@ func (a *App) imageField(label, hint, prefix string, get func() string, set func
 				return
 			}
 		}
-		empty := gtk.NewLabel("None")
-		empty.AddCSSClass("settings-hint")
+		// An empty frame the size a picture would be, rather than the word
+		// None beside two buttons, which read as a label that had lost its
+		// field.
+		empty := gtk.NewBox(gtk.OrientationVertical, 0)
+		empty.AddCSSClass("picture-empty")
+		empty.SetSizeRequest(64, 64)
+		// Centred by alignment, not by expanding: an expanding child makes
+		// every box above it expand too, and the square became a wide bar.
+		empty.SetHAlign(gtk.AlignStart)
+		icon := gtk.NewImageFromIconName(ui.IconAdd)
+		icon.SetHAlign(gtk.AlignCenter)
+		icon.SetVAlign(gtk.AlignCenter)
+		icon.SetSizeRequest(64, 64)
+		empty.Append(icon)
 		preview.Append(empty)
 	}
-	refresh()
 
 	choose := gtk.NewButtonWithLabel("Choose…")
 	choose.ConnectClicked(func() {
@@ -331,6 +342,13 @@ func (a *App) imageField(label, hint, prefix string, get func() string, set func
 		set("")
 		refresh()
 	})
+	show := refresh
+	refresh = func() {
+		show()
+		// Nothing to remove when there is no picture.
+		clear.SetVisible(get() != "")
+	}
+	refresh()
 
 	buttons := gtk.NewBox(gtk.OrientationHorizontal, 6)
 	buttons.SetVAlign(gtk.AlignCenter)

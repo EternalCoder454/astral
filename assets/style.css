@@ -1074,6 +1074,13 @@ frame:focus-within {
 	background: alpha(@accent_color, 0.45);
 }
 
+/* Where a picture would be, before one is chosen. */
+.picture-empty {
+	border: 1px dashed alpha(@astral_border, 0.9);
+	border-radius: 12px;
+	color: @astral_faint;
+}
+
 /* A character's own page: their name, at the size a page title should be. */
 .character-page-name {
 	font-size: 1.45em;

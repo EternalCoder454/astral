@@ -50,6 +50,11 @@ type cardData struct {
 	// exported from Astral writes them nested.
 	Appearance             string   `json:"appearance,omitempty"`
 	Speech                 string   `json:"speech,omitempty"`
+	Age                    string   `json:"age,omitempty"`
+	Gender                 string   `json:"gender,omitempty"`
+	Race                   string   `json:"race,omitempty"`
+	Occupation             string   `json:"occupation,omitempty"`
+	Relationship           string   `json:"relationship,omitempty"`
 	Scenario               string   `json:"scenario"`
 	FirstMes               string   `json:"first_mes"`
 	MesExample             string   `json:"mes_example"`
@@ -74,20 +79,30 @@ type cardExtensions struct {
 }
 
 type astralExtension struct {
-	Appearance string `json:"appearance,omitempty"`
-	Speech     string `json:"speech,omitempty"`
+	Appearance   string `json:"appearance,omitempty"`
+	Speech       string `json:"speech,omitempty"`
+	Age          string `json:"age,omitempty"`
+	Gender       string `json:"gender,omitempty"`
+	Race         string `json:"race,omitempty"`
+	Occupation   string `json:"occupation,omitempty"`
+	Relationship string `json:"relationship,omitempty"`
 }
 
 func (d cardData) toCharacter() Character {
 	return Character{
-		Name:        strings.TrimSpace(d.Name),
-		Description: d.Description,
-		Personality: d.Personality,
-		Appearance:  firstOf(d.Extensions.appearance(), d.Appearance),
-		Speech:      firstOf(d.Extensions.speech(), d.Speech),
-		Scenario:    d.Scenario,
-		FirstMes:    d.FirstMes,
-		MesExample:  d.MesExample,
+		Name:         strings.TrimSpace(d.Name),
+		Description:  d.Description,
+		Personality:  d.Personality,
+		Appearance:   firstOf(d.Extensions.appearance(), d.Appearance),
+		Speech:       firstOf(d.Extensions.speech(), d.Speech),
+		Age:          firstOf(d.Extensions.get(func(a *astralExtension) string { return a.Age }), d.Age),
+		Gender:       firstOf(d.Extensions.get(func(a *astralExtension) string { return a.Gender }), d.Gender),
+		Race:         firstOf(d.Extensions.get(func(a *astralExtension) string { return a.Race }), d.Race),
+		Occupation:   firstOf(d.Extensions.get(func(a *astralExtension) string { return a.Occupation }), d.Occupation),
+		Relationship: firstOf(d.Extensions.get(func(a *astralExtension) string { return a.Relationship }), d.Relationship),
+		Scenario:     d.Scenario,
+		FirstMes:     d.FirstMes,
+		MesExample:   d.MesExample,
 		// A card's two instruction fields both become Instructions. The spec
 		// separates them by *where* they are injected, which is Astral's
 		// decision to make rather than the card's, and one field the user
@@ -377,12 +392,23 @@ func (e cardExtensions) speech() string {
 // put in it. An empty object in every exported card would be noise in a format
 // people read by hand.
 func newExtensions(c Character) cardExtensions {
-	appearance := strings.TrimSpace(c.Appearance)
-	speech := strings.TrimSpace(c.Speech)
-	if appearance == "" && speech == "" {
+	x := astralExtension{
+		Appearance: strings.TrimSpace(c.Appearance), Speech: strings.TrimSpace(c.Speech),
+		Age: strings.TrimSpace(c.Age), Gender: strings.TrimSpace(c.Gender), Race: strings.TrimSpace(c.Race),
+		Occupation: strings.TrimSpace(c.Occupation), Relationship: strings.TrimSpace(c.Relationship),
+	}
+	if x == (astralExtension{}) {
 		return cardExtensions{}
 	}
-	return cardExtensions{Astral: &astralExtension{Appearance: appearance, Speech: speech}}
+	return cardExtensions{Astral: &x}
+}
+
+// get reads one field of the extension, or nothing when there is none.
+func (e cardExtensions) get(field func(*astralExtension) string) string {
+	if e.Astral == nil {
+		return ""
+	}
+	return field(e.Astral)
 }
 
 // firstOf is the first of two readings of the same field that has anything in

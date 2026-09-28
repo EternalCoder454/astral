@@ -270,6 +270,10 @@ func (s *Store) migrate() error {
 	// field a reply is judged by and there was nowhere to put it.
 	s.db.Exec(`ALTER TABLE characters ADD COLUMN appearance TEXT NOT NULL DEFAULT ''`)
 	s.db.Exec(`ALTER TABLE characters ADD COLUMN speech TEXT NOT NULL DEFAULT ''`)
+	// The facts a card had buried in its description: see chars.Character.
+	for _, col := range []string{"age", "gender", "race", "occupation", "relationship"} {
+		s.db.Exec(`ALTER TABLE characters ADD COLUMN ` + col + ` TEXT NOT NULL DEFAULT ''`)
+	}
 
 	// Who spoke, for scenes with more than one character. See cast.go.
 	s.db.Exec(`ALTER TABLE messages ADD COLUMN character_id INTEGER NOT NULL DEFAULT 0`)

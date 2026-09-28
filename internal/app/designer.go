@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -95,28 +94,29 @@ func (a *App) showNewChat() {
 	cast, _ := a.store.CountCharacters()
 	worlds, _ := a.store.Worlds()
 	if cast > 0 {
-		add(ui.IconCharacters, "Play a Scene", "with someone from your cast", true, a.showCharacters)
+		add(ui.IconCharacters, "Play a Scene", "", true, a.showCharacters)
 	}
 	// A group needs two people to put in a room, so it appears when there are
 	// two to pick from and not before.
 	if cast > 1 {
-		add(ui.IconCharacters, "Play with a Group",
-			fmt.Sprintf("up to %d characters in one scene", store.MaxCast), false, a.showCastPicker)
+		add(ui.IconCharacters, "Play with a Group", "", false, a.showCastPicker)
 	}
 	// A world is a place, so it is somewhere to go rather than someone to
 	// meet. It belongs next to the cast and not buried in the worlds list,
 	// which is where it was: unreachable without first inventing a character
 	// to be met there.
 	if len(worlds) > 0 {
-		add(ui.IconWorlds, "Play in a World", "the model plays the place and whoever you meet",
-			cast == 0, a.showWorldPicker)
+		add(ui.IconWorlds, "Play in a World", "", cast == 0, a.showWorldPicker)
 	}
 	add(ui.IconChat, "General Chat", "", cast == 0 && len(worlds) == 0, a.newAssistantChat)
 
 	heading("Create")
-	add(ui.IconDesigner, "New Character", "the model interviews you", false, a.newDesignerChat)
-	add(ui.IconEdit, "New Writing Style", "changes how the prose sounds", false, a.newStyleDesignerChat)
-	add(ui.IconWorlds, "New World", "the model interviews you", false, a.newWorldDesignerChat)
+	// Labels only: each says what it makes, and a line under it saying the
+	// model interviews you was the same line three times.
+	add(ui.IconDesigner, "New Character", "", false, a.newDesignerChat)
+	add(ui.IconHome, "New Persona", "", false, a.newPersonaDesignerChat)
+	add(ui.IconEdit, "New Writing Style", "", false, a.newStyleDesignerChat)
+	add(ui.IconWorlds, "New World", "", false, a.newWorldDesignerChat)
 	add(ui.IconFolder, "Import a Character", "from a .png or .json card", false, a.actionImportCharacter)
 
 	tv := adw.NewToolbarView()

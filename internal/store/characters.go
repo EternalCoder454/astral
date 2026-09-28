@@ -13,7 +13,7 @@ import (
 // characterColumns is the select list, kept in one place so every scan agrees
 // with every query.
 const characterColumns = `id, name, description, personality, appearance, speech,
-	scenario, first_mes, mes_example, instructions, alt_greetings, creator, notes,
+	age, gender, race, occupation, relationship, scenario, first_mes, mes_example, instructions, alt_greetings, creator, notes,
 	version, tags, avatar_path, portrait_path, world_id, accent, created_at, updated_at`
 
 // scanCharacter reads one row in characterColumns order.
@@ -22,7 +22,7 @@ func scanCharacter(sc interface{ Scan(...any) error }) (chars.Character, error) 
 	var altJSON, tagsJSON string
 	var created, updated int64
 	err := sc.Scan(&c.ID, &c.Name, &c.Description, &c.Personality, &c.Appearance, &c.Speech,
-		&c.Scenario, &c.FirstMes, &c.MesExample, &c.Instructions, &altJSON,
+		&c.Age, &c.Gender, &c.Race, &c.Occupation, &c.Relationship, &c.Scenario, &c.FirstMes, &c.MesExample, &c.Instructions, &altJSON,
 		&c.Creator, &c.Notes, &c.Version, &tagsJSON, &c.AvatarPath, &c.PortraitPath, &c.WorldID, &c.Accent,
 		&created, &updated)
 	if err != nil {
@@ -110,10 +110,12 @@ func (s *Store) SaveCharacter(c chars.Character) (int64, error) {
 		}
 		res, err := s.db.Exec(`
 			INSERT INTO characters (name, description, personality, appearance, speech,
+				age, gender, race, occupation, relationship,
 				scenario, first_mes, mes_example, instructions, alt_greetings, creator, notes,
 				version, tags, avatar_path, portrait_path, world_id, accent, created_at, updated_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-			c.Name, c.Description, c.Personality, c.Appearance, c.Speech, c.Scenario, c.FirstMes,
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			c.Name, c.Description, c.Personality, c.Appearance, c.Speech,
+			c.Age, c.Gender, c.Race, c.Occupation, c.Relationship, c.Scenario, c.FirstMes,
 			c.MesExample, c.Instructions, encodeList(c.AltGreetings),
 			c.Creator, c.Notes, c.Version, encodeList(c.Tags), c.AvatarPath,
 			c.PortraitPath, c.WorldID, c.Accent, unix(c.CreatedAt), unix(now))
@@ -124,11 +126,12 @@ func (s *Store) SaveCharacter(c chars.Character) (int64, error) {
 	}
 	_, err := s.db.Exec(`
 		UPDATE characters SET name=?, description=?, personality=?, appearance=?, speech=?,
-			scenario=?, first_mes=?, mes_example=?, instructions=?,
+			age=?, gender=?, race=?, occupation=?, relationship=?, scenario=?, first_mes=?, mes_example=?, instructions=?,
 			alt_greetings=?, creator=?, notes=?, version=?, tags=?, avatar_path=?,
 			portrait_path=?, world_id=?, accent=?, updated_at=?
 		WHERE id=?`,
-		c.Name, c.Description, c.Personality, c.Appearance, c.Speech, c.Scenario, c.FirstMes,
+		c.Name, c.Description, c.Personality, c.Appearance, c.Speech,
+		c.Age, c.Gender, c.Race, c.Occupation, c.Relationship, c.Scenario, c.FirstMes,
 		c.MesExample, c.Instructions, encodeList(c.AltGreetings),
 		c.Creator, c.Notes, c.Version, encodeList(c.Tags), c.AvatarPath,
 		c.PortraitPath, c.WorldID, c.Accent, unix(now), c.ID)

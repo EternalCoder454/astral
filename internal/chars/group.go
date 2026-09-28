@@ -135,6 +135,10 @@ func BuildGroupSystem(cast []Character, p Persona, rels []Relation) string {
 		one := func(s string) string { return Substitute(s, c.Name, userName) }
 		b.WriteString("\n\n## ")
 		b.WriteString(c.Name)
+		if f := c.FactLines(userName); f != "" {
+			b.WriteString("\n")
+			b.WriteString(one(f))
+		}
 		if d := strings.TrimSpace(c.Description); d != "" {
 			b.WriteString("\n")
 			b.WriteString(one(d))
