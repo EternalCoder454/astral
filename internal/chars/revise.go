@@ -155,7 +155,7 @@ const reviseBuildNote = `This conversation was about changing a character who al
 func ReviseFromConversation(ctx context.Context, client *ollama.Client, model string, existing Character, history []ollama.Message, opts ollama.Options) (Character, error) {
 	instruction := prompts.Text(promptBuild) + "\n\n" + reviseBuildNote + "\n\n" +
 		describeCardWith(existing, func(s string) string { return s })
-	return buildCard(ctx, client, model, history, instruction, opts)
+	return buildCard(ctx, client, model, history, instruction, existing, opts)
 }
 
 // Revise merges a freshly written card onto the character it came from.

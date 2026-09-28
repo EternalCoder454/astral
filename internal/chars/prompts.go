@@ -100,9 +100,18 @@ var (
 		ID: "designer.character-build", Name: "Character Builder", Group: "Designers",
 		About: "Added to the end of a design chat when you press Create Character. The model answers in " +
 			"JSON shaped by a fixed schema, so this says what goes in each field.",
-		Keep: "The field names (name, description, personality, appearance, speech, scenario, first_mes, " +
-			"mes_example, tags) are the schema's and must stay exactly as they are.",
+		Keep: "The field names (name, age, gender, race, occupation, relationship, description, " +
+			"personality, appearance, speech, scenario, first_mes, mes_example, tags) are the schema's and " +
+			"must stay exactly as they are, each with what goes in it.",
 		Default: extractInstruction,
+	})
+	promptFacts = prompts.Register(prompts.Prompt{
+		ID: "designer.character-facts", Name: "Character Facts", Group: "Designers",
+		About: "Asked after the Character Builder when it left any of age, gender, race, occupation, " +
+			"relationship or appearance empty, for those alone.",
+		Keep: "The field names (age, gender, race, occupation, relationship, appearance) are the " +
+			"schema's and must stay exactly as they are, each with what goes in it.",
+		Default: factsInstruction,
 	})
 	promptReviseCharacter = prompts.Register(prompts.Prompt{
 		ID: "designer.character-revise", Name: "Character Reviser", Group: "Designers",

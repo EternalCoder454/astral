@@ -48,7 +48,11 @@ const designedCard = `{
 
 func TestBuildFromConversation(t *testing.T) {
 	var req map[string]any
-	srv := designServer(t, designedCard, func(r map[string]any) { req = r })
+	srv := designServer(t, designedCard, func(r map[string]any) {
+		if req == nil { // the build itself, not the facts asked for after it
+			req = r
+		}
+	})
 	defer srv.Close()
 
 	history := []ollama.Message{
@@ -100,6 +104,62 @@ func TestBuildFromConversation(t *testing.T) {
 		if !strings.Contains(blob.String(), want) {
 			t.Errorf("request did not carry %q", want)
 		}
+	}
+}
+
+// A build that leaves the facts empty is asked again for those alone, and a
+// revision is not asked for a fact its card already has.
+func TestBuildAsksAgainForMissingFacts(t *testing.T) {
+	var asked [][]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Format struct {
+				Required []string `json:"required"`
+			} `json:"format"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		asked = append(asked, req.Format.Required)
+		content := designedCard // with every fact empty
+		if len(asked) > 1 {
+			content = `{"age": "forty-one", "gender": "woman", "race": "human", "occupation": "locksmith", ` +
+				`"relationship": "a stranger", "appearance": "Short, grey at the temples, oil under her nails."}`
+		}
+		resp, _ := json.Marshal(map[string]any{
+			"message": map[string]string{"role": "assistant", "content": content},
+			"done":    true, "done_reason": "stop",
+		})
+		fmt.Fprintln(w, string(resp))
+	}))
+	defer srv.Close()
+	history := []ollama.Message{
+		{Role: ollama.RoleUser, Content: "a locksmith in her forties, short and greying"},
+		{Role: ollama.RoleAssistant, Content: "Press Create Character."},
+	}
+
+	c, err := BuildFromConversation(context.Background(), ollama.NewClient(srv.URL), "m", history, ollama.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(asked) != 2 {
+		t.Fatalf("%d requests, want the build and one for the facts", len(asked))
+	}
+	if got := strings.Join(asked[1], ","); got != "age,gender,race,occupation,relationship,appearance" {
+		t.Errorf("asked again for %s", got)
+	}
+	if c.Age != "forty-one" || c.Occupation != "locksmith" || !strings.Contains(c.Appearance, "grey") {
+		t.Errorf("facts not filled: age %q, occupation %q, appearance %q", c.Age, c.Occupation, c.Appearance)
+	}
+	if c.Name != "Odile Marchetti" {
+		t.Errorf("the build's own fields changed: name %q", c.Name)
+	}
+
+	asked = nil
+	existing := Character{Name: "Odile Marchetti", Age: "39", Appearance: "Tall."}
+	if _, err := ReviseFromConversation(context.Background(), ollama.NewClient(srv.URL), "m", existing, history, ollama.Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(asked) != 2 || strings.Join(asked[1], ",") != "gender,race,occupation,relationship" {
+		t.Errorf("a revision asked again for %v, want only what its card lacks", asked)
 	}
 }
 

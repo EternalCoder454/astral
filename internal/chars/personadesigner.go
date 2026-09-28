@@ -109,7 +109,17 @@ var (
 		About: "Added to the end of a persona design chat when you press Create Persona. The model " +
 			"answers in JSON with the persona's name, age, gender, race, appearance, personality, " +
 			"background and details.",
+		Keep: "The field names (name, age, gender, race, appearance, personality, background, details) " +
+			"are the schema's and must stay exactly as they are, each with what goes in it.",
 		Default: personaExtractInstruction,
+	})
+	promptPersonaFacts = prompts.Register(prompts.Prompt{
+		ID: "designer.persona-facts", Name: "Persona Facts", Group: "Designers",
+		About: "Asked after the Persona Builder when it left any of age, gender, race or appearance " +
+			"empty, for those alone.",
+		Keep: "The field names (age, gender, race, appearance) are the schema's and must stay exactly " +
+			"as they are, each with what goes in it.",
+		Default: personaFactsInstruction,
 	})
 )
 
@@ -133,8 +143,27 @@ func BuildPersonaFromConversation(ctx context.Context, client *ollama.Client, mo
 	if err != nil {
 		return Profile{}, err
 	}
-	return ParsePersona(raw)
+	p, err := ParsePersona(raw)
+	if err != nil {
+		return p, err
+	}
+	// The same failure as a character's build, and the same cure: see
+	// fillFacts.
+	askAgain(ctx, client, model, msgs[:len(msgs)-1], prompts.Text(promptPersonaFacts), []namedField{
+		{"age", &p.Age}, {"gender", &p.Gender}, {"race", &p.Race}, {"appearance", &p.Appearance},
+	}, opts)
+	return p, nil
 }
+
+// personaFactsInstruction is what a persona's build asks again for, when it
+// left any of these empty.
+const personaFactsInstruction = `Now write down the plain facts about the person we designed, from this conversation:
+- age: their age, as a number or in words, such as 27 or late thirties.
+- gender: in a word or two.
+- race: their race or species, in a word or two, such as human or half-elf.
+- appearance: what someone sees looking at them, in two to four sentences. Build, height, face, hair, what they wear, anything distinctive, keeping every detail that was given.
+
+Write each in the third person, plainly, as fact. Where one was never said outright, take it from what was: the pronouns used give the gender, and the setting and the name give the race. Leave one empty only when nothing in the conversation points either way.`
 
 // ParsePersona reads the model's answer into a persona.
 func ParsePersona(raw []byte) (Profile, error) {

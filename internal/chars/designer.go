@@ -213,11 +213,13 @@ Base it on what we discussed, do not invent a different character. Where you off
 
 // BuildFromConversation turns a design conversation into a character.
 func BuildFromConversation(ctx context.Context, client *ollama.Client, model string, history []ollama.Message, opts ollama.Options) (Character, error) {
-	return buildCard(ctx, client, model, history, prompts.Text(promptBuild), opts)
+	return buildCard(ctx, client, model, history, prompts.Text(promptBuild), Character{}, opts)
 }
 
-// buildCard asks for the card, with instruction as the last turn.
-func buildCard(ctx context.Context, client *ollama.Client, model string, history []ollama.Message, instruction string, opts ollama.Options) (Character, error) {
+// buildCard asks for the card, with instruction as the last turn. existing is
+// the card a revision starts from, whose facts are kept rather than asked for
+// again; zero for a new character.
+func buildCard(ctx context.Context, client *ollama.Client, model string, history []ollama.Message, instruction string, existing Character, opts ollama.Options) (Character, error) {
 	if len(history) == 0 {
 		return Character{}, fmt.Errorf("there is nothing here to build a character from yet")
 	}
@@ -246,14 +248,107 @@ func buildCard(ctx context.Context, client *ollama.Client, model string, history
 	for _, f := range []*string{&c.Description, &c.Personality, &c.Appearance, &c.Speech,
 		&c.Age, &c.Gender, &c.Race, &c.Occupation, &c.Relationship,
 		&c.Scenario, &c.FirstMes, &c.MesExample} {
-		*f = strings.ReplaceAll(*f, `\n`, "\n")
-		// And sometimes doubles an apostrophe, as SQL would escape one.
-		*f = strings.ReplaceAll(*f, "''", "'")
-		*f = TidyGlitches(*f)
+		*f = cleanField(*f)
 	}
 	c.FirstMes = markBareNarration(c.FirstMes)
+	fillFacts(ctx, client, model, msgs[:len(msgs)-1], &c, existing, opts)
 	return c, nil
 }
+
+// cleanField undoes what a model's JSON sometimes does to a field.
+func cleanField(s string) string {
+	s = strings.ReplaceAll(s, `\n`, "\n")
+	// And sometimes doubles an apostrophe, as SQL would escape one.
+	s = strings.ReplaceAll(s, "''", "'")
+	return TidyGlitches(s)
+}
+
+// factFields are the facts fillFacts can ask for again, with where each lives
+// on a character.
+var factFields = []struct {
+	name  string
+	field func(*Character) *string
+}{
+	{"age", func(c *Character) *string { return &c.Age }},
+	{"gender", func(c *Character) *string { return &c.Gender }},
+	{"race", func(c *Character) *string { return &c.Race }},
+	{"occupation", func(c *Character) *string { return &c.Occupation }},
+	{"relationship", func(c *Character) *string { return &c.Relationship }},
+	{"appearance", func(c *Character) *string { return &c.Appearance }},
+}
+
+// fillFacts asks again for the facts a build left empty, and only those.
+//
+// A build sometimes writes an empty age, and then empties every short field
+// after it and the appearance as well, although the conversation said each of
+// them plainly. Measured on SOMPOA with the Character Builder rewritten
+// without its lines about the facts, as optimizing it could leave it, two
+// builds in six came back that way, and asked again, both got every fact back;
+// with Astral's own text none of four did.
+//
+// A fact the card being revised already has is kept, not asked for.
+func fillFacts(ctx context.Context, client *ollama.Client, model string, conversation []ollama.Message, c *Character, existing Character, opts ollama.Options) {
+	var fields []namedField
+	for _, f := range factFields {
+		if strings.TrimSpace(*f.field(&existing)) == "" {
+			fields = append(fields, namedField{f.name, f.field(c)})
+		}
+	}
+	askAgain(ctx, client, model, conversation, prompts.Text(promptFacts), fields, opts)
+}
+
+// namedField is a field of a built card, by the name the schema gives it.
+type namedField struct {
+	name string
+	to   *string
+}
+
+// askAgain asks, after the conversation, for the fields among these that are
+// still empty, and fills in what comes back. Best effort: when it fails the
+// card stays as the build wrote it.
+func askAgain(ctx context.Context, client *ollama.Client, model string, conversation []ollama.Message, instruction string, fields []namedField, opts ollama.Options) {
+	var missing []string
+	props := map[string]any{}
+	for _, f := range fields {
+		if strings.TrimSpace(*f.to) == "" {
+			missing = append(missing, f.name)
+			props[f.name] = map[string]string{"type": "string"}
+		}
+	}
+	if len(missing) == 0 {
+		return
+	}
+	schema, err := json.Marshal(map[string]any{"type": "object", "properties": props, "required": missing})
+	if err != nil {
+		return
+	}
+	msgs := append(append([]ollama.Message(nil), conversation...), ollama.Message{Role: ollama.RoleUser,
+		Content: instruction + "\n\nOnly these are needed now: " + strings.Join(missing, ", ") + "."})
+	raw, _, err := client.Structured(ctx, model, msgs, opts, schema)
+	if err != nil {
+		return
+	}
+	var got map[string]string
+	if json.Unmarshal(raw, &got) != nil {
+		return
+	}
+	for _, f := range fields {
+		if v := strings.TrimSpace(cleanField(got[f.name])); v != "" && strings.TrimSpace(*f.to) == "" {
+			*f.to = v
+		}
+	}
+}
+
+// factsInstruction is what fillFacts asks, after the design conversation.
+const factsInstruction = `Now write down the plain facts about the character we designed, from this conversation:
+- age: their age, as a number or in words, such as 34 or early forties.
+- gender: in a word or two.
+- race: their race or species, in a word or two, such as human or half-elf.
+- occupation: what they do, in a few words.
+- relationship: what they are to {{user}} when the story opens, in a few words, such as an old friend, a rival, or a stranger.
+- appearance: what they physically are. Face, build, hair, skin, marks, what they wear and how they hold themselves, in a few sentences, keeping every detail that was given. If a picture was shared, it comes from the picture.
+
+Write what was said. Where one was never said outright, take it from what was: the pronouns used give the gender, and the setting and the name give the race. Leave one empty only when nothing in the conversation points either way.`
 
 // glitchRun is a run of three or more spaces or tabs inside a line.
 var glitchRun = regexp.MustCompile(`[ \t]{3,}`)
