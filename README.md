@@ -452,11 +452,19 @@ git commit -am "Release 0.3.0"
 git tag -a v0.3.0 -m "0.3.0"
 git push origin beta --tags
 git checkout release && git merge --ff-only beta && git push origin release
+
+# 5. When the windows and android workflows have both finished, publish the
+#    release they attached their files to. It is a draft until then, and a
+#    draft's files cannot be downloaded: the phone's update fails with 502.
+gh release edit v0.3.0 --draft=false --latest
 ```
 
 Anyone on the release channel is offered it on their next launch; anyone on
-beta was offered it when it landed there. Nothing else needs doing: the update
-check reads `WHATSNEW.md` from the branch, so publishing is the merge.
+beta was offered it when it landed there: the desktop's update check reads
+`WHATSNEW.md` from the branch, so for the window, publishing is the merge. The
+phone's update downloads the APK from the GitHub release, which is why step 5
+matters. Both build jobs attach to the same release, so it is created as a draft
+and published once both are done.
 
 Environment variables for development:
 
