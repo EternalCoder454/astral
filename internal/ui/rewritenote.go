@@ -18,6 +18,7 @@ var rewriteNotes = []string{"Shorter", "Longer", "More Dialogue", "More Detail",
 // written again and is gone after it. What should keep applying is a Direction.
 func AskRewriteNote(parent gtk.Widgetter, rewrite func(note string)) {
 	d := adw.NewDialog()
+	FreeOnClose(d)
 	d.SetTitle("Rewrite with a Note")
 	d.SetContentWidth(520)
 

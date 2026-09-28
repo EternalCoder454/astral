@@ -18,6 +18,7 @@ import (
 // showWorlds lists the settings a character can belong to.
 func (a *App) showWorlds() {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Worlds")
 	d.SetContentWidth(560)
 	d.SetContentHeight(620)
@@ -161,6 +162,7 @@ func (a *App) worldRow(w world.World, parent *adw.Dialog) *gtk.Box {
 // editWorld is the name and description of a setting.
 func (a *App) editWorld(w world.World) {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	if w.ID == 0 {
 		d.SetTitle("New World")
 	} else {
@@ -233,6 +235,7 @@ func (a *App) showWorldPicker() {
 	}
 
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Play in a World")
 	d.SetContentWidth(520)
 
@@ -316,6 +319,7 @@ func (a *App) startWorldScene(w world.World) {
 // scene, with the lorebook kept as what it always was, the world's memory.
 func (a *App) showWorld(w world.World) {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle(w.Name)
 	d.SetContentWidth(600)
 	d.SetContentHeight(660)
@@ -611,6 +615,7 @@ func (a *App) lorebookRow(w world.World, parent *adw.Dialog) *gtk.Button {
 // actually standing on.
 func (a *App) moveIntoWorld(w world.World, candidates []chars.Character) {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Move into " + w.Name)
 	d.SetContentWidth(520)
 	d.SetContentHeight(560)

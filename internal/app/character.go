@@ -23,6 +23,7 @@ import (
 // showCharacter is that screen.
 func (a *App) showCharacter(c chars.Character) {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle(c.Name)
 	d.SetContentWidth(620)
 	d.SetContentHeight(720)
@@ -294,6 +295,7 @@ func (a *App) relationRow(c, other chars.Character, note string) *gtk.Box {
 // pickRelation chooses somebody to record a relation with.
 func (a *App) pickRelation(c chars.Character, everyone []chars.Character, existing map[int64]string, done func()) {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Add a Relationship")
 	d.SetContentWidth(460)
 

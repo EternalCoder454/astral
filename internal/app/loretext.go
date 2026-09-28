@@ -12,6 +12,7 @@ import (
 	"astral/internal/ollama"
 	"astral/internal/scene"
 	"astral/internal/store"
+	"astral/internal/ui"
 	"astral/internal/world"
 )
 
@@ -25,6 +26,7 @@ import (
 // showLoreFromText asks for a document and turns it into entries.
 func (a *App) showLoreFromText(w world.World, onDone func()) {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Read Lore from Text")
 	d.SetContentWidth(620)
 

@@ -18,10 +18,16 @@ import (
 // it is thinking and looking like it has crashed.
 type TypingDots struct {
 	*gtk.DrawingArea
-	start  time.Time
+	clock  *dotClock
 	last   time.Time
 	tickID uint
 }
+
+// dotClock is when the wave started, apart from the dots themselves so the
+// draw function can read it without holding the widget: a draw function is
+// kept in a table GTK cannot see into, and one that held the dots would keep
+// them for good.
+type dotClock struct{ start time.Time }
 
 const (
 	dotCount   = 3
@@ -33,12 +39,15 @@ const (
 
 // NewTypingDots builds the indicator. It does not animate until Start.
 func NewTypingDots() *TypingDots {
-	d := &TypingDots{DrawingArea: gtk.NewDrawingArea(), start: time.Now(), last: time.Now()}
+	clock := &dotClock{start: time.Now()}
+	d := &TypingDots{DrawingArea: gtk.NewDrawingArea(), clock: clock, last: time.Now()}
 	d.SetContentWidth(int(dotSpacing*(dotCount-1) + dotRadius*2 + 2))
 	d.SetContentHeight(16)
 	d.SetHAlign(gtk.AlignStart)
 	d.SetVAlign(gtk.AlignCenter)
-	d.SetDrawFunc(d.draw)
+	d.SetDrawFunc(func(area *gtk.DrawingArea, cr *cairo.Context, w, h int) {
+		drawDots(area, clock, cr, w, h)
+	})
 	d.SetVisible(false)
 	return d
 }
@@ -46,7 +55,7 @@ func NewTypingDots() *TypingDots {
 // Start shows the dots and begins the animation.
 func (d *TypingDots) Start() {
 	d.SetVisible(true)
-	d.start = time.Now()
+	d.clock.start = time.Now()
 	if d.tickID != 0 {
 		return
 	}
@@ -76,13 +85,13 @@ func (d *TypingDots) tick(_ gtk.Widgetter, _ gdk.FrameClocker) bool {
 	return true
 }
 
-func (d *TypingDots) draw(_ *gtk.DrawingArea, cr *cairo.Context, w, h int) {
-	t := time.Since(d.start).Seconds()
+func drawDots(area *gtk.DrawingArea, clock *dotClock, cr *cairo.Context, w, h int) {
+	t := time.Since(clock.start).Seconds()
 	cy := float64(h) / 2
 	// Drawn in the text colour at low alpha rather than the accent: this is a
 	// placeholder for text, and it should read as text that has not arrived
 	// rather than as a control.
-	fg := dotColor(d)
+	fg := dotColor(area)
 
 	for i := 0; i < dotCount; i++ {
 		// Each dot runs the same wave, a third of a cycle behind the last.

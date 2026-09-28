@@ -145,6 +145,7 @@ func (a *App) usePersonaByID(id int64) {
 // showPersonas lists your personas.
 func (a *App) showPersonas() {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Personas")
 	d.SetContentWidth(560)
 	d.SetContentHeight(640)
@@ -231,6 +232,7 @@ func (a *App) personaCard(p chars.Profile, parent *adw.Dialog) *gtk.Button {
 // editPersona opens a persona to change, or a new one when its id is zero.
 func (a *App) editPersona(p chars.Profile) {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	title := "New Persona"
 	if p.ID != 0 || p.Name != "" {
 		title = p.DisplayName()
@@ -382,6 +384,7 @@ func (a *App) showPersonaPicker() {
 		current = a.cfg.ActivePersona
 	}
 	d := adw.NewAlertDialog("Choose Your Persona", "Characters see your choice from the next turn.")
+	ui.FreeOnClose(&d.Dialog)
 	list := gtk.NewBox(gtk.OrientationVertical, 4)
 	var group *gtk.CheckButton
 	picked := current

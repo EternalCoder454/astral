@@ -28,6 +28,7 @@ const buildTimeout = 6 * time.Minute
 // way to get help making the character it was asking for.
 func (a *App) showNewChat() {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("New Chat")
 	d.SetContentWidth(420)
 
@@ -329,6 +330,7 @@ func (a *App) revising() (chars.Character, bool) {
 // confirmStartScene offers to open a scene with a freshly designed character.
 func (a *App) confirmStartScene(c chars.Character) {
 	d := adw.NewAlertDialog(c.Name+" Is Ready", "You can start a scene with them now.")
+	ui.FreeOnClose(&d.Dialog)
 	d.AddResponse("later", "Not Yet")
 	d.AddResponse("play", "Start the Scene")
 	d.SetResponseAppearance("play", adw.ResponseSuggested)

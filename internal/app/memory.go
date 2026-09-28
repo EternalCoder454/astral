@@ -29,6 +29,7 @@ func (a *App) editMemory() {
 		return
 	}
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Scene Memory")
 	d.SetContentWidth(620)
 

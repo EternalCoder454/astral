@@ -50,6 +50,7 @@ func originLabel(origin string) string {
 // showKnowledge is the list, with search, and the ways to add to it.
 func (a *App) showKnowledge() {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Knowledge")
 	d.SetContentWidth(620)
 	d.SetContentHeight(680)
@@ -265,6 +266,7 @@ func (a *App) knowledgeCard(e store.KnowledgeEntry, parent *adw.Dialog) *gtk.But
 // editKnowledge is the editor for one entry, new when its ID is zero.
 func (a *App) editKnowledge(e store.KnowledgeEntry) {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	if e.ID == 0 {
 		d.SetTitle("New Entry")
 	} else {
@@ -344,6 +346,7 @@ func (a *App) editKnowledge(e store.KnowledgeEntry) {
 // studyTopic asks for a subject and studies it, showing each step.
 func (a *App) studyTopic(initial string) {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Study a Topic")
 	d.SetContentWidth(520)
 

@@ -644,6 +644,7 @@ func (c *ChatView) Clear() {
 	c.gen++
 	for _, r := range c.rows {
 		c.column.Remove(r.Widget())
+		r.Release()
 	}
 	c.rows = nil
 	c.live = nil

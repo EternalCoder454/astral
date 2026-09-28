@@ -5,12 +5,15 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 	"strings"
+
+	"astral/internal/ui"
 )
 
 // confirm asks before something irreversible. The confirming button is styled
 // destructive and is never the default, so Enter cannot delete anything.
 func (a *App) confirm(heading, body, confirmLabel string, onConfirm func()) {
 	d := adw.NewAlertDialog(heading, body)
+	ui.FreeOnClose(&d.Dialog)
 	d.AddResponse("cancel", "Cancel")
 	d.AddResponse("confirm", confirmLabel)
 	d.SetResponseAppearance("confirm", adw.ResponseDestructive)
@@ -27,6 +30,7 @@ func (a *App) confirm(heading, body, confirmLabel string, onConfirm func()) {
 // promptText asks for a single line of text.
 func (a *App) promptText(heading, label, initial string, onAccept func(string)) {
 	d := adw.NewAlertDialog(heading, "")
+	ui.FreeOnClose(&d.Dialog)
 	entry := gtk.NewEntry()
 	entry.SetText(initial)
 	entry.SetHExpand(true)
@@ -58,6 +62,7 @@ func (a *App) promptText(heading, label, initial string, onAccept func(string)) 
 // showAbout is the standard about window.
 func (a *App) showAbout() {
 	about := adw.NewAboutDialog()
+	ui.FreeOnClose(&about.Dialog)
 	about.SetApplicationName("Astral")
 	about.SetApplicationIcon(appID)
 	about.SetVersion(version)
@@ -126,6 +131,7 @@ func (a *App) showShortcuts() {
 	}
 
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Keyboard Shortcuts")
 	d.SetContentWidth(420)
 	d.SetContentHeight(460)

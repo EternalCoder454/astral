@@ -5,6 +5,8 @@ import (
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+
+	"astral/internal/ui"
 )
 
 // A scene direction is the one control that steers a roleplay without editing
@@ -32,6 +34,7 @@ func (a *App) editDirection() {
 		return
 	}
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Scene Direction")
 	d.SetContentWidth(560)
 

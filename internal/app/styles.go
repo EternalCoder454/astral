@@ -21,6 +21,7 @@ import (
 // them to be managed in two different shapes.
 func (a *App) showStyles() {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Writing Styles")
 	d.SetContentWidth(560)
 	d.SetContentHeight(620)
@@ -162,6 +163,7 @@ func (a *App) styleRow(st chars.WritingStyle, active bool, parent *adw.Dialog) *
 // editStyle opens the style editor. isNew only changes the dialog's title.
 func (a *App) editStyle(st chars.WritingStyle, isNew bool) {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	if isNew {
 		d.SetTitle("New Writing Style")
 	} else {

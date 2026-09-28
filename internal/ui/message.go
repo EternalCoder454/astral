@@ -2,10 +2,13 @@ package ui
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 
@@ -75,6 +78,9 @@ type MessageRow struct {
 	buttons  map[string]*gtk.Button
 	pinMark  *gtk.Image
 	hideMark *gtk.Label
+	// signals are the handlers the row has connected on its own widgets, kept
+	// so Release can take them off again. See Release for why that matters.
+	signals []rowSignal
 
 	dots      *TypingDots
 	streaming bool
@@ -129,9 +135,17 @@ type MessageRow struct {
 	when     time.Time
 }
 
+// DevRows counts rows built and rows Go has since freed, when set, for the dev
+// harness's check that a chat left behind is let go of.
+var DevRows *struct{ Built, Freed atomic.Int64 }
+
 // NewMessageRow builds a turn.
 func NewMessageRow(o MessageOpts) *MessageRow {
 	m := &MessageRow{Role: o.Role, mode: o.Mode, when: o.When}
+	if d := DevRows; d != nil {
+		d.Built.Add(1)
+		runtime.SetFinalizer(m, func(*MessageRow) { d.Freed.Add(1) })
+	}
 	fromUser := o.Role == ollama.RoleUser
 
 	m.widget = gtk.NewBox(gtk.OrientationHorizontal, 8)
@@ -313,7 +327,7 @@ func (m *MessageRow) ensureThinking() {
 	m.thinkRevea = gtk.NewRevealer()
 	m.thinkRevea.SetChild(m.thinkLabel)
 	m.thinkRevea.SetTransitionType(gtk.RevealerTransitionTypeSlideDown)
-	m.thinkToggle.ConnectToggled(func() {
+	m.track(m.thinkToggle, m.thinkToggle.ConnectToggled(func() {
 		on := m.thinkToggle.Active()
 		m.thinkRevea.SetRevealChild(on)
 		if on {
@@ -321,7 +335,7 @@ func (m *MessageRow) ensureThinking() {
 		} else {
 			m.thinkToggle.SetLabel("Show Reasoning")
 		}
-	})
+	}))
 	m.thinkBox.Append(m.thinkToggle)
 	m.thinkBox.Append(m.thinkRevea)
 	// Prepended: reasoning precedes the reply it produced.
@@ -330,6 +344,36 @@ func (m *MessageRow) ensureThinking() {
 
 // Widget returns the row's root widget.
 func (m *MessageRow) Widget() gtk.Widgetter { return m.widget }
+
+// rowSignal is one handler a row connected, and what it is connected on.
+type rowSignal struct {
+	obj *coreglib.Object
+	h   coreglib.SignalHandle
+}
+
+// track records a handler connected on one of the row's own widgets.
+func (m *MessageRow) track(obj coreglib.Objector, h coreglib.SignalHandle) {
+	m.signals = append(m.signals, rowSignal{coreglib.BaseObject(obj), h})
+}
+
+// Release takes off every handler the row connected, once it has left the
+// transcript for good.
+//
+// Without this a row is never freed. A handler's Go function is held by the
+// widget it is connected on, and GTK keeps that widget while its parent
+// lives; the function holds the row, and the row holds its root widget, which
+// Go then never lets go of, so the parent lives too. Measured on a library of
+// 150 chats, opening each of them once kept 400MB that never came back, and
+// every pass through them kept 400MB more.
+func (m *MessageRow) Release() {
+	for _, s := range m.signals {
+		s.obj.HandlerDisconnect(s.h)
+	}
+	m.signals = nil
+	m.pending = nil
+	m.onPrev, m.onNext = nil, nil
+	m.stopDots()
+}
 
 // AddAction registers a hover button for the row's footer.
 //
@@ -370,7 +414,7 @@ func (m *MessageRow) AddMenu(items []RowMenuItem) {
 }
 
 // menuButton builds a More button.
-func menuButton(items []RowMenuItem) *gtk.MenuButton {
+func (m *MessageRow) menuButton(items []RowMenuItem) *gtk.MenuButton {
 	mb := gtk.NewMenuButton()
 	mb.SetIconName(IconMore)
 	mb.SetTooltipText("More")
@@ -383,19 +427,19 @@ func menuButton(items []RowMenuItem) *gtk.MenuButton {
 		b := gtk.NewButtonWithLabel(it.Label())
 		b.AddCSSClass("flat")
 		gtk.BaseWidget(b.Child()).SetHAlign(gtk.AlignStart)
-		b.ConnectClicked(func() {
+		m.track(b, b.ConnectClicked(func() {
 			pop.Popdown()
 			it.OnClick()
-		})
+		}))
 		box.Append(b)
 		buttons = append(buttons, b)
 	}
-	pop.ConnectShow(func() {
+	m.track(pop, pop.ConnectShow(func() {
 		for i, it := range items {
 			buttons[i].SetLabel(it.Label())
 			gtk.BaseWidget(buttons[i].Child()).SetHAlign(gtk.AlignStart)
 		}
-	})
+	}))
 	pop.SetChild(box)
 	mb.SetPopover(pop)
 	return mb
@@ -412,11 +456,11 @@ func (m *MessageRow) armActions() {
 	}
 	m.armed = true
 	motion := gtk.NewEventControllerMotion()
-	motion.ConnectEnter(func(x, y float64) { m.buildActions() })
+	m.track(motion, motion.ConnectEnter(func(x, y float64) { m.buildActions() }))
 	m.widget.AddController(motion)
 
 	focus := gtk.NewEventControllerFocus()
-	focus.ConnectEnter(func() { m.buildActions() })
+	m.track(focus, focus.ConnectEnter(func() { m.buildActions() }))
 	m.widget.AddController(focus)
 }
 
@@ -429,13 +473,13 @@ func (m *MessageRow) buildActions() {
 	m.buttons = make(map[string]*gtk.Button, len(m.pending))
 	for _, a := range m.pending {
 		if a.menu != nil {
-			m.appendAction(menuButton(a.menu))
+			m.appendAction(m.menuButton(a.menu))
 			continue
 		}
 		b := gtk.NewButtonFromIconName(a.icon)
 		b.SetTooltipText(a.tooltip)
 		b.AddCSSClass("message-action")
-		b.ConnectClicked(a.onClick)
+		m.track(b, b.ConnectClicked(a.onClick))
 		m.appendAction(b)
 		m.buttons[a.icon] = b
 	}
@@ -761,20 +805,20 @@ func (m *MessageRow) SetPager(show bool, onPrev, onNext func()) {
 		m.pagePrev = gtk.NewButtonWithLabel("‹")
 		m.pagePrev.AddCSSClass("flat")
 		m.pagePrev.SetTooltipText("The reply before this one")
-		m.pagePrev.ConnectClicked(func() {
+		m.track(m.pagePrev, m.pagePrev.ConnectClicked(func() {
 			if m.onPrev != nil {
 				m.onPrev()
 			}
-		})
+		}))
 		m.pageLabel = gtk.NewLabel("")
 		m.pageLabel.AddCSSClass("message-meta")
 		m.pageNext = gtk.NewButtonWithLabel("›")
 		m.pageNext.AddCSSClass("flat")
-		m.pageNext.ConnectClicked(func() {
+		m.track(m.pageNext, m.pageNext.ConnectClicked(func() {
 			if m.onNext != nil {
 				m.onNext()
 			}
-		})
+		}))
 		m.pager.Append(m.pagePrev)
 		m.pager.Append(m.pageLabel)
 		m.pager.Append(m.pageNext)

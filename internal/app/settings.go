@@ -12,6 +12,7 @@ import (
 
 	"astral/internal/chars"
 	"astral/internal/store"
+	"astral/internal/ui"
 	"astral/internal/websearch"
 )
 
@@ -67,6 +68,7 @@ func (a *App) showSettingsPage(page string) {
 	a.probeModels()
 
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Settings")
 	d.SetContentWidth(700)
 	d.SetContentHeight(760)
@@ -460,6 +462,7 @@ func (a *App) showModelPicker() {
 	}
 
 	d := adw.NewAlertDialog("Choose a Model", "This is what Ollama has on this machine.")
+	ui.FreeOnClose(&d.Dialog)
 	list := gtk.NewBox(gtk.OrientationVertical, 4)
 
 	var group *gtk.CheckButton

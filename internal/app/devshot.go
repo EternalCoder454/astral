@@ -3,10 +3,14 @@ package app
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
@@ -198,6 +202,13 @@ func (a *App) runDevView() {
 			a.devRowMenu()
 		case "measure":
 			a.devMeasure()
+		case "leaks":
+			a.devLeaks(arg)
+		case "cycle":
+			// Open every chat in turn, rounds times, logging memory after
+			// each round: what a long session of switching chats holds on to.
+			rounds, _ := strconv.Atoi(arg)
+			a.devCycle(max(rounds, 1))
 		case "minwidth":
 			// The scene, then what sets the window's narrowest width.
 			if chats, err := a.store.Chats(); err == nil && len(chats) > 0 {
@@ -557,6 +568,156 @@ func (a *App) devToggle(n int) {
 // processStart is when this process began, near enough: package variables are
 // set before main runs. For timing a dev run's startup.
 var processStart = time.Now()
+
+// devCycle opens every chat in turn, a few rounds, and logs what the process
+// holds after each. Growth that does not level off is a leak.
+func (a *App) devCycle(rounds int) {
+	chats, err := a.store.Chats()
+	if err != nil || len(chats) == 0 {
+		return
+	}
+	round, i, settle := 0, 0, 0
+	ui.DevRows = &struct{ Built, Freed atomic.Int64 }{}
+	// gotk4 logs its object lifecycle at debug level, with GOTK4_DEBUG set.
+	if os.Getenv("ASTRAL_DEV_SLOG") != "" {
+		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	}
+	log.Printf("astral: cycle: before, %s", rss())
+	coreglib.TimeoutAdd(40, func() bool {
+		// Between rounds, time for what was let go to be freed: a widget tree
+		// can take several garbage collections to come apart.
+		if settle > 0 {
+			runtime.GC()
+			settle--
+			if settle > 0 {
+				return true
+			}
+			var ms runtime.MemStats
+			runtime.ReadMemStats(&ms)
+			log.Printf("astral: cycle: round %d of %d chats, %s, Go heap %d MB, %d Go objects, rows %d built %d freed", round, len(chats), rss(),
+				ms.HeapInuse>>20, ms.HeapObjects, ui.DevRows.Built.Load(), ui.DevRows.Freed.Load())
+			if p := pprof.Lookup("gotk4-object-box"); p != nil {
+				log.Printf("astral: cycle: gotk4 holds %d objects", p.Count())
+			}
+			if path := os.Getenv("ASTRAL_DEV_HEAP"); path != "" && round == rounds {
+				if f, err := os.Create(path); err == nil {
+					_ = pprof.WriteHeapProfile(f)
+					f.Close()
+				}
+			}
+			return round < rounds
+		}
+		_ = a.openChat(chats[i].ID)
+		i++
+		if i < len(chats) {
+			return true
+		}
+		i = 0
+		round++
+		settle = 25
+		return true
+	})
+}
+
+// devLeaks opens and closes each of the main dialogs a few times, logging
+// how many objects gotk4 still holds after each, so a dialog that is never
+// freed shows as a count that climbs. Run with GOTK4_DEBUG=profile-objects.
+func (a *App) devLeaks(only string) {
+	chats, _ := a.store.Chats()
+	if len(chats) > 0 {
+		_ = a.openChat(chats[0].ID)
+	}
+	type step struct {
+		name string
+		open func()
+	}
+	steps := []step{
+		{"settings", a.showSettings},
+		{"characters", a.showCharacters},
+		{"memory", a.editMemory},
+		{"prompts", a.showPrompts},
+		{"styles", a.showStyles},
+		{"worlds", a.showWorlds},
+		{"newchat", a.showNewChat},
+		{"model", a.showModelPicker},
+		{"shortcuts", a.showShortcuts},
+		{"editchar", func() {
+			if cs, err := a.store.Characters(); err == nil && len(cs) > 0 {
+				a.editCharacter(cs[0])
+			}
+		}},
+		{"character", func() {
+			if cs, err := a.store.Characters(); err == nil && len(cs) > 0 {
+				a.showCharacter(cs[0])
+			}
+		}},
+		{"sidebar", func() {
+			for range 5 {
+				a.refreshSidebar()
+			}
+		}},
+		{"welcome", a.showWelcome},
+		{"portrait", func() {
+			if cs, err := a.store.Characters(); err == nil && len(cs) > 0 {
+				a.refreshPortrait(cs[0])
+			}
+		}},
+		{"openchat", func() {
+			if len(chats) > 1 {
+				_ = a.openChat(chats[1].ID)
+				_ = a.openChat(chats[0].ID)
+			}
+		}},
+	}
+	held := func() int {
+		if p := pprof.Lookup("gotk4-object-box"); p != nil {
+			return p.Count()
+		}
+		return -1
+	}
+	const rounds = 4
+	si, round, phase, settle := 0, 0, 0, 0
+	var first int
+	coreglib.TimeoutAdd(60, func() bool {
+		for si < len(steps) && only != "" && steps[si].name != only {
+			si++
+		}
+		if si >= len(steps) {
+			log.Printf("astral: leaks: done, %s", rss())
+			return false
+		}
+		st := steps[si]
+		switch phase {
+		case 0:
+			st.open()
+			phase, settle = 1, 8
+		case 1: // let it show
+			if settle--; settle > 0 {
+				return true
+			}
+			if d := a.win.VisibleDialog(); d != nil {
+				d.ForceClose()
+			}
+			phase, settle = 2, 20
+		case 2:
+			runtime.GC()
+			if settle--; settle > 0 {
+				return true
+			}
+			n := held()
+			round++
+			if round == 1 {
+				first = n
+			}
+			if round == rounds {
+				log.Printf("astral: leaks: %-10s %4d objects kept per open, %s", st.name, (n-first)/(rounds-1), rss())
+				si, round = si+1, 0
+			}
+			phase = 0
+		}
+		return true
+	})
+}
 
 // devTimeStartup logs how long after the process began the window drew its
 // first frame, and what the process holds in memory then, when timing a

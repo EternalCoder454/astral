@@ -20,6 +20,7 @@ import (
 // showCharacters opens the cast: everyone you can play a scene with.
 func (a *App) showCharacters() {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Characters")
 	d.SetContentWidth(560)
 	d.SetContentHeight(620)
@@ -287,6 +288,7 @@ func (a *App) editCharacter(c chars.Character) { a.editCharacterWith(c, nil) }
 // scene it just built.
 func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)) {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	if c.ID == 0 {
 		d.SetTitle("New Character")
 	} else {
@@ -599,6 +601,7 @@ func (a *App) actionImportCharacter() {
 // importFromLink imports a character from a Chub page or a card's address.
 func (a *App) importFromLink() {
 	d := adw.NewAlertDialog("Import from a Link", "A Chub character page, or a link to a card's .png or .json.")
+	ui.FreeOnClose(&d.Dialog)
 	entry := gtk.NewEntry()
 	entry.SetPlaceholderText("https://chub.ai/characters/…")
 	entry.SetHExpand(true)

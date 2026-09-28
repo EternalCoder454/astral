@@ -21,6 +21,7 @@ import (
 // wrong reply has.
 func (a *App) showLorebook(w world.World) {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle(w.Name)
 	d.SetContentWidth(620)
 	d.SetContentHeight(680)
@@ -229,6 +230,7 @@ func (a *App) loreRow(e world.Entry, w world.World, parent *adw.Dialog) *gtk.Box
 // editLore is the entry editor.
 func (a *App) editLore(e world.Entry, w world.World) {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	if e.ID == 0 {
 		d.SetTitle("New Entry")
 	} else {

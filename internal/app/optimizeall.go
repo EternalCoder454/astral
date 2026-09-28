@@ -15,6 +15,7 @@ import (
 	"astral/internal/prompts"
 	"astral/internal/scene"
 	"astral/internal/store"
+	"astral/internal/ui"
 )
 
 // Optimize All: the Prompt Optimizer run over every prompt, one at a time, with
@@ -169,6 +170,7 @@ func (a *App) showOptimizeReview() {
 	b.mu.Unlock()
 
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Review the Rewrites")
 	d.SetContentWidth(720)
 	d.SetContentHeight(760)
@@ -256,6 +258,7 @@ func (a *App) showOptimizeReview() {
 // comparePrompt shows a prompt as it is sent now above the rewrite of it.
 func (a *App) comparePrompt(r promptopt.Rewrite) {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle(r.Name)
 	d.SetContentWidth(760)
 	d.SetContentHeight(800)

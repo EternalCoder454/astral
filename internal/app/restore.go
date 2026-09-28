@@ -12,6 +12,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
 	"astral/internal/store"
+	"astral/internal/ui"
 )
 
 // Putting a daily backup back.
@@ -33,6 +34,7 @@ func (a *App) showRestoreBackup() {
 		return
 	}
 	d := adw.NewAlertDialog("Restore a Backup", "Astral closes to put it back, and keeps your current library beside it.")
+	ui.FreeOnClose(&d.Dialog)
 	list := gtk.NewBox(gtk.OrientationVertical, 4)
 	var group *gtk.CheckButton
 	picked := backups[0].Path

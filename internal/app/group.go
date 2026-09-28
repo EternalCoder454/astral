@@ -109,6 +109,7 @@ func (a *App) pickCast(already []chars.Character, confirm string, least int, onP
 	}
 
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Cast")
 	d.SetContentWidth(560)
 	d.SetContentHeight(620)

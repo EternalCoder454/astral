@@ -28,7 +28,9 @@ func NewOrb(size int) *Orb {
 	o.SetContentHeight(size)
 	o.SetHAlign(gtk.AlignCenter)
 	o.SetVAlign(gtk.AlignCenter)
-	o.SetDrawFunc(o.draw)
+	// A function, not a method: a draw function is held from a table GTK
+	// cannot see into, and one that held the orb would keep it for good.
+	o.SetDrawFunc(drawOrb)
 	return o
 }
 
@@ -40,7 +42,7 @@ const (
 	litR, litG, litB = 0.937, 0.776, 0.792 // the same hue, lifted, for the highlight
 )
 
-func (o *Orb) draw(_ *gtk.DrawingArea, cr *cairo.Context, w, h int) {
+func drawOrb(_ *gtk.DrawingArea, cr *cairo.Context, w, h int) {
 	s := math.Min(float64(w), float64(h))
 	if s <= 0 {
 		return

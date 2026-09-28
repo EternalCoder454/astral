@@ -1036,6 +1036,7 @@ func (c *ChatView) regenerate(row *MessageRow) {
 	}
 	for _, r := range c.rows[idx:] {
 		c.column.Remove(r.Widget())
+		r.Release()
 	}
 	c.rows = c.rows[:idx]
 	c.startStream()
@@ -1082,6 +1083,7 @@ func (c *ChatView) removeRow(row *MessageRow) {
 		return
 	}
 	c.column.Remove(row.Widget())
+	row.Release()
 	c.rows = append(c.rows[:idx], c.rows[idx+1:]...)
 	c.refreshPagers()
 }

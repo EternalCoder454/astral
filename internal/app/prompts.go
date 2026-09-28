@@ -41,6 +41,7 @@ func (a *App) loadPromptOverrides() {
 // showPrompts lists every prompt, grouped by what uses it.
 func (a *App) showPrompts() {
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Prompts")
 	d.SetContentWidth(640)
 	d.SetContentHeight(720)
@@ -155,6 +156,7 @@ func (a *App) editPrompt(id string) {
 		return
 	}
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle(p.Name)
 	d.SetContentWidth(700)
 	d.SetContentHeight(780)
@@ -303,6 +305,7 @@ func (a *App) savePromptFromChat() {
 	}
 
 	d := adw.NewDialog()
+	ui.FreeOnClose(d)
 	d.SetTitle("Save " + p.Name)
 	d.SetContentWidth(700)
 	d.SetContentHeight(760)
