@@ -90,6 +90,13 @@ func (c Character) Summary() string {
 	return strings.Join(strings.Fields(src), " ")
 }
 
+// SummaryFor is Summary as a person reads it, with {{char}} and {{user}}
+// filled in. Cards are written with the placeholders, and showing them raw
+// in a list reads as a fault.
+func (c Character) SummaryFor(userName string) string {
+	return Substitute(c.Summary(), c.Name, userName)
+}
+
 // Persona is who *you* are in the scene: the other half of a two-hander, and
 // the thing most local models get wrong without being told.
 type Persona struct {

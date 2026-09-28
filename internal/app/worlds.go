@@ -512,7 +512,7 @@ func (a *App) worldCastRow(c chars.Character, w world.World, parent *adw.Dialog)
 	name.AddCSSClass("character-card-name")
 	col.Append(name)
 
-	if sum := ui.Snippet(c.Summary(), 180); sum != "" {
+	if sum := ui.Snippet(c.SummaryFor(a.cfg.PersonaName), 180); sum != "" {
 		desc := cardDescription(sum)
 		col.Append(desc)
 	}
@@ -653,7 +653,7 @@ func (a *App) moveIntoWorld(w world.World, candidates []chars.Character) {
 		name.SetEllipsize(pango.EllipsizeEnd)
 		name.AddCSSClass("character-card-name")
 		col.Append(name)
-		if sum := ui.Snippet(c.Summary(), 140); sum != "" {
+		if sum := ui.Snippet(c.SummaryFor(a.cfg.PersonaName), 140); sum != "" {
 			desc := cardDescription(sum)
 			col.Append(desc)
 		}

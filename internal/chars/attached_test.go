@@ -37,3 +37,10 @@ func TestReadAttachable(t *testing.T) {
 		t.Errorf("a long file: cut=%v err=%v tail=%q", cut, err, text[len(text)-60:])
 	}
 }
+
+func TestSummaryForFillsInNames(t *testing.T) {
+	c := Character{Name: "Vesper", Description: "{{char}} owes {{user}} money."}
+	if got := c.SummaryFor("Wren"); got != "Vesper owes Wren money." {
+		t.Errorf("SummaryFor = %q", got)
+	}
+}

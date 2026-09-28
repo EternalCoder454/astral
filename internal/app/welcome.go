@@ -324,7 +324,7 @@ func (a *App) characterCard(c chars.Character) *gtk.Button {
 	}
 	col.Append(head)
 
-	desc := cardDescription(ui.Snippet(c.Summary(), 240))
+	desc := cardDescription(ui.Snippet(c.SummaryFor(a.cfg.PersonaName), 240))
 	col.Append(desc)
 	box.Append(col)
 

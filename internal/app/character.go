@@ -96,7 +96,7 @@ func (a *App) showCharacter(c chars.Character) {
 	head.Append(play)
 	page.Append(head)
 
-	if s := strings.TrimSpace(c.Summary()); s != "" {
+	if s := strings.TrimSpace(c.SummaryFor(a.cfg.PersonaName)); s != "" {
 		about := gtk.NewLabel(s)
 		about.SetXAlign(0)
 		about.SetWrap(true)
@@ -334,7 +334,7 @@ func (a *App) pickRelation(c chars.Character, everyone []chars.Character, existi
 		})
 		rows = append(rows, filterRow{
 			Widget: btn,
-			Text:   strings.ToLower(other.Name + " " + other.Summary()),
+			Text:   strings.ToLower(other.Name + " " + other.SummaryFor(a.cfg.PersonaName)),
 		})
 	}
 	if len(rows) == 0 {

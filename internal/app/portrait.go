@@ -55,7 +55,7 @@ func (a *App) refreshPortrait(c chars.Character) bool {
 	name.AddCSSClass("portrait-name")
 	a.portraitBox.Append(name)
 
-	if sum := ui.Snippet(c.Summary(), 160); sum != "" {
+	if sum := ui.Snippet(c.SummaryFor(a.cfg.PersonaName), 160); sum != "" {
 		desc := gtk.NewLabel(sum)
 		desc.SetWrap(true)
 		desc.SetJustify(gtk.JustifyCenter)

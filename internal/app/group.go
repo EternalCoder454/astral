@@ -192,7 +192,7 @@ func (a *App) pickCast(already []chars.Character, confirm string, least int, onP
 		name.SetXAlign(0)
 		name.AddCSSClass("character-name")
 		col.Append(name)
-		if s := c.Summary(); s != "" {
+		if s := c.SummaryFor(a.cfg.PersonaName); s != "" {
 			sum := gtk.NewLabel(s)
 			sum.SetXAlign(0)
 			sum.SetEllipsize(3) // PANGO_ELLIPSIZE_END
@@ -230,7 +230,7 @@ func (a *App) pickCast(already []chars.Character, confirm string, least int, onP
 
 		rows = append(rows, filterRow{
 			Widget: row,
-			Text:   strings.ToLower(c.Name + " " + c.Summary() + " " + strings.Join(c.Tags, " ")),
+			Text:   strings.ToLower(c.Name + " " + c.SummaryFor(a.cfg.PersonaName) + " " + strings.Join(c.Tags, " ")),
 		})
 	}
 	searchableList(list, "Search by name, description or tag", rows)

@@ -243,7 +243,8 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request, d store.Dev
 	}
 	if cs, err := s.store.Characters(); err == nil {
 		for _, c := range cs {
-			out.Characters = append(out.Characters, nameOut{ID: c.ID, Name: c.Name, Note: c.Description, Accent: c.Accent})
+			out.Characters = append(out.Characters, nameOut{ID: c.ID, Name: c.Name,
+				Note: chars.Substitute(c.Description, c.Name, cfg.PersonaName), Accent: c.Accent})
 		}
 	}
 	if ws, err := s.store.Worlds(); err == nil {

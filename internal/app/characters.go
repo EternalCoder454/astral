@@ -64,7 +64,7 @@ func (a *App) showCharacters() {
 	for _, c := range characters {
 		rows = append(rows, filterRow{
 			Widget: a.castRow(c, d),
-			Text:   strings.ToLower(c.Name + " " + c.Summary() + " " + strings.Join(c.Tags, " ")),
+			Text:   strings.ToLower(c.Name + " " + c.SummaryFor(a.cfg.PersonaName) + " " + strings.Join(c.Tags, " ")),
 		})
 	}
 	searchableList(list, "Search by name, description or tag", rows)
@@ -116,7 +116,7 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 	}
 	col.Append(head)
 
-	desc := cardDescription(ui.Snippet(c.Summary(), 240))
+	desc := cardDescription(ui.Snippet(c.SummaryFor(a.cfg.PersonaName), 240))
 	col.Append(desc)
 
 	if len(c.Tags) > 0 {
