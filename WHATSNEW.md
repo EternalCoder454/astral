@@ -3,6 +3,13 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.25
+- The first reply after a break starts in under a second: typing gets the model and the scene ready first
+- Stock phrase checking holds back fewer words, so replies start showing a little sooner
+- Daily backups are compressed to about a third of their size
+- Updates keep only the latest source and no leftover copy of the app, about 33 MB less on Linux
+- Phone: long chats open faster over Wi-Fi, sent compressed
+
 ## 0.5.24
 - Stock phrases like "a shiver ran down her spine" and "smirk" are cut out of replies as they are written
 - Continue this reply no longer writes the whole reply out again on Gemma-based models such as SOMPOA
