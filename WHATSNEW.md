@@ -3,6 +3,9 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.10
+- Long text boxes scroll on their own, so typing at the end of a long writing style stays in view
+
 ## 0.5.9
 - Personas can have a picture, shown beside your messages and under your name
 - Files up to 200,000 characters, and designers widen their memory so a big file arrives whole
