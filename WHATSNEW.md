@@ -3,6 +3,12 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.12
+- Phone: message buttons say Copy, Rewrite and Delete, and settings save themselves as you change them
+- Phone: search your chats, and a chat you open and leave without a word is not kept
+- Phone: opening the app downloads almost nothing after the first time, and long scenes open fast
+- Phone: Unpair asks twice, and a message no longer blocks the button under it
+
 ## 0.5.11
 - Phone: swipe to delete stays open, and no red strip shows under rows
 - Phone: replies keep their italics when they finish, and designer chats read as plain text
