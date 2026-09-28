@@ -301,7 +301,7 @@ async function loadSettings() {
 	const res = await api("/api/settings");
 	settings = await res.json();
 
-	fillSelect($("set-model"), settings.models, settings.model);
+	fillSelect($("set-model"), settings.models, settings.model, shortModel);
 	fillSelect($("set-style"), settings.styles, settings.style);
 	$("set-numctx").value = settings.num_ctx || "";
 	$("set-numpredict").value = settings.num_predict || "";
@@ -375,14 +375,14 @@ window.astralUpdateFailed = (msg) => {
 	toast(msg);
 };
 
-function fillSelect(el, values, chosen) {
+function fillSelect(el, values, chosen, label = (v) => v) {
 	el.replaceChildren();
 	const all = values && values.length ? values.slice() : [];
 	if (chosen && !all.includes(chosen)) all.unshift(chosen);
 	for (const v of all) {
 		const opt = document.createElement("option");
 		opt.value = v;
-		opt.textContent = v;
+		opt.textContent = label(v);
 		if (v === chosen) opt.selected = true;
 		el.append(opt);
 	}
@@ -456,10 +456,21 @@ function row({ title, note, initial, primary, onClick }) {
 // shortModel drops the publisher. "huihui_ai/qwen3.6-abliterated:27b" is
 // mostly somebody's account name, and on a phone it was taking the line the
 // greeting needed and pushing it to "Welcome back, ...".
+// shortModel is a model's name as a person reads it: the last part of the
+// path, without the packaging, with the tag set apart. A repository path like
+// hf.co/someone/Model-GGUF:Q4_K_S is an address, and on a phone it is truncated
+// long before the part that says which model it is.
 function shortModel(m) {
 	if (!m) return "no model";
-	const cut = m.lastIndexOf("/");
-	return cut >= 0 ? m.slice(cut + 1) : m;
+	let name = m.slice(m.lastIndexOf("/") + 1);
+	let tag = "";
+	const colon = name.lastIndexOf(":");
+	if (colon >= 0) {
+		tag = name.slice(colon + 1);
+		name = name.slice(0, colon);
+	}
+	name = name.replace(/[-_.]gguf$/i, "");
+	return tag && tag !== "latest" ? name + " · " + tag : name;
 }
 
 function initialOf(name) {
@@ -479,17 +490,17 @@ async function loadState() {
 	start.replaceChildren();
 	if (state.characters?.length) {
 		start.append(row({
-			title: "Play a scene", note: "with someone from your cast", primary: true,
+			title: "Play a Scene", note: "with someone from your cast", primary: true,
 			onClick: () => show("cast"),
 		}));
 	}
 	if (state.worlds?.length) {
 		start.append(row({
-			title: "Play in a world", note: "the model plays the place and whoever you meet",
+			title: "Play in a World", note: "the model plays the place and whoever you meet",
 			onClick: () => show("cast"),
 		}));
 	}
-	start.append(row({ title: "General chat", note: "", onClick: () => newChat({}) }));
+	start.append(row({ title: "General Chat", note: "answers, with the web and your knowledge to draw on", onClick: () => newChat({}) }));
 
 	const recent = $("home-recent");
 	recent.replaceChildren();
@@ -768,7 +779,18 @@ function toggleActions(wrap) {
 		});
 	}
 
-	add("Delete this message", "trash", true, () => {
+	// Two taps, as a swiped row asks: a turn deleted by a thumb that missed
+	// Copy is a turn gone, and there is no undo.
+	let armed = false;
+	add("Delete this message", "trash", true, function () {
+		const btn = row.querySelector(".msg-action.danger");
+		if (!armed) {
+			armed = true;
+			btn.classList.add("armed");
+			btn.textContent = "Sure?";
+			btn.setAttribute("aria-label", "Tap again to delete this message");
+			return;
+		}
 		row.remove();
 		deleteMessage(wrap);
 	});
@@ -890,7 +912,17 @@ async function stream(path, requestBody) {
 					// A search takes seconds with nothing arriving, so the row
 					// says what is being looked up rather than sitting on dots.
 					body.classList.remove("dots");
+					reply = "";
 					body.textContent = "Searching for " + payload.q + "…";
+				} else if (event === "reading") {
+					body.classList.remove("dots");
+					reply = "";
+					body.textContent = "Reading " + payload.url.replace(/^https?:\/\//, "") + "…";
+				} else if (event === "reset") {
+					// What streamed so far was the model deciding to search,
+					// not the answer. The answer follows.
+					reply = "";
+					body.textContent = "";
 				} else if (event === "error") {
 					throw new Error(payload.error);
 				}

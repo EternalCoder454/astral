@@ -142,8 +142,15 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 	})
 	row.Append(play)
 
-	side := gtk.NewBox(gtk.OrientationVertical, 4)
+	// Across, not down. Stacked, the four of them set the height of every
+	// row, so a card holding two lines of description was built to the
+	// height of six and most of it was empty. In a row they sit beside the
+	// card at its own height, dimmed until the row is pointed at or tabbed
+	// into, which is when they are wanted.
+	side := gtk.NewBox(gtk.OrientationHorizontal, 2)
 	side.SetVAlign(gtk.AlignCenter)
+	side.AddCSSClass("card-actions")
+	row.AddCSSClass("card-row")
 	edit := gtk.NewButtonFromIconName(ui.IconEdit)
 	edit.SetTooltipText("Edit " + c.Name)
 	edit.AddCSSClass("flat")

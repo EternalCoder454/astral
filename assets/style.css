@@ -17,6 +17,27 @@
  * dimmed it is dimmed once, with an explicit colour.
  */
 
+/* ---- Type ---- */
+
+/*
+ * Adwaita Sans, the GNOME interface face drawn from Inter. Nothing set a font
+ * before, so the app took whatever the desktop used, which under KDE is Noto
+ * Sans at 10pt: sound, but soft and small for a window that is mostly long
+ * prose. Adwaita Sans is set tighter and reads cleaner at the same size.
+ *
+ * The family only, never a size in points: the size stays relative to the
+ * desktop's, so someone who has made their system text larger still gets
+ * larger text here. Inter and Cantarell follow for machines without it.
+ *
+ * On windows, popovers and tooltips, because each of those is its own surface
+ * and does not inherit from the window.
+ */
+window,
+popover,
+tooltip {
+	font-family: "Adwaita Sans", "Inter", "Cantarell", sans-serif;
+}
+
 /* ---- Shell ---- */
 
 .astral-window {
@@ -321,15 +342,19 @@ frame:focus-within {
 	padding: 10px 14px;
 }
 
+/*
+ * No outlines. A 1px border around every bubble was most of what made the
+ * transcript look boxed in: a long scene is a column of outlined rectangles.
+ * The fill alone separates a bubble from the canvas, and the fill is what the
+ * contrast work above was measuring.
+ */
 .bubble-char {
 	background-color: @astral_surface;
-	border: 1px solid alpha(@astral_border, 0.85);
 	border-top-left-radius: 6px;
 }
 
 .bubble-user {
 	background-color: @astral_user_bubble;
-	border: 1px solid alpha(@accent_bg_color, 0.6);
 	border-top-right-radius: 6px;
 }
 
@@ -345,8 +370,10 @@ frame:focus-within {
  * 1.10 measures 31px, a little air, without the lines drifting apart.
  */
 .message-body {
-	font-size: 1.0em;
-	line-height: 1.10;
+	/* A step up from the interface text, because this is the part that is
+	   read rather than scanned. */
+	font-size: 1.06em;
+	line-height: 1.12;
 	color: @window_fg_color;
 }
 
@@ -382,7 +409,7 @@ frame:focus-within {
 }
 
 .thinking-body {
-	font-family: monospace;
+	font-family: "Adwaita Mono", monospace;
 	font-size: 0.82em;
 	color: @astral_faint;
 	border-left: 2px solid @astral_border;
@@ -599,19 +626,33 @@ frame:focus-within {
 	margin: 18px 4px 8px 4px;
 }
 
-/* Character cards on the home screen and in the picker. */
+/* Character cards on the home screen and in the picker.
+ *
+ * Filled rather than outlined, like the bubbles, with the outline kept only as
+ * the hover and focus signal, where it means something. */
 .character-card {
-	padding: 12px;
+	padding: 12px 14px;
 	border-radius: 14px;
 	background-color: @astral_surface;
-	border: 1px solid @astral_border;
+	border: 1px solid transparent;
 	box-shadow: none;
 	transition: background-color 120ms ease, border-color 120ms ease;
 }
 
 .character-card:hover {
-	border-color: @accent_bg_color;
+	border-color: alpha(@accent_bg_color, 0.7);
 	background-color: alpha(@accent_bg_color, 0.12);
+}
+
+/* The actions beside a card: present, but quiet until the row is in use. */
+.card-row .card-actions {
+	opacity: 0.45;
+	transition: opacity 120ms ease;
+}
+
+.card-row:hover .card-actions,
+.card-row:focus-within .card-actions {
+	opacity: 1;
 }
 
 .character-card-name {
@@ -668,7 +709,7 @@ frame:focus-within {
 }
 
 .setup-cmd {
-	font-family: monospace;
+	font-family: "Adwaita Mono", monospace;
 	font-size: 0.84em;
 	color: @window_fg_color;
 	background-color: @astral_elevated;
@@ -753,7 +794,7 @@ frame:focus-within {
 }
 
 .keycap {
-	font-family: monospace;
+	font-family: "Adwaita Mono", monospace;
 	font-size: 0.78em;
 	padding: 2px 7px;
 	border-radius: 6px;
@@ -939,7 +980,7 @@ frame:focus-within {
 /* The pairing code, which is read off this screen and typed into a phone, so
    it is set large and spaced rather than left as body text. */
 .pair-code {
-	font-family: monospace;
+	font-family: "Adwaita Mono", monospace;
 	font-feature-settings: "tnum" 1;
 	font-size: 1.5em;
 	font-weight: 700;

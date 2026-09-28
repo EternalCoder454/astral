@@ -61,15 +61,15 @@
     <h2 class="heading">Model</h2>
     <div class="card">
       <label class="field">
-        <span>Answering with</span>
+        <span>Default Model</span>
         <select id="set-model"></select>
       </label>
       <label class="field">
-        <span>Context window</span>
+        <span>Context Size (tokens)</span>
         <input id="set-numctx" type="number" inputmode="numeric" min="512" step="512">
       </label>
       <label class="field">
-        <span>Reply limit</span>
+        <span>Reply Limit (tokens)</span>
         <input id="set-numpredict" type="number" inputmode="numeric" min="0" step="64">
       </label>
       <label class="field">
@@ -81,15 +81,15 @@
     <h2 class="heading">You</h2>
     <div class="card">
       <label class="field">
-        <span>Called</span>
+        <span>Your Name</span>
         <input id="set-persona" type="text" autocomplete="off">
       </label>
       <label class="field field-tall">
-        <span>About you</span>
+        <span>About You</span>
         <textarea id="set-persona-note" rows="3"></textarea>
       </label>
       <label class="field">
-        <span>Writing style</span>
+        <span>Writing Style</span>
         <select id="set-style"></select>
       </label>
     </div>
@@ -109,19 +109,19 @@
     <div class="rows" style="margin-top:10px">
       <button id="set-update-app" class="row" hidden>
         <span class="row-text">
-          <span class="row-title" id="set-update-title">Check for a newer app</span>
+          <span class="row-title" id="set-update-title">Check for a Newer App</span>
           <span class="row-note" id="set-update-note">Downloads it through your PC and installs it</span>
         </span>
       </button>
       <a id="set-releases" class="row" href="https://github.com/EternalCoder454/astral/releases" target="_blank" rel="noreferrer">
         <span class="row-text">
-          <span class="row-title">Releases page</span>
+          <span class="row-title">Releases Page</span>
           <span class="row-note">Every build, if you would rather install one yourself</span>
         </span>
       </a>
       <button id="set-forget" class="row row-danger">
         <span class="row-text">
-          <span class="row-title">Unpair this device</span>
+          <span class="row-title">Unpair This Device</span>
           <span class="row-note">Forgets the token. You will need a new code.</span>
         </span>
       </button>

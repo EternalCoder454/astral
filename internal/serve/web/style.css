@@ -72,6 +72,33 @@
 	--user-bubble: var(--md-primary-container);
 }
 
+/*
+ * Adwaita Sans, the same face as the window, served from the PC with the rest
+ * of this page. An Android phone does not have it, and without it the phone
+ * showed the library in Roboto while the window showed it in something else,
+ * which is the difference between one application and two.
+ *
+ * One variable file per style covers every weight. font-display swap, so the
+ * first paint uses the phone's own face rather than waiting on a download; it
+ * is fetched once and then comes from the WebView's cache. The licence is in
+ * fonts/OFL.txt beside the files, as the licence requires.
+ */
+@font-face {
+	font-family: "Adwaita Sans";
+	src: url("fonts/AdwaitaSans-Regular.ttf") format("truetype");
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: "Adwaita Sans";
+	src: url("fonts/AdwaitaSans-Italic.ttf") format("truetype");
+	font-weight: 100 900;
+	font-style: italic;
+	font-display: swap;
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -80,7 +107,7 @@ html, body {
 	overflow: hidden;
 	background: var(--canvas);
 	color: var(--text);
-	font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	font: 16px/1.5 "Adwaita Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 	-webkit-text-size-adjust: 100%;
 }
 
@@ -702,6 +729,17 @@ a.row { text-decoration: none; }
 
 .msg-action.danger {
 	color: var(--md-error, #ef9aa0);
+}
+
+/* The second tap: wide enough to read, and filled so it is plainly different
+   from the button that was there a moment ago. */
+.msg-action.danger.armed {
+	width: auto;
+	padding: 0 14px;
+	font-size: 0.875rem;
+	font-weight: 600;
+	background: var(--md-error, #ef9aa0);
+	color: #3b0d0a;
 }
 
 .msg-action .tab-icon {
