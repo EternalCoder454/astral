@@ -77,6 +77,7 @@ func (a *App) buildWorldFromChat() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), buildTimeout)
 		defer cancel()
+		opts := fitBuild(ctx, client, model, store.KindWorldDesigner, opts, history)
 		draft, err := world.BuildFromConversation(ctx, client, model, history, opts)
 
 		coreglib.IdleAdd(func() bool {

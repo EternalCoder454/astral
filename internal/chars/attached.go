@@ -13,9 +13,11 @@ import (
 // and building the result from the chat reads it, all without anything but the
 // transcript to go on. On screen the block is folded to a line naming the file.
 
-// MaxAttachedChars is how much of one file is sent: about ten thousand tokens,
-// a long document that still leaves the conversation room in the context.
-const MaxAttachedChars = 40000
+// MaxAttachedChars is how much of one file is sent: about fifty thousand
+// tokens, a short novel's worth. The chats that take files widen their context
+// window to hold what is in them (scene.FitContext), up to 131072 tokens, so a
+// file this long still leaves the conversation room.
+const MaxAttachedChars = 200000
 
 const (
 	fileOpen  = "<<<file: "
@@ -40,8 +42,7 @@ func ReadAttachable(data []byte) (text string, cut bool, err error) {
 	if strings.ContainsRune(string(sniff), 0) || !utf8.Valid(data) {
 		return "", false, fmt.Errorf("it is not a text file")
 	}
-	text = strings.TrimPrefix(string(data), "\ufeff")
-	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = compactText(strings.TrimPrefix(string(data), "\ufeff"))
 	if strings.TrimSpace(text) == "" {
 		return "", false, fmt.Errorf("it is empty")
 	}
@@ -97,4 +98,28 @@ func wordCount(n int) string {
 		s = s[:i] + "," + s[i:]
 	}
 	return s + " words"
+}
+
+// compactText takes out what costs tokens and says nothing: Windows line
+// endings, spaces at the ends of lines, and runs of blank lines, which
+// exported notes and documents are full of. Indentation is kept, since in code
+// and in nested lists it means something.
+func compactText(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	lines := strings.Split(s, "\n")
+	out := lines[:0]
+	blank := 0
+	for _, l := range lines {
+		l = strings.TrimRight(l, " \t\r")
+		if l == "" {
+			blank++
+			if blank > 1 {
+				continue
+			}
+		} else {
+			blank = 0
+		}
+		out = append(out, l)
+	}
+	return strings.Join(out, "\n")
 }

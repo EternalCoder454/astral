@@ -286,7 +286,9 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat,
 	// the phone would be told it can search, by the same assembler, and then be
 	// handed no tool to do it with: the model would claim to have looked something
 	// up and have looked nothing up.
-	if runner := scene.Runner(s.client(), cfg, s.store, ch.Kind, model, scene.OptionsFor(cfg, ch.Kind), &noThink); runner != nil {
+	// Room for the whole conversation, as on the PC; see scene.FitContext.
+	opts := scene.FitContext(ctx, s.client(), model, ch.Kind, scene.OptionsFor(cfg, ch.Kind), msgs)
+	if runner := scene.Runner(s.client(), cfg, s.store, ch.Kind, model, opts, &noThink); runner != nil {
 		runner.KeepPage = func(r websearch.Round) { scene.KeepPage(s.store, cfg, r) }
 		// The phone is told to clear what it has shown, the same as the window.
 		// On this goroutine, which is the one writing the response, so nothing
@@ -312,7 +314,7 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat,
 		}
 		reply, stats, rounds, err = runner.Run(ctx, msgs, onDelta)
 	} else {
-		reply, stats, err = s.client().Chat(ctx, model, msgs, scene.OptionsFor(cfg, ch.Kind), &noThink, onDelta)
+		reply, stats, err = s.client().Chat(ctx, model, msgs, opts, &noThink, onDelta)
 	}
 	flush(true)
 	// A loop stopped by the server keeps what came before it, as the window

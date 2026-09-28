@@ -48,8 +48,12 @@ chats: notes in a .md file, a character sheet from somewhere else, a world
 bible. Drop them on the chat, paste a file copied in your file manager, or use
 the attach button; up to five go with one message. A long paste becomes a file
 too, rather than filling the message box. The model reads all of it, on every
-turn after, and the chat shows each as one line with its name. About forty
-thousand characters of a file are sent, which leaves the conversation room.
+turn after, and the chat shows each as one line with its name. A file can run
+to 200,000 characters, and runs of blank lines and trailing spaces are taken
+out on the way in. These chats keep their whole conversation rather than
+folding old turns into a recap, so their context window grows to hold it, in
+steps up to 131,072 tokens or the model's own limit: a 120,000 character file
+arrives whole, start, middle and end.
 
 **Scenes.** Pick a character and start playing. Astral keeps the transcript,
 remembers which model a scene was started with, and reopens where you left off.
@@ -76,7 +80,8 @@ your name. Each has a name, an age, a gender, a race, an appearance, a
 personality, a background and anything else in a field of its own, which is how
 they reach the characters: as what they see and know about you. New chats are
 played as the persona in use, every chat remembers who it was started as, and
-the button beside the model in a scene changes who you are in it. The Persona
+the button beside the model in a scene changes who you are in it. Each can have a
+picture, shown beside your messages and under your name. The Persona
 Creator builds one with you the way the character designer builds a character.
 The persona you had before there could be several became the first, and your
 earlier scenes are still played as it.

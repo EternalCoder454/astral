@@ -295,6 +295,7 @@ func (a *App) buildStyleFromChat() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), buildTimeout)
 		defer cancel()
+		opts := fitBuild(ctx, client, model, store.KindStyleDesigner, opts, history)
 		st, err := chars.BuildStyleFromConversation(ctx, client, model, history, opts)
 
 		coreglib.IdleAdd(func() bool {

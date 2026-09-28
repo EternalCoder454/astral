@@ -111,7 +111,9 @@ var seeingOptions = ollama.Options{
 	TopP:          0.9,
 	RepeatPenalty: 1.05,
 	NumCtx:        8192,
-	NumPredict:    1200,
+	// Room for the long reading the prompt asks for: a person described
+	// head to foot, clothes layer by layer, runs past a thousand tokens.
+	NumPredict: 2000,
 }
 
 // Describe has seer look at a picture and write down what it shows, for a chat

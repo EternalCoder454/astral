@@ -26,14 +26,15 @@ func (s *Store) migratePersonas() {
 		updated_at  INTEGER NOT NULL DEFAULT 0
 	)`)
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN persona_id INTEGER NOT NULL DEFAULT 0`)
+	s.db.Exec(`ALTER TABLE personas ADD COLUMN avatar_path TEXT NOT NULL DEFAULT ''`)
 }
 
-const personaColumns = `id, name, age, gender, race, appearance, personality, background, details, accent`
+const personaColumns = `id, name, age, gender, race, appearance, personality, background, details, accent, avatar_path`
 
 func scanPersona(row interface{ Scan(...any) error }) (chars.Profile, error) {
 	var p chars.Profile
 	err := row.Scan(&p.ID, &p.Name, &p.Age, &p.Gender, &p.Race, &p.Appearance, &p.Personality,
-		&p.Background, &p.Details, &p.Accent)
+		&p.Background, &p.Details, &p.Accent, &p.AvatarPath)
 	return p, err
 }
 
@@ -72,19 +73,21 @@ func (s *Store) SavePersona(p chars.Profile) (int64, error) {
 	now := unix(time.Now())
 	if p.ID == 0 {
 		res, err := s.db.Exec(`INSERT INTO personas
-			(name, age, gender, race, appearance, personality, background, details, accent, created_at, updated_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+			(name, age, gender, race, appearance, personality, background, details, accent, avatar_path,
+			 created_at, updated_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
 			p.Name, p.Age, p.Gender, p.Race, p.Appearance, p.Personality, p.Background, p.Details,
-			p.Accent, now, now)
+			p.Accent, p.AvatarPath, now, now)
 		if err != nil {
 			return 0, err
 		}
 		return res.LastInsertId()
 	}
 	_, err := s.db.Exec(`UPDATE personas SET name = ?, age = ?, gender = ?, race = ?, appearance = ?,
-		personality = ?, background = ?, details = ?, accent = ?, updated_at = ? WHERE id = ?`,
+		personality = ?, background = ?, details = ?, accent = ?, avatar_path = ?, updated_at = ?
+		WHERE id = ?`,
 		p.Name, p.Age, p.Gender, p.Race, p.Appearance, p.Personality, p.Background, p.Details,
-		p.Accent, now, p.ID)
+		p.Accent, p.AvatarPath, now, p.ID)
 	return p.ID, err
 }
 

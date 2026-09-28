@@ -28,6 +28,15 @@ func NewCharacterAvatar(c chars.Character, size int) gtk.Widgetter {
 	return NewAvatar(c.Initial(), c.Accent, size)
 }
 
+// NewPersonaAvatar is one of your personas' pictures, or your initial on the
+// clay disc when it has none.
+func NewPersonaAvatar(p chars.Profile, size int) gtk.Widgetter {
+	if pic := loadCropped(p.AvatarPath, size); pic != nil {
+		return pic
+	}
+	return NewUserAvatar(firstLetter(p.DisplayName()), size)
+}
+
 // loadCropped builds a square, rounded avatar image, or nil when the path is
 // empty or unreadable.
 //

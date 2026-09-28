@@ -23,6 +23,9 @@ type Profile struct {
 	// Details is anything else: a free field for what fits none of the others.
 	Details string
 	Accent  int
+	// AvatarPath is your picture, shown beside your messages and under the
+	// sidebar in place of your initial.
+	AvatarPath string
 }
 
 // Description is the profile written out for the model, one labelled part per

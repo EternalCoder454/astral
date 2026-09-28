@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+
 	"astral/internal/chars"
 	"astral/internal/store"
 )
@@ -30,13 +32,27 @@ func (c *ChatView) youName() string {
 	return chars.DefaultPersonaName
 }
 
-// loadPersona finds the persona the chat on screen was started with.
+// loadPersona finds the persona the chat on screen was started with, or the
+// one in use by default for a chat that has none, whose picture the rows need
+// as much as its name.
 func (c *ChatView) loadPersona() {
 	c.youProfile, c.youSet = chars.Profile{}, false
-	if c.chat.PersonaID != 0 && c.PersonaFor != nil {
-		c.youProfile, c.youSet = c.PersonaFor(c.chat.PersonaID)
+	id := c.chat.PersonaID
+	if id == 0 {
+		id = c.cfg.ActivePersona
+	}
+	if id != 0 && c.PersonaFor != nil {
+		c.youProfile, c.youSet = c.PersonaFor(id)
 	}
 	c.refreshPersonaChip()
+}
+
+// youAvatar is your picture beside a message, or nil for the initial.
+func (c *ChatView) youAvatar() gtk.Widgetter {
+	if !c.youSet || c.youProfile.AvatarPath == "" {
+		return nil
+	}
+	return NewPersonaAvatar(c.youProfile, avatarSize)
 }
 
 // recordPersona writes down who a chat that has just been created is played as.

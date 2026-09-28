@@ -397,6 +397,12 @@ func (c *ChatView) startStream() {
 		// than on the UI thread because finding it may mean asking the
 		// embedding model for a vector.
 		msgs := scene.WithKnowledge(ctx, st, client, cfg, kind, msgs, hist)
+		// A conversation that has outgrown its window, a long file attached
+		// to a designer most often, gets a wider one; see scene.FitContext.
+		opts := scene.FitContext(ctx, client, model, kind, opts, msgs)
+		if searcher != nil {
+			searcher.Options = opts
+		}
 		// A copy for the Prompt Optimizer, as it goes out.
 		scene.RecordSent(chatNow, group, msgs)
 		if searcher != nil {

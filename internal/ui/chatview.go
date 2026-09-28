@@ -326,6 +326,10 @@ func (c *ChatView) Widget() gtk.Widgetter { return c.root }
 func (c *ChatView) SetConfig(cfg store.Config) {
 	c.cfg = cfg
 	c.refreshModelChip()
+	if c.chat.PersonaID == 0 {
+		// Played as whoever is in use, which may just have changed.
+		c.loadPersona()
+	}
 	c.refreshPersonaChip()
 }
 
@@ -792,6 +796,11 @@ func (c *ChatView) newRow(speaker int64, role, text, thinking string, id int64, 
 	// the decoded texture behind the filename.
 	if role != ollama.RoleUser && !grouped && face.AvatarPath != "" {
 		opts.Avatar = NewCharacterAvatar(face, avatarSize)
+	}
+	if role == ollama.RoleUser && !grouped {
+		if pic := c.youAvatar(); pic != nil {
+			opts.Avatar = pic
+		}
 	}
 	row := NewMessageRow(opts)
 	row.ID = id

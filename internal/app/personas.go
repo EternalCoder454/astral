@@ -11,6 +11,7 @@ import (
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
+	"astral/internal/scene"
 	"astral/internal/store"
 	"astral/internal/ui"
 )
@@ -100,13 +101,13 @@ func (a *App) refreshProfile() {
 	if a.sidebar == nil {
 		return
 	}
-	facts := ""
+	facts, picture := "", ""
 	if a.store != nil && a.cfg.ActivePersona != 0 {
 		if p, err := a.store.Persona(a.cfg.ActivePersona); err == nil {
-			facts = p.Facts()
+			facts, picture = p.Facts(), p.AvatarPath
 		}
 	}
-	a.sidebar.SetProfile(a.cfg.PersonaName, facts)
+	a.sidebar.SetProfile(a.cfg.PersonaName, facts, picture)
 }
 
 // useByDefault makes a persona the one new chats are played as.
@@ -203,7 +204,7 @@ func (a *App) personaCard(p chars.Profile, parent *adw.Dialog) *gtk.Button {
 	btn.AddCSSClass("character-card")
 	col := gtk.NewBox(gtk.OrientationVertical, 3)
 	head := gtk.NewBox(gtk.OrientationHorizontal, 8)
-	head.Append(ui.NewUserAvatar(firstRune(p.DisplayName()), 26))
+	head.Append(ui.NewPersonaAvatar(p, 26))
 	name := gtk.NewLabel(p.DisplayName())
 	name.SetXAlign(0)
 	name.SetHExpand(true)
@@ -307,6 +308,10 @@ func (a *App) editPersona(p chars.Profile) {
 	page.Append(hint)
 
 	page.Append(labelledField("Name", "Characters call you this, and it replaces {{user}} in their cards.", name))
+	page.Append(a.imageField("Picture", "Shown beside your messages and under your name in the sidebar. A face works best.",
+		"persona",
+		func() string { return p.AvatarPath },
+		func(path string) { p.AvatarPath = path }))
 	facts := gtk.NewBox(gtk.OrientationHorizontal, 10)
 	facts.SetHomogeneous(true)
 	facts.Append(labelledField("Age", "", age))
@@ -460,6 +465,7 @@ func (a *App) buildPersonaFromChat() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), buildTimeout)
 		defer cancel()
+		opts := fitBuild(ctx, client, model, store.KindPersonaDesigner, opts, history)
 		p, err := chars.BuildPersonaFromConversation(ctx, client, model, history, opts)
 		coreglib.IdleAdd(func() bool {
 			a.chat.SetBuilding(false)
@@ -473,9 +479,12 @@ func (a *App) buildPersonaFromChat() {
 	}()
 }
 
-func firstRune(s string) string {
-	for _, r := range s {
-		return strings.ToUpper(string(r))
-	}
-	return "?"
+// fitBuild gives a build the window its conversation needs, with room for the
+// designer's prompt and the build instruction, which are sent around it.
+func fitBuild(ctx context.Context, client *ollama.Client, model, kind string, opts ollama.Options, history []ollama.Message) ollama.Options {
+	msgs := append([]ollama.Message{{Role: ollama.RoleSystem, Content: strings.Repeat(" ", 8000)}}, history...)
+	sizing := opts
+	sizing.NumPredict = max(opts.NumPredict, 2048) // a build writes a whole card
+	opts.NumCtx = scene.FitContext(ctx, client, model, kind, sizing, msgs).NumCtx
+	return opts
 }

@@ -257,6 +257,7 @@ func (a *App) buildCharacterFromChat() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), buildTimeout)
 		defer cancel()
+		opts := fitBuild(ctx, client, model, store.KindDesigner, opts, history)
 		c, err := chars.BuildFromConversation(ctx, client, model, history, opts)
 
 		coreglib.IdleAdd(func() bool {

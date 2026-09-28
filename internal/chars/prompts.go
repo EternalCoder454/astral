@@ -123,14 +123,28 @@ var (
 
 	promptSeeingDesign = prompts.Register(prompts.Prompt{
 		ID: "pictures.design", Name: "Reading a Picture for a Design", Group: "Pictures",
-		About: "Sent to a model that can see, with a picture from a design chat, when the chat's own model " +
-			"cannot. Its description goes into the conversation in place of the picture.",
+		About: "Sent to the picture reader (the Image Model, or a model that can see when the chat's own " +
+			"cannot) with a picture from a design chat. Its description goes into the conversation in " +
+			"place of the picture.",
 		Default: seeingForDesign,
 	})
 	promptSeeingChat = prompts.Register(prompts.Prompt{
 		ID: "pictures.chat", Name: "Reading a Picture for a Chat", Group: "Pictures",
 		About:   "The same, for a picture sent into a plain conversation.",
 		Default: seeingForChat,
+	})
+	promptSeeingAsk = prompts.Register(prompts.Prompt{
+		ID: "pictures.ask", Name: "Asking About a Picture", Group: "Pictures",
+		About: "The message a picture is sent to the picture reader with, when nothing was written " +
+			"with the picture. The system prompt above it says how to describe it.",
+		Default: seeingAsk,
+	})
+	promptSeeingAskWith = prompts.Register(prompts.Prompt{
+		ID: "pictures.ask-with", Name: "Asking About a Picture With a Message", Group: "Pictures",
+		About: "The same, when something was written with the picture. {{message}} becomes what was " +
+			"written, so a question about the picture is answered first.",
+		Slots:   []string{"{{message}}"},
+		Default: seeingAskWith,
 	})
 
 	promptRecord = prompts.Register(prompts.Prompt{

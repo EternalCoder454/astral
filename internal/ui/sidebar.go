@@ -12,6 +12,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 
+	"astral/internal/chars"
 	"astral/internal/store"
 )
 
@@ -74,6 +75,7 @@ type Sidebar struct {
 	OnCreatePersona func()
 	OnUsePersona    func(id int64)
 	personaBox      *gtk.Box
+	profileShown    string
 	// OnAbout opens the about dialog from the profile menu.
 	OnAbout func()
 	// OnStyles opens the writing styles list.
@@ -201,7 +203,7 @@ func NewSidebar() *Sidebar {
 	foot.Append(gear)
 
 	s.widget.Append(foot)
-	s.SetProfile("", "")
+	s.SetProfile("", "", "")
 
 	return s
 }
@@ -250,14 +252,21 @@ func (s *Sidebar) buildProfileMenu() *gtk.Popover {
 // The model used to be shown here too, which meant it was on screen twice:
 // once under your name, where it has nothing to do with you, and again on the
 // composer where it is actually actionable. This one is gone.
-func (s *Sidebar) SetProfile(name, subtitle string) {
+func (s *Sidebar) SetProfile(name, subtitle, picture string) {
+	// Called whenever the list is refreshed, twice a turn, and the picture is
+	// read and scaled each time it is drawn: unchanged, it is left alone.
+	if shown := name + "\x00" + subtitle + "\x00" + picture; shown == s.profileShown {
+		return
+	} else {
+		s.profileShown = shown
+	}
 	unnamed := name == ""
 	if unnamed {
 		name = "You"
 	}
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 8)
-	box.Append(NewUserAvatar(firstLetter(name), 26))
+	box.Append(NewPersonaAvatar(chars.Profile{Name: name, AvatarPath: picture}, 26))
 	col := gtk.NewBox(gtk.OrientationVertical, 0)
 	col.SetVAlign(gtk.AlignCenter)
 	col.SetHExpand(true)

@@ -44,3 +44,10 @@ func TestSummaryForFillsInNames(t *testing.T) {
 		t.Errorf("SummaryFor = %q", got)
 	}
 }
+
+func TestAttachedTextIsCompacted(t *testing.T) {
+	text, _, err := ReadAttachable([]byte("# Notes   \r\n\r\n\r\n\r\n  - indented item\t\r\nend"))
+	if err != nil || text != "# Notes\n\n  - indented item\nend" {
+		t.Errorf("got %q, %v", text, err)
+	}
+}
