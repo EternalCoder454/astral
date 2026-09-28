@@ -3,6 +3,14 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.4
+- Optimize All: the Prompt Optimizer goes through every prompt with one model, and you review each rewrite
+- The optimizer keeps every rule and measured phrase, and Save warns about slots, markers and dashes
+- The designers stay short, ask two questions at most, and hand over to the button when you say build it
+- Every chat but a scene can search the web, prefers reputable sources, and saves what it finds to Knowledge
+- Long replies stream smoothly to the end, where they used to slow the window down as they grew
+- The chat list redraws about eight times faster, and revising a style keeps what it is revising
+
 ## 0.5.3
 - Prompt Optimizer: a design chat that improves any of Astral's prompts, or one of your own
 - It can read every prompt Astral sends, and the last request of each kind exactly as it went out
