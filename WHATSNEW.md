@@ -3,6 +3,11 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.20
+- Phone: Read Aloud in a reply's More, in your phone's own voice, once the app has updated
+- Phone: Settings can read every reply as it arrives, and read only what the characters say aloud
+- Lorebook entries bring in the entries they mention, so a name in one sends what is known about it
+
 ## 0.5.19
 - Write for Me drafts your next message in your own voice and length, and never sends it for you
 - Type something first and the same button rewrites it better; on your last message, Rewrite re-answers it too
