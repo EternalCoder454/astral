@@ -32,8 +32,10 @@ import (
 // extra lines for a design chat.
 const seeingSheet = `Write what you see as a sheet of labelled lines, one label per line, in this order, and nothing else. After each label, as many concrete details as it takes to be specific: several details on a line, never a single adjective.
 
+Only what is actually visible. A part that is covered, turned away, in shadow or out of frame, such as a face behind a mask or visor, is cannot be seen, never a guess at what is probably there.
+
 Type: photograph, anime or manga, western cartoon, digital painting, 3D render or sketch, and the framing (close up, half body, full body, from above or below).
-Name: a fictional character from a film, game, anime or book that you recognise, and from what. Anyone else is unknown, and a real person in a photograph is always unknown, however famous: describe them as a new person with that look.
+Name: when the Type is a photograph, always unknown, however famous the person may be. Otherwise a fictional character from a film, game, anime or book that you recognise, and from what, or unknown.
 Age: apparent age as a range, such as late twenties to early thirties.
 Gender: gender presentation.
 Race: ethnicity or skin tone in plain words, or the species if not human.
@@ -50,7 +52,7 @@ Not Human: ears, horns, tail, wings, unusual eyes or skin, prosthetics, cybernet
 Setting: where they are, the lighting, the colours, the mood, and what is happening.
 Text: any writing in the image, quoted exactly, or none.%s
 
-If a part cannot be made out, such as eye colour in shadow or anything cropped out of frame, write cannot be seen after its label rather than guessing. Say what is seen, not what is usually true.
+Say what is seen, not what is usually true.
 Several people: a whole sheet for each, headed Person 1, Person 2 and so on from left to right, then a last line, Together: how they stand in relation to one another and what they are doing together.
 No person or anything humanlike: Type, Subject, Style, Setting, Colours, Mood and Text, each as specific.
 
