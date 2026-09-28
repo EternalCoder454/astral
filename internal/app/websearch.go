@@ -48,8 +48,10 @@ func (a *App) buildWebSearch(f *settingsForm) *gtk.Box {
 	f.webSearch.SetActive(a.cfg.WebSearch)
 	card.Append(f.webSearch)
 
-	hint := wrappingLabel("For General Chat and the three designers only, never in a scene. " +
-		"The model decides when it needs to search, and may open a result to read it. What leaves " +
+	hint := wrappingLabel("For every conversation except a scene: General Chat, the designers and the " +
+		"Prompt Optimizer. The model decides when it needs to search, prefers primary and reputable " +
+		"sources, and may open a result to read it. What it finds worth keeping it can save to " +
+		"Knowledge. What leaves " +
 		"this machine is the words it searches for and the pages it opens: no part of your " +
 		"conversation, your characters or your worlds.")
 	hint.AddCSSClass("settings-hint")

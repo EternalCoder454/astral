@@ -2,7 +2,6 @@ package app
 
 import (
 	"log"
-	"regexp"
 	"strings"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
@@ -66,6 +65,7 @@ func (a *App) showPrompts() {
 		"everywhere that prompt is sent, and the original can always be put back.")
 	about.AddCSSClass("settings-hint")
 	page.Append(about)
+	page.Append(a.optimizeAllRow(d))
 
 	search := gtk.NewSearchEntry()
 	search.SetPlaceholderText("Search the prompts")
@@ -236,28 +236,6 @@ func (a *App) editPrompt(id string) {
 	d.Present(a.win)
 }
 
-// placeholder finds what a prompt has filled in for it: the names the scene
-// prompts substitute, and the slots of the group framing.
-var placeholder = regexp.MustCompile(`\{\{[a-z]+\}\}|%\[\d\]s`)
-
-// missingPlaceholders lists what the original fills in and the rewrite has
-// dropped. A prompt without {{char}} still reads, and quietly stops saying who
-// the model is playing.
-func missingPlaceholders(original, rewrite string) []string {
-	var out []string
-	seen := map[string]bool{}
-	for _, ph := range placeholder.FindAllString(original, -1) {
-		if seen[ph] {
-			continue
-		}
-		seen[ph] = true
-		if !strings.Contains(rewrite, ph) {
-			out = append(out, ph)
-		}
-	}
-	return out
-}
-
 // savePrompt stores your version of a prompt. The same text as Astral's is not
 // a version of it, so saving that puts the original back instead.
 func (a *App) savePrompt(id, text string) bool {
@@ -347,9 +325,8 @@ func (a *App) savePromptFromChat() {
 		"and the original can be put back from Prompts at any time.")
 	hint.AddCSSClass("settings-hint")
 	page.Append(hint)
-	if missing := missingPlaceholders(p.Default, proposal); len(missing) > 0 {
-		warn := wrappingLabel("The original uses " + strings.Join(missing, ", ") + ", and this does not. " +
-			"Astral fills those in with names, so without them the prompt stops saying who is who.")
+	for _, problem := range promptopt.ProblemsFor(p, proposal) {
+		warn := wrappingLabel(problem)
 		warn.AddCSSClass("warning-hint")
 		page.Append(warn)
 	}

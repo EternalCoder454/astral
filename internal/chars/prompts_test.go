@@ -47,3 +47,16 @@ func TestEveryPromptIsDescribed(t *testing.T) {
 		}
 	}
 }
+
+// A protected phrase that is not in the prompt it protects would flag every
+// rewrite, including the original itself.
+func TestAnchorsAreInTheirPrompts(t *testing.T) {
+	norm := func(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }
+	for _, p := range prompts.All() {
+		for _, a := range p.Anchors {
+			if !strings.Contains(norm(p.Default), norm(a)) {
+				t.Errorf("%s protects %q, which it does not say", p.ID, a)
+			}
+		}
+	}
+}

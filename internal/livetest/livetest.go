@@ -79,6 +79,16 @@ func Model(t testing.TB, client *ollama.Client, installed []ollama.Model) string
 // Check is Model's decision, without the test around it, so the rules can be
 // tested themselves and so a harness that is not a test can ask the same
 // question.
+// aloneHeadroom and aloneReserve are the margins for a large model loaded on
+// its own: its cache on top of its weights, and room for the desktop.
+const (
+	aloneHeadroom = 1.05
+	aloneReserve  = 1 << 30
+)
+
+// readVRAM is gpu.Read, swapped out by the tests.
+var readVRAM = gpu.Read
+
 func Check(client *ollama.Client, installed []ollama.Model, model string, allowLarge bool) error {
 	if model == "" {
 		return fmt.Errorf("live tests need ASTRAL_TEST_MODEL; they never choose a model themselves")
@@ -98,14 +108,25 @@ func Check(client *ollama.Client, installed []ollama.Model, model string, allowL
 			model, float64(size)/(1<<30), SmallModel>>30)
 	}
 	// Already resident: running against it costs no more memory.
+	var loaded []ollama.Loaded
 	if client != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-		loaded, err := client.Running(ctx)
+		l, err := client.Running(ctx)
 		cancel()
 		if err == nil {
-			if _, ok := ollama.FindLoaded(loaded, model); ok {
+			if _, ok := ollama.FindLoaded(l, model); ok {
 				return nil
 			}
+			loaded = l
+		}
+	}
+	// A large model asked for by name, alone on the card, is the model the
+	// person runs every day: it was two resident together that crashed the
+	// desktop, not one. So with nothing else loaded, it only has to fit with a
+	// gigabyte left for the desktop, the margin their own use of it leaves.
+	if allowLarge && client != nil && len(loaded) == 0 {
+		if m, ok := readVRAM(); ok && m.Free() >= uint64(float64(size)*aloneHeadroom)+aloneReserve {
+			return nil
 		}
 	}
 	if !gpu.Fits(uint64(float64(size) * headroom)) {

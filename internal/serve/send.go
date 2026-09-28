@@ -286,39 +286,33 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat,
 	// the phone would be told it can search, by the same assembler, and then be
 	// handed no tool to do it with: the model would claim to have looked something
 	// up and have looked nothing up.
-	if scene.Searchable(cfg) && scene.CanSearch(ch.Kind) {
-		runner := &websearch.Runner{
-			Client:   s.client(),
-			Provider: scene.SearchProvider(cfg),
-			Fetcher:  scene.Fetcher(),
-			KeepPage: func(r websearch.Round) { scene.KeepPage(s.store, cfg, r) },
-			// The phone is told to clear what it has shown, the same as the
-			// window. On this goroutine, which is the one writing the
-			// response, so nothing else is mid-write.
-			OnDiscard: func() {
-				pending.Reset()
-				sofar.Reset()
-				think = ollama.ThinkStream{}
-				send("reset", map[string]string{})
-			},
-			Model:   model,
-			Options: scene.Options(cfg),
-			Think:   &noThink,
-			Results: cfg.SearchResults,
-			OnRound: func(r websearch.Round) {
-				// Said as it happens, because a search is the one part of a turn
-				// where nothing arrives for several seconds and the phone would
-				// otherwise look stuck.
-				if r.Opened != "" {
-					send("reading", map[string]string{"url": r.Opened})
-					return
-				}
+	if runner := scene.Runner(s.client(), cfg, s.store, ch.Kind, model, scene.OptionsFor(cfg, ch.Kind), &noThink); runner != nil {
+		runner.KeepPage = func(r websearch.Round) { scene.KeepPage(s.store, cfg, r) }
+		// The phone is told to clear what it has shown, the same as the window.
+		// On this goroutine, which is the one writing the response, so nothing
+		// else is mid-write.
+		runner.OnDiscard = func() {
+			pending.Reset()
+			sofar.Reset()
+			think = ollama.ThinkStream{}
+			send("reset", map[string]string{})
+		}
+		// Said as it happens, because a tool is the one part of a turn where
+		// nothing arrives for several seconds and the phone would otherwise look
+		// stuck.
+		runner.OnRound = func(r websearch.Round) {
+			switch {
+			case r.Note != "":
+				send("working", map[string]string{"say": r.Note})
+			case r.Opened != "":
+				send("reading", map[string]string{"url": r.Opened})
+			default:
 				send("searching", map[string]string{"q": r.Query})
-			},
+			}
 		}
 		reply, stats, rounds, err = runner.Run(ctx, msgs, onDelta)
 	} else {
-		reply, stats, err = s.client().Chat(ctx, model, msgs, scene.Options(cfg), &noThink, onDelta)
+		reply, stats, err = s.client().Chat(ctx, model, msgs, scene.OptionsFor(cfg, ch.Kind), &noThink, onDelta)
 	}
 	flush(true)
 	// A loop stopped by the server keeps what came before it, as the window

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
@@ -82,6 +83,9 @@ func (a *App) runDevView() {
 	// A delay rather than an idle callback: some of these surfaces are dialogs
 	// presented over the window, and they need the window mapped first.
 	coreglib.TimeoutAdd(400, func() bool {
+		if os.Getenv("ASTRAL_DEV_FRAMES") != "" {
+			a.devTimeFrames()
+		}
 		// Split first, then lowercase only the name: the argument can be a
 		// filesystem path, and lowercasing the whole value turned one into a
 		// path that does not exist.
@@ -196,6 +200,11 @@ func (a *App) runDevView() {
 		case "load":
 			n, _ := strconv.Atoi(arg)
 			a.devLoad(n)
+		case "stream":
+			a.devStream(arg)
+		case "sidebar":
+			n, _ := strconv.Atoi(arg)
+			a.devSidebar(n)
 		}
 		return false
 	})
@@ -302,6 +311,95 @@ func (a *App) devLoad(n int) {
 	} else {
 		log.Printf("astral: load: OK every message accounted for")
 	}
+}
+
+// devStream opens the most recent chat and sends a message into it, logging how
+// long the reply took to arrive and finish on screen. With ASTRAL's model
+// pointed at a fake server that streams at a known rate, it is the workload for
+// profiling a reply being written, which is the part of the app people watch.
+func (a *App) devStream(text string) {
+	if text == "" {
+		text = "Go on."
+	}
+	chats, err := a.store.Chats()
+	if err != nil || len(chats) == 0 {
+		log.Printf("astral: stream: no chat to send into")
+		return
+	}
+	if err := a.openChat(chats[0].ID); err != nil {
+		log.Printf("astral: stream: %v", err)
+		return
+	}
+	prev := a.chat.OnReplyDone
+	start := time.Now()
+	a.chat.OnReplyDone = func(title, reply string) {
+		log.Printf("astral: stream: reply of %d characters done in %v",
+			len(reply), time.Since(start).Round(time.Millisecond))
+		if prev != nil {
+			prev(title, reply)
+		}
+	}
+	a.chat.DevSend(text)
+}
+
+// devSidebar rebuilds the chat list n times and reports how long a rebuild
+// takes, which is what happens every time a message reorders the list.
+func (a *App) devSidebar(n int) {
+	if n <= 0 {
+		n = 30
+	}
+	chats, err := a.store.Chats()
+	if err != nil {
+		return
+	}
+	var total time.Duration
+	for i := 0; i < n; i++ {
+		a.sidebar.DevForgetSignature()
+		start := time.Now()
+		a.sidebar.SetChats(chats)
+		total += time.Since(start)
+	}
+	log.Printf("astral: sidebar: %d chats, rebuilt %d times, %v each",
+		len(chats), n, (total / time.Duration(n)).Round(10*time.Microsecond))
+}
+
+// devTimeFrames logs every frame that takes longer than a sixtieth of a second
+// to lay out and draw, and a summary every few seconds. A frame is what the
+// person sees stall, so this is the number a profile has to be read against:
+// CPU spent where no frame was waiting on it is CPU nobody notices.
+func (a *App) devTimeFrames() {
+	clock := gdk.BaseFrameClock(gtk.BaseWidget(a.win).FrameClock())
+	if clock == nil {
+		log.Printf("astral: frames: no frame clock yet")
+		return
+	}
+	var start time.Time
+	var frames, slow int
+	var worst, total time.Duration
+	clock.ConnectUpdate(func() { start = time.Now() })
+	clock.ConnectAfterPaint(func() {
+		if start.IsZero() {
+			return
+		}
+		d := time.Since(start)
+		frames++
+		total += d
+		if d > worst {
+			worst = d
+		}
+		if d > 16*time.Millisecond {
+			slow++
+			log.Printf("astral: frames: a frame took %v", d.Round(time.Millisecond))
+		}
+	})
+	coreglib.TimeoutAdd(3000, func() bool {
+		if frames > 0 {
+			log.Printf("astral: frames: %d frames, %d over 16ms, worst %v, mean %v",
+				frames, slow, worst.Round(time.Millisecond), (total / time.Duration(frames)).Round(100*time.Microsecond))
+		}
+		frames, slow, worst, total = 0, 0, 0, 0
+		return true
+	})
 }
 
 // devIcons reports which bundled icons the theme can actually resolve. A name

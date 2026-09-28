@@ -16,13 +16,25 @@ var (
 		About: "The opening of every one-on-one scene's system prompt. After it come the writing style " +
 			"(under HOW TO WRITE IT), the Scene Rules prompt, and then the character's card, the world, " +
 			"the lorebook and the recap.",
-		Keep:    keepFormat + "{{char}} becomes the character's name and {{user}} yours.",
+		Keep: keepFormat + "{{char}} becomes the character's name and {{user}} yours. The swearing line is " +
+			"there on purpose: it only applies to a character who swears, and it says swearing lands on " +
+			"frustration and emphasis rather than on the person. Length belongs to the writing style, not here.",
 		Default: framingStructure,
+		Anchors: []string{
+			"Never write, decide, or narrate {{user}}'s words, thoughts, or actions",
+			"do not end the scene on your own",
+			"If {{char}} swears",
+			"not on the person they are talking to",
+			"never *as {{user}} came in*",
+			"there is no third kind",
+			`*...* "..."`,
+		},
 	})
 	promptFramingClose = prompts.Register(prompts.Prompt{
 		ID: "scene.close", Name: "Scene Rules", Group: "Scenes",
 		About: "A line sent after the writing style in every scene, one-on-one or group, so a style " +
 			"cannot talk its way past it.",
+		Slots:   []string{"{{char}}", "{{user}}"},
 		Default: framingClose,
 	})
 	promptGroup = prompts.Register(prompts.Prompt{
@@ -33,6 +45,14 @@ var (
 			"Beats must start with the speaker's name and a colon, because that is how a reply is split " +
 			"between the characters.",
 		Default: groupStructure,
+		Anchors: []string{
+			"Never write, decide, or narrate %[3]s's words, thoughts, or actions",
+			"do not end the scene on your own",
+			"If any of them swears",
+			"not on the person they are talking to",
+			"there is no third kind",
+			`*...* "..."`,
+		},
 	})
 	promptFormat = prompts.Register(prompts.Prompt{
 		ID: "scene.format", Name: "Format Reminder", Group: "Scenes",
@@ -40,6 +60,7 @@ var (
 			"the transcript outweighs the system prompt.",
 		Keep:    keepFormat,
 		Default: anchorFormat,
+		Anchors: []string{"there is no third kind", "every paragraph starts with a quote or an asterisk", `*...* "..."`},
 	})
 	promptFormatFirm = prompts.Register(prompts.Prompt{
 		ID: "scene.format-firm", Name: "Format Correction", Group: "Scenes",
@@ -47,6 +68,8 @@ var (
 			"narration, to pull the scene back.",
 		Keep:    keepFormat,
 		Default: anchorFormatFirm,
+		Anchors: []string{"Your recent replies have been getting this wrong", "there is no third kind",
+			"each one must start with a quote or an asterisk", `*...* "..."`},
 	})
 
 	promptAssistant = prompts.Register(prompts.Prompt{

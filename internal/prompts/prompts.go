@@ -38,6 +38,13 @@ type Prompt struct {
 	Keep string
 	// Default is Astral's own text.
 	Default string
+	// Slots are what Astral fills in for this prompt beyond the ones its own
+	// text uses, so a rewrite may use them.
+	Slots []string
+	// Anchors are phrases a rewrite has to keep word for word: the ones that
+	// were measured, and the ones a rewrite that tidies up is likely to lose.
+	// The optimizer is told them, and a rewrite without one is flagged.
+	Anchors []string
 
 	// seq is the order it was registered in, which within a package is the
 	// order it is declared in, most important first.

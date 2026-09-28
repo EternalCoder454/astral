@@ -47,17 +47,6 @@ func TestNotificationPreview(t *testing.T) {
 	}
 }
 
-// A rewrite that drops a name Astral fills in is caught before it is saved.
-func TestMissingPlaceholders(t *testing.T) {
-	orig := "You are {{char}}. Never write {{user}}'s actions. %[1]s: and %[3]s"
-	if got := missingPlaceholders(orig, "You are {{char}}. Keep to %[1]s and %[3]s."); len(got) != 1 || got[0] != "{{user}}" {
-		t.Errorf("got %v", got)
-	}
-	if got := missingPlaceholders(orig, orig); len(got) != 0 {
-		t.Errorf("the original itself is missing %v", got)
-	}
-}
-
 // Save Prompt takes the newest reply that has a finished prompt, skipping a
 // later reply that is only talk.
 func TestLatestProposal(t *testing.T) {

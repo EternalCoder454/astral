@@ -115,7 +115,7 @@ func NewSidebar() *Sidebar {
 	knowledgeBtn := gtk.NewButton()
 	knowledgeBtn.AddCSSClass("sidebar-item")
 	knowledgeBtn.SetChild(navContent(IconKnowledge, "Knowledge"))
-	knowledgeBtn.SetTooltipText("Notes, saved pages and studied topics that General Chat and the designers draw on")
+	knowledgeBtn.SetTooltipText("Notes, saved pages and studied topics that every conversation but a scene draws on")
 	knowledgeBtn.ConnectClicked(func() { fire(s.OnKnowledge) })
 	nav.Append(knowledgeBtn)
 
@@ -387,6 +387,10 @@ func chatSignature(chats []store.Chat) uint64 {
 }
 
 // chatRow builds one conversation entry.
+// DevForgetSignature makes the next SetChats rebuild the list, for the dev
+// harness's timing of it.
+func (s *Sidebar) DevForgetSignature() { s.lastSig = 0 }
+
 // DevSearch types a query into the search box, for the dev harness.
 func (s *Sidebar) DevSearch(q string) { s.search.SetText(q) }
 
@@ -552,6 +556,41 @@ func (s *Sidebar) chatRowWith(ch store.Chat, snippet string) *gtk.Button {
 
 // attachRowMenu wires the right-click menu on a conversation row.
 func (s *Sidebar) attachRowMenu(btn *gtk.Button, id int64) {
+	// Built on the first right-click rather than with the row. A popover menu
+	// registers itself with the window's actions as it is made, and doing
+	// that for every chat was nearly half of what drawing the list cost:
+	// measured with 400 chats, a quarter of a second at startup and again
+	// whenever a message reordered the list.
+	var pop *gtk.PopoverMenu
+	show := func(x, y float64) {
+		if pop == nil {
+			pop = rowPopover(btn, id)
+		}
+		// The menu opens at the pointer. The rectangle must be built with
+		// gdk.NewRectangle: a &gdk.Rectangle{} is a Go struct with no native
+		// backing behind it, and gotk4 dereferences that straight into a
+		// segfault, which is exactly how this crashed the app the first time
+		// someone right-clicked a chat.
+		at := gdk.NewRectangle(int(x), int(y), 1, 1)
+		pop.SetPointingTo(&at)
+		pop.Popup()
+	}
+	s.rowMenus[id] = show
+
+	click := gtk.NewGestureClick()
+	click.SetButton(gdk.BUTTON_SECONDARY)
+	click.ConnectPressed(func(nPress int, x, y float64) { show(x, y) })
+	btn.AddController(click)
+
+	// A long press reaches the same menu on a touchscreen, where there is no
+	// second mouse button to press.
+	long := gtk.NewGestureLongPress()
+	long.ConnectPressed(show)
+	btn.AddController(long)
+}
+
+// rowPopover builds a chat row's context menu.
+func rowPopover(btn *gtk.Button, id int64) *gtk.PopoverMenu {
 	// The target is attached as a real GVariant rather than encoded into a
 	// detailed action string. "win.rename-chat(7)" looks right but parses its
 	// target as an int32, while the action is declared to take an int64, the
@@ -570,34 +609,11 @@ func (s *Sidebar) attachRowMenu(btn *gtk.Button, id int64) {
 		item.SetActionAndTargetValue(it.action, glib.NewVariantInt64(id))
 		menu.AppendItem(item)
 	}
-
 	pop := gtk.NewPopoverMenuFromModel(menu)
 	pop.SetParent(btn)
 	pop.SetHasArrow(false)
 	pop.SetHAlign(gtk.AlignStart)
-
-	// The menu opens at the pointer. The rectangle must be built with
-	// gdk.NewRectangle: a &gdk.Rectangle{} is a Go struct with no native
-	// backing behind it, and gotk4 dereferences that straight into a segfault
-	//, which is exactly how this crashed the app the first time someone
-	// right-clicked a chat.
-	show := func(x, y float64) {
-		at := gdk.NewRectangle(int(x), int(y), 1, 1)
-		pop.SetPointingTo(&at)
-		pop.Popup()
-	}
-	s.rowMenus[id] = show
-
-	click := gtk.NewGestureClick()
-	click.SetButton(gdk.BUTTON_SECONDARY)
-	click.ConnectPressed(func(nPress int, x, y float64) { show(x, y) })
-	btn.AddController(click)
-
-	// A long press reaches the same menu on a touchscreen, where there is no
-	// second mouse button to press.
-	long := gtk.NewGestureLongPress()
-	long.ConnectPressed(show)
-	btn.AddController(long)
+	return pop
 }
 
 // OpenRowMenu opens a chat row's context menu programmatically. It exists so

@@ -1194,6 +1194,13 @@ func (c *ChatView) DevRowCount() (built, pending int) { return len(c.rows), len(
 // the path a click takes without a click.
 func (c *ChatView) DevLoadEarlier() { c.loadEarlier() }
 
+// DevSend types a message and sends it, for the dev harness, which has no way
+// to type.
+func (c *ChatView) DevSend(text string) {
+	c.setComposerText(text)
+	c.Send()
+}
+
 // DevShowTyping puts a row into the streaming state, so the dev harness can
 // check the typing indicator draws without waiting on a real model.
 func (c *ChatView) DevShowTyping() {

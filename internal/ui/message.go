@@ -72,6 +72,19 @@ type MessageRow struct {
 
 	dots      *TypingDots
 	streaming bool
+	// While a reply streams, its finished paragraphs are frozen into labels
+	// of their own in stream, and only the paragraph still being written, in
+	// tail, is set again as tokens arrive. frozen is how much of raw the
+	// frozen labels hold, and streamWidth the width they are pinned to.
+	//
+	// One label holding the whole reply was laid out again, all of it, twenty
+	// times a second: measured on an 8,600-character reply, frames went from
+	// 18ms to over 100ms as it grew, and the window fell to eight frames a
+	// second by the end.
+	stream      *gtk.Box
+	tail        *gtk.Label
+	frozen      int
+	streamWidth int
 
 	thinkBox    *gtk.Box
 	thinkToggle *gtk.ToggleButton
@@ -375,6 +388,7 @@ func (m *MessageRow) DevActionCount() int {
 // text being typed should look like.
 func (m *MessageRow) BeginStreaming(maxWidth int) {
 	m.streaming = true
+	m.streamWidth = maxWidth
 	if maxWidth > 0 {
 		m.body.SetSizeRequest(maxWidth, -1)
 	}
@@ -391,9 +405,72 @@ func (m *MessageRow) BeginStreaming(maxWidth int) {
 func (m *MessageRow) EndStreaming() {
 	m.streaming = false
 	m.stopDots()
+	m.dropStream()
 	m.body.SetSizeRequest(-1, -1)
 	m.body.SetVisible(true)
 	m.Render()
+}
+
+// streamLabel is one paragraph of a reply being written, styled as the body.
+func (m *MessageRow) streamLabel(text string) *gtk.Label {
+	l := gtk.NewLabel(text)
+	l.SetWrap(true)
+	l.SetWrapMode(pango.WrapWordChar)
+	l.SetMaxWidthChars(bubbleChars)
+	l.SetXAlign(0)
+	l.SetYAlign(0)
+	l.SetHExpand(false)
+	l.AddCSSClass("message-body")
+	if m.streamWidth > 0 {
+		l.SetSizeRequest(m.streamWidth, -1)
+	}
+	return l
+}
+
+// showStream puts the text streamed so far on screen: every finished paragraph
+// frozen in a label of its own, and the one still being written in the tail.
+func (m *MessageRow) showStream() {
+	if m.stream == nil {
+		// The same gap a blank line leaves inside a label, so the reply does
+		// not change shape when it is drawn as one at the end.
+		m.stream = gtk.NewBox(gtk.OrientationVertical, 14)
+		m.stream.SetHExpand(false)
+		m.tail = m.streamLabel("")
+		m.stream.Append(m.tail)
+		m.bubble.InsertChildAfter(m.stream, m.body)
+	}
+	m.body.SetVisible(false)
+	for {
+		rest := m.raw[m.frozen:]
+		i := strings.Index(rest, "\n\n")
+		if i < 0 {
+			break
+		}
+		if para := strings.TrimSpace(rest[:i]); para != "" {
+			l := m.streamLabel(para)
+			m.stream.InsertChildAfter(l, prevSibling(m.tail))
+		}
+		m.frozen += i + 2
+	}
+	m.tail.SetText(strings.TrimLeft(m.raw[m.frozen:], "\n"))
+}
+
+// prevSibling is the widget before w in its parent, or nil when w is first,
+// which InsertChildAfter reads as "at the start".
+func prevSibling(w *gtk.Label) gtk.Widgetter {
+	if p := w.PrevSibling(); p != nil {
+		return p
+	}
+	return nil
+}
+
+// dropStream takes the streaming labels away.
+func (m *MessageRow) dropStream() {
+	if m.stream != nil {
+		m.bubble.Remove(m.stream)
+		m.stream, m.tail = nil, nil
+	}
+	m.frozen = 0
 }
 
 // AppendText adds to the body during streaming.
@@ -405,11 +482,12 @@ func (m *MessageRow) EndStreaming() {
 // it is plain in a new reply: half an asterisk is not markup.
 func (m *MessageRow) ContinueStreaming(maxWidth int) {
 	m.streaming = true
+	m.streamWidth = maxWidth
 	if maxWidth > 0 {
 		m.body.SetSizeRequest(maxWidth, -1)
 	}
-	m.body.SetText(m.raw)
-	m.body.SetVisible(true)
+	m.dropStream()
+	m.showStream()
 }
 
 func (m *MessageRow) AppendText(s string) {
@@ -421,9 +499,12 @@ func (m *MessageRow) AppendText(s string) {
 	// else to show.
 	if m.streaming && m.raw == "" {
 		m.stopDots()
-		m.body.SetVisible(true)
 	}
 	m.raw += s
+	if m.streaming {
+		m.showStream()
+		return
+	}
 	m.body.SetText(m.raw)
 }
 
@@ -431,7 +512,11 @@ func (m *MessageRow) AppendText(s string) {
 // words turned out to be a preamble to a search rather than the answer.
 func (m *MessageRow) ClearStreamed() {
 	m.raw = ""
+	m.dropStream()
 	m.body.SetText("")
+	if m.streaming {
+		m.showStream()
+	}
 }
 
 // AppendThinking adds to the reasoning block, revealing it on first use.

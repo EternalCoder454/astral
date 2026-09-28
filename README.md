@@ -348,15 +348,32 @@ prompt is likely to fail with a small local model and writes a better version;
 original can be put back from the same page at any time. The **+** at the top
 takes a prompt of your own instead, and **Copy Prompt** gives you the result.
 
+**Optimize All** runs the optimizer over every prompt, one at a time, with the
+model you chat with, in the background while you do something else. Nothing
+changes until you review what it wrote: each rewrite can be compared with the
+prompt as it is now, and ticked or left. A rewrite that drops a name Astral fills
+in, invents a slot Astral does not fill, or uses dashes is flagged and starts
+unticked.
+
+The optimizer works best with a strong model. A small one tends to make a prompt
+shorter by dropping rules that were there for a reason, so read before you save.
+
 Your versions are kept in the database, so they are in the daily backups too.
 
 ## Web search
 
-On by default for General Chat and the designers, never in a scene. The model
-decides when to search, and can open a result to read the whole page instead of
-answering from a two line snippet. What leaves your machine is the words it
-searches for and the pages it opens; no part of your conversation, characters or
-worlds. Every reply that searched says what it looked up.
+On by default for every conversation except a scene: General Chat, the designers
+and the Prompt Optimizer. The model decides when to search, prefers primary and
+reputable sources over pages written to rank, and can open a result to read the
+whole page instead of answering from a two line snippet. What leaves your machine
+is the words it searches for and the pages it opens; no part of your
+conversation, characters or worlds. Every reply that searched says what it looked
+up.
+
+What it finds worth keeping it can save to **Knowledge**, where later
+conversations will find it, and the reply says when it has. It saves only what it
+looked up, never the character or world you are designing, which have their own
+buttons.
 
 With your own [SearXNG](https://docs.searxng.org) running, searches go there.
 Without one they go to DuckDuckGo, so search works on a fresh install. Choose

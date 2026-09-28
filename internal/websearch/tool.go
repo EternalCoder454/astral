@@ -79,7 +79,9 @@ var OpenTool = ollama.Tool{
 		Description: "Open a web page and read its text. Call this with an address from your search " +
 			"results when the snippet shows the page is relevant but does not itself contain the answer, " +
 			"or when the question needs detail: a changelog, documentation, the body of an article. " +
-			"Do not open a page just to confirm what a snippet already says plainly.",
+			"Pick the most authoritative result: the primary source where there is one, never a page " +
+			"that only exists to rank in search. Do not open a page just to confirm what a snippet already " +
+			"says plainly.",
 		Parameters: json.RawMessage(`{
   "type": "object",
   "properties": {
@@ -121,10 +123,17 @@ One search per distinct fact. A question with two parts gets two searches rather
 If the results do not answer it, search again with different words: narrower when you got noise, broader when you got nothing, and the exact phrase or error text when you have one. Do not fall back on a guess while another query would settle it.
 Stop once you have the answer. One good search is usually enough.
 
+WHICH SOURCES TO TRUST
+Choose what to open, and what to believe, by who wrote it and why. Read the address before the title.
+- Best: the primary source. The project's own documentation, release notes or repository; the standard itself; the maker's, publisher's or public body's own page; the paper rather than an article about it.
+- Good: reference works and publications with editors and a name to lose: encyclopedias, established newspapers and magazines, university, library and museum sites, well known technical references.
+- Careful: forums, question and answer sites, fan wikis, personal blogs and social media. Often right about what people experienced, often wrong about facts. Check a fact from one of these against a better source before you rely on it.
+- Skip: pages made to rank rather than to inform. Listicles and "top 10" pages, comparison and review farms, pages stuffed with ads, pages that read as machine-written summaries of other pages, and sites that copy their text from elsewhere. If a result looks like one of these, open a better one instead.
+When a fact matters, confirm it in two sources that did not copy each other.
+
 READING WHAT COMES BACK
 Results are titles, addresses and short extracts, not whole pages. Do not claim more than an extract supports.
 When an extract shows a page is the right one but does not contain the answer, open it with the ` + OpenToolName + ` tool and read it, rather than answering from the extract. Open the one or two most promising pages, not all of them.
-Prefer the primary source: a project's own documentation or release notes over an article about them, and an official page over an aggregator.
 Watch the dates. An extract that does not say when it was written may be years old.
 Where results disagree, say so, say which one you are going with, and say why. Do not quietly pick one.
 
@@ -134,8 +143,19 @@ Say plainly when a search found nothing, failed, or did not settle the question,
 Never present a guess as something you looked up.
 Do not narrate your searching. Answer the question.`
 
-// Round is one search or one opened page, for showing the person what was
-// looked up.
+// SaveGuidance is added to the system prompt wherever the knowledge base can be
+// saved to, which is every conversation that is not a scene.
+const SaveGuidance = `KEEPING WHAT YOU FIND
+When a search turns up something worth having again (a checked fact, a reference, figures, how something works), save it to the person's knowledge base with the ` + SaveToolName + ` tool, and later conversations will find it.
+Save only what you found by searching or reading a page, written to make sense on its own months from now: specific, with names and numbers, and with the address it came from.
+Never save what you and the person are making up together, such as a character, a world or a style. Those are saved by their own buttons.
+Never say you saved something unless you called the tool in this reply. Do not offer to save things: save what is worth it, and mention it in one line.`
+
+// SaveToolName is the tool that saves to the knowledge base.
+const SaveToolName = "save_to_knowledge"
+
+// Round is one search, one opened page, or one other tool used, for showing
+// the person what was done.
 type Round struct {
 	Query   string
 	Results []Result
@@ -144,6 +164,9 @@ type Round struct {
 	// Opened is the address asked for, kept even when opening it failed.
 	Opened string
 	Err    error
+	// Note is set, and the rest empty, for one of the runner's Extras: what
+	// it did, in a line.
+	Note string
 }
 
 // Notes renders the searches a turn made, for the fold above the reply.
@@ -159,6 +182,11 @@ func Notes(rounds []Round) string {
 	for i, r := range rounds {
 		if i > 0 {
 			b.WriteString("\n")
+		}
+		if r.Note != "" {
+			b.WriteString(r.Note)
+			b.WriteString("\n")
+			continue
 		}
 		if r.Opened != "" {
 			b.WriteString("Read ")
@@ -219,6 +247,21 @@ type Runner struct {
 	// KeepPage is called with every page opened, so it can be saved for next
 	// time. Run in the background: saving must not hold up the answer.
 	KeepPage func(Round)
+	// Extras are tools offered beside searching, answered by whoever offers
+	// them: saving to the knowledge base, reading one of Astral's prompts.
+	// They are offered even when there is no search provider.
+	Extras []Extra
+}
+
+// Extra is a tool the runner offers alongside search, and answers by calling
+// back into whoever offered it.
+type Extra struct {
+	Tool ollama.Tool
+	// Answer runs the tool and returns what goes back to the model.
+	Answer func(ctx context.Context, args json.RawMessage) string
+	// Note is what the person is told the tool did, for the status line
+	// while it runs and the fold above the reply. Empty says nothing.
+	Note func(args json.RawMessage) string
 }
 
 // Run answers the conversation, searching when the model asks to.
@@ -232,18 +275,25 @@ type Runner struct {
 // produced no answer to stream, and showing the person a paragraph that is about
 // to be replaced by a real one is worse than showing them nothing.
 func (r *Runner) Run(ctx context.Context, msgs []ollama.Message, onDelta func(ollama.Delta)) (ollama.Message, ollama.Stats, []Round, error) {
-	if r.Provider == nil {
+	var offered []ollama.Tool
+	if r.Provider != nil {
+		offered = append(offered, Tool)
+		if r.Fetcher != nil {
+			offered = append(offered, OpenTool)
+		}
+	}
+	extras := map[string]Extra{}
+	for _, e := range r.Extras {
+		offered = append(offered, e.Tool)
+		extras[e.Tool.Function.Name] = e
+	}
+	if len(offered) == 0 {
 		msg, stats, err := r.Client.Chat(ctx, r.Model, msgs, r.Options, r.Think, onDelta)
 		return msg, stats, nil, err
 	}
 
 	conv := make([]ollama.Message, len(msgs))
 	copy(conv, msgs)
-
-	offered := []ollama.Tool{Tool}
-	if r.Fetcher != nil {
-		offered = append(offered, OpenTool)
-	}
 
 	var rounds []Round
 	for i := 0; i <= MaxRounds; i++ {
@@ -275,7 +325,13 @@ func (r *Runner) Run(ctx context.Context, msgs []ollama.Message, onDelta func(ol
 			return msg, stats, rounds, err
 		}
 		searches, opens := toolCalls(msg)
-		if len(searches) == 0 && len(opens) == 0 {
+		var asked []ollama.ToolCall
+		for _, c := range msg.ToolCalls {
+			if _, ok := extras[c.Function.Name]; ok {
+				asked = append(asked, c)
+			}
+		}
+		if len(searches) == 0 && len(opens) == 0 && len(asked) == 0 {
 			return msg, stats, rounds, nil
 		}
 		if streamed && r.OnDiscard != nil {
@@ -283,6 +339,22 @@ func (r *Runner) Run(ctx context.Context, msgs []ollama.Message, onDelta func(ol
 		}
 
 		conv = append(conv, msg)
+		for _, c := range asked {
+			e := extras[c.Function.Name]
+			args := unwrapArgs(c.Function.Arguments)
+			round := Round{}
+			if e.Note != nil {
+				round.Note = e.Note(args)
+			}
+			if round.Note != "" {
+				rounds = append(rounds, round)
+				if r.OnRound != nil {
+					r.OnRound(round)
+				}
+			}
+			conv = append(conv, ollama.Message{Role: ollama.RoleTool, ToolName: c.Function.Name,
+				Content: e.Answer(ctx, args)})
+		}
 		for _, q := range searches {
 			round := r.search(ctx, q)
 			rounds = append(rounds, round)
@@ -375,6 +447,16 @@ func (r *Runner) render(round Round) string {
 			"\n\nAnswer from what you already know, and say that you could not check."
 	}
 	return Render(round.Query, round.Results)
+}
+
+// unwrapArgs returns a tool call's arguments as a JSON object, unwrapping the
+// JSON string some models send instead.
+func unwrapArgs(raw json.RawMessage) json.RawMessage {
+	var inner string
+	if json.Unmarshal(raw, &inner) == nil && strings.HasPrefix(strings.TrimSpace(inner), "{") {
+		return json.RawMessage(inner)
+	}
+	return raw
 }
 
 // toolCalls pulls the searches and the pages to open out of a reply's tool

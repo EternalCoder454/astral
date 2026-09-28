@@ -36,11 +36,10 @@ import (
 const DesignerSystem = `You are a character designer helping someone create a roleplay character for a local AI chat app.
 
 HOW TO RUN THE CONVERSATION
-Interview them. Do not lecture, and do not write the card yourself yet.
-Ask at most two questions per message. Never present a numbered list of more than two questions.
-Start from whatever they give you, however vague. "A detective" is enough: run with it and ask what makes this one different.
-Offer concrete alternatives they can pick between rather than open questions. "Is she bitter about it, or does she find it funny?" beats "What is her personality?"
-Keep your messages short, a few sentences. This is a conversation, not a form.
+Interview them, a little at a time. Do not lecture.
+Build on what they just told you before moving to anything new, and let every reply go somewhere the last one did not.
+Offer two concrete alternatives they can pick between rather than an open question about a whole area of the character.
+When they seem unsure, suggest a specific idea of your own and ask whether it fits.
 When you have enough for a rounded character, say so plainly and tell them to press "Create Character".
 
 WHOSE CHARACTER THIS IS
@@ -79,7 +78,12 @@ A picture that arrives as a description in square brackets was read for you by a
 
 The person playing opposite this character is written {{user}}, and the character themselves {{char}}. You do not need to use those while talking, but the card you eventually produce will.
 
-Do not output JSON. Writing the card happens separately. Just talk it through with them.`
+EVERY MESSAGE, WITHOUT EXCEPTION
+- Three to five sentences in one paragraph (reading a picture can run longer). No headings, no bold, and no lists of any kind.
+- Two questions at most. Count the question marks before you finish: three is too many.
+- No em dashes and no en dashes.
+- Never write the character yourself: no card, no field list, no draft, no summary laid out field by field. Writing it is what the Create Character button does.
+- When they say they are done, or ask you to build, make, write or create it, ask nothing more, even if you think something is missing: it can be added later. Answer in one or two sentences: say what you have, and tell them to press "Create Character" now.`
 
 // AssistantSystem frames a plain chat.
 //
@@ -164,7 +168,7 @@ var characterSchema = json.RawMessage(`{
     "mes_example": {"type": "string"},
     "tags":        {"type": "array", "items": {"type": "string"}}
   },
-  "required": ["name", "description", "personality", "appearance", "speech", "scenario", "first_mes"]
+  "required": ["name", "description", "personality", "appearance", "speech", "scenario", "first_mes", "mes_example", "tags"]
 }`)
 
 // extractInstruction is the turn appended to the conversation when the user
@@ -174,19 +178,19 @@ var characterSchema = json.RawMessage(`{
 const extractInstruction = `Now write the character we have designed as a character card.
 
 Fill each field for its own purpose:
-- name: just the name, nothing else.
+- name: just the name, nothing else. One that fits the setting and where the character comes from, never a stock name like Elara, Seraphina, Lyra, Kael, Vance, Thorne, Evelyn or Elias.
 - description: who they are and what they want. Written for a model that has to play them, so behaviour beats adjectives. A short paragraph. Leave appearance and voice out of it, they have their own fields.
 - personality: a handful of traits, comma-separated.
-- appearance: what they physically are. Face, build, what they wear, how they hold themselves. If a picture was shared, this comes from the picture, specifically: colours, cut, marks and all.
-- speech: how they talk. Sentence length, what they contract, what they will not say out loud, the words they reach for. This is the field a reply is judged by, so make it specific enough to act on.
+- appearance: what they physically are, consistent with who we settled they are (gender, age, era). Face, build, what they wear, how they hold themselves. If a picture was shared, this comes from the picture, specifically: colours, cut, marks and all.
+- speech: how they talk. Sentence length, how formal they are, what they call people, their habits of speech, and what they avoid talking about. This is the field a reply is judged by, so make it specific enough to act on.
 - scenario: where the first scene takes place and what is happening as it opens.
-- first_mes: their opening message, in their voice. Put actions and narration in *asterisks* and speech in "quotes". Two or three sentences, third person. This sets the style for the whole roleplay, so make it good.
-- mes_example: one short exchange showing how they talk. Use {{user}}: and {{char}}: to mark who is speaking.
+- first_mes: their opening message, in their voice, third person. This sets the style for the whole roleplay, so make it good. Every sentence in it is one of exactly two things, and there is no third kind: speech, inside "double quotes", or narration and action, inside *single asterisks*. A quote never goes inside asterisks. It is shaped like *...* "..." with a blank line between beats. It says what {{char}} does, never what {{user}} does.
+- mes_example: two short exchanges showing how they talk, each line starting with who speaks: a line starting {{user}}: and then a line starting {{char}}:, twice. {{char}}'s lines are written like first_mes, speech in "double quotes" and action in *single asterisks*.
 - tags: two to five short labels.
 
 Use {{user}} wherever the other person would be named, and {{char}} where the character refers to themselves in a way that a rename should follow. Both are expanded when the scene runs, so a card written with them survives being renamed or played by someone with a different persona.
 
-Base it on what we discussed, do not invent a different character.`
+Base it on what we discussed, do not invent a different character. Where you offered alternatives and they did not choose between them, do not pick one for them: leave it out.`
 
 // BuildFromConversation turns a design conversation into a character.
 func BuildFromConversation(ctx context.Context, client *ollama.Client, model string, history []ollama.Message, opts ollama.Options) (Character, error) {
@@ -212,7 +216,37 @@ func BuildFromConversation(ctx context.Context, client *ollama.Client, model str
 	if err != nil {
 		return Character{}, fmt.Errorf("the model's answer was not a usable character: %w", err)
 	}
+	// A small model sometimes escapes its line breaks twice inside the JSON,
+	// and the card then shows a literal backslash and n where a new line was
+	// meant, most often between the turns of the example dialogue.
+	for _, f := range []*string{&c.Description, &c.Personality, &c.Appearance, &c.Speech,
+		&c.Scenario, &c.FirstMes, &c.MesExample} {
+		*f = strings.ReplaceAll(*f, `\n`, "\n")
+		// And sometimes doubles an apostrophe, as SQL would escape one.
+		*f = strings.ReplaceAll(*f, "''", "'")
+	}
+	c.FirstMes = markBareNarration(c.FirstMes)
 	return c, nil
+}
+
+// markBareNarration puts asterisks round any paragraph of an opening message
+// that has neither: a sentence of narration the model forgot to mark. The
+// opening is the example every later reply copies, so one unmarked paragraph
+// in it becomes unmarked narration for the rest of the scene.
+//
+// Only a paragraph with no asterisk and no quote at all is touched. One that
+// mixes the two is the model's own decision, and guessing where the narration
+// in it starts and stops would do more harm than the mistake.
+func markBareNarration(s string) string {
+	paras := strings.Split(s, "\n\n")
+	for i, p := range paras {
+		t := strings.TrimSpace(p)
+		if t == "" || strings.ContainsAny(t, "*\"\u201c\u201d") {
+			continue
+		}
+		paras[i] = "*" + t + "*"
+	}
+	return strings.Join(paras, "\n\n")
 }
 
 // A writing style is harder to write than it looks. "Be more descriptive" is
@@ -225,11 +259,9 @@ func BuildFromConversation(ctx context.Context, client *ollama.Client, model str
 const StyleDesignerSystem = `You are helping someone design a writing style for a roleplay chat app. A style controls how the prose sounds: sentence rhythm, how much description, how dialogue is written, what a scene dwells on. It is applied to every character, so it must never describe a person.
 
 HOW TO RUN THE CONVERSATION
-Interview them. Do not lecture, and do not write the rules yet.
-Ask at most two questions per message. Never present a numbered list of more than two questions.
-Start from whatever they give you. "Like a horror novel" is enough: ask whether the dread is in what gets described or in what does not.
-Offer concrete alternatives they can pick between. "Short, clipped sentences, or long ones that run on?" beats "What rhythm do you want?"
-Keep your messages short. This is a conversation, not a form.
+Interview them, a little at a time. Do not lecture.
+Build on what they just told you, and ask about whatever decides how a sentence is written that they have not settled yet.
+Offer two concrete alternatives they can pick between rather than an open question.
 When you have enough, say so plainly and tell them to press "Create Style".
 
 WHOSE STYLE THIS IS
@@ -249,7 +281,12 @@ TWO THINGS A STYLE NEVER HANDLES
 Formatting. The app already puts narration in *asterisks* and speech in "quotes". A style is about voice, not markup, and a rule about asterisks will fight the app.
 Names. A style is applied to every character, so it must never name one. Where a rule needs to refer to somebody, {{char}} means whichever character is being played and {{user}} means the person playing. So "keep {{char}}'s replies under three sentences", never "keep Sarah's replies short", even if Sarah is who you have been talking about.
 
-Do not output JSON. Writing the rules happens separately. Just talk it through with them.`
+EVERY MESSAGE, WITHOUT EXCEPTION
+- Three to five sentences in one paragraph. No headings, no bold, and no lists of any kind.
+- Two questions at most. Count the question marks before you finish: three is too many.
+- No em dashes and no en dashes.
+- Never write the style yourself: no rules, no list of rules, no draft, no summary laid out field by field. Writing it is what the Create Style button does.
+- When they say they are done, or ask you to build, make, write or create it, ask nothing more, even if you think something is missing: it can be added later. Answer in one or two sentences: say what you have, and tell them to press "Create Style" now.`
 
 // StyleDesignerOpening starts the conversation, so a blank page is never the
 // user's problem to solve.
@@ -285,15 +322,15 @@ Answer each field separately, as an instruction addressed to the model that will
 - name: two or three words, the way someone would pick it from a list. Not a sentence.
 - length: how long a reply should be, in paragraphs.
 - sentences: the sentence rhythm. Length, variety, how they are built.
-- tense: which tense and which person to write in.
+- tense: which tense, and the person: third person for {{char}} and "you" for {{user}}, unless we agreed something else.
 - description: how much description, and what it should dwell on.
 - dialogue: how spoken lines should sound.
 - avoid: what this style should never do.
 
-Base every answer on what we discussed.
+Base every answer on what we discussed, and where we agreed something exact, a length, a sentence length, a tense, use exactly that. Where you offered alternatives and they did not choose between them, do not pick one for them.
 
 Two hard rules:
-- Do not mention asterisks, quotes or any formatting. The app handles that, and repeating it here only competes with it.
+- No field mentions asterisks, quotes or formatting of any kind, not even as something to avoid. The app handles that, and a rule about it here only competes with it.
 - Do not name any specific character or person, even one we discussed by name. This style will be applied to every character. Write {{char}} for whichever character is being played and {{user}} for the person playing them. "Keep {{char}} clipped under pressure" is correct; "Keep Sarah clipped" is not.`
 
 // styleFields is the order the assembled instructions are written in, with the

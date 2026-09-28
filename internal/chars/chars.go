@@ -245,7 +245,7 @@ func BuildSystem(c Character, p Persona) string {
 	// literal text "{{char}}" until this was fixed.
 	b.WriteString(sub(p.Style.Resolved()))
 	b.WriteString("\n\n")
-	b.WriteString(prompts.Text(promptFramingClose))
+	b.WriteString(sub(prompts.Text(promptFramingClose)))
 
 	section := func(heading, body string) {
 		if strings.TrimSpace(body) == "" {

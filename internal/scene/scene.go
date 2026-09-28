@@ -18,6 +18,7 @@ import (
 	"astral/internal/chars"
 	"astral/internal/ollama"
 	"astral/internal/promptopt"
+	"astral/internal/prompts"
 	"astral/internal/store"
 	"astral/internal/websearch"
 	"astral/internal/world"
@@ -117,9 +118,9 @@ func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character,
 		// rather than inventing one. The column was already there, so a revision
 		// needs no new state: what makes it one is having somebody to revise.
 		if ca.Name != "" {
-			return system(withSearch(cfg, chars.ReviseSystem(ca, Persona(cfg))))
+			return system(withTools(cfg, chars.ReviseSystem(ca, Persona(cfg))))
 		}
-		return system(withSearch(cfg, chars.DesignerPrompt()))
+		return system(withTools(cfg, chars.DesignerPrompt()))
 	case store.KindStyleDesigner:
 		// A style design chat whose note names a style is revising that style.
 		// The note is the only field a chat has that can carry it, and it is
@@ -127,23 +128,24 @@ func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character,
 		if name := strings.TrimSpace(ch.Note); name != "" {
 			for _, st := range cfg.Styles() {
 				if st.Name == name {
-					return system(withSearch(cfg, chars.ReviseStyleSystem(st)))
+					return system(withTools(cfg, chars.ReviseStyleSystem(st)))
 				}
 			}
 		}
-		return system(withSearch(cfg, chars.StyleDesignerPrompt()))
+		return system(withTools(cfg, chars.StyleDesignerPrompt()))
 	case store.KindWorldDesigner:
 		// A world design chat that names a world is revising that world.
 		if ch.WorldID != 0 && st != nil {
 			if w, err := st.World(ch.WorldID); err == nil {
-				return system(withSearch(cfg, world.ReviseSystem(w, loreNames(st, w.ID))))
+				return system(withTools(cfg, world.ReviseSystem(w, loreNames(st, w.ID))))
 			}
 		}
-		return system(withSearch(cfg, world.DesignerPrompt()))
+		return system(withTools(cfg, world.DesignerPrompt()))
 	case store.KindPromptOptimizer:
-		// No search and no knowledge: its subject is Astral's own prompts, and
-		// every one of them is already in front of it or a tool call away.
-		return system(promptopt.System(ch.Note))
+		// Its subject is Astral's own prompts, every one of them in front of it
+		// or a tool call away, and it can search and keep what it learns like
+		// every other conversation that is not a scene.
+		return system(withTools(cfg, promptopt.System(ch.Note)))
 	case store.KindAssistant:
 		return Plain(cfg, ch, hist)
 	}
@@ -192,7 +194,7 @@ func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character,
 func Plain(cfg store.Config, ch store.Chat, hist []ollama.Message) []ollama.Message {
 	msgs := []ollama.Message{{
 		Role:    ollama.RoleSystem,
-		Content: withSearch(cfg, chars.AssistantSystemFor(Persona(cfg))),
+		Content: withTools(cfg, chars.AssistantSystemFor(Persona(cfg))),
 	}}
 	if r := strings.TrimSpace(ch.Summary); r != "" {
 		msgs = append(msgs, ollama.Message{
@@ -223,16 +225,18 @@ func loreNames(st *store.Store, worldID int64) []string {
 	return out
 }
 
-// withSearch adds the search guidance when search is switched on.
+// withTools adds the guidance for the tools a conversation is given: searching,
+// when search is switched on, and keeping what it finds in the knowledge base.
 //
-// Only to the conversations that can search. A scene never gets it: the tool is
-// not offered there, and telling a character they can search the web when they
-// cannot is how a scene ends up with someone claiming they looked something up.
-func withSearch(cfg store.Config, system string) string {
+// Only to the conversations that are given tools. A scene never gets it: the
+// tools are not offered there, and telling a character they can search the web
+// when they cannot is how a scene ends up with someone claiming they looked
+// something up.
+func withTools(cfg store.Config, system string) string {
 	if !Searchable(cfg) {
 		return system
 	}
-	return system + "\n\n" + websearch.GuidanceText()
+	return system + "\n\n" + websearch.GuidanceText() + "\n\n" + prompts.Text(promptSaveGuidance)
 }
 
 // Searchable reports whether search is switched on. It needs no address any
@@ -284,7 +288,8 @@ func Fetcher() *websearch.Fetcher { return pageFetcher }
 // cannot survive the model stopping to report what it found on the internet.
 func CanSearch(kind string) bool {
 	switch kind {
-	case store.KindAssistant, store.KindDesigner, store.KindStyleDesigner, store.KindWorldDesigner:
+	case store.KindAssistant, store.KindDesigner, store.KindStyleDesigner, store.KindWorldDesigner,
+		store.KindPromptOptimizer:
 		return true
 	}
 	return false
@@ -317,6 +322,25 @@ func StyleChanged(cfg store.Config, ch store.Chat, turns int) bool {
 // fixed amount of room for the reply, so a reply that ignores that reservation
 // puts the prompt back over the window and the oldest tokens, which are the
 // framing, get dropped again.
+// OptionsFor is Options for a conversation of a particular kind. The Prompt
+// Optimizer answers with a whole prompt, and the longest of Astral's run to
+// thirteen hundred tokens before any explanation, so its replies get room for
+// one and its context room for a few; with the usual reply limit a rewrite was
+// cut off partway and could not be saved.
+func OptionsFor(cfg store.Config, kind string) ollama.Options {
+	o := Options(cfg)
+	if kind == store.KindPromptOptimizer {
+		o.NumPredict = max(o.NumPredict, optimizerReply)
+		o.NumCtx = max(o.NumCtx, optimizerContext)
+	}
+	return o
+}
+
+const (
+	optimizerReply   = 4096
+	optimizerContext = 12288
+)
+
 func Options(cfg store.Config) ollama.Options {
 	predict := cfg.NumPredict
 	if predict <= 0 {

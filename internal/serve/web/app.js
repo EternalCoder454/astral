@@ -1106,6 +1106,11 @@ async function stream(path, requestBody, mine) {
 					body.classList.remove("dots");
 					reply = "";
 					body.textContent = "Reading " + payload.url.replace(/^https?:\/\//, "") + "…";
+				} else if (event === "working") {
+					// A tool other than search, such as saving to Knowledge.
+					body.classList.remove("dots");
+					reply = "";
+					body.textContent = payload.say + "…";
 				} else if (event === "reset") {
 					// What streamed so far was the model deciding to search,
 					// not the answer. The answer follows.

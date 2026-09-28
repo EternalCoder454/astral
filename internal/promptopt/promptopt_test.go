@@ -11,6 +11,7 @@ import (
 
 	"astral/internal/ollama"
 	"astral/internal/prompts"
+	"astral/internal/websearch"
 
 	// The packages whose prompts the optimizer lists, so the list is the real one.
 	_ "astral/internal/chars"
@@ -75,8 +76,9 @@ func TestProposal(t *testing.T) {
 	}
 }
 
-// A model that asks to read a prompt is given it, and then answers.
-func TestRunReadsPrompts(t *testing.T) {
+// A model that asks to read a prompt is given it through the conversation's
+// tool loop, and then answers.
+func TestReadingAPromptThroughTheToolLoop(t *testing.T) {
 	var mu sync.Mutex
 	var seen []string
 	calls := 0
@@ -102,31 +104,89 @@ func TestRunReadsPrompts(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	var read []string
-	msg, _, err := Run(context.Background(), ollama.NewClient(srv.URL), "m",
-		[]ollama.Message{{Role: ollama.RoleSystem, Content: System("scene.framing")}, {Role: ollama.RoleUser, Content: "Go."}},
-		ollama.Options{}, nil, nil, func(name string) { read = append(read, name) }, nil)
+	var notes []string
+	r := &websearch.Runner{
+		Client: ollama.NewClient(srv.URL), Model: "m",
+		Extras:  []websearch.Extra{ReadExtra()},
+		OnRound: func(round websearch.Round) { notes = append(notes, round.Note) },
+	}
+	msg, _, rounds, err := r.Run(context.Background(),
+		[]ollama.Message{{Role: ollama.RoleSystem, Content: System("scene.framing")}, {Role: ollama.RoleUser, Content: "Go."}}, nil)
 	if err != nil || msg.Content != "Here it is." {
 		t.Fatalf("got %q %v", msg.Content, err)
 	}
-	if len(read) != 1 || read[0] != "Format Reminder" {
-		t.Errorf("reads reported: %v", read)
+	if len(notes) != 1 || notes[0] != "Read the Format Reminder prompt" || len(rounds) != 1 {
+		t.Errorf("notes %v, rounds %d", notes, len(rounds))
 	}
 	if len(seen) != 1 || !strings.Contains(seen[0], "FORMAT.") {
 		t.Errorf("the model was not given the prompt: %v", seen)
 	}
+	if !strings.Contains(websearch.Notes(rounds), "Read the Format Reminder prompt") {
+		t.Errorf("the fold does not say what was read: %q", websearch.Notes(rounds))
+	}
 }
 
-// The last request of a kind can be read whole, and is listed once there is one.
-func TestSentRequestsCanBeRead(t *testing.T) {
-	prompts.RecordSent("scene", "Scene Request", "[system]\nYou are roleplaying as Vesper.")
-	if !strings.Contains(System("scene.framing"), "- sent.scene: the last Scene Request") {
-		t.Error("the sent request is not listed")
+// What was wrong with the Scene rewrites the optimizer produced on a small
+// model is caught before saving: markers copied in, a slot that is not a slot,
+// a stage direction, dashes, and a dropped name.
+func TestProblemsCatchWhatWentWrong(t *testing.T) {
+	orig := "Write {{char}}'s words. Never narrate {{user}}. %[1]s: *...* \"...\"\n\n%[2]s: \"...\""
+	bad := "<<<PROMPT\nWrite {{char}}'s words\u2014always. %[1]s: *...* %[speaker]: \"...\"\n(blank line)\n%[2]s: \"...\"\nPROMPT>>>"
+	got := strings.Join(Problems(orig, bad), "\n")
+	for _, want := range []string{"{{user}}", "%[speaker]", "dashes", "marker"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("did not flag %s:\n%s", want, got)
+		}
 	}
-	if got := Read("sent.scene"); !strings.Contains(got, "You are roleplaying as Vesper.") {
-		t.Errorf("read %q", got)
+	if p := Problems(orig, orig); len(p) != 0 {
+		t.Errorf("the original itself has problems: %v", p)
 	}
-	if got := Read("sent.nothing"); !strings.Contains(got, "Nothing of that kind") {
-		t.Errorf("read %q", got)
+	// And the markers never reach a saved prompt at all.
+	if got, _ := Proposal("```prompt\n<<<PROMPT\nFORMAT.\nPROMPT>>>\n```"); got != "FORMAT." {
+		t.Errorf("markers kept: %q", got)
+	}
+}
+
+// One prompt is rewritten in one request, with no one there to answer, and
+// the result says whether it changed and what is wrong with it.
+func TestRewriteOne(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Messages []ollama.Message `json:"messages"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		if !strings.Contains(body.Messages[len(body.Messages)-1].Content, "nobody here to answer") {
+			t.Error("the request did not say it was on its own")
+		}
+		reply := "It repeats itself.\n\n```prompt\nNever mention that you are an AI\u2014ever.\n```\n\n- Shorter."
+		json.NewEncoder(w).Encode(map[string]any{"message": map[string]string{"role": "assistant", "content": reply}, "done": true})
+	}))
+	defer srv.Close()
+	got := RewriteOne(context.Background(), ollama.NewClient(srv.URL), "m", ollama.Options{}, "scene.close")
+	if got.Err != nil || got.After != "Never mention that you are an AI\u2014ever." || got.Unchanged {
+		t.Fatalf("got %+v", got)
+	}
+	if len(got.Problems) != 1 || !strings.Contains(got.Problems[0], "dashes") {
+		t.Errorf("problems %v", got.Problems)
+	}
+	if got.Summary() != "It repeats itself." {
+		t.Errorf("summary %q", got.Summary())
+	}
+}
+
+// A rewrite that tidies away a measured phrase, or adds a heading, is flagged.
+func TestProtectedPhrases(t *testing.T) {
+	p, _ := prompts.Get("scene.framing")
+	tidy := strings.Replace(p.Default, "Never write, decide, or narrate {{user}}'s words, thoughts, or actions",
+		"Never narrate {{user}}'s thoughts", 1)
+	got := strings.Join(ProblemsFor(p, "# RULES\n"+tidy), "\n")
+	if !strings.Contains(got, "words, thoughts, or actions") || !strings.Contains(got, "headings") {
+		t.Errorf("not flagged:\n%s", got)
+	}
+	if extra := ProblemsFor(p, p.Default); len(extra) != 0 {
+		t.Errorf("the original is flagged: %v", extra)
+	}
+	if !strings.Contains(System("scene.framing"), "must appear in the rewrite exactly as written") {
+		t.Error("the optimizer is not told the protected phrases")
 	}
 }

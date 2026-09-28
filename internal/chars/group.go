@@ -127,7 +127,7 @@ func BuildGroupSystem(cast []Character, p Persona, rels []Relation) string {
 	b.WriteString("\n\nHOW TO WRITE IT\n")
 	b.WriteString(sub(p.Style.Resolved()))
 	b.WriteString("\n\n")
-	b.WriteString(prompts.Text(promptFramingClose))
+	b.WriteString(sub(prompts.Text(promptFramingClose)))
 
 	for _, c := range cast {
 		// Substituted per character inside their own block, so a card that says

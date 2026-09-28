@@ -113,9 +113,10 @@ func (a *App) showKnowledge() {
 		if len(shown) == 0 {
 			var msg string
 			if query == "" {
-				msg = "Nothing here yet.\n\nWhat you add is used by General Chat and the designers " +
-					"whenever a conversation touches it. Write an entry, import notes you already " +
-					"have, or study a topic and let Astral read about it for you."
+				msg = "Nothing here yet.\n\nWhat you add is used by every conversation that is not a " +
+					"scene whenever it touches the subject, and those conversations save what they find " +
+					"here too. Write an entry, import notes you already have, or study a topic and let " +
+					"Astral read about it for you."
 			} else {
 				msg = "Nothing matches that."
 			}
@@ -434,8 +435,8 @@ func (a *App) studyTopic(initial string) {
 	page.SetMarginStart(18)
 	page.SetMarginEnd(18)
 	intro := wrappingLabel("Astral searches the web for it, reads the best few pages, keeps them, " +
-		"and has the model write notes from what they say. General Chat and the designers use " +
-		"all of it from then on, without searching again.")
+		"and has the model write notes from what they say. Every conversation that is not a scene " +
+		"uses all of it from then on, without searching again.")
 	intro.AddCSSClass("settings-hint")
 	page.Append(intro)
 	page.Append(labelledField("Topic", "", topic))

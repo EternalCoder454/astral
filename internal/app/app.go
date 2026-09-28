@@ -74,6 +74,9 @@ type App struct {
 	// dbRecovered records that the database was damaged and replaced, so the
 	// window can say so once it exists.
 	dbRecovered bool
+
+	// batch is the latest run of Optimize All, running or finished.
+	batch *promptBatch
 }
 
 // New constructs the application without starting the main loop.

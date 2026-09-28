@@ -127,7 +127,7 @@ func TestDesignerPromptTeachesWhatAKeyIs(t *testing.T) {
 			t.Errorf("the extraction prompt no longer explains keys: missing %q", want)
 		}
 	}
-	if !strings.Contains(strings.ToLower(DesignerSystem), "at most two questions") {
+	if !strings.Contains(strings.ToLower(DesignerSystem), "two questions at most") {
 		t.Error("the interview no longer limits how many questions a message may ask")
 	}
 }

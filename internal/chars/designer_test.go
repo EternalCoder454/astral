@@ -252,7 +252,7 @@ func TestBuildStyleFromConversation(t *testing.T) {
 			blob.WriteString(fmt.Sprint(mm["content"]))
 		}
 	}
-	if !strings.Contains(strings.ToLower(blob.String()), "do not mention asterisks") {
+	if !strings.Contains(strings.ToLower(blob.String()), "no field mentions asterisks") {
 		t.Error("the extraction prompt does not warn the model off formatting")
 	}
 }
@@ -374,5 +374,13 @@ func TestDesignersNameTheirButton(t *testing.T) {
 	}
 	if !strings.Contains(designerPrompts["character revision"], "Save Character") {
 		t.Error("the revision prompt does not name the Save Character button")
+	}
+}
+
+func TestMarkBareNarration(t *testing.T) {
+	in := "*She sits.* \"Hello.\"\n\nInstead of pushing, he waits for {{user}} to speak.\n\n\"Well?\""
+	want := "*She sits.* \"Hello.\"\n\n*Instead of pushing, he waits for {{user}} to speak.*\n\n\"Well?\""
+	if got := markBareNarration(in); got != want {
+		t.Errorf("got  %q\nwant %q", got, want)
 	}
 }

@@ -15,7 +15,6 @@ import (
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
-	"astral/internal/promptopt"
 	"astral/internal/scene"
 	"astral/internal/store"
 	"astral/internal/websearch"
@@ -296,7 +295,7 @@ func (c *ChatView) recordStyle() {
 
 // options are the sampler settings, from internal/scene so that the window and
 // the phone send the same ones.
-func (c *ChatView) options() ollama.Options { return scene.Options(c.cfg) }
+func (c *ChatView) options() ollama.Options { return scene.OptionsFor(c.cfg, c.chat.Kind) }
 
 // startStream asks the model for a reply and streams it into a fresh row.
 func (c *ChatView) startStream() {
@@ -403,24 +402,13 @@ func (c *ChatView) startStream() {
 		var stats ollama.Stats
 		var err error
 		var rounds []websearch.Round
-		switch {
-		case kind == store.KindPromptOptimizer:
-			// The optimizer reads other prompts as it needs them, and says
-			// which while it does, as a search says what it is looking up.
-			msg, stats, err = promptopt.Run(ctx, client, model, msgs, opts, &think, onDelta,
-				func(name string) { c.setStatus("Reading the " + name + " prompt…") },
-				func() {
-					c.pendMu.Lock()
-					c.pendText.Reset()
-					c.pendDiscard = true
-					c.pendMu.Unlock()
-				})
-		case searcher != nil:
-			// The model decides whether to search, and the searches it makes are
-			// shown above the reply rather than folded away silently: a reply that
-			// went to the internet is one you cannot judge without knowing that.
+		if searcher != nil {
+			// The model decides whether to use its tools, and what it did with
+			// them is shown above the reply rather than folded away silently: a
+			// reply that went to the internet is one you cannot judge without
+			// knowing that.
 			msg, stats, rounds, err = searcher.Run(ctx, msgs, onDelta)
-		default:
+		} else {
 			msg, stats, err = c.client.Chat(ctx, model, msgs, opts, &think, onDelta)
 		}
 
