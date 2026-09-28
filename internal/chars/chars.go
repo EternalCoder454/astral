@@ -509,6 +509,12 @@ type Scene struct {
 	// rule like a character's instructions, it is a nudge for the next few
 	// turns, and it is expected to be rewritten or cleared as the scene moves.
 	Direction string
+	// Note is what you asked of this one reply when writing it again:
+	// "shorter", "she refuses". Unlike Direction it is gone after this reply.
+	Note string
+	// Onward says nobody spoke this turn: the cast carry the scene on among
+	// themselves. Only a group scene has anyone to carry it.
+	Onward bool
 }
 
 // BuildMessages assembles the full request.

@@ -105,6 +105,26 @@ func Lore(st *store.Store, ca chars.Character, hist []ollama.Message, budget int
 // hist is the conversation as it will be sent: everything since the recap, in
 // order, with the new user message already on the end.
 func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character, hist []ollama.Message) []ollama.Message {
+	return buildOne(st, cfg, ch, ca, hist, "")
+}
+
+// withNote carries a rewrite's note into a conversation that has no closing
+// block to put it in: a general chat, or a scene whose character is gone. A
+// scene with a character has its note in the closing block already.
+func withNote(msgs []ollama.Message, ch store.Chat, ca chars.Character, note string) []ollama.Message {
+	note = strings.TrimSpace(note)
+	if note == "" || len(msgs) == 0 {
+		return msgs
+	}
+	if last := msgs[len(msgs)-1]; last.Role == ollama.RoleSystem && strings.HasPrefix(last.Content, "[") {
+		return msgs
+	}
+	return append(msgs, ollama.Message{Role: ollama.RoleSystem,
+		Content: strings.TrimSpace(chars.NoteBlock(note, ca.Name, chars.DefaultPersonaName))})
+}
+
+// buildOne is Build with a note for this reply.
+func buildOne(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character, hist []ollama.Message, note string) []ollama.Message {
 	system := func(content string) []ollama.Message {
 		return append([]ollama.Message{{Role: ollama.RoleSystem, Content: content}}, hist...)
 	}
@@ -180,6 +200,7 @@ func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character,
 		// share of a reply's phrases already used in the last five replies
 		// from 0.87 to 0.78 and from 0.93 to 0.68.
 		Overused: chars.Overused(hist),
+		Note:     note,
 	}
 	sc.Lore = Lore(st, ca, hist, sc.Budget.Lore)
 	sc.Memory = Memory(st, ch, hist, nil, ca.Name, userNameOf(cfg), sc.Budget.Memory)

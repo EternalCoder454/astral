@@ -461,6 +461,40 @@ html, body {
 .send:active { transform: scale(0.92); }
 .send:disabled { opacity: 0.45; }
 
+/* Write for Me: tonal rather than filled, so Send stays the one thing the
+   composer is for, and the same height as the message box's single line. */
+.draft {
+	flex: none;
+	width: 48px;
+	height: 48px;
+	margin-bottom: 4px;
+	border-radius: var(--md-corner-l);
+	border: none;
+	background: var(--md-secondary-container, var(--md-surface-container-highest));
+	color: var(--md-on-secondary-container, var(--text));
+	display: grid;
+	place-items: center;
+}
+
+.draft[hidden] { display: none; }
+.draft:active { transform: scale(0.92); }
+.draft:disabled { opacity: 0.45; }
+
+/* A pinned turn carries a pin on its corner, so what the scene will never
+   forget can be found by scrolling. */
+.msg.pinned .bubble { position: relative; }
+.msg.pinned .bubble::after {
+	content: "";
+	position: absolute;
+	top: -7px;
+	right: -5px;
+	width: 16px;
+	height: 16px;
+	background: var(--md-primary);
+	-webkit-mask: url("/icons/astral-pin-symbolic.svg") center / contain no-repeat;
+	mask: url("/icons/astral-pin-symbolic.svg") center / contain no-repeat;
+}
+
 /* ---- Navigation bar ---- */
 
 /*
@@ -831,6 +865,59 @@ a.row { text-decoration: none; }
 	background: var(--md-primary);
 	color: var(--md-on-primary);
 }
+
+.sheet-button:disabled { opacity: 0.45; }
+
+.sheet-field {
+	width: 100%;
+	box-sizing: border-box;
+	resize: vertical;
+	min-height: 48px;
+	max-height: 40vh;
+	padding: 12px 14px;
+	border-radius: var(--md-corner-m, 12px);
+	border: 1px solid var(--md-outline-variant);
+	background: var(--md-surface-container-highest, var(--md-surface));
+	color: var(--text);
+	font: inherit;
+	font-size: 16px;
+}
+
+.sheet-field:focus {
+	outline: 2px solid var(--md-primary);
+	outline-offset: -2px;
+}
+
+.sheet-field:disabled { opacity: 0.6; }
+
+.sheet-label {
+	margin: 4px 0 0;
+	font-size: 0.9rem;
+	font-weight: 600;
+}
+
+.sheet-hint { margin: 0; font-size: 0.85rem; }
+
+/* An action's icon where a row would show a face. */
+.icon-avatar {
+	display: grid;
+	place-items: center;
+	background: var(--md-secondary-container, var(--md-surface-container-highest));
+	color: var(--md-on-secondary-container, var(--text));
+}
+
+.icon-avatar .tab-icon { width: 20px; height: 20px; }
+
+.pin-row .row-text { flex: 1 1 auto; min-width: 0; }
+.pin-row .chip-button { flex: none; }
+
+.sheet-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.sheet-chips .chip-button { max-width: none; min-height: 40px; padding: 0 14px; }
 
 
 /* On a phone the greeting is what the top bar is for. The model is a detail,

@@ -529,6 +529,14 @@ frame:focus-within {
 	color: @window_fg_color;
 }
 
+/* A pinned message keeps a small mark in its footer, in the accent, so what
+ * the scene will never forget is findable at a glance. */
+.pin-mark {
+	color: @accent_color;
+	-gtk-icon-size: 12px;
+	margin: 2px 2px 0 4px;
+}
+
 /* ---- Composer ---- */
 
 .composer-wrap {

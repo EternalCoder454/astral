@@ -140,9 +140,11 @@
     <button id="chat-back" class="icon" aria-label="Back"><i class="tab-icon" data-icon="back"></i></button>
     <h1 id="chat-title">Chat</h1>
     <button id="chat-persona" class="chip chip-button" hidden aria-label="Who you are in this chat"></button>
+    <button id="chat-more" class="icon" hidden aria-label="More for this chat"><i class="tab-icon" data-icon="more"></i></button>
   </header>
   <div id="transcript" class="transcript"></div>
   <form id="composer" class="composer">
+    <button type="button" id="composer-draft" class="draft" hidden aria-label="Write for Me"><i class="send-icon" data-icon="draft"></i></button>
     <textarea id="composer-text" rows="1" placeholder="Say something" aria-label="Message"></textarea>
     <button id="composer-send" class="send" aria-label="Send"><i class="send-icon" data-icon="send"></i></button>
   </form>
@@ -166,6 +168,47 @@
     <div id="persona-list" class="rows"></div>
     <div class="sheet-buttons">
       <button id="persona-cancel" class="sheet-button">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- A short list of things to do: a message's More, or the open chat's. -->
+<div id="menu-sheet" class="sheet-backdrop" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="menu-heading">
+    <h2 id="menu-heading" class="sheet-kicker">More</h2>
+    <div id="menu-list" class="rows"></div>
+    <div class="sheet-buttons">
+      <button id="menu-cancel" class="sheet-button">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- What a reply being written again should do differently. -->
+<div id="note-sheet" class="sheet-backdrop" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="note-heading">
+    <h2 id="note-heading" class="sheet-kicker">Rewrite with a Note</h2>
+    <textarea id="note-text" class="sheet-field" rows="2" placeholder="She refuses, more about the storm…" aria-label="What to change"></textarea>
+    <div id="note-chips" class="sheet-chips"></div>
+    <p class="muted sheet-hint">For this reply only.</p>
+    <div class="sheet-buttons">
+      <button id="note-cancel" class="sheet-button">Cancel</button>
+      <button id="note-go" class="sheet-button primary">Rewrite</button>
+    </div>
+  </div>
+</div>
+
+<!-- What the open scene remembers: its record, and what is pinned. -->
+<div id="memory-sheet" class="sheet-backdrop" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="memory-heading">
+    <h2 id="memory-heading" class="sheet-kicker">Scene Memory</h2>
+    <label class="sheet-label" for="memory-recap">Record of the Scene So Far</label>
+    <textarea id="memory-recap" class="sheet-field" rows="6"></textarea>
+    <p id="memory-hint" class="muted sheet-hint"></p>
+    <h3 class="sheet-label">Pinned</h3>
+    <div id="memory-pins" class="rows"></div>
+    <div class="sheet-buttons">
+      <button id="memory-cancel" class="sheet-button">Cancel</button>
+      <button id="memory-save" class="sheet-button primary">Save</button>
     </div>
   </div>
 </div>

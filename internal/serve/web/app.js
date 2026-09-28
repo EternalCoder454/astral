@@ -514,10 +514,17 @@ function toast(text) {
 	toast.timer = setTimeout(() => { el.hidden = true; }, 3200);
 }
 
-function row({ title, note, initial, primary, onClick, picture }) {
-	const btn = document.createElement("button");
+function row({ title, note, initial, primary, onClick, picture, icon, tag = "button" }) {
+	const btn = document.createElement(tag);
 	btn.className = "row" + (primary ? " row-primary" : "");
-	if (initial) {
+	if (icon) {
+		// An action rather than a person: its icon where a face would be.
+		const av = document.createElement("div");
+		av.className = "avatar icon-avatar";
+		av.innerHTML = '<i class="tab-icon" data-icon="' + icon + '"></i>';
+		paintIcons(av);
+		btn.append(av);
+	} else if (initial) {
 		const av = document.createElement("div");
 		av.className = "avatar";
 		av.textContent = initial;
@@ -538,7 +545,7 @@ function row({ title, note, initial, primary, onClick, picture }) {
 		text.append(n);
 	}
 	btn.append(text);
-	btn.addEventListener("click", onClick);
+	if (onClick) btn.addEventListener("click", onClick);
 	return btn;
 }
 
@@ -867,7 +874,7 @@ function showChat(chat) {
 	// the scene and on a phone is the wait between tapping it and reading.
 	const msgs = chat.messages || [];
 	const from = Math.max(0, msgs.length - SHOWN_AT_ONCE);
-	for (const m of msgs.slice(from)) t.append(bubble(m.role, m.content, m.who, m.accent, m.id, m.versions, m.version));
+	for (const m of msgs.slice(from)) t.append(storedBubble(m));
 	if (from > 0) t.prepend(earlierButton(msgs, from));
 	if (!t.children.length) {
 		// An empty chat said nothing at all, which on a phone reads as one
@@ -881,6 +888,9 @@ function showChat(chat) {
 	}
 	showPortrait(chat);
 	showChatPersona(chat);
+	$("composer-draft").hidden = !chat.can_draft;
+	refreshDraftButton();
+	$("chat-more").hidden = !chat.remembers && (chat.cast || []).length < 2;
 	show("chat");
 	scrollDown(false);
 	setComposerBusy(streamingIn.has(chat.id));
@@ -903,7 +913,7 @@ function earlierButton(msgs, end) {
 		const kept = t.scrollHeight - t.scrollTop;
 		const batch = document.createDocumentFragment();
 		if (from > 0) batch.append(earlierButton(msgs, from));
-		for (const m of msgs.slice(from, end)) batch.append(bubble(m.role, m.content, m.who, m.accent, m.id, m.versions, m.version));
+		for (const m of msgs.slice(from, end)) batch.append(storedBubble(m));
 		b.replaceWith(batch);
 		t.scrollTop = t.scrollHeight - kept;
 	});
@@ -1155,11 +1165,31 @@ function toggleActions(wrap) {
 	// everything after it, which on a phone is one mis-tap away from losing a
 	// scene, so the one turn it can safely mean is the one at the end.
 	const last = $("transcript").lastElementChild;
-	if (wrap.dataset.role === "assistant" && wrap === last) {
+	const isLastReply = wrap.dataset.role === "assistant" && wrap === last;
+	if (isLastReply) {
 		add("Write this reply again", "regenerate", false, () => {
 			row.remove();
 			regenerate();
 		}, "Rewrite");
+	}
+
+	// Your last message, written better and answered again.
+	const mineLast = [...$("transcript").querySelectorAll(".msg.from-user")].pop();
+	if (wrap.dataset.role === "user" && wrap === mineLast && current?.can_draft && wrap.dataset.id) {
+		add("Rewrite your message better, and have it answered again", "regenerate", false, () => {
+			row.remove();
+			rewriteMine(wrap);
+		}, "Rewrite");
+	}
+
+	// The rest behind More: four buttons fit under a message on a phone, and
+	// these are used less often than the ones on the row.
+	const more = moreFor(wrap, isLastReply);
+	if (more.length) {
+		add("More for this message", "more", false, () => {
+			row.remove();
+			openMenu("This Message", more);
+		}, "More");
 	}
 
 	// Two taps, as a swiped row asks: a turn deleted by a thumb that missed
@@ -1256,7 +1286,7 @@ async function send(text) {
 // The whole of it: a group turn is several messages, one per speaker, so every
 // reply at the end of the transcript goes, which is what undoes one turn rather
 // than one voice within it. The server rewinds its own copy the same way.
-async function regenerate() {
+async function regenerate(note = "") {
 	if (!current || busyHere()) return;
 	const t = $("transcript");
 	const old = [];
@@ -1266,7 +1296,7 @@ async function regenerate() {
 	// Hidden rather than removed until the PC has agreed: a refused
 	// regenerate used to leave the screen without replies the PC still had.
 	for (const el of old) el.hidden = true;
-	const outcome = await stream("/api/chats/" + current.id + "/regenerate", "{}");
+	const outcome = await stream("/api/chats/" + current.id + "/regenerate", JSON.stringify({ note }));
 	for (const el of old) {
 		if (outcome === "refused") el.hidden = false;
 		else el.remove();
@@ -1520,6 +1550,9 @@ $("chat-back").addEventListener("click", () => {
 });
 window.addEventListener("popstate", () => {
 	if (current && !history.state?.chat) leaveChat();
+	// Back from a chat opened out of another one, a branch, goes back to
+	// that one. Without this Back did nothing at all once.
+	else if (current && history.state.chat !== current.id) openChat(history.state.chat);
 });
 
 for (const tab of document.querySelectorAll(".tab")) {
@@ -1644,6 +1677,7 @@ $("composer").addEventListener("submit", (e) => {
 	if (!text) return;
 	composer.value = "";
 	composer.style.height = "auto";
+	refreshDraftButton();
 	send(text);
 });
 
@@ -1655,6 +1689,349 @@ composer.addEventListener("keydown", (e) => {
 		$("composer").requestSubmit();
 	}
 });
+
+// ---- Steering a scene ----
+
+// storedBubble is a stored message as a turn on screen.
+function storedBubble(m) {
+	const el = bubble(m.role, m.content, m.who, m.accent, m.id, m.versions, m.version);
+	if (m.pinned) el.classList.add("pinned");
+	return el;
+}
+
+// moreFor is what a message's More offers.
+function moreFor(wrap, isLastReply) {
+	const items = [];
+	const id = Number(wrap.dataset.id || 0);
+	if (isLastReply) {
+		items.push({ title: "Rewrite with a Note", note: "Say what this reply should do differently.",
+			icon: "draft", onClick: () => askNote() });
+	}
+	if (id && current?.remembers) {
+		const pinned = wrap.classList.contains("pinned");
+		items.push({
+			title: pinned ? "Unpin" : "Pin",
+			note: pinned ? "Stop keeping this one in mind." : "Keep this in mind however long the scene grows.",
+			icon: "pin", onClick: () => pin(wrap, !pinned),
+		});
+	}
+	if (id) {
+		items.push({ title: "Branch from Here", note: "A new chat that is this one up to here.",
+			icon: "branch", onClick: () => branch(id) });
+	}
+	return items;
+}
+
+// openMenu shows a short list of things to do.
+function openMenu(heading, items) {
+	$("menu-heading").textContent = heading;
+	const list = $("menu-list");
+	list.replaceChildren();
+	for (const it of items) {
+		list.append(row({
+			title: it.title,
+			note: it.note || "",
+			icon: it.icon,
+			initial: it.initial,
+			picture: it.picture,
+			onClick: () => { $("menu-sheet").hidden = true; it.onClick(); },
+		}));
+	}
+	$("menu-sheet").hidden = false;
+}
+$("menu-cancel").addEventListener("click", () => { $("menu-sheet").hidden = true; });
+
+// Every sheet closes when the dimmed page around it is tapped, as Android's
+// own sheets do.
+for (const id of ["menu-sheet", "note-sheet", "memory-sheet", "persona-sheet"]) {
+	$(id).addEventListener("click", (e) => { if (e.target === $(id)) $(id).hidden = true; });
+}
+
+// REWRITE_NOTES are the notes asked for most, one tap each.
+const REWRITE_NOTES = ["Shorter", "Longer", "More Dialogue", "More Detail", "Less Formal"];
+
+// askNote asks what the last reply should do differently, then writes it again.
+function askNote() {
+	const text = $("note-text");
+	text.value = "";
+	$("note-go").disabled = true;
+	const chips = $("note-chips");
+	chips.replaceChildren();
+	for (const n of REWRITE_NOTES) {
+		const b = document.createElement("button");
+		b.className = "chip chip-button";
+		b.textContent = n;
+		b.addEventListener("click", () => { $("note-sheet").hidden = true; regenerate(n); });
+		chips.append(b);
+	}
+	$("note-sheet").hidden = false;
+	text.focus();
+}
+$("note-text").addEventListener("input", () => { $("note-go").disabled = !$("note-text").value.trim(); });
+$("note-cancel").addEventListener("click", () => { $("note-sheet").hidden = true; });
+$("note-go").addEventListener("click", () => {
+	const note = $("note-text").value.trim();
+	if (!note) return;
+	$("note-sheet").hidden = true;
+	regenerate(note);
+});
+
+// pin pins or unpins one message.
+async function pin(wrap, on) {
+	if (!current) return;
+	try {
+		await api("/api/chats/" + current.id + "/messages/" + wrap.dataset.id + "/pin", {
+			method: "POST", body: JSON.stringify({ pinned: on }),
+		});
+		wrap.classList.toggle("pinned", on);
+		const m = (current.messages || []).find((x) => String(x.id) === wrap.dataset.id);
+		if (m) m.pinned = on;
+		toast(on ? "Pinned. The scene will keep it in mind." : "Unpinned.");
+	} catch (e) {
+		toast(e.message);
+	}
+}
+
+// branch starts a new chat from this one up to a message, and opens it.
+async function branch(id) {
+	if (!current || busyHere()) return;
+	try {
+		const res = await api("/api/chats/" + current.id + "/branch", {
+			method: "POST", body: JSON.stringify({ message_id: id }),
+		});
+		const out = await res.json();
+		toast("Branched. The original is still in your chats.");
+		await openChat(out.id);
+		loadState().catch(() => {});
+	} catch (e) {
+		toast(e.message);
+	}
+}
+
+// chatMenu is the open chat's More: its memory, and in a group, who is next.
+function chatMenu() {
+	if (!current) return;
+	const items = [];
+	if (current.remembers) {
+		items.push({ title: "Scene Memory", note: "See and correct what this scene remembers.",
+			icon: "history", onClick: openMemory });
+	}
+	const cast = current.cast || [];
+	if (cast.length > 1) {
+		items.push({ title: "Let Them Talk", note: "They carry on among themselves, without you.",
+			icon: "chat", onClick: () => groupTurn("") });
+		for (const c of cast) {
+			items.push({
+				title: c.name + " Answers",
+				note: "Sends your message with " + c.name + " answering, or has them speak now.",
+				initial: initialOf(c.name),
+				picture: c.avatar ? c.id : null,
+				onClick: () => groupTurn(c.name),
+			});
+		}
+	}
+	openMenu(current.title || "This Chat", items);
+}
+$("chat-more").addEventListener("click", chatMenu);
+
+// groupTurn sends what is typed with somebody chosen to answer, or with
+// nothing typed, has the cast carry on.
+async function groupTurn(speaker) {
+	if (!current || busyHere()) return;
+	const box = $("composer-text");
+	const text = box.value.trim();
+	document.querySelector("#transcript .empty-chat")?.remove();
+	let mine = null;
+	if (text) {
+		box.value = "";
+		box.style.height = "auto";
+		refreshDraftButton();
+		mine = bubble("user", text);
+		$("transcript").append(mine);
+	}
+	const outcome = await stream("/api/chats/" + current.id + "/send",
+		JSON.stringify({ text, speaker, onward: !text }), mine);
+	if (outcome === "refused" && mine) {
+		mine.remove();
+		if (!box.value.trim()) { box.value = text; box.dispatchEvent(new Event("input")); }
+	}
+}
+
+// openMemory shows the scene's record, to read and correct, and its pins.
+async function openMemory() {
+	if (!current) return;
+	const chatId = current.id;
+	let mem;
+	try {
+		mem = await (await api("/api/chats/" + chatId + "/memory")).json();
+	} catch (e) {
+		toast(e.message);
+		return;
+	}
+	if (current?.id !== chatId) return;
+	const recap = $("memory-recap");
+	recap.value = mem.recap || "";
+	recap.disabled = !mem.covers;
+	$("memory-save").disabled = !mem.covers;
+	$("memory-hint").textContent = mem.covers
+		? "What the model is told about the part of the scene it can no longer see."
+		: "Written once the scene outgrows the model's memory. Until then it reads every turn.";
+	const pins = $("memory-pins");
+	pins.replaceChildren();
+	if (!mem.pins.length) {
+		const p = document.createElement("p");
+		p.className = "muted sheet-hint";
+		p.textContent = "Nothing pinned. Tap a message, then More, to pin it.";
+		pins.append(p);
+	}
+	for (const p of mem.pins) {
+		// A plain row rather than a button: it holds a button of its own.
+		const r = row({ title: p.who, note: p.text, initial: initialOf(p.who), tag: "div" });
+		r.classList.add("pin-row");
+		const un = document.createElement("button");
+		un.className = "chip chip-button";
+		un.textContent = "Unpin";
+		un.addEventListener("click", async (e) => {
+			e.stopPropagation();
+			try {
+				await api("/api/chats/" + chatId + "/messages/" + p.id + "/pin", {
+					method: "POST", body: JSON.stringify({ pinned: false }),
+				});
+				r.remove();
+				document.querySelector('#transcript .msg[data-id="' + p.id + '"]')?.classList.remove("pinned");
+				const m = (current?.messages || []).find((x) => x.id === p.id);
+				if (m) m.pinned = false;
+			} catch (err) {
+				toast(err.message);
+			}
+		});
+		r.append(un);
+		pins.append(r);
+	}
+	$("memory-sheet").hidden = false;
+}
+$("memory-cancel").addEventListener("click", () => { $("memory-sheet").hidden = true; });
+$("memory-save").addEventListener("click", async () => {
+	if (!current) return;
+	try {
+		await api("/api/chats/" + current.id + "/memory", {
+			method: "POST", body: JSON.stringify({ recap: $("memory-recap").value }),
+		});
+		$("memory-sheet").hidden = true;
+		toast("Saved, from your next message on.");
+	} catch (e) {
+		toast(e.message);
+	}
+});
+
+// readEvents calls onEvent for each server-sent event in a response.
+async function readEvents(res, onEvent) {
+	const reader = res.body.getReader();
+	const decoder = new TextDecoder();
+	let buffer = "";
+	for (;;) {
+		const { value, done } = await reader.read();
+		if (done) return;
+		buffer += decoder.decode(value, { stream: true });
+		let cut;
+		while ((cut = buffer.indexOf("\n\n")) >= 0) {
+			const block = buffer.slice(0, cut);
+			buffer = buffer.slice(cut + 2);
+			const event = /^event: (.+)$/m.exec(block)?.[1] || "message";
+			const data = /^data: (.+)$/m.exec(block)?.[1];
+			if (data) onEvent(event, JSON.parse(data));
+		}
+	}
+}
+
+// writeForMe drafts your next message into the message box, from what you had
+// typed when there is anything. It is never sent for you. Send turns into
+// Stop while it writes, as it does for a reply.
+async function writeForMe() {
+	if (!current || busyHere()) return;
+	const chatId = current.id;
+	const here = () => current?.id === chatId;
+	const box = $("composer-text");
+	const idea = box.value.trim();
+	const was = box.placeholder;
+	let text = "";
+	streamingIn.add(chatId);
+	setComposerBusy(true);
+	$("composer-draft").disabled = true;
+	box.value = "";
+	box.placeholder = "Writing your message…";
+	const put = (t) => {
+		if (!here()) return;
+		box.value = t;
+		box.dispatchEvent(new Event("input"));
+	};
+	try {
+		const res = await api("/api/chats/" + chatId + "/draft", {
+			method: "POST", body: JSON.stringify({ idea }),
+		});
+		await readEvents(res, (event, payload) => {
+			if (event === "draft" || event === "done") {
+				text = payload.text || text;
+				put(text);
+			} else if (event === "error") {
+				throw new Error(payload.error);
+			}
+		});
+	} catch (e) {
+		if (here() && !(e instanceof TypeError)) toast(e.message);
+	} finally {
+		streamingIn.delete(chatId);
+		$("composer-draft").disabled = false;
+		box.placeholder = was;
+		if (here()) {
+			setComposerBusy(false);
+			put(text.trim() ? text : idea);
+			box.focus();
+		}
+	}
+}
+$("composer-draft").addEventListener("click", writeForMe);
+
+// The Write for Me button makes what you typed better when there is anything
+// typed, and says so.
+function refreshDraftButton() {
+	const typed = !!$("composer-text").value.trim();
+	const btn = $("composer-draft");
+	btn.setAttribute("aria-label", typed ? "Rewrite what you typed, better" : "Write for Me");
+	btn.title = btn.getAttribute("aria-label");
+	btn.querySelector(".send-icon").dataset.icon = typed ? "regenerate" : "draft";
+	paintIcons(btn);
+}
+$("composer-text").addEventListener("input", refreshDraftButton);
+
+// rewriteMine has your last message written better, then answered again.
+async function rewriteMine(wrap) {
+	if (!current || busyHere()) return;
+	const chatId = current.id;
+	const body = wrap.querySelector(".bubble");
+	streamingIn.add(chatId);
+	setComposerBusy(true);
+	body.classList.add("dots");
+	let out = null;
+	try {
+		const res = await api("/api/chats/" + chatId + "/messages/" + wrap.dataset.id + "/rewrite", { method: "POST", body: "{}" });
+		out = await res.json();
+	} catch (e) {
+		toast(e.message);
+	} finally {
+		body.classList.remove("dots");
+		streamingIn.delete(chatId);
+		if (current?.id === chatId) setComposerBusy(false);
+	}
+	if (!out || current?.id !== chatId) return;
+	body.innerHTML = render(out.content, "user");
+	const m = (current.messages || []).find((x) => String(x.id) === wrap.dataset.id);
+	if (m) m.content = out.content;
+	if (!out.changed) return;
+	// Answered again when a reply follows it.
+	if (wrap.nextElementSibling?.dataset.role === "assistant") regenerate();
+	else toast("Rewritten.");
+}
 
 async function start() {
 	paintIcons();

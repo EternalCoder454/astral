@@ -54,9 +54,22 @@ func TestDevServe(t *testing.T) {
 			st.AddMessage(store.Message{ChatID: long.ID, Role: ollama.RoleAssistant,
 				Content: strings.Repeat(`*She folds the chart twice, then a third time, as if the fold could hide the line.* "The water came in wrong, and it came in fast." `, 3)})
 		}
-		for _, n := range []string{"Maren Voss", "Oswin Tarrow", "Brand Ashcombe", "Ilse of the Lanterns"} {
-			st.SaveCharacter(chars.Character{Name: n, Description: "Someone from the harbour with a long description that runs on for a while so the list has to cut it somewhere sensible."})
+		// The long scene has outgrown its window, so its memory has a record
+		// to read and correct.
+		if msgs, err := st.Messages(long.ID); err == nil && len(msgs) > 4 {
+			st.SetChatSummary(long.ID, "Wren asked Vesper what she saw at the harbour, eight times over. She folded the chart and would not say.", msgs[3].ID)
 		}
+		var crew []int64
+		for _, n := range []string{"Maren Voss", "Oswin Tarrow", "Brand Ashcombe", "Ilse of the Lanterns"} {
+			id, _ := st.SaveCharacter(chars.Character{Name: n, Description: "Someone from the harbour with a long description that runs on for a while so the list has to cut it somewhere sensible."})
+			crew = append(crew, id)
+		}
+		// A scene with a cast, for choosing who answers and letting them talk.
+		group, _ := st.NewChatIn(crew[0], 0, "The crew meets", "m", store.KindRoleplay)
+		st.SetCast(group.ID, crew[:3])
+		st.AddMessage(store.Message{ChatID: group.ID, Role: ollama.RoleUser, Content: `"Right. Who has the plans?"`})
+		st.AddMessage(store.Message{ChatID: group.ID, Role: ollama.RoleAssistant, CharacterID: crew[0],
+			Content: `*Maren taps the satchel at her hip.* "I do. And they stay with me."`})
 		st.NewChatIn(0, 0, "Creating a Persona", "", store.KindPersonaDesigner)
 		if os.Getenv("ASTRAL_DEV_SERVE_EPIC") != "" {
 			// A scene played for weeks, to time opening it on a phone.
@@ -99,5 +112,5 @@ func TestDevServe(t *testing.T) {
 	if f := os.Getenv("ASTRAL_DEV_SERVE_CODE"); f != "" {
 		os.WriteFile(f, []byte(code), 0o600)
 	}
-	time.Sleep(4 * time.Minute)
+	time.Sleep(8 * time.Minute)
 }

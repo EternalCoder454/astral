@@ -37,7 +37,7 @@ func (c *ChatView) Send() {
 	text := strings.TrimSpace(c.composerText())
 	// An image or a file on its own is a complete message: "look at this"
 	// needs no words.
-	if (text == "" && c.attachPath == "" && len(c.files) == 0) || c.busy {
+	if (text == "" && c.attachPath == "" && len(c.files) == 0) || c.busy || c.drafting {
 		return
 	}
 	if c.activeModel() == "" {
@@ -273,7 +273,7 @@ func (c *ChatView) buildRequest() []ollama.Message {
 	if c.continuing != nil && len(hist) > 0 && hist[len(hist)-1].Role == ollama.RoleAssistant {
 		hist = hist[:len(hist)-1]
 	}
-	return scene.BuildFor(c.store, c.cfg, c.chat, c.cast, hist)
+	return scene.BuildTurn(c.store, c.cfg, c.chat, c.cast, hist, c.turn)
 }
 
 // budget divides this chat's context window between the parts of its prompt.
@@ -858,6 +858,7 @@ func (c *ChatView) setBusy(busy bool) {
 	}
 	c.busy = busy
 	c.refreshPagers()
+	c.refreshDraftButton()
 	if busy {
 		c.sendBtn.SetIconName(IconStop)
 		c.sendBtn.SetTooltipText("Stop generating")

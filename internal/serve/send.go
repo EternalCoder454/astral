@@ -43,20 +43,30 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 	}
 	var body struct {
 		Text string `json:"text"`
+		// Speaker is who answers, in a group scene, when you chose.
+		Speaker string `json:"speaker"`
+		// Onward is a group turn with nothing from you: the cast carry on.
+		Onward bool `json:"onward"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256<<10)).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unreadable request"})
 		return
 	}
 	text := strings.TrimSpace(body.Text)
-	if text == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "nothing to send"})
-		return
-	}
 	ch, err := s.store.Chat(id)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such chat"})
 		return
+	}
+	turn := scene.Turn{Speaker: body.Speaker}
+	if text == "" {
+		// Only a group can carry on without you: a character on their own
+		// answering nothing is a character talking to themselves.
+		if !body.Onward || len(s.castFor(ch)) < 2 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "nothing to send"})
+			return
+		}
+		turn.Onward = true
 	}
 
 	release, free := s.busy.claim(ch.ID)
@@ -66,6 +76,10 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 	}
 	defer release()
 
+	if turn.Onward {
+		s.generate(w, r, ch, 0, nil, turn)
+		return
+	}
 	userID, err := s.store.AddMessage(store.Message{
 		ChatID: ch.ID, Role: ollama.RoleUser, Content: text,
 	})
@@ -79,7 +93,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 			ch.Title = store.TitleFrom(text)
 		}
 	}
-	s.generate(w, r, ch, userID, nil)
+	s.generate(w, r, ch, userID, nil, turn)
 }
 
 // handleRegenerate throws away the last reply and writes another one.
@@ -97,6 +111,14 @@ func (s *Server) handleRegenerate(w http.ResponseWriter, r *http.Request, d stor
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such chat"})
 		return
+	}
+	// A note on what the new reply should do differently, when there is one.
+	// The body is optional: a plain rewrite sends none.
+	var body struct {
+		Note string `json:"note"`
+	}
+	if r.ContentLength != 0 {
+		json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&body)
 	}
 	release, free := s.busy.claim(ch.ID)
 	if !free {
@@ -137,7 +159,7 @@ func (s *Server) handleRegenerate(w http.ResponseWriter, r *http.Request, d stor
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	s.generate(w, r, ch, 0, base)
+	s.generate(w, r, ch, 0, base, scene.Turn{Note: strings.TrimSpace(body.Note)})
 }
 
 // generate streams one reply for a chat whose messages are already in the
@@ -156,7 +178,7 @@ func (s *Server) handleRegenerate(w http.ResponseWriter, r *http.Request, d stor
 // base is the versions of the reply a regenerate is replacing. The new reply
 // is stored beside them, and if it never arrives they are put back, because
 // writing a reply again must never be how one is lost.
-func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat, userID int64, base []store.Version) {
+func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat, userID int64, base []store.Version, turn scene.Turn) {
 	saved := false
 	if len(base) > 0 {
 		defer func() {
@@ -187,7 +209,7 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat,
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	msgs := scene.BuildFor(s.store, cfg, ch, castFor(cast, ca), hist)
+	msgs := scene.BuildTurn(s.store, cfg, ch, castFor(cast, ca), hist, turn)
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {

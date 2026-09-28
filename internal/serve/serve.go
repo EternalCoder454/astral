@@ -142,6 +142,12 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("DELETE /api/chats/{id}/messages/{mid}", s.guard(s.handleDeleteMessage))
 	mux.Handle("POST /api/chats/{id}/messages/{mid}/version", s.guard(s.handleVersion))
 	mux.Handle("POST /api/chats/{id}/persona", s.guard(s.handleChatPersona))
+	mux.Handle("POST /api/chats/{id}/draft", s.guard(s.handleDraft))
+	mux.Handle("POST /api/chats/{id}/branch", s.guard(s.handleBranch))
+	mux.Handle("GET /api/chats/{id}/memory", s.guard(s.handleMemory))
+	mux.Handle("POST /api/chats/{id}/memory", s.guard(s.handleSaveMemory))
+	mux.Handle("POST /api/chats/{id}/messages/{mid}/pin", s.guard(s.handlePin))
+	mux.Handle("POST /api/chats/{id}/messages/{mid}/rewrite", s.guard(s.handleRewriteMine))
 	mux.Handle("DELETE /api/chats/{id}", s.guard(s.handleDeleteChat))
 	mux.Handle("DELETE /api/characters/{id}", s.guard(s.handleDeleteCharacter))
 	mux.Handle("DELETE /api/worlds/{id}", s.guard(s.handleDeleteWorld))
@@ -298,6 +304,8 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, d store.Devi
 		// than one was, and Version which of them is showing.
 		Versions int `json:"versions,omitempty"`
 		Version  int `json:"version,omitempty"`
+		// Pinned messages are kept in mind however long the scene grows.
+		Pinned bool `json:"pinned,omitempty"`
 	}
 	out := struct {
 		ID       int64     `json:"id"`
@@ -318,8 +326,14 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, d store.Devi
 		// persona, or the one in use by default.
 		PersonaID int64  `json:"persona_id,omitempty"`
 		Persona   string `json:"persona,omitempty"`
+		// CanDraft says Write for Me belongs here, and Remembers that the chat
+		// keeps a record and pins, so the phone offers only what works.
+		CanDraft  bool `json:"can_draft,omitempty"`
+		Remembers bool `json:"remembers,omitempty"`
 	}{ID: ch.ID, Title: ch.Title, Who: ch.CharacterName, Accent: ch.Accent, Kind: ch.Kind,
 		Writing: s.busy.writing(id), Portrait: s.portraitOf(ch) != ""}
+	out.CanDraft = scene.CanDraft(ch, castFor(s.castFor(ch), s.characterFor(ch)))
+	out.Remembers = remembers(ch, s.characterFor(ch))
 	if pid := ch.PersonaID; pid != 0 || s.config().ActivePersona != 0 {
 		if pid == 0 {
 			pid = s.config().ActivePersona
@@ -342,6 +356,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, d store.Devi
 		if len(m.Versions) > 1 {
 			o.Versions, o.Version = len(m.Versions), m.Version
 		}
+		o.Pinned = m.Pinned
 		if nameOf != nil && m.Role == ollama.RoleAssistant {
 			id := m.CharacterID
 			if id == 0 && len(cast) > 0 {

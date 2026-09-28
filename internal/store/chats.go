@@ -104,6 +104,9 @@ type Message struct {
 	// that reads a transcript reads it without knowing versions exist.
 	Versions []Version
 	Version  int
+	// Pinned messages are sent word for word however long the scene grows.
+	// See branch.go.
+	Pinned bool
 }
 
 // Version is one of the replies written for the same turn. Writing a reply
@@ -281,7 +284,7 @@ func (s *Store) Messages(chatID int64) ([]Message, error) {
 func (s *Store) messages(chatID, afterID int64) ([]Message, error) {
 	rows, err := s.db.Query(`
 		SELECT id, chat_id, role, content, thinking, character_id, eval_count, tok_per_sec, created_at,
-		       versions, version
+		       versions, version, pinned
 		FROM messages WHERE chat_id = ? AND id > ? ORDER BY id`, chatID, afterID)
 	if err != nil {
 		return nil, err
@@ -293,7 +296,7 @@ func (s *Store) messages(chatID, afterID int64) ([]Message, error) {
 		var created int64
 		var versions string
 		if err := rows.Scan(&m.ID, &m.ChatID, &m.Role, &m.Content, &m.Thinking,
-			&m.CharacterID, &m.EvalCount, &m.TokPerSec, &created, &versions, &m.Version); err != nil {
+			&m.CharacterID, &m.EvalCount, &m.TokPerSec, &created, &versions, &m.Version, &m.Pinned); err != nil {
 			return nil, err
 		}
 		m.CreatedAt = fromUnix(created)

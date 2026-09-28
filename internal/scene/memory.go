@@ -28,26 +28,50 @@ func Memory(st *store.Store, ch store.Chat, hist []ollama.Message, nameOf func(i
 	if st == nil || ch.ID == 0 || ch.SummaryUpto <= 0 || budget <= 0 {
 		return ""
 	}
+	// Pinned turns first: you asked for them to be kept, and they take the
+	// room before anything a search happened to find. Newest first while
+	// choosing, so a scene with more pins than room keeps the recent ones.
+	pins, err := st.Pinned(ch.ID, ch.SummaryUpto)
+	if err != nil {
+		log.Printf("astral: reading pinned moments in chat %d: %v", ch.ID, err)
+	}
+	used := 0
+	pinned := map[int64]bool{}
+	var keptPins []store.Moment
+	for i := len(pins) - 1; i >= 0; i-- {
+		m := pins[i]
+		m.Content = excerpt(m.Content, pinnedChars)
+		cost := len(m.Content) + 24
+		if used+cost > budget {
+			continue
+		}
+		used += cost
+		pinned[m.ID] = true
+		keptPins = append(keptPins, m)
+	}
+	sort.Slice(keptPins, func(i, j int) bool { return keptPins[i].ID < keptPins[j].ID })
+
 	var query []string
 	for i := len(hist) - 1; i >= 0 && len(query) < 2; i-- {
 		if c := strings.TrimSpace(hist[i].Content); c != "" && hist[i].Role != ollama.RoleSystem {
 			query = append(query, c)
 		}
 	}
-	if len(query) == 0 {
-		return ""
-	}
-	moments, err := st.Moments(ch.ID, ch.SummaryUpto, strings.Join(query, "\n"), 6)
-	if err != nil {
-		log.Printf("astral: recalling earlier moments in chat %d: %v", ch.ID, err)
-		return ""
+	var moments []store.Moment
+	if len(query) > 0 {
+		moments, err = st.Moments(ch.ID, ch.SummaryUpto, strings.Join(query, "\n"), 6)
+		if err != nil {
+			log.Printf("astral: recalling earlier moments in chat %d: %v", ch.ID, err)
+		}
 	}
 
 	// Best first while choosing, so the budget goes to the most relevant;
 	// then in the order they happened, so the block reads as a sequence.
 	var kept []store.Moment
-	used := 0
 	for _, m := range moments {
+		if pinned[m.ID] {
+			continue
+		}
 		m.Content = excerpt(m.Content, momentChars)
 		cost := len(m.Content) + 24
 		if used+cost > budget {
@@ -58,24 +82,40 @@ func Memory(st *store.Store, ch store.Chat, hist []ollama.Message, nameOf func(i
 	}
 	sort.Slice(kept, func(i, j int) bool { return kept[i].ID < kept[j].ID })
 
-	var b strings.Builder
-	for _, m := range kept {
-		who := userName
-		if m.Role == ollama.RoleAssistant {
-			who = charName
-			if nameOf != nil && m.CharacterID != 0 {
-				if n := nameOf(m.CharacterID); n != "" {
-					who = n
+	write := func(b *strings.Builder, ms []store.Moment) {
+		for _, m := range ms {
+			who := userName
+			if m.Role == ollama.RoleAssistant {
+				who = charName
+				if nameOf != nil && m.CharacterID != 0 {
+					if n := nameOf(m.CharacterID); n != "" {
+						who = n
+					}
 				}
 			}
+			b.WriteString(who)
+			b.WriteString(": ")
+			b.WriteString(m.Content)
+			b.WriteString("\n\n")
 		}
-		b.WriteString(who)
-		b.WriteString(": ")
-		b.WriteString(m.Content)
-		b.WriteString("\n\n")
 	}
+	var b strings.Builder
+	if len(keptPins) > 0 {
+		// Labelled, and only when there are pins, so a scene without any
+		// sends exactly the block it always has.
+		b.WriteString("Pinned, to be kept in mind always:\n")
+		write(&b, keptPins)
+		if len(kept) > 0 {
+			b.WriteString("Recalled because of what is happening now:\n")
+		}
+	}
+	write(&b, kept)
 	return strings.TrimSpace(b.String())
 }
+
+// pinnedChars bounds one pinned moment. More than a recalled one gets: you
+// chose it, and cutting it short would drop the part you pinned it for.
+const pinnedChars = 1200
 
 // excerpt cuts a moment to length at a sentence where it can.
 func excerpt(s string, max int) string {

@@ -91,6 +91,7 @@ func Anchor(c Character, sc Scene, userName string) string {
 	}
 
 	b.WriteString(freshWording(sc.Overused, c.Name, userName))
+	b.WriteString(PaceBlock(c.Name, userName))
 
 	// Last of all, and so weighted most. A direction is about where the scene
 	// is going rather than how it is written, which is why it sits apart from
@@ -108,6 +109,7 @@ func Anchor(c Character, sc Scene, userName string) string {
 			"once. One step, now:\n")
 		b.WriteString(Substitute(d, c.Name, userName))
 	}
+	b.WriteString(NoteBlock(sc.Note, c.Name, userName))
 	b.WriteString("]")
 	return b.String()
 }

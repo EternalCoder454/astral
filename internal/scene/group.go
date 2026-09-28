@@ -23,19 +23,36 @@ import (
 // or every existing conversation loses its cached prefix the first time it is
 // reopened.
 func BuildFor(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Character, hist []ollama.Message) []ollama.Message {
+	return BuildTurn(st, cfg, ch, cast, hist, Turn{})
+}
+
+// Turn is how one turn is steered, on top of everything the scene already
+// says. The zero value is an ordinary turn.
+type Turn struct {
+	// Note is what the person asked of a reply they are having written again.
+	Note string
+	// Speaker is who answers, in a group scene, when the person chose.
+	Speaker string
+	// Onward is a group turn with nothing new from the person: the cast
+	// carry the scene on among themselves.
+	Onward bool
+}
+
+// BuildTurn is BuildFor, steered.
+func BuildTurn(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Character, hist []ollama.Message, t Turn) []ollama.Message {
 	if len(cast) < 2 {
 		var one chars.Character
 		if len(cast) == 1 {
 			one = cast[0]
 		}
-		return Build(st, cfg, ch, one, hist)
+		return withNote(buildOne(st, cfg, ch, one, hist, t.Note), ch, one, t.Note)
 	}
 	switch ch.Kind {
 	case store.KindDesigner, store.KindStyleDesigner, store.KindAssistant, store.KindPromptOptimizer:
 		// These have no cast by construction. Answered here rather than left to
 		// fall through, so a stray cast row on one of them cannot turn the
 		// character designer into a roleplay.
-		return Build(st, cfg, ch, chars.Character{}, hist)
+		return withNote(Build(st, cfg, ch, chars.Character{}, hist), ch, chars.Character{}, t.Note)
 	}
 
 	p := Persona(cfg)
@@ -59,7 +76,9 @@ func BuildFor(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Cha
 		// from 0.87 to 0.78 and from 0.93 to 0.68.
 		Overused: chars.Overused(hist),
 		RollCall: chars.RollCall(assistantTurns(hist), chars.CastNames(cast)),
-		Speakers: chars.ChooseSpeakers(chars.CastNames(cast), lastUserTurn(hist), assistantTurns(hist)),
+		Speakers: speakers(cast, hist, t),
+		Note:     t.Note,
+		Onward:   t.Onward,
 	}
 	sc.Lore = GroupLore(st, cast, hist, sc.Budget.Lore)
 	byID := make(map[int64]string, len(cast))
@@ -69,6 +88,26 @@ func BuildFor(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Cha
 	sc.Memory = Memory(st, ch, hist, func(id int64) string { return byID[id] },
 		cast[0].Name, userNameOf(cfg), sc.Budget.Memory)
 	return chars.BuildGroupMessages(cast, sc)
+}
+
+// speakers is who answers this turn: whoever the person chose, or else
+// whoever ChooseSpeakers picks. A turn that carries on without the person is
+// not answering anything they said, so an old message of theirs naming
+// somebody does not decide it.
+func speakers(cast []chars.Character, hist []ollama.Message, t Turn) []string {
+	names := chars.CastNames(cast)
+	if t.Speaker != "" {
+		for _, n := range names {
+			if strings.EqualFold(n, t.Speaker) {
+				return []string{n}
+			}
+		}
+	}
+	said := lastUserTurn(hist)
+	if t.Onward {
+		said = ""
+	}
+	return chars.ChooseSpeakers(names, said, assistantTurns(hist))
 }
 
 // GroupBudget divides the context window for a cast.

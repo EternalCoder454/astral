@@ -316,6 +316,9 @@ func (s *Store) migrate() error {
 	// A scene's long-term memory. See memory.go.
 	s.migrateMemory()
 
+	// Pinned messages. See branch.go.
+	s.migratePins()
+
 	s.db.Exec(`
 		UPDATE characters SET instructions = TRIM(
 			COALESCE(system_prompt, '') ||

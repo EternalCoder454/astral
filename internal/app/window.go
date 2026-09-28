@@ -215,6 +215,9 @@ func (a *App) buildCenter() {
 	}
 	a.chat.OnBuildCharacter = a.buildCharacterFromChat
 	a.chat.OnEditDirection = a.editDirection
+	a.chat.OnEditMemory = a.editMemory
+	a.chat.OnBranch = a.branchChat
+	a.chat.OnNotice = a.toast
 	a.chat.OnBuildStyle = a.buildStyleFromChat
 	a.chat.OnBuildWorld = a.buildWorldFromChat
 	a.chat.OnBuildPersona = a.buildPersonaFromChat

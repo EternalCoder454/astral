@@ -70,6 +70,10 @@ type MessageRow struct {
 	pending []rowAction
 	armed   bool
 	built   bool
+	// buttons are the built actions by icon, so one whose meaning flips,
+	// pinning, can say what it will do now.
+	buttons map[string]*gtk.Button
+	pinMark *gtk.Image
 
 	dots      *TypingDots
 	streaming bool
@@ -103,6 +107,8 @@ type MessageRow struct {
 	// more than once, and Version is which is showing. See store.Version.
 	Versions []store.Version
 	Version  int
+	// Pinned mirrors the stored flag; SetPinned changes both it and the mark.
+	Pinned bool
 
 	foot      *gtk.Box
 	pager     *gtk.Box
@@ -355,14 +361,53 @@ func (m *MessageRow) buildActions() {
 		return
 	}
 	m.built = true
+	m.buttons = make(map[string]*gtk.Button, len(m.pending))
 	for _, a := range m.pending {
 		b := gtk.NewButtonFromIconName(a.icon)
 		b.SetTooltipText(a.tooltip)
 		b.AddCSSClass("message-action")
 		b.ConnectClicked(a.onClick)
 		m.actions.Append(b)
+		m.buttons[a.icon] = b
 	}
 	m.pending = nil
+}
+
+// SetActionTooltip changes what an action says it does, built or not.
+func (m *MessageRow) SetActionTooltip(icon, tooltip string) {
+	for i := range m.pending {
+		if m.pending[i].icon == icon {
+			m.pending[i].tooltip = tooltip
+		}
+	}
+	if b, ok := m.buttons[icon]; ok {
+		b.SetTooltipText(tooltip)
+	}
+}
+
+// SetPinned shows whether this message is pinned, with a mark in its footer
+// that stays when the pointer leaves, unlike the actions.
+func (m *MessageRow) SetPinned(pinned bool) {
+	m.Pinned = pinned
+	if pinned {
+		m.SetActionTooltip(IconPin, "Unpin this message")
+	} else {
+		m.SetActionTooltip(IconPin, "Pin this message so it is never forgotten")
+	}
+	if m.pinMark == nil {
+		if !pinned {
+			return
+		}
+		m.pinMark = gtk.NewImageFromIconName(IconPin)
+		m.pinMark.AddCSSClass("pin-mark")
+		m.pinMark.SetTooltipText("Pinned: always kept in mind, however long the scene grows")
+		if m.Role == ollama.RoleUser {
+			m.foot.Append(m.pinMark)
+		} else {
+			m.foot.Prepend(m.pinMark)
+		}
+	}
+	m.pinMark.SetVisible(pinned)
 }
 
 // DevActionCount builds this row's hover buttons and says how many there are.

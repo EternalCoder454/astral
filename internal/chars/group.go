@@ -265,6 +265,11 @@ func GroupAnchor(cast []Character, sc Scene, userName string) string {
 	}
 
 	b.WriteString(freshWording(sc.Overused, allNames, userName))
+	// Not when nobody is waiting on the person: carrying the scene on
+	// without them is exactly moving it along.
+	if !sc.Onward {
+		b.WriteString(PaceBlock(allNames, userName))
+	}
 
 	if d := strings.TrimSpace(sc.Direction); d != "" {
 		b.WriteString("\n\nDIRECTION. Where the user wants this scene to go. Your next reply " +
@@ -274,6 +279,10 @@ func GroupAnchor(cast []Character, sc Scene, userName string) string {
 			"once. One step, now:\n")
 		b.WriteString(Substitute(d, allNames, userName))
 	}
+	if sc.Onward {
+		b.WriteString(Substitute(prompts.Text(promptOnward), allNames, userName))
+	}
+	b.WriteString(NoteBlock(sc.Note, allNames, userName))
 	b.WriteString("]")
 	return b.String()
 }

@@ -265,6 +265,19 @@ type ChatView struct {
 	OnEditDirection func()
 	// OnEditCast is the cast chip being clicked, for changing who is in a scene.
 	OnEditCast func()
+	// OnEditMemory opens a scene's memory: its record and its pins.
+	OnEditMemory func()
+	// OnBranch makes a new chat from this one up to a message, and opens it.
+	OnBranch func(chatID, messageID int64)
+	// OnNotice shows that something worked.
+	OnNotice func(string)
+
+	// turn steers the next request built, and only that one; see withTurn.
+	turn scene.Turn
+	// drafting is Write for Me at work, and draftCancel stops it.
+	drafting    bool
+	draftCancel context.CancelFunc
+	draftBtn    *gtk.Button
 
 	// cast is every character in this scene. One member, or none, is an
 	// ordinary conversation and behaves exactly as it did before there were
@@ -411,6 +424,12 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 	tools := gtk.NewBox(gtk.OrientationHorizontal, 6)
 	tools.AddCSSClass("composer-tools")
 
+	c.draftBtn = gtk.NewButtonFromIconName(IconDraft)
+	c.draftBtn.AddCSSClass("composer-model")
+	c.draftBtn.SetVisible(false)
+	c.draftBtn.ConnectClicked(c.WriteForMe)
+	tools.Append(c.draftBtn)
+
 	c.attachBtn = gtk.NewButtonFromIconName(IconFolder)
 	c.attachBtn.AddCSSClass("composer-model")
 	c.attachBtn.SetTooltipText("Attach a file or a picture")
@@ -491,8 +510,12 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 	// Send is only live when there is something to send, so the button's state
 	// answers "will this do anything?" without having to try it.
 	c.composer.Buffer().ConnectChanged(func() {
-		c.sendBtn.SetSensitive(c.busy || strings.TrimSpace(c.composerText()) != "")
+		c.sendBtn.SetSensitive(!c.drafting && (c.busy || strings.TrimSpace(c.composerText()) != ""))
 		c.placeholder.SetVisible(c.composerText() == "")
+		if c.drafting {
+			return
+		}
+		c.refreshDraftButton()
 		// The first keystroke after a pause starts loading the model, so the
 		// load happens while the message is written rather than after it is
 		// sent. See scene.PreloadForTyping for when it declines.
@@ -690,6 +713,9 @@ func (c *ChatView) LoadScene(ch store.Chat, cast []chars.Character, msgs []store
 	for _, m := range msgs {
 		row := c.appendRowAs(m.CharacterID, m.Role, m.Content, m.Thinking, m.ID, m.CreatedAt)
 		row.Versions, row.Version = m.Versions, m.Version
+		if m.Pinned {
+			row.SetPinned(true)
+		}
 		if m.TokPerSec > 0 && c.cfg.ShowStats {
 			row.SetMeta(ollama.Stats{Tokens: m.EvalCount, TokPerSec: m.TokPerSec}.Summary())
 		}
@@ -843,6 +869,13 @@ func (c *ChatView) attachActions(row *MessageRow) {
 	row.AddAction(IconEdit, "Edit this message", func() {
 		c.editRow(row)
 	})
+	// Your own turn, written better by the model, in a scene where it knows
+	// how you write.
+	if row.Role == ollama.RoleUser && c.canDraft() {
+		row.AddAction(IconRegenerate, "Rewrite your message better, and have your last one answered again", func() {
+			c.rewriteMine(row)
+		})
+	}
 	if row.Role == ollama.RoleAssistant {
 		row.AddAction(IconHistory, "Continue this reply", func() {
 			c.continueReply(row)
@@ -853,6 +886,23 @@ func (c *ChatView) attachActions(row *MessageRow) {
 			c.regenerate(row)
 		})
 	}
+	// Writing it again toward something, in the conversations where a note on
+	// a reply means anything: a scene, and a general chat.
+	if row.Role == ollama.RoleAssistant && (c.mode == Roleplay || c.chat.Kind == store.KindAssistant) {
+		row.AddAction(IconDraft, "Rewrite with a note on what you want from it", func() {
+			c.rewriteWithNote(row)
+		})
+	}
+	// Pinning is for a conversation that keeps a recap, which is where
+	// something can otherwise be forgotten.
+	if c.compactable() {
+		row.AddAction(IconPin, "Pin this message so it is never forgotten", func() {
+			c.togglePin(row)
+		})
+	}
+	row.AddAction(IconBranch, "Branch from here: a new chat that is this one up to this message", func() {
+		c.branchFrom(row)
+	})
 	// Keeping an answer, in the conversations that draw on what is kept. A
 	// scene's replies are fiction, and saving them as knowledge would put a
 	// character's opinions in front of the next real question.
@@ -989,6 +1039,10 @@ func (c *ChatView) loadEarlier() {
 	for i, m := range batch {
 		grouped := i > 0 && batch[i-1].Role == m.Role
 		row := c.newRow(m.CharacterID, m.Role, m.Content, m.Thinking, m.ID, m.CreatedAt, grouped)
+		row.Versions, row.Version = m.Versions, m.Version
+		if m.Pinned {
+			row.SetPinned(true)
+		}
 		if m.TokPerSec > 0 && c.cfg.ShowStats {
 			row.SetMeta(ollama.Stats{Tokens: m.EvalCount, TokPerSec: m.TokPerSec}.Summary())
 		}
@@ -1091,6 +1145,7 @@ func (c *ChatView) refreshActions() {
 	if c.actionBar == nil {
 		return
 	}
+	c.refreshDraftButton()
 	for {
 		child := c.actionBar.FirstChild()
 		if child == nil {
@@ -1159,7 +1214,12 @@ func (c *ChatView) refreshActions() {
 		if c.char.Name != "" {
 			c.actionBar.Append(c.directionChip())
 			c.actionBar.Append(c.castChip())
+			if c.isGroup() {
+				c.actionBar.Append(c.turnChip())
+			}
+			c.actionBar.Append(c.memoryChip())
 			c.actionBar.SetVisible(true)
+			c.refreshDraftButton()
 			return
 		}
 		c.actionBar.SetVisible(false)
