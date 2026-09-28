@@ -3,6 +3,10 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.15
+- The picture reader, tuned on the 4B Image Model, marks hidden parts as cannot be seen instead of guessing
+- It never names a real person in a photograph
+
 ## 0.5.14
 - The picture reader writes a labelled sheet: Name, Age, Gender, Race, Face, Hair, Body, Clothing and the rest
 - In a design chat the sheet ends with Relationship and Reads As, ready to build a card from
