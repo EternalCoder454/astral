@@ -15,8 +15,9 @@ import (
 // someone is reading it, so anything long enough to notice is long enough to
 // be in the way, and anything that moves text someone is mid-sentence on is
 // worse than no animation at all. So arrival is a fade with eight pixels of
-// travel, presses are a two percent shrink, and the scroll glide is the only
-// thing that moves the reader's view. All three are short.
+// travel, a press on the send button is a small shrink (rows and cards answer
+// with colour instead, since shrinking text blurs it), and the scroll glide is
+// the only thing that moves the reader's view. All three are short.
 
 // arriving is the class that plays the fade-up in style.css. It is added and
 // never removed: a CSS animation runs once from the moment the class lands,

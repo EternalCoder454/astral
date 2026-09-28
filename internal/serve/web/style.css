@@ -288,6 +288,52 @@ html, body {
 	border-radius: var(--md-corner-l) var(--md-corner-l) 4px var(--md-corner-l);
 }
 
+/* A character with a portrait is set behind their scene. The picture is
+   dimmed so the page stays the same shade it always is, and the bubbles let it
+   through: see-through enough to show the picture, blurred and tinted behind
+   the words so the words still read as well as on the plain page. */
+.chat.has-portrait { isolation: isolate; }
+
+.chat.has-portrait::before,
+.chat.has-portrait::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	pointer-events: none;
+}
+
+.chat.has-portrait::before {
+	background: var(--portrait) center 20% / cover no-repeat;
+}
+
+.chat.has-portrait::after {
+	background: linear-gradient(
+		color-mix(in srgb, var(--md-surface) 45%, transparent),
+		color-mix(in srgb, var(--md-surface) 62%, transparent));
+}
+
+.chat.has-portrait .bubble {
+	background: color-mix(in srgb, var(--md-surface-container-high) 62%, transparent);
+	-webkit-backdrop-filter: blur(14px) saturate(1.2);
+	backdrop-filter: blur(14px) saturate(1.2);
+}
+
+.chat.has-portrait .from-user .bubble {
+	background: color-mix(in srgb, var(--md-primary-container) 70%, transparent);
+}
+
+.chat.has-portrait .topbar,
+.chat.has-portrait .composer {
+	background: color-mix(in srgb, var(--md-surface) 78%, transparent);
+	-webkit-backdrop-filter: blur(14px);
+	backdrop-filter: blur(14px);
+}
+
+.chat.has-portrait .who {
+	text-shadow: 0 1px 3px rgb(0 0 0 / 0.7);
+}
+
 .who {
 	font-size: 0.72rem;
 	color: var(--faint);

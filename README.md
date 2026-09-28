@@ -56,6 +56,13 @@ chat by its title or by anything said in it, and shows the line that matched.
 While a slow model writes, you can get on with something else: Astral tells you
 when the reply is done.
 
+**Clearing out chats.** Ctrl and a click selects a chat in the list, Shift and a
+click selects a run of them, and Select on a chat's menu (the dots that appear
+when you point at it, or a right click) starts a selection without a keyboard.
+While anything is selected, a click selects too, and the bar under the list
+deletes them all (Delete) or lets them go (Escape). A deleted chat can be put
+back with Undo on the message that follows, until that message goes away.
+
 **Writing styles.** Named presets that control how the prose reads: sparse,
 ornate, present tense, screenplay terse. Switch between them, write your own, or
 have the model build one with you. A style changes the voice without touching
@@ -182,7 +189,9 @@ there and can be removed, which takes effect on the next request they make.
 A reply is written on your PC, not over the connection, so a phone that locks
 its screen or drops off the Wi-Fi mid-reply does not lose it: the PC finishes
 and stores it, and the phone picks it up when you come back. Send turns into
-Stop while a reply is written, and Back closes a chat rather than the app.
+Stop while a reply is written, and Back closes a chat rather than the app. A
+character with a portrait is shown behind their scene, with the messages
+tinted over it so they still read.
 
 Any phone browser works. The
 [Android app](https://github.com/EternalCoder454/astral/releases) is the same

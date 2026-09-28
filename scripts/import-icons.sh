@@ -48,6 +48,9 @@ map=(
     info:info
     public:worlds
     home:home
+    check:check
+    more_horiz:more
+    close:close
 )
 
 mkdir -p "$out_dir"

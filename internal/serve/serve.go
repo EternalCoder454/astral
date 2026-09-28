@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -131,6 +132,7 @@ func (s *Server) routes() http.Handler {
 
 	mux.Handle("GET /api/state", s.guard(s.handleState))
 	mux.Handle("GET /api/chats/{id}", s.guard(s.handleChat))
+	mux.Handle("GET /api/chats/{id}/portrait", s.guard(s.handlePortrait))
 	mux.Handle("POST /api/chats", s.guard(s.handleNewChat))
 	mux.Handle("POST /api/chats/{id}/send", s.guard(s.handleSend))
 	mux.Handle("POST /api/chats/{id}/regenerate", s.guard(s.handleRegenerate))
@@ -296,8 +298,12 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, d store.Devi
 		// Writing says a reply is still being written into this chat, so a
 		// phone that dropped its connection mid-reply knows to wait for it.
 		Writing bool `json:"writing"`
+		// Portrait says the chat's character has a portrait, which the phone
+		// sets behind the conversation; the picture itself is at
+		// /api/chats/{id}/portrait.
+		Portrait bool `json:"portrait,omitempty"`
 	}{ID: ch.ID, Title: ch.Title, Who: ch.CharacterName, Accent: ch.Accent, Kind: ch.Kind,
-		Writing: s.busy.writing(id)}
+		Writing: s.busy.writing(id), Portrait: s.portraitOf(ch) != ""}
 	cast := s.castFor(ch)
 	tint := make(map[int64]int, len(cast))
 	for _, member := range cast {
@@ -320,6 +326,44 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, d store.Devi
 		out.Messages = append(out.Messages, o)
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// portraitOf is the file holding the portrait of a chat's character, or ""
+// when it has none or the file has gone.
+func (s *Server) portraitOf(ch store.Chat) string {
+	if ch.CharacterID == 0 {
+		return ""
+	}
+	c, err := s.store.Character(ch.CharacterID)
+	if err != nil || c.PortraitPath == "" {
+		return ""
+	}
+	if _, err := os.Stat(c.PortraitPath); err != nil {
+		return ""
+	}
+	return c.PortraitPath
+}
+
+// handlePortrait sends the portrait of a chat's character. Only a path the
+// database holds is ever read, never one from the request.
+func (s *Server) handlePortrait(w http.ResponseWriter, r *http.Request, d store.Device) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not a chat id"})
+		return
+	}
+	ch, err := s.store.Chat(id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such chat"})
+		return
+	}
+	path := s.portraitOf(ch)
+	if path == "" {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no portrait"})
+		return
+	}
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	http.ServeFile(w, r, path)
 }
 
 func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request, d store.Device) {

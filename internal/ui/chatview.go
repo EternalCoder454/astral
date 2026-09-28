@@ -34,8 +34,6 @@ import (
 const flushInterval = 50
 
 // transcriptMaxWidth caps the column the conversation sits in, so a maximised
-// window does not stretch it across the whole screen.
-// transcriptMaxWidth caps the column the conversation sits in, so a maximised
 // window on a large display does not stretch it across the whole screen. Like
 // the bubble constants it is an input to GTK's negotiation rather than the
 // resulting width: 950 produces a column of about 1400px on a 4K screen.
@@ -1189,6 +1187,9 @@ func (c *ChatView) DevActionCounts() (first, last int) {
 // DevRowCount reports how many rows are built and how many are still waiting
 // behind the "show earlier" button.
 func (c *ChatView) DevRowCount() (built, pending int) { return len(c.rows), len(c.older) }
+
+// DevColumnWidth is the width the transcript column is laid out at.
+func (c *ChatView) DevColumnWidth() int { return c.column.Width() }
 
 // DevLoadEarlier builds the next older batch, so the dev harness can exercise
 // the path a click takes without a click.

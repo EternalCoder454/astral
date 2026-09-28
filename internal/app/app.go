@@ -77,6 +77,10 @@ type App struct {
 
 	// batch is the latest run of Optimize All, running or finished.
 	batch *promptBatch
+
+	// deleting is chats taken off the list whose toast still offers to put
+	// them back; see deletechats.go.
+	deleting map[int64]bool
 }
 
 // New constructs the application without starting the main loop.
@@ -193,6 +197,7 @@ func (a *App) shutdown() {
 	if err := store.SaveConfig(a.cfg); err != nil {
 		log.Printf("astral: save config: %v", err)
 	}
+	a.commitAllDeletes()
 	if a.store != nil {
 		if err := a.store.Close(); err != nil {
 			log.Printf("astral: close database: %v", err)
@@ -302,7 +307,7 @@ func (a *App) refreshSidebar() {
 	if a.store == nil || a.sidebar == nil {
 		return
 	}
-	chats, err := a.store.Chats()
+	chats, err := a.visibleChats()
 	if err != nil {
 		log.Printf("astral: list chats: %v", err)
 		return

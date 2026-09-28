@@ -167,6 +167,7 @@ func (a *App) buildSidebar() {
 		}
 	}
 	a.sidebar.OnSearch = a.searchChats
+	a.sidebar.OnDeleteChats = a.deleteChats
 }
 
 // searchChats answers the sidebar's search. On this thread: it is one indexed
@@ -180,7 +181,7 @@ func (a *App) searchChats(query string) {
 		a.toast("Could not search: " + err.Error())
 		return
 	}
-	chats, err := a.store.Chats()
+	chats, err := a.visibleChats()
 	if err != nil {
 		return
 	}
@@ -402,6 +403,7 @@ func (a *App) registerActions() {
 	addInt("rename-chat", a.actionRenameChat)
 	addInt("export-chat", a.actionExportChat)
 	addInt("delete-chat", a.actionDeleteChat)
+	addInt("select-chat", func(id int64) { a.sidebar.Mark(id) })
 
 	for accel, action := range map[string]string{
 		"<Control>n":     "win.new-chat",
@@ -444,29 +446,7 @@ func (a *App) actionRenameChat(id int64) {
 	})
 }
 
-func (a *App) actionDeleteChat(id int64) {
-	ch, err := a.store.Chat(id)
-	if err != nil {
-		return
-	}
-	title := ch.Title
-	if title == "" {
-		title = "this chat"
-	}
-	a.confirm("Delete chat?",
-		fmt.Sprintf("“%s” and everything in it will be deleted. This cannot be undone.", title),
-		"Delete", func() {
-			if err := a.store.DeleteChat(id); err != nil {
-				a.toast("Could not delete: " + err.Error())
-				return
-			}
-			if a.chat.Chat().ID == id {
-				a.chat.Clear()
-				a.showWelcome()
-			}
-			a.refreshSidebar()
-		})
-}
+func (a *App) actionDeleteChat(id int64) { a.deleteChats([]int64{id}) }
 
 // notificationPreview is the start of a reply, as a notification shows it: one
 // paragraph, without the asterisks that mark narration, cut at a word.

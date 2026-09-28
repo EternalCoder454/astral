@@ -228,6 +228,55 @@ frame:focus-within {
 	min-width: 12px;
 }
 
+/* A row's menu button: faded out until the row is pointed at, and gone again
+   while chats are being selected, when a click on a row marks it instead. */
+.chat-row-more {
+	opacity: 0;
+	color: @astral_muted;
+	transition: opacity 100ms ease;
+}
+
+.sidebar-item:hover .chat-row-more {
+	opacity: 0.8;
+}
+
+.marking .sidebar-item .chat-row-more {
+	opacity: 0;
+}
+
+/* A chat picked out to delete with others: the accent fill without the bar
+   that marks the open one, and a check where the dot was. */
+.sidebar-item.marked {
+	background-color: alpha(@accent_bg_color, 0.14);
+	color: @sidebar_fg_color;
+}
+
+.sidebar-item.marked:hover {
+	background-color: alpha(@accent_bg_color, 0.22);
+}
+
+.chat-row-check {
+	color: @accent_color;
+	-gtk-icon-size: 14px;
+}
+
+/* The bar under the list while chats are selected. */
+.mark-bar {
+	padding: 8px 10px;
+	border-top: 1px solid alpha(@astral_border, 0.55);
+}
+
+.mark-count {
+	font-size: 0.86em;
+	font-weight: 600;
+}
+
+.mark-close {
+	min-width: 26px;
+	min-height: 26px;
+	padding: 0;
+}
+
 /* Profile pill, bottom-left. */
 .sidebar-foot {
 	padding: 8px 10px 10px 10px;
@@ -984,17 +1033,21 @@ frame:focus-within {
 	transform: scale(0.92);
 }
 
+/* Rows and cards answer a press with colour, not size. They used to shrink by
+   one percent, and a scaled row is drawn through a transform, which softened
+   every letter in it for as long as the button was held: the sidebar blurred
+   under the pointer each time a chat was opened. The send button still
+   shrinks, being an icon with no text to soften. */
 .launch-row:active,
 .character-card:active,
 .sidebar-item:active {
-	transform: scale(0.99);
+	background-color: alpha(@accent_bg_color, 0.26);
 }
 
 .launch-row,
 .character-card,
 .sidebar-item {
-	transition: background-color 120ms ease, border-color 120ms ease,
-		transform 90ms ease;
+	transition: background-color 120ms ease, border-color 120ms ease;
 }
 
 /* The pairing code, which is read off this screen and typed into a phone, so
@@ -1016,7 +1069,8 @@ frame:focus-within {
 	transition: background-color 120ms ease;
 }
 
-.sidebar-grip:hover {
+.sidebar-grip:hover,
+.sidebar-grip.dragging {
 	background: alpha(@accent_color, 0.45);
 }
 

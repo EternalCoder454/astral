@@ -205,6 +205,9 @@ func (a *App) runDevView() {
 		case "sidebar":
 			n, _ := strconv.Atoi(arg)
 			a.devSidebar(n)
+		case "toggle":
+			n, _ := strconv.Atoi(arg)
+			a.devToggle(n)
 		}
 		return false
 	})
@@ -361,6 +364,44 @@ func (a *App) devSidebar(n int) {
 	}
 	log.Printf("astral: sidebar: %d chats, rebuilt %d times, %v each",
 		len(chats), n, (total / time.Duration(n)).Round(10*time.Microsecond))
+}
+
+// devToggle opens a long chat and shows and hides the sidebar a few times,
+// logging how smoothly each slide ran: how many frames it drew and the longest
+// gap between two of them, which is the stutter a person sees.
+func (a *App) devToggle(n int) {
+	if n <= 0 {
+		n = 200
+	}
+	a.devLoad(n)
+	clock := gdk.BaseFrameClock(gtk.BaseWidget(a.win).FrameClock())
+	var last time.Time
+	var frames int
+	var worst time.Duration
+	clock.ConnectAfterPaint(func() {
+		now := time.Now()
+		if !last.IsZero() {
+			if d := now.Sub(last); d > worst {
+				worst = d
+			}
+		}
+		last = now
+		frames++
+	})
+	step := 0
+	coreglib.TimeoutAdd(1500, func() bool {
+		if step > 0 {
+			log.Printf("astral: toggle: %d: %d frames, longest gap %v, column %dpx",
+				step, frames, worst.Round(time.Millisecond), a.chat.DevColumnWidth())
+		}
+		if step == 8 {
+			return false
+		}
+		step++
+		frames, worst, last = 0, 0, time.Time{}
+		a.sideBtn.SetActive(!a.sideBtn.Active())
+		return true
+	})
 }
 
 // devTimeFrames logs every frame that takes longer than a sixtieth of a second

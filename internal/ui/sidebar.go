@@ -26,7 +26,17 @@ type Sidebar struct {
 	homeBtn     *gtk.Button
 
 	selected int64
-	rows     map[int64]*gtk.Button
+	rows     map[int64]*chatRow
+	// order is the chats as listed, top to bottom, which is what a Shift
+	// click selects a run of.
+	order []int64
+	// marked is the chats picked out to delete together; see sidebar_marks.go.
+	marked    map[int64]bool
+	anchor    int64
+	markBar   *gtk.Revealer
+	markLabel *gtk.Label
+	// OnDeleteChats deletes the chats that are marked.
+	OnDeleteChats func(ids []int64)
 	// rowMenus holds each row's menu opener, so the dev harness can trigger
 	// one without synthesizing a click.
 	rowMenus  map[int64]func(x, y float64)
@@ -69,7 +79,11 @@ type Sidebar struct {
 
 // NewSidebar builds the panel.
 func NewSidebar() *Sidebar {
-	s := &Sidebar{rows: map[int64]*gtk.Button{}, rowMenus: map[int64]func(float64, float64){}}
+	s := &Sidebar{
+		rows:     map[int64]*chatRow{},
+		rowMenus: map[int64]func(float64, float64){},
+		marked:   map[int64]bool{},
+	}
 
 	s.widget = gtk.NewBox(gtk.OrientationVertical, 0)
 	s.widget.AddCSSClass("astral-sidebar")
@@ -156,6 +170,8 @@ func NewSidebar() *Sidebar {
 	scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	scroll.SetVExpand(true)
 	s.widget.Append(scroll)
+	s.watchListClicks()
+	s.widget.Append(s.buildMarkBar())
 
 	// Profile row: who you are on the left, settings on the right. They were
 	// one button, which meant the only way to reach settings was to click
@@ -316,15 +332,7 @@ func (s *Sidebar) SetChats(chats []store.Chat) {
 		s.lastSig = sig
 	}
 
-	for {
-		child := s.listBox.FirstChild()
-		if child == nil {
-			break
-		}
-		s.listBox.Remove(child)
-	}
-	s.rows = map[int64]*gtk.Button{}
-	s.rowMenus = map[int64]func(float64, float64){}
+	s.clearList()
 	s.firstChat = 0
 	if len(chats) > 0 {
 		s.firstChat = chats[0].ID
@@ -351,6 +359,7 @@ func (s *Sidebar) SetChats(chats []store.Chat) {
 		s.listBox.Append(s.chatRow(ch))
 	}
 	s.applySelection()
+	s.keepMarks()
 }
 
 // chatSignature digests what the list actually draws: order, identity, title
@@ -430,6 +439,7 @@ func (s *Sidebar) ShowResults(query string, results []SearchResult) {
 		s.listBox.Append(s.chatRowWith(r.Chat, r.Snippet))
 	}
 	s.applySelection()
+	s.keepMarks()
 }
 
 // clearList empties the list and forgets its rows.
@@ -441,8 +451,9 @@ func (s *Sidebar) clearList() {
 		}
 		s.listBox.Remove(child)
 	}
-	s.rows = map[int64]*gtk.Button{}
+	s.rows = map[int64]*chatRow{}
 	s.rowMenus = map[int64]func(float64, float64){}
+	s.order = s.order[:0]
 }
 
 // snippetMarkup renders a search snippet, whose matching words are marked with
@@ -518,6 +529,16 @@ func (s *Sidebar) chatRowWith(ch store.Chat, snippet string) *gtk.Button {
 		n.SetTooltipText(fmt.Sprintf("%d characters in this scene", ch.CastSize))
 		box.Append(n)
 	}
+
+	// The way to the row's menu for anyone who does not think to right-click
+	// it. Always there and faded out until the row is pointed at, so the
+	// title does not shift when it appears; a click on it is caught by the
+	// list, which opens the menu, rather than by a button of its own.
+	more := gtk.NewImageFromIconName(IconMore)
+	more.SetName(rowMoreName)
+	more.AddCSSClass("chat-row-more")
+	more.SetTooltipText("Rename, export, select or delete")
+	box.Append(more)
 	if snippet != "" {
 		col := gtk.NewBox(gtk.OrientationVertical, 2)
 		col.Append(box)
@@ -544,13 +565,15 @@ func (s *Sidebar) chatRowWith(ch store.Chat, snippet string) *gtk.Button {
 	btn.SetTooltipText(tip)
 
 	id := ch.ID
+	btn.SetName(rowName(id))
 	btn.ConnectClicked(func() {
 		if s.OnOpenChat != nil {
 			s.OnOpenChat(id)
 		}
 	})
 	s.attachRowMenu(btn, id)
-	s.rows[id] = btn
+	s.rows[id] = &chatRow{btn: btn, box: box, dot: dot}
+	s.order = append(s.order, id)
 	return btn
 }
 
@@ -603,6 +626,7 @@ func rowPopover(btn *gtk.Button, id int64) *gtk.PopoverMenu {
 	}{
 		{"Rename…", "win.rename-chat"},
 		{"Export…", "win.export-chat"},
+		{"Select", "win.select-chat"},
 		{"Delete", "win.delete-chat"},
 	} {
 		item := gio.NewMenuItem(it.label, "")
@@ -639,11 +663,11 @@ func (s *Sidebar) Select(id int64) {
 }
 
 func (s *Sidebar) applySelection() {
-	for id, btn := range s.rows {
+	for id, row := range s.rows {
 		if id == s.selected {
-			btn.AddCSSClass("selected")
+			row.btn.AddCSSClass("selected")
 		} else {
-			btn.RemoveCSSClass("selected")
+			row.btn.RemoveCSSClass("selected")
 		}
 	}
 }

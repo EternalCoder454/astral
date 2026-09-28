@@ -738,10 +738,41 @@ function showChat(chat) {
 	const t = $("transcript");
 	t.replaceChildren();
 	for (const m of chat.messages || []) t.append(bubble(m.role, m.content, m.who, m.accent, m.id));
+	showPortrait(chat);
 	show("chat");
 	scrollDown(false);
 	setComposerBusy(streamingIn.has(chat.id));
 	if (chat.writing && !streamingIn.has(chat.id)) waitForReply(chat.id);
+}
+
+// portraits holds each chat's portrait as a local URL once fetched. The
+// picture needs the pairing token to fetch, which a CSS url() cannot send, so
+// it is fetched here and handed to the page as a blob.
+const portraits = new Map();
+
+// showPortrait sets the chat's character behind the conversation, when they
+// have a portrait, and takes the last one away when they do not.
+async function showPortrait(chat) {
+	const screen = $("chat");
+	if (!chat.portrait) {
+		screen.classList.remove("has-portrait");
+		return;
+	}
+	let url = portraits.get(chat.id);
+	if (!url) {
+		try {
+			const res = await api("/api/chats/" + chat.id + "/portrait");
+			if (!res.ok) throw new Error("no portrait");
+			url = URL.createObjectURL(await res.blob());
+			portraits.set(chat.id, url);
+		} catch {
+			screen.classList.remove("has-portrait");
+			return;
+		}
+	}
+	if (current?.id !== chat.id) return; // another chat was opened meanwhile
+	screen.style.setProperty("--portrait", `url("${url}")`);
+	screen.classList.add("has-portrait");
 }
 
 // leaveChat goes back to the lists, fetched again so what was said here, and

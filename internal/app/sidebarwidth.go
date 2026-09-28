@@ -1,7 +1,10 @@
 package app
 
 import (
+	"math"
+
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/graphene"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
 	"astral/internal/store"
@@ -38,15 +41,30 @@ func (a *App) sidebarWithGrip() *gtk.Box {
 	// strip with no affordance is a six pixel strip nobody touches.
 	grip.SetCursor(gdk.NewCursorFromName("col-resize", nil))
 
-	start := a.cfg.SidebarWidth
+	// The width is worked out from where the pointer is in the window, not
+	// from how far it has moved across the grip: the grip moves with the width
+	// it sets, so measured from the grip every other motion cancelled the one
+	// before it and the edge crept after the pointer at half its speed.
+	var start int
+	var grabbed, from float64
 	drag := gtk.NewGestureDrag()
 	drag.ConnectDragBegin(func(x, y float64) {
 		start = a.cfg.SidebarWidth
+		grabbed = x
+		from, _ = a.windowX(grip, x)
+		// Lit for the whole drag, not only while the pointer happens to be
+		// over the strip, so the edge being moved stays the thing you see.
+		grip.AddCSSClass("dragging")
 	})
 	drag.ConnectDragUpdate(func(dx, dy float64) {
-		a.applySidebarWidth(start + int(dx))
+		// Where the pointer is now, across the grip as it is laid out at this
+		// moment, which is also how the gesture measured it.
+		if x, ok := a.windowX(grip, grabbed+dx); ok {
+			a.applySidebarWidth(start + int(math.Round(x-from)))
+		}
 	})
 	drag.ConnectDragEnd(func(dx, dy float64) {
+		grip.RemoveCSSClass("dragging")
 		// Saved once, at the end. Writing the file on every pointer motion would
 		// be a few hundred writes to drag it across the screen.
 		if err := store.SaveConfig(a.cfg); err != nil {
@@ -94,4 +112,14 @@ func (a *App) applySidebarWidth(w int) {
 	a.split.SetMinSidebarWidth(float64(w))
 	a.split.SetMaxSidebarWidth(float64(w))
 	a.split.SetSidebarWidthFraction(1)
+}
+
+// windowX is where a point x across widget w lies across the window.
+func (a *App) windowX(w gtk.Widgetter, x float64) (float64, bool) {
+	p := graphene.NewPointAlloc().Init(float32(x), 0)
+	out, ok := gtk.BaseWidget(w).ComputePoint(a.win, p)
+	if !ok {
+		return 0, false
+	}
+	return float64(out.X()), true
 }
