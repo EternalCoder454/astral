@@ -368,6 +368,20 @@ func (a *App) persona() chars.Persona {
 // constructor call so settings and startup cannot drift apart.
 func ollamaClientFor(baseURL string) *ollama.Client { return ollama.NewClient(baseURL) }
 
+// toastAction shows a transient message with a button, for something just
+// done that the person may want to go and look at.
+func (a *App) toastAction(msg, label string, onClick func()) {
+	if a.toasts == nil {
+		log.Printf("astral: %s", msg)
+		return
+	}
+	t := adw.NewToast(msg)
+	t.SetTimeout(6)
+	t.SetButtonLabel(label)
+	t.ConnectButtonClicked(onClick)
+	a.toasts.AddToast(t)
+}
+
 // toast shows a transient message.
 func (a *App) toast(msg string) {
 	if a.toasts == nil {

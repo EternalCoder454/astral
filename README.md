@@ -283,6 +283,51 @@ review" in the lorebook. Turning one on accepts it, and it then belongs to you:
 no later automatic pass will overwrite it. The same protection covers anything
 you write or edit by hand.
 
+## Knowledge
+
+Open **Knowledge** in the sidebar. It holds notes, saved pages and study notes,
+and General Chat and the three designers draw on it without being asked: each
+message is matched against it, and the few passages that fit are put in front of
+the model with where they came from and how old they are.
+
+There are four ways in. **Write an entry** by hand. **Import** text or Markdown
+files. **Save to Knowledge** from any reply in General Chat or a designer. Or
+**Study a Topic**: Astral searches the web, reads the best few pages, keeps them,
+and has the model write notes from only what those pages say, with numbered
+sources. Web searches made during a conversation keep the pages they open, too,
+so a subject looked up once is known the next time without searching again.
+
+It searches by the words in an entry, which works on any machine. Install an
+embedding model (`ollama pull embeddinggemma` is small) and it searches by
+meaning as well, blending the two. Scenes never use it: a note about a library
+has no business in a tavern.
+
+## Web search
+
+On by default for General Chat and the designers, never in a scene. The model
+decides when to search, and can open a result to read the whole page instead of
+answering from a two line snippet. What leaves your machine is the words it
+searches for and the pages it opens; no part of your conversation, characters or
+worlds. Every reply that searched says what it looked up.
+
+With your own [SearXNG](https://docs.searxng.org) running, searches go there.
+Without one they go to DuckDuckGo, so search works on a fresh install. Choose
+under **Settings, Model, Web Search**, or switch it off there.
+
+## Long scenes
+
+A scene that outgrows the context window keeps its recent turns word for word
+and folds the rest into a written recap. The recap keeps the plot and loses the
+details: the name of the ship, the exact promise. So every message is indexed
+too, and each turn the few older moments that what is happening now touches are
+recalled beside the recap.
+
+Characters also settle into habits over a long scene: the same gesture every
+third reply, the same simile, the same swear word. Astral reads the recent
+replies, finds the phrasing they keep reusing, and asks the next reply for
+something else. Names and objects may repeat; the wording around them should
+not.
+
 ## Placeholders
 
 Every text field expands placeholders, so a character or style can refer to
@@ -326,12 +371,23 @@ only competes with the framing.
 
 ## Keeping it fast
 
-Three things, in rough order of how much they matter:
+In rough order of how much they matter:
 
-* **The model stays loaded.** Ollama evicts a model five minutes after its last
-  request, and roleplay has long gaps while you read and think. Astral asks for
-  thirty minutes, so a pause does not cost a full model reload before the next
-  reply starts. Adjustable under **Settings, Model**.
+* **The model loads while you type.** Astral follows Ollama's own keep-alive
+  rather than overriding it, so after a long pause the model may have been
+  unloaded. The first keystroke starts loading it again, so the wait happens
+  while you write instead of after you send. It only does this when the model
+  fits beside what is already in video memory. To keep a model loaded longer,
+  set **Keep the Model Loaded For** under **Settings, Model**.
+* **One model at a time.** Switching models releases the previous one, and the
+  background model for recaps and lore is used only when it fits beside the
+  scene's model. On Linux with an AMD card, a model that does not fit freezes
+  the desktop rather than slowing down, so if you use Ollama for anything else
+  as well, setting `OLLAMA_MAX_LOADED_MODELS=1` on the Ollama service is the
+  safest guard of all.
+* **Replies stream straight away.** In a conversation that can search, the
+  answer streams as it is written; it is only held back in the rare turn where
+  the model decides to search first.
 * **Only the recent transcript is sent word for word.** Older turns become the
   running record described above.
 * **Example dialogue stops being sent.** A card's examples teach the voice

@@ -3,6 +3,7 @@ package serve
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -212,6 +213,13 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat)
 		flush(false)
 	}
 
+	// The same release the window does: a phone that plays a scene on another
+	// model must not leave the window's model resident beside it.
+	s.client().UseForReplies(ctx, model)
+	// And the same knowledge, found the same way, so a question asked from the
+	// phone draws on what the window saved.
+	msgs = scene.WithKnowledge(ctx, s.store, s.client(), cfg, ch.Kind, msgs, hist)
+
 	var reply ollama.Message
 	var stats ollama.Stats
 	var rounds []websearch.Round
@@ -222,15 +230,29 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat)
 	if scene.Searchable(cfg) && scene.CanSearch(ch.Kind) {
 		runner := &websearch.Runner{
 			Client:   s.client(),
-			Provider: websearch.NewSearXNG(cfg.SearXNGURL),
-			Model:    model,
-			Options:  scene.Options(cfg),
-			Think:    &noThink,
-			Results:  cfg.SearchResults,
+			Provider: scene.SearchProvider(cfg),
+			Fetcher:  scene.Fetcher(),
+			KeepPage: func(r websearch.Round) { scene.KeepPage(s.store, cfg, r) },
+			// The phone is told to clear what it has shown, the same as the
+			// window. On this goroutine, which is the one writing the
+			// response, so nothing else is mid-write.
+			OnDiscard: func() {
+				pending.Reset()
+				think = ollama.ThinkStream{}
+				send("reset", map[string]string{})
+			},
+			Model:   model,
+			Options: scene.Options(cfg),
+			Think:   &noThink,
+			Results: cfg.SearchResults,
 			OnRound: func(r websearch.Round) {
 				// Said as it happens, because a search is the one part of a turn
 				// where nothing arrives for several seconds and the phone would
 				// otherwise look stuck.
+				if r.Opened != "" {
+					send("reading", map[string]string{"url": r.Opened})
+					return
+				}
 				send("searching", map[string]string{"q": r.Query})
 			},
 		}
@@ -239,6 +261,11 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat)
 		reply, stats, err = s.client().Chat(ctx, model, msgs, scene.Options(cfg), &noThink, onDelta)
 	}
 	flush(true)
+	// A loop stopped by the server keeps what came before it, as the window
+	// does, rather than losing the whole reply.
+	if errors.Is(err, ollama.ErrRepeatLimit) && strings.TrimSpace(reply.Content) != "" {
+		err = nil
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return // the phone went away; nothing to report to it
@@ -363,14 +390,15 @@ func (s *Server) housekeep(chatID int64, cast []chars.Character) {
 	defer cancel()
 
 	cfg := s.config()
-	model := cfg.HousekeepingModel
-	if model == "" {
-		model = cfg.Model
-	}
 	ch, err := s.store.Chat(chatID)
 	if err != nil {
 		return
 	}
+	sceneModel := ch.Model
+	if sceneModel == "" {
+		sceneModel = cfg.Model
+	}
+	model := scene.FitHousekeeping(ctx, s.client(), cfg.HousekeepingModel, sceneModel)
 	p := scene.Persona(cfg)
 	// The cast's budget, not one character's: a group planned as a two-hander
 	// thinks it has room it does not have, and waits too long to compact. A

@@ -42,8 +42,10 @@ type Sidebar struct {
 	// OnHome returns to the welcome screen.
 	OnHome func()
 	// OnWorlds opens the list of settings.
-	OnWorlds   func()
-	OnSettings func()
+	OnWorlds func()
+	// OnKnowledge opens the knowledge base.
+	OnKnowledge func()
+	OnSettings  func()
 	// OnPersona opens the persona editor from the profile menu.
 	OnPersona func()
 	// OnAbout opens the about dialog from the profile menu.
@@ -98,6 +100,13 @@ func NewSidebar() *Sidebar {
 	worldsBtn.SetTooltipText("Settings your characters live in, and what they remember (Ctrl+W)")
 	worldsBtn.ConnectClicked(func() { fire(s.OnWorlds) })
 	nav.Append(worldsBtn)
+
+	knowledgeBtn := gtk.NewButton()
+	knowledgeBtn.AddCSSClass("sidebar-item")
+	knowledgeBtn.SetChild(navContent(IconKnowledge, "Knowledge"))
+	knowledgeBtn.SetTooltipText("Notes, saved pages and studied topics that General Chat and the designers draw on")
+	knowledgeBtn.ConnectClicked(func() { fire(s.OnKnowledge) })
+	nav.Append(knowledgeBtn)
 	s.widget.Append(nav)
 
 	// The conversation list.

@@ -17,6 +17,7 @@ import (
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
+	"astral/internal/scene"
 	"astral/internal/store"
 	"astral/internal/world"
 )
@@ -197,10 +198,16 @@ type ChatView struct {
 	older      []store.Message
 	earlierBtn *gtk.Button
 
-	pendMu    sync.Mutex
-	pendText  strings.Builder
-	pendThink strings.Builder
-	flushID   coreglib.SourceHandle
+	pendMu   sync.Mutex
+	pendText strings.Builder
+	// pendDiscard says the text already shown for this turn was a preamble to
+	// a search, and the row should be cleared before anything else is added.
+	pendDiscard bool
+	// pendStatus is what a search is doing right now, for the footer of the
+	// row the answer will go in.
+	pendStatus string
+	pendThink  strings.Builder
+	flushID    coreglib.SourceHandle
 
 	// OnChatChanged asks the sidebar to refresh (title or ordering changed).
 	OnChatChanged func()
@@ -217,6 +224,8 @@ type ChatView struct {
 	// OnAttachImage asks the app to choose an image. The app calls
 	// AttachImage with the result.
 	OnAttachImage func()
+	// OnSaveToKnowledge keeps a reply in the knowledge base.
+	OnSaveToKnowledge func(text, chatTitle string, chatID int64)
 	// OnImageFile is an image dropped on the chat as a file on disk, and
 	// OnImageBytes is one pasted or dropped as pixels with no file behind it.
 	// Both end the same way, with the app calling AttachImage.
@@ -428,6 +437,13 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 	c.composer.Buffer().ConnectChanged(func() {
 		c.sendBtn.SetSensitive(c.busy || strings.TrimSpace(c.composerText()) != "")
 		c.placeholder.SetVisible(c.composerText() == "")
+		// The first keystroke after a pause starts loading the model, so the
+		// load happens while the message is written rather than after it is
+		// sent. See scene.PreloadForTyping for when it declines.
+		if !c.busy && c.composerText() != "" {
+			client, model := c.client, c.activeModel()
+			go scene.PreloadForTyping(client, model)
+		}
 	})
 
 	c.refreshPlaceholder()
@@ -752,6 +768,14 @@ func (c *ChatView) attachActions(row *MessageRow) {
 	if row.Role == ollama.RoleAssistant {
 		row.AddAction(IconRegenerate, "Write this reply again", func() {
 			c.regenerate(row)
+		})
+	}
+	// Keeping an answer, in the conversations that draw on what is kept. A
+	// scene's replies are fiction, and saving them as knowledge would put a
+	// character's opinions in front of the next real question.
+	if row.Role == ollama.RoleAssistant && scene.UsesKnowledge(c.chat.Kind) && c.OnSaveToKnowledge != nil {
+		row.AddAction(IconKnowledge, "Save this to Knowledge", func() {
+			c.OnSaveToKnowledge(row.Text(), c.chat.Title, c.chat.ID)
 		})
 	}
 	row.AddAction(IconTrash, "Delete this message", func() {

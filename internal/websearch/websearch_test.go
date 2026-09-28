@@ -189,13 +189,18 @@ func TestSearchCallsReadsTheQuery(t *testing.T) {
 		// object, which is worth unwrapping rather than losing the turn over.
 		call(ToolName, `"{\"query\":\"as a string\"}"`),
 		call(ToolName, `{"query":"   "}`),
+		call(OpenToolName, `{"url":"https://example.org/notes"}`),
+		call(OpenToolName, `{"url":""}`),
 	}}
-	got := searchCalls(msg)
+	got, opens := toolCalls(msg)
 	if len(got) != 2 {
 		t.Fatalf("got %#v, want the two usable queries", got)
 	}
 	if got[0] != "go 1.26 release date" || got[1] != "as a string" {
 		t.Errorf("got %#v", got)
+	}
+	if len(opens) != 1 || opens[0] != "https://example.org/notes" {
+		t.Errorf("pages to open: %#v", opens)
 	}
 }
 

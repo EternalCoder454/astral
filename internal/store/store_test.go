@@ -299,8 +299,9 @@ func TestConfigBackfillsNewSettings(t *testing.T) {
 	// assertion would pass whether backfilling worked or not. ShowStats used
 	// to be one of these and is now false by default, so it no longer proves
 	// anything here.
-	if cfg.NumCtx != DefaultNumCtx || cfg.Theme != ThemeDark ||
-		cfg.KeepAlive != "30m" || cfg.Temperature != DefaultTemperature || !cfg.SidebarOpen {
+	// KeepAlive was one as well, until its default became empty.
+	if cfg.NumCtx != DefaultNumCtx || cfg.Theme != ThemeDark || cfg.SearchProvider != SearchAuto ||
+		cfg.Temperature != DefaultTemperature || !cfg.SidebarOpen {
 		t.Errorf("new settings did not backfill: %+v", cfg)
 	}
 }

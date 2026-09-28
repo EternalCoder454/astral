@@ -352,8 +352,20 @@ func (c *ChatView) startStream() {
 	c.searchNotes = ""
 	searcher := c.searcher(model, opts, &think)
 
+	client := c.client
+	st, cfg, kind, hist := c.store, c.cfg, c.chat.Kind, c.history()
 	go func() {
 		defer cancel()
+		// A different model from the last reply releases that one first, so
+		// the two are never resident together. See UseForReplies.
+		client.UseForReplies(ctx, model)
+		// What the knowledge base holds about this message, found here rather
+		// than on the UI thread because finding it may mean asking the
+		// embedding model for a vector.
+		msgs := scene.WithKnowledge(ctx, st, client, cfg, kind, msgs, hist)
+		if searcher != nil {
+			searcher.KeepPage = func(r websearch.Round) { scene.KeepPage(st, cfg, r) }
+		}
 		// onDelta runs on this goroutine, not the UI's. It must not touch a
 		// widget, it only appends to the buffers the flush timer drains.
 		onDelta := func(d ollama.Delta) {
@@ -446,6 +458,14 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	// wording upstream changes. A deadline counts too, because to the person
 	// waiting it is the same thing.
 	cancelled := errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+	// Ollama stopping a loop is the same event this view already handles when
+	// it catches one itself: keep and save what came before it, and say why it
+	// stopped. Treated as a failure, the text stayed on screen unsaved and was
+	// gone the next time the scene opened.
+	if errors.Is(err, ollama.ErrRepeatLimit) && strings.TrimSpace(row.Text()) != "" {
+		c.collapsed, c.collapseWhy = true, "repeating itself"
+		err = nil
+	}
 	if err != nil && !cancelled {
 		// A failed turn leaves nothing useful behind, so the empty row goes
 		// with it rather than sitting in the transcript as a blank message.
@@ -601,7 +621,7 @@ func (c *ChatView) maybeLearn() {
 	if !ok {
 		return
 	}
-	client, model := c.client, c.housekeepingModel()
+	client, model, sceneModel := c.client, c.housekeepingModel(), c.activeModel()
 	w, existing := c.world, c.lore
 	charName := c.char.Name
 	userName := c.cfg.PersonaName
@@ -611,6 +631,7 @@ func (c *ChatView) maybeLearn() {
 	opts := c.options()
 
 	go func() {
+		model := scene.FitHousekeeping(ctx, client, model, sceneModel)
 		learned, err := world.Learn(ctx, client, model, w, existing, turns, charName, userName, opts)
 
 		coreglib.IdleAdd(func() bool {
@@ -698,11 +719,12 @@ func (c *ChatView) maybeCompact() {
 	if !ok {
 		return
 	}
-	client, model := c.client, c.housekeepingModel()
+	client, model, sceneModel := c.client, c.housekeepingModel(), c.activeModel()
 	prev, cast, persona, opts := c.recap, c.sceneCast(), c.persona(), c.options()
 	plain := c.chat.Kind == store.KindAssistant
 
 	go func() {
+		model := scene.FitHousekeeping(ctx, client, model, sceneModel)
 		// A conversation and a scene need different questions asked of the
 		// summariser. Keeping "the state of the relationship" out of the record
 		// of an hour spent working through a problem is the whole difference.
@@ -821,9 +843,21 @@ func (c *ChatView) drainPending() {
 	c.pendMu.Lock()
 	text := c.pendText.String()
 	think := c.pendThink.String()
+	discard := c.pendDiscard
+	status := c.pendStatus
 	c.pendText.Reset()
 	c.pendThink.Reset()
+	c.pendDiscard = false
+	c.pendStatus = ""
 	c.pendMu.Unlock()
+
+	if discard && c.live != nil {
+		c.live.ClearStreamed()
+		c.thinkStream = ollama.ThinkStream{}
+	}
+	if status != "" && c.live != nil {
+		c.live.SetMeta(status)
+	}
 
 	if c.live == nil || (text == "" && think == "") {
 		return

@@ -412,6 +412,13 @@ func (m *MessageRow) AppendText(s string) {
 	m.body.SetText(m.raw)
 }
 
+// ClearStreamed takes back the text streamed so far, for a turn whose first
+// words turned out to be a preamble to a search rather than the answer.
+func (m *MessageRow) ClearStreamed() {
+	m.raw = ""
+	m.body.SetText("")
+}
+
 // AppendThinking adds to the reasoning block, revealing it on first use.
 func (m *MessageRow) AppendThinking(s string) {
 	if s == "" {

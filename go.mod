@@ -23,4 +23,5 @@ require (
 	github.com/diamondburned/gotk4-adwaita/pkg v0.0.0-20250703085337-e94555b846b6
 	github.com/diamondburned/gotk4/pkg v0.3.2-0.20250703063411-16654385f59a
 	golang.org/x/image v0.46.0
+	golang.org/x/net v0.58.0
 )

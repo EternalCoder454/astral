@@ -177,3 +177,13 @@ func TestNoDashesInTheProject(t *testing.T) {
 		}
 	}
 }
+
+func TestKnowledgePreviewKeepsUnderscores(t *testing.T) {
+	got := plainSnippet("keep_alive sets how long. The default comes from OLLAMA_KEEP_ALIVE.", 240)
+	if !strings.Contains(got, "keep_alive") || !strings.Contains(got, "OLLAMA_KEEP_ALIVE") {
+		t.Errorf("underscores were stripped: %q", got)
+	}
+	if long := plainSnippet(strings.Repeat("word ", 100), 40); len([]rune(long)) > 41 || !strings.HasSuffix(long, "…") {
+		t.Errorf("not truncated: %q", long)
+	}
+}

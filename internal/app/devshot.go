@@ -100,6 +100,10 @@ func (a *App) runDevView() {
 			a.showStyles()
 		case "worlds":
 			a.showWorlds()
+		case "knowledge":
+			a.showKnowledge()
+		case "study":
+			a.studyTopic("SearXNG")
 		case "world":
 			if ws, err := a.store.Worlds(); err == nil && len(ws) > 0 {
 				a.showWorld(ws[0])

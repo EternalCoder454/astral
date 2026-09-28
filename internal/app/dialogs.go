@@ -62,8 +62,9 @@ func (a *App) showAbout() {
 	about.SetApplicationIcon(appID)
 	about.SetVersion(version)
 	about.SetComments("A world roleplay system for local language models. " +
-		"Build characters, set a scene, and play it out. Everything runs on this machine, " +
-		"and nothing you write is sent anywhere.")
+		"Build characters, set a scene, and play it out. Everything runs on this machine. " +
+		"The only thing that leaves it is a web search, when General Chat or a designer needs one, " +
+		"and you can turn that off in Settings.")
 	about.SetWebsite(projectURL)
 	about.SetIssueURL(projectURL + "/issues")
 	about.SetLicenseType(gtk.LicenseMITX11)

@@ -44,10 +44,16 @@ const (
 	// character's own name, which recurs legitimately on every turn.
 	DefaultRepeatLastN = 384
 	DefaultNumCtx      = 8192
-	// DefaultKeepAlive is how long Ollama holds the model after a reply.
-	// Ollama's own default is five minutes, which a reading pause routinely
-	// exceeds, and the next message then pays a full reload.
-	DefaultKeepAlive = "30m"
+	// DefaultKeepAlive is empty: the server decides how long a model stays
+	// loaded, and Astral says nothing.
+	//
+	// It was thirty minutes, sent with every request, which overrides
+	// whatever the server was configured with. That is how a machine set up
+	// to unload after five idle minutes, precisely so models do not pile up
+	// in video memory, kept Astral's resident for half an hour anyway. The
+	// reload that a short keep-alive costs is hidden instead by loading the
+	// model as soon as someone starts typing (see ollama.Preload).
+	DefaultKeepAlive = ""
 	// DefaultSearchResults is how many hits one web search asks for. Five is
 	// enough to answer a question and few enough not to become the prompt.
 	DefaultSearchResults = 5
@@ -85,12 +91,28 @@ type Config struct {
 
 	// WebSearch lets the conversations that are not roleplay look things up.
 	//
-	// Off unless asked for, and it needs an address: this is the one feature that
-	// sends anything off this machine, so it does not start doing that because a
-	// default said so. See internal/websearch.
+	// On by default. It was off, on the grounds that it is the one feature that
+	// sends anything off this machine, and the result was a general chat that
+	// answered every question about the present from weights a year out of
+	// date. What leaves is the words searched for and the pages opened, never
+	// the conversation, and every reply that searched says what it looked up.
+	// See internal/websearch.
 	WebSearch bool `json:"web_search"`
+	// SearchProvider is where searches go: SearchAuto uses SearXNG when it is
+	// running and DuckDuckGo when it is not, the other two use only that one.
+	SearchProvider string `json:"search_provider"`
 	// SearXNGURL is the instance to search through, which you run yourself.
 	SearXNGURL string `json:"searxng_url"`
+	// KeepReading saves the pages a search opens into the knowledge base, so a
+	// subject looked up once is known the next time without searching again.
+	KeepReading bool `json:"keep_reading"`
+	// EmbeddingModel makes the vectors the knowledge base searches by meaning.
+	// Empty means the first embedding model installed, or none, in which case
+	// it searches by words alone, which works everywhere.
+	EmbeddingModel string `json:"embedding_model"`
+	// Revision is which of the one-time settings changes below this file has
+	// been through. See migrate.
+	Revision int `json:"revision"`
 	// SearchResults is how many hits one search asks for.
 	SearchResults int `json:"search_results"`
 
@@ -231,27 +253,31 @@ const DefaultPhonePort = 8765
 
 func DefaultConfig() Config {
 	return Config{
-		BaseURL:       "http://localhost:11434",
-		Theme:         ThemeDark,
-		WindowWidth:   1180,
-		WindowHeight:  780,
-		SidebarWidth:  270,
-		SidebarOpen:   true,
-		PortraitOpen:  true,
-		FontRendering: FontRenderingAuto,
-		KeepAlive:     DefaultKeepAlive,
-		SearchResults: DefaultSearchResults,
-		SearXNGURL:    DefaultSearXNGURL,
-		PhonePort:     DefaultPhonePort,
-		UpdateChannel: ChannelRelease,
-		CheckUpdates:  true,
-		ActiveStyle:   chars.DefaultStyleName,
-		Temperature:   DefaultTemperature,
-		TopP:          DefaultTopP,
-		RepeatPenalty: DefaultRepeatPenalty,
-		RepeatLastN:   DefaultRepeatLastN,
-		NumCtx:        DefaultNumCtx,
-		ShowStats:     false,
+		BaseURL:        "http://localhost:11434",
+		Theme:          ThemeDark,
+		WindowWidth:    1180,
+		WindowHeight:   780,
+		SidebarWidth:   270,
+		SidebarOpen:    true,
+		PortraitOpen:   true,
+		FontRendering:  FontRenderingAuto,
+		KeepAlive:      DefaultKeepAlive,
+		SearchResults:  DefaultSearchResults,
+		SearXNGURL:     DefaultSearXNGURL,
+		WebSearch:      true,
+		SearchProvider: SearchAuto,
+		KeepReading:    true,
+		Revision:       currentRevision,
+		PhonePort:      DefaultPhonePort,
+		UpdateChannel:  ChannelRelease,
+		CheckUpdates:   true,
+		ActiveStyle:    chars.DefaultStyleName,
+		Temperature:    DefaultTemperature,
+		TopP:           DefaultTopP,
+		RepeatPenalty:  DefaultRepeatPenalty,
+		RepeatLastN:    DefaultRepeatLastN,
+		NumCtx:         DefaultNumCtx,
+		ShowStats:      false,
 	}
 }
 
@@ -276,11 +302,52 @@ func LoadConfig() (Config, error) {
 
 // normalize repairs values that are missing or out of range, so a hand-edited
 // or truncated config cannot produce an unusable window.
+// The search providers.
+const (
+	SearchAuto       = "auto"
+	SearchSearXNG    = "searxng"
+	SearchDuckDuckGo = "duckduckgo"
+)
+
+// currentRevision is the newest one-time settings change.
+const currentRevision = 1
+
+// migrate applies the one-time changes a config has not been through yet.
+//
+// A config file holds every setting, including the ones nobody ever touched,
+// because it is written out whole. So an old default is indistinguishable from
+// a choice, and changing a default reaches nobody who has launched the app
+// before. A revision number is how a new default reaches them once, and only
+// once: after this runs, whatever they set is kept.
+func (c *Config) migrate() {
+	if c.Revision < 1 {
+		// Search on, which was asked for, and the pages it reads kept.
+		c.WebSearch = true
+		c.KeepReading = true
+		if c.SearchProvider == "" {
+			c.SearchProvider = SearchAuto
+		}
+		// "30m" was the old keep-alive default and so is in every config
+		// written before this, chosen or not. Cleared once, so the server's
+		// own setting applies; anyone who wants it can type it back in.
+		if strings.TrimSpace(c.KeepAlive) == "30m" {
+			c.KeepAlive = DefaultKeepAlive
+		}
+	}
+	c.Revision = currentRevision
+}
+
 func (c *Config) normalize() {
 	// A config written before the rulebook existed keeps its instructions in
 	// one freeform block. They become rules here, once.
 	c.adoptGlobalInstructions()
 	c.SetRules(c.Rulebook)
+	c.migrate()
+	switch c.SearchProvider {
+	case SearchAuto, SearchSearXNG, SearchDuckDuckGo:
+	default:
+		c.SearchProvider = SearchAuto
+	}
 	if c.BaseURL == "" {
 		c.BaseURL = "http://localhost:11434"
 	}
@@ -321,11 +388,11 @@ func (c *Config) normalize() {
 	if c.SearchResults <= 0 || c.SearchResults > 10 {
 		c.SearchResults = DefaultSearchResults
 	}
-	// Search cannot be on without somewhere to search. Left inconsistent, the
-	// model would be offered a tool that fails on every call, which is worse than
-	// not having it.
-	if strings.TrimSpace(c.SearXNGURL) == "" {
-		c.WebSearch = false
+	// "SearXNG only" with no SearXNG to use would offer the model a tool that
+	// fails on every call. Automatic has DuckDuckGo behind it, so it is what
+	// that choice becomes, rather than search being quietly switched off.
+	if c.SearchProvider == SearchSearXNG && strings.TrimSpace(c.SearXNGURL) == "" {
+		c.SearchProvider = SearchAuto
 	}
 	if c.PhonePort <= 0 || c.PhonePort > 65535 {
 		c.PhonePort = DefaultPhonePort
@@ -335,9 +402,6 @@ func (c *Config) normalize() {
 	}
 	if c.NumCtx < 512 {
 		c.NumCtx = DefaultNumCtx
-	}
-	if strings.TrimSpace(c.KeepAlive) == "" {
-		c.KeepAlive = "30m"
 	}
 	if strings.TrimSpace(c.ActiveStyle) == "" {
 		c.ActiveStyle = chars.DefaultStyleName

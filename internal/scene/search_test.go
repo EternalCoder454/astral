@@ -29,21 +29,42 @@ func TestOnlyTheRightKindsCanSearch(t *testing.T) {
 	}
 }
 
-func TestSearchableNeedsBothTheSwitchAndAnAddress(t *testing.T) {
+// Search needs only the switch now: with no SearXNG to use, the automatic
+// provider falls back to DuckDuckGo, so an empty address is not a reason to
+// have no search at all.
+func TestSearchableFollowsTheSwitch(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		cfg  store.Config
 		want bool
 	}{
 		{"off", store.Config{}, false},
-		{"on with no address", store.Config{WebSearch: true}, false},
+		{"on with no address", store.Config{WebSearch: true}, true},
 		{"address with the switch off", store.Config{SearXNGURL: "http://localhost:8080"}, false},
-		{"blank address", store.Config{WebSearch: true, SearXNGURL: "   "}, false},
 		{"both", store.Config{WebSearch: true, SearXNGURL: "http://localhost:8080"}, true},
 	} {
 		if got := Searchable(tc.cfg); got != tc.want {
 			t.Errorf("%s: Searchable = %v, want %v", tc.name, got, tc.want)
 		}
+	}
+}
+
+func TestSearchProviderFollowsTheSetting(t *testing.T) {
+	for provider, want := range map[string]string{
+		store.SearchSearXNG:    "SearXNG",
+		store.SearchDuckDuckGo: "DuckDuckGo",
+		store.SearchAuto:       "SearXNG", // tried first, while it has not failed
+		"":                     "SearXNG",
+	} {
+		cfg := store.Config{WebSearch: true, SearchProvider: provider, SearXNGURL: "http://localhost:8080"}
+		if got := SearchProvider(cfg).Name(); got != want {
+			t.Errorf("%q: got %s, want %s", provider, got, want)
+		}
+	}
+	// Automatic with no address goes straight to the fallback.
+	cfg := store.Config{WebSearch: true, SearchProvider: store.SearchAuto}
+	if got := SearchProvider(cfg).Name(); got != "DuckDuckGo" {
+		t.Errorf("automatic with no address: %s", got)
 	}
 }
 

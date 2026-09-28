@@ -154,6 +154,7 @@ func (a *App) buildSidebar() {
 	a.sidebar.OnHome = a.goHome
 	a.sidebar.OnCharacters = a.showCharacters
 	a.sidebar.OnWorlds = a.showWorlds
+	a.sidebar.OnKnowledge = a.showKnowledge
 	a.sidebar.OnSettings = a.showSettings
 	a.sidebar.OnPersona = func() { a.showSettingsPage("persona") }
 	a.sidebar.OnStyles = a.showStyles
@@ -182,6 +183,7 @@ func (a *App) buildCenter() {
 	a.chat.OnEditDirection = a.editDirection
 	a.chat.OnBuildStyle = a.buildStyleFromChat
 	a.chat.OnBuildWorld = a.buildWorldFromChat
+	a.chat.OnSaveToKnowledge = a.saveReplyToKnowledge
 	a.chat.OnLoreLearned = func(applied, held int) {
 		// Worth saying, because the lorebook changed without being asked and
 		// anything held back needs a decision. Kept to one line.
@@ -303,6 +305,8 @@ func (a *App) buildMainMenu() *gio.Menu {
 	section.Append("Characters", "win.characters")
 	section.Append("Writing Styles", "win.styles")
 	section.Append("Worlds", "win.worlds")
+	section.Append("Knowledge", "win.knowledge")
+	section.Append("Study a Topic…", "win.study")
 	section.Append("Import Character…", "win.import-character")
 	menu.AppendSection("", section)
 
@@ -344,6 +348,8 @@ func (a *App) registerActions() {
 	add("design-character", a.newDesignerChat)
 	add("styles", a.showStyles)
 	add("worlds", a.showWorlds)
+	add("knowledge", a.showKnowledge)
+	add("study", func() { a.studyTopic("") })
 	add("import-character", a.actionImportCharacter)
 	add("settings", a.showSettings)
 	add("model", a.showModelPicker)

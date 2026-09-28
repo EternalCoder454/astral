@@ -290,6 +290,12 @@ func (s *Store) migrate() error {
 	)`)
 	s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_token ON devices(token_hash)`)
 
+	// The knowledge base. See knowledge.go.
+	s.migrateKnowledge()
+
+	// A scene's long-term memory. See memory.go.
+	s.migrateMemory()
+
 	s.db.Exec(`
 		UPDATE characters SET instructions = TRIM(
 			COALESCE(system_prompt, '') ||

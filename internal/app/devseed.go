@@ -129,6 +129,25 @@ func (a *App) runDevSeed() {
 		"{{char}} is close to admitting she has never seen the coastline she was expelled for."); err != nil {
 		log.Printf("astral: seed note: %v", err)
 	}
+	// A few knowledge entries, one of each way in, so the Knowledge page can be
+	// looked at with its badges, sources and dates showing.
+	for _, e := range []store.KnowledgeEntry{
+		{Title: "Ollama keep_alive", Origin: store.OriginWeb, Source: "https://docs.ollama.com/faq",
+			Body: "keep_alive sets how long a model stays loaded after a request. A number is seconds; " +
+				"a string takes units, like 10m. 0 unloads at once and -1 keeps it loaded. The server's " +
+				"default comes from OLLAMA_KEEP_ALIVE and is five minutes.", Tags: []string{"ollama"}},
+		{Title: "Notes on SearXNG", Origin: store.OriginStudy, Tags: []string{"notes", "searxng"},
+			Body: "SearXNG is a self-hosted metasearch engine that asks several engines at once and " +
+				"returns their results without tracking. Its JSON output has to be enabled by adding " +
+				"json to search.formats in settings.yml [1]."},
+		{Title: "House rules for the Drowned Coast campaign", Origin: store.OriginWritten,
+			Body: "Maps are unreliable east of the Sever. Nobody names the Guild's master aloud. " +
+				"Ferries from Kestrel Bay run late and nobody complains."},
+	} {
+		if _, err := a.store.SaveKnowledge(e); err != nil {
+			log.Printf("astral: seed knowledge: %v", err)
+		}
+	}
 	a.cfg.LastChat = chat.ID
 	log.Printf("astral: seed: world %d, 3 characters, chat %d", wid, chat.ID)
 }

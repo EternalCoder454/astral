@@ -25,6 +25,7 @@ const (
 	IconInfo       = "astral-info-symbolic"
 	IconWorlds     = "astral-worlds-symbolic"
 	IconHome       = "astral-home-symbolic"
+	IconKnowledge  = "astral-knowledge-symbolic"
 )
 
 // AllIcons is every name the app uses, so the dev harness can check that none

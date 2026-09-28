@@ -30,9 +30,12 @@ type settingsForm struct {
 	phone    *gtk.CheckButton
 	think    *gtk.CheckButton
 
-	webSearch  *gtk.CheckButton
-	searxngURL *gtk.Entry
-	searchN    *gtk.Entry
+	webSearch   *gtk.CheckButton
+	provider    *gtk.DropDown
+	searxngURL  *gtk.Entry
+	searchN     *gtk.Entry
+	keepReading *gtk.CheckButton
+	embedModel  *gtk.Entry
 
 	temperature *gtk.Scale
 	topP        *gtk.Scale
@@ -156,7 +159,9 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	// background model nobody chose.
 	f.housekeeping.SetSelected(uint(housekeepingRow(f.models, a.cfg.HousekeepingModel)))
 	card.Append(labelledField("Background Model",
-		"Writes the recap and the lorebook. Stays loaded beside your main model, so pick a small one.",
+		"Writes the recap and the lorebook. Used only when it fits in video memory beside your main "+
+			"model; when it would not, your main model does the work instead, rather than both "+
+			"crowding the card.",
 		f.housekeeping))
 
 	f.baseURL = gtk.NewEntry()
@@ -206,9 +211,10 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 
 	f.keepAlive = gtk.NewEntry()
 	f.keepAlive.SetText(a.cfg.KeepAlive)
+	f.keepAlive.SetPlaceholderText("Ollama's setting")
 	sCard.Append(labelledField("Keep the Model Loaded For",
-		"Longer avoids a reload after a reading pause, at the price of the memory it holds. "+
-			"\"30m\", \"2h\", or \"-1\" to never unload. Default "+store.DefaultKeepAlive+".",
+		"Leave empty to use Ollama's own setting. Longer avoids a reload after a pause, but "+
+			"holds video memory the whole time. \"30m\", \"2h\", or \"-1\" to never unload.",
 		f.keepAlive))
 
 	f.think = gtk.NewCheckButton()
@@ -346,9 +352,9 @@ func (a *App) applySettings(f *settingsForm) {
 	}
 	a.cfg.PersonaName = strings.TrimSpace(f.personaName.Text())
 	a.cfg.PersonaDescription = textOf(f.personaDesc)
-	if k := strings.TrimSpace(f.keepAlive.Text()); k != "" {
-		a.cfg.KeepAlive = k
-	}
+	// Empty is a real choice now, the server's setting, so it is saved rather
+	// than ignored.
+	a.cfg.KeepAlive = strings.TrimSpace(f.keepAlive.Text())
 	a.cfg.Theme = themeFromIndex(int(f.theme.Selected()))
 	a.cfg.FontRendering = fontFromIndex(int(f.fontMode.Selected()))
 	a.cfg.ShowStats = f.showStat.Active()
@@ -358,7 +364,13 @@ func (a *App) applySettings(f *settingsForm) {
 		a.cfg.UpdateChannel = store.ChannelBeta
 	}
 	a.cfg.SearXNGURL = strings.TrimSpace(f.searxngURL.Text())
-	a.cfg.WebSearch = f.webSearch.Active() && a.cfg.SearXNGURL != ""
+	// The switch alone. It used to need an address too, from before search had
+	// anywhere to go without one, and that turned search off on every save for
+	// anyone not running SearXNG.
+	a.cfg.WebSearch = f.webSearch.Active()
+	a.cfg.SearchProvider = providerFromRow(int(f.provider.Selected()))
+	a.cfg.KeepReading = f.keepReading.Active()
+	a.cfg.EmbeddingModel = strings.TrimSpace(f.embedModel.Text())
 	a.cfg.SearchResults = websearch.ParseResultCount(f.searchN.Text())
 	a.cfg.Think = f.think.Active()
 	a.cfg.Temperature = f.temperature.Value()

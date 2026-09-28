@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strings"
+
 	"astral/internal/ollama"
 	"astral/internal/scene"
 	"astral/internal/websearch"
@@ -22,11 +24,32 @@ func (c *ChatView) searcher(model string, opts ollama.Options, think *bool) *web
 	}
 	return &websearch.Runner{
 		Client:   c.client,
-		Provider: websearch.NewSearXNG(c.cfg.SearXNGURL),
+		Provider: scene.SearchProvider(c.cfg),
+		Fetcher:  scene.Fetcher(),
 		Model:    model,
 		Options:  opts,
 		Think:    think,
 		Results:  c.cfg.SearchResults,
+		// On the worker goroutine: it only marks the buffer, and the flush on
+		// the UI thread clears the row.
+		OnDiscard: func() {
+			c.pendMu.Lock()
+			c.pendText.Reset()
+			c.pendDiscard = true
+			c.pendMu.Unlock()
+		},
+		// A search is seconds with nothing arriving. Saying what is being
+		// looked up is the difference between waiting and wondering whether
+		// it has stalled.
+		OnRound: func(r websearch.Round) {
+			status := "Searching for \"" + r.Query + "\"…"
+			if r.Opened != "" {
+				status = "Reading " + strings.TrimPrefix(strings.TrimPrefix(r.Opened, "https://"), "http://") + "…"
+			}
+			c.pendMu.Lock()
+			c.pendStatus = status
+			c.pendMu.Unlock()
+		},
 	}
 }
 

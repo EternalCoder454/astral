@@ -9,6 +9,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
 	"astral/internal/ollama"
+	"astral/internal/scene"
 	"astral/internal/store"
 	"astral/internal/world"
 )
@@ -68,10 +69,12 @@ func (a *App) showLoreFromText(w world.World, onDone func()) {
 		status.SetText("")
 
 		client := a.client
+		sceneModel := a.cfg.Model
 		opts := ollama.Options{NumCtx: a.cfg.NumCtx}
 		go func() {
 			ctx, cancelCtx := context.WithTimeout(context.Background(), buildTimeout)
 			defer cancelCtx()
+			model := scene.FitHousekeeping(ctx, client, model, sceneModel)
 			entries, err := world.EntriesFromText(ctx, client, model, text, opts)
 
 			coreglib.IdleAdd(func() bool {

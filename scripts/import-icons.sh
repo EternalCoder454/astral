@@ -24,7 +24,7 @@ set -euo pipefail
 
 cd "$(dirname "$(readlink -f "$0")")/.."
 src_dir=assets/icons-src
-out_dir=internal/app/icons
+out_dir=internal/icons/svg
 
 # <source name>:<installed name, without the astral-/-symbolic wrapper>
 map=(
@@ -50,7 +50,9 @@ map=(
 )
 
 mkdir -p "$out_dir"
-rm -f "$out_dir"/*.svg
+# Only the icons this script makes are replaced. knowledge.svg is drawn for
+# Astral rather than exported, carries its own header, and is left alone.
+for entry in "${map[@]}"; do rm -f "$out_dir/astral-${entry##*:}-symbolic.svg"; done
 
 for entry in "${map[@]}"; do
     src="${entry%%:*}"

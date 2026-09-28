@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Drawn for Astral in Material Symbols' coordinate system, so it sits with
+     the rest of the set: a single filled path with holes cut by the even-odd
+     rule, no strokes, because GTK recolours a symbolic icon by forcing the
+     fill. Source in assets/icons-src/knowledge.svg. -->
+<svg xmlns="http://www.w3.org/2000/svg" height="16" viewBox="0 -960 960 960" width="16" fill="#000000"><path fill-rule="evenodd" d="M240-80q-25 0-42.5-17.5T180-140v-680q0-25 17.5-42.5T240-880h480q25 0 42.5 17.5T780-820v680q0 25-17.5 42.5T720-80H240Zm20-200h440v-520H260v520Zm0 120h440v-50H260v50Zm80-500h280v-64H340v64Zm0 124h200v-64H340v64Z"/></svg>
