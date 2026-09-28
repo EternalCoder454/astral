@@ -3,6 +3,10 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.22
+- Narrowing the window folds the sidebar away as it should, instead of leaving a black strip down the side
+- Long directions and model names shorten to fit, and a reply's buttons wrap, so the chat fits any width
+
 ## 0.5.21
 - Suggest Replies offers three things you could say next, in your own voice, to send or change
 - Scene Memory has Where and When, a line sent every turn that the model can suggest from the scene
