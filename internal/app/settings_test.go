@@ -1,6 +1,9 @@
 package app
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // The bug this guards: indexOf answers 0 for a miss, which is the right
 // fallback for the scene's model and the wrong one for a dropdown whose row 0
@@ -25,5 +28,19 @@ func TestHousekeepingRow(t *testing.T) {
 	}
 	if got := housekeepingRow(nil, "anything"); got != 0 {
 		t.Errorf("with no models installed, got row %d, want 0", got)
+	}
+}
+
+func TestNotificationPreview(t *testing.T) {
+	long := "*She turns the chart over.* " + strings.Repeat("The coastline does not hold. ", 10)
+	got := notificationPreview(long + "\n\nA second paragraph.")
+	if strings.Contains(got, "*") || strings.Contains(got, "second paragraph") {
+		t.Errorf("preview %q", got)
+	}
+	if n := len([]rune(got)); n > 141 || !strings.HasSuffix(got, "…") {
+		t.Errorf("preview is %d runes: %q", n, got)
+	}
+	if got := notificationPreview("Short."); got != "Short." {
+		t.Errorf("a short reply became %q", got)
 	}
 }

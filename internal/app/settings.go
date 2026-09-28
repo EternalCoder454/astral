@@ -1,10 +1,13 @@
 package app
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
 	"astral/internal/chars"
@@ -45,6 +48,7 @@ type settingsForm struct {
 
 	housekeeping *gtk.DropDown
 	vision       *gtk.DropDown
+	notify       *gtk.CheckButton
 }
 
 // showSettings opens the settings dialog.
@@ -279,6 +283,21 @@ func (a *App) buildAboutPage(f *settingsForm) *gtk.Box {
 	})
 	upCard.Append(check)
 	page.Append(upOuter)
+
+	backOuter, backCard := groupCard("Backups")
+	backHint := wrappingLabel("A copy of your library is saved once a day, and the last seven are kept. " +
+		"To go back to one, quit Astral and copy it over astral.db in the folder above it.")
+	backHint.AddCSSClass("settings-hint")
+	backCard.Append(backHint)
+	open := gtk.NewButtonWithLabel("Open Backups Folder")
+	open.SetHAlign(gtk.AlignStart)
+	open.ConnectClicked(func() {
+		dir := store.BackupDir()
+		_ = os.MkdirAll(dir, 0o755)
+		gtk.NewFileLauncher(gio.NewFileForPath(dir)).Launch(context.Background(), &a.win.Window, nil)
+	})
+	backCard.Append(open)
+	page.Append(backOuter)
 	return page
 }
 
@@ -336,6 +355,11 @@ func (a *App) buildYouPage(f *settingsForm) *gtk.Box {
 	f.showStat.SetChild(wrappingLabel("Show generation speed and token count under each reply (for measuring the model, not for reading)"))
 	f.showStat.SetActive(a.cfg.ShowStats)
 	appCard.Append(f.showStat)
+
+	f.notify = gtk.NewCheckButton()
+	f.notify.SetChild(wrappingLabel("Tell me when a reply finishes while Astral is in the background"))
+	f.notify.SetActive(a.cfg.NotifyReplies)
+	appCard.Append(f.notify)
 	page.Append(appOuter)
 
 	// The phone cards, built where they have always been built so the pairing
@@ -374,6 +398,7 @@ func (a *App) applySettings(f *settingsForm) {
 	a.cfg.Theme = themeFromIndex(int(f.theme.Selected()))
 	a.cfg.FontRendering = fontFromIndex(int(f.fontMode.Selected()))
 	a.cfg.ShowStats = f.showStat.Active()
+	a.cfg.NotifyReplies = f.notify.Active()
 	a.cfg.CheckUpdates = f.updates.Active()
 	a.cfg.UpdateChannel = store.ChannelRelease
 	if f.channel.Selected() == 1 {

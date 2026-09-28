@@ -6,6 +6,7 @@ import (
 	"context"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
@@ -98,6 +99,14 @@ func (a *App) Run(args []string) int {
 }
 
 func (a *App) activate() {
+	// A second launch, or a click on one of Astral's notifications, activates
+	// the copy that is already running. It raises the window it has. Running
+	// the rest of this again opened the database a second time and built a
+	// second window over the first.
+	if a.win != nil {
+		a.win.Present()
+		return
+	}
 	cfg, err := store.LoadConfig()
 	if err != nil {
 		log.Printf("astral: load config: %v", err)
@@ -144,6 +153,26 @@ func (a *App) activate() {
 		a.startPhoneAccess()
 	}
 	a.runDevView()
+	if !devRun() {
+		go keepBackingUp(a.store)
+	}
+}
+
+// keepBackingUp makes the day's copy of the library, and looks again every
+// hour, so a window left open for a week still makes one a day. See
+// store.BackupDaily.
+func keepBackingUp(st *store.Store) {
+	if st == nil {
+		return
+	}
+	for {
+		if path, err := st.BackupDaily(store.BackupDir(), time.Now()); err != nil {
+			log.Printf("astral: daily backup: %v", err)
+		} else if path != "" {
+			log.Printf("astral: backed up to %s", path)
+		}
+		time.Sleep(time.Hour)
+	}
 }
 
 func (a *App) shutdown() {

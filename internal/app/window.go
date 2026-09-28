@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
@@ -164,6 +165,35 @@ func (a *App) buildSidebar() {
 			a.toast("Could not open that chat: " + err.Error())
 		}
 	}
+	a.sidebar.OnSearch = a.searchChats
+}
+
+// searchChats answers the sidebar's search. On this thread: it is one indexed
+// query, a few milliseconds even across years of chats.
+func (a *App) searchChats(query string) {
+	if a.store == nil {
+		return
+	}
+	hits, err := a.store.SearchChats(query, 60)
+	if err != nil {
+		a.toast("Could not search: " + err.Error())
+		return
+	}
+	chats, err := a.store.Chats()
+	if err != nil {
+		return
+	}
+	byID := make(map[int64]store.Chat, len(chats))
+	for _, ch := range chats {
+		byID[ch.ID] = ch
+	}
+	results := make([]ui.SearchResult, 0, len(hits))
+	for _, h := range hits {
+		if ch, ok := byID[h.ChatID]; ok {
+			results = append(results, ui.SearchResult{Chat: ch, Snippet: h.Snippet})
+		}
+	}
+	a.sidebar.ShowResults(query, results)
 }
 
 // buildCenter constructs the stack holding the welcome screen and the chat.
@@ -204,6 +234,21 @@ func (a *App) buildCenter() {
 	// Dropped on the chat, or pasted into it. Both go through the same importer
 	// the file chooser uses, so a dropped HEIC is converted and a truncated one
 	// is refused here rather than three steps later.
+	// A reply that finishes while the window is in the background says so,
+	// so a slow model can be left to write while you do something else.
+	a.chat.OnReplyDone = func(title, text string) {
+		if !a.cfg.NotifyReplies || a.win == nil || a.win.IsActive() {
+			return
+		}
+		if title == "" {
+			title = "Astral"
+		}
+		n := gio.NewNotification(title)
+		n.SetBody(notificationPreview(text))
+		// One at a time: a new reply replaces the last notice rather than
+		// stacking a pile of them in the tray.
+		a.adw.SendNotification("reply", n)
+	}
 	a.chat.OnImageFile = func(path string) {
 		a.importImageAsync(path, nil, "reference", a.chat.AttachImage)
 	}
@@ -344,6 +389,11 @@ func (a *App) registerActions() {
 	add("settings", a.showSettings)
 	add("model", a.showModelPicker)
 	add("shortcuts", a.showShortcuts)
+	add("search-chats", func() {
+		if a.sidebar != nil {
+			a.sidebar.FocusSearch()
+		}
+	})
 	add("about", a.showAbout)
 	add("toggle-sidebar", func() { a.sideBtn.SetActive(!a.sideBtn.Active()) })
 	add("focus-composer", func() { a.chat.FocusComposer() })
@@ -361,6 +411,7 @@ func (a *App) registerActions() {
 		"F9":             "win.toggle-sidebar",
 		"<Control>l":     "win.focus-composer",
 		"<Control>slash": "win.shortcuts",
+		"<Control>f":     "win.search-chats",
 	} {
 		a.adw.SetAccelsForAction(action, []string{accel})
 	}
@@ -413,4 +464,24 @@ func (a *App) actionDeleteChat(id int64) {
 			}
 			a.refreshSidebar()
 		})
+}
+
+// notificationPreview is the start of a reply, as a notification shows it: one
+// paragraph, without the asterisks that mark narration, cut at a word.
+func notificationPreview(text string) string {
+	text = strings.TrimSpace(text)
+	if i := strings.Index(text, "\n"); i >= 0 {
+		text = strings.TrimSpace(text[:i])
+	}
+	text = strings.ReplaceAll(text, "*", "")
+	const most = 140
+	r := []rune(text)
+	if len(r) <= most {
+		return text
+	}
+	cut := string(r[:most])
+	if i := strings.LastIndexByte(cut, ' '); i > most/2 {
+		cut = cut[:i]
+	}
+	return strings.TrimRight(cut, " ,.;:") + "…"
 }

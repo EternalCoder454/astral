@@ -115,11 +115,21 @@ func (a *App) runDevSeed() {
 		{ollama.RoleUser, "*I sat.* \"You've never been, have you. To any of it.\"", 0, 0},
 		{ollama.RoleAssistant, "*The dividers stopped.*\n\n\"No.\" *A long pause, and then, as if it were nothing at all:* \"The Guild forbids charting east of the Sever. Sixty years, that rule. I was expelled for a coastline I have never stood on.\" *She rubbed at her wrist, where the mark had been struck through, and seemed annoyed to have been caught doing it.* \"Ask me again when the tide is out.\"", 35.4, 140},
 	}
-	for _, m := range scene {
-		if _, err := a.store.AddMessage(store.Message{
+	for i, m := range scene {
+		msg := store.Message{
 			ChatID: chat.ID, Role: m.role, Content: m.text,
 			TokPerSec: m.tps, EvalCount: m.tokens, CreatedAt: time.Now(),
-		}); err != nil {
+		}
+		// The last reply has been written twice, so the arrows between its
+		// versions can be looked at.
+		if i == len(scene)-1 {
+			msg.Versions = []store.Version{
+				{Content: "*The dividers stopped.* \"No.\" *She did not elaborate.*"},
+				{Content: m.text},
+			}
+			msg.Version = 1
+		}
+		if _, err := a.store.AddMessage(msg); err != nil {
 			log.Printf("astral: seed message: %v", err)
 		}
 	}

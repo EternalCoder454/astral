@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/pango"
 
 	"astral/internal/ollama"
+	"astral/internal/store"
 )
 
 // bubbleChars bounds a message's natural width, in characters, and is what
@@ -83,6 +85,18 @@ type MessageRow struct {
 	// one character. Zero everywhere else.
 	Speaker int64
 	Role    string
+	// Versions are the replies written for this turn when it has been written
+	// more than once, and Version is which is showing. See store.Version.
+	Versions []store.Version
+	Version  int
+
+	foot      *gtk.Box
+	pager     *gtk.Box
+	pageLabel *gtk.Label
+	pagePrev  *gtk.Button
+	pageNext  *gtk.Button
+	onPrev    func()
+	onNext    func()
 
 	// raw is the full text as received, kept because the label holds *markup*
 	// and there is no faithful way back from that to the original.
@@ -199,6 +213,7 @@ func NewMessageRow(o MessageOpts) *MessageRow {
 	m.meta.AddCSSClass("message-meta")
 	m.meta.SetVisible(false)
 	m.actions = gtk.NewBox(gtk.OrientationHorizontal, 2)
+	m.foot = foot
 	if fromUser {
 		foot.Append(m.actions)
 		foot.Append(m.meta)
@@ -483,7 +498,7 @@ func (m *MessageRow) Thinking() string { return m.thinking }
 func (m *MessageRow) SetMeta(extra string) {
 	parts := make([]string, 0, 2)
 	if !m.when.IsZero() {
-		parts = append(parts, m.when.Format("15:04"))
+		parts = append(parts, whenLabel(m.when, time.Now()))
 	}
 	if extra != "" {
 		parts = append(parts, extra)
@@ -491,6 +506,70 @@ func (m *MessageRow) SetMeta(extra string) {
 	text := strings.Join(parts, " · ")
 	m.meta.SetText(text)
 	m.meta.SetVisible(text != "")
+}
+
+// SetPager shows which of a turn's versions is on screen, with arrows to the
+// others. The arrow past the last one asks for another, the way writing the
+// reply again does, so the two are one gesture rather than two buttons.
+// Hidden when show is false, and built only the first time it is shown.
+func (m *MessageRow) SetPager(show bool, onPrev, onNext func()) {
+	if !show || len(m.Versions) < 2 {
+		if m.pager != nil {
+			m.pager.SetVisible(false)
+		}
+		return
+	}
+	m.onPrev, m.onNext = onPrev, onNext
+	if m.pager == nil {
+		m.pager = gtk.NewBox(gtk.OrientationHorizontal, 0)
+		m.pager.AddCSSClass("version-pager")
+		m.pagePrev = gtk.NewButtonWithLabel("‹")
+		m.pagePrev.AddCSSClass("flat")
+		m.pagePrev.SetTooltipText("The reply before this one")
+		m.pagePrev.ConnectClicked(func() {
+			if m.onPrev != nil {
+				m.onPrev()
+			}
+		})
+		m.pageLabel = gtk.NewLabel("")
+		m.pageLabel.AddCSSClass("message-meta")
+		m.pageNext = gtk.NewButtonWithLabel("›")
+		m.pageNext.AddCSSClass("flat")
+		m.pageNext.ConnectClicked(func() {
+			if m.onNext != nil {
+				m.onNext()
+			}
+		})
+		m.pager.Append(m.pagePrev)
+		m.pager.Append(m.pageLabel)
+		m.pager.Append(m.pageNext)
+		m.foot.Prepend(m.pager)
+	}
+	m.pageLabel.SetText(fmt.Sprintf("%d/%d", m.Version+1, len(m.Versions)))
+	m.pagePrev.SetSensitive(m.Version > 0)
+	if m.Version >= len(m.Versions)-1 {
+		m.pageNext.SetTooltipText("Write another")
+	} else {
+		m.pageNext.SetTooltipText("The reply after this one")
+	}
+	m.pager.SetVisible(true)
+}
+
+// whenLabel is a message's time as its footer shows it: the time alone for
+// today, and the date as well for anything older. A scene picked up after a
+// week read as though every line was said this morning.
+func whenLabel(t, now time.Time) string {
+	t, now = t.Local(), now.Local()
+	y1, m1, d1 := t.Date()
+	y2, m2, d2 := now.Date()
+	switch {
+	case y1 == y2 && m1 == m2 && d1 == d2:
+		return t.Format("15:04")
+	case y1 == y2:
+		return t.Format("2 Jan, 15:04")
+	default:
+		return t.Format("2 Jan 2006, 15:04")
+	}
 }
 
 // BubbleWidth reports the laid-out width of the bubble, for the dev harness's

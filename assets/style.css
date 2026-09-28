@@ -196,6 +196,19 @@ frame:focus-within {
 	font-size: 0.92em;
 }
 
+/* Searching the chats: a quiet field over the list, and under each result the
+   line that matched, with the matching words in bold. */
+.sidebar-search {
+	margin: 10px 10px 2px 10px;
+}
+
+.chat-row-snippet {
+	font-size: 0.8em;
+	font-weight: 400; /* so the matched words, in bold, stand out from it */
+	color: @astral_muted;
+	margin-left: 16px;
+}
+
 /* How many characters are in a scene. Set back far enough to be ignorable when
    you are reading down the titles, and there when you are looking for it. */
 .chat-row-cast {

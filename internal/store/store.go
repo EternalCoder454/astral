@@ -273,6 +273,11 @@ func (s *Store) migrate() error {
 
 	// Who spoke, for scenes with more than one character. See cast.go.
 	s.db.Exec(`ALTER TABLE messages ADD COLUMN character_id INTEGER NOT NULL DEFAULT 0`)
+
+	// Every reply written for a turn, when it has been written more than once,
+	// and which one is showing. See Message.Versions.
+	s.db.Exec(`ALTER TABLE messages ADD COLUMN versions TEXT NOT NULL DEFAULT ''`)
+	s.db.Exec(`ALTER TABLE messages ADD COLUMN version INTEGER NOT NULL DEFAULT 0`)
 	s.db.Exec(`CREATE TABLE IF NOT EXISTS chat_cast (
 		chat_id      INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
 		character_id INTEGER NOT NULL,

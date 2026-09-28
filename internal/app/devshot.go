@@ -142,7 +142,11 @@ func (a *App) runDevView() {
 		case "assistant":
 			a.newAssistantChat()
 		case "settings":
-			a.showSettings()
+			if arg != "" {
+				a.showSettingsPage(arg) // "you", "about"
+			} else {
+				a.showSettings()
+			}
 		case "shortcuts":
 			a.showShortcuts()
 		case "about":
@@ -168,6 +172,13 @@ func (a *App) runDevView() {
 		case "drop":
 			a.devDemoScene()
 			a.chat.DevShowDrop(arg == "refused")
+		case "search":
+			// The sidebar searching the seeded scene, so results and their
+			// snippets can be looked at.
+			if arg == "" {
+				arg = "guild coast"
+			}
+			a.sidebar.DevSearch(arg)
 		case "rowmenu":
 			a.devRowMenu()
 		case "measure":

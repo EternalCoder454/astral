@@ -291,6 +291,8 @@ func (c *ChatView) options() ollama.Options { return scene.Options(c.cfg) }
 func (c *ChatView) startStream() {
 	msgs := c.buildRequest()
 	if len(msgs) == 0 {
+		c.restoreVersions(c.swipeBase)
+		c.swipeBase = nil
 		return
 	}
 	// Recorded after the request is built, so the "the style has changed"
@@ -457,7 +459,14 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 
 	row := c.live
 	c.live = nil
+	// The versions of the reply this one was written to replace. Taken now,
+	// so every way out of here either stores the new one beside them or puts
+	// the old one back.
+	base := c.swipeBase
+	c.swipeBase = nil
+	defer c.refreshPagers()
 	if row == nil {
+		c.restoreVersions(base)
 		return
 	}
 	row.EndStreaming()
@@ -478,8 +487,10 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	if err != nil && !cancelled {
 		// A failed turn leaves nothing useful behind, so the empty row goes
 		// with it rather than sitting in the transcript as a blank message.
-		if strings.TrimSpace(row.Text()) == "" {
+		// A failed attempt at writing a reply again gives the old one back.
+		if strings.TrimSpace(row.Text()) == "" || base != nil {
 			c.removeRow(row)
+			c.restoreVersions(base)
 		} else {
 			row.SetMeta("stopped: " + err.Error())
 		}
@@ -562,6 +573,7 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	}
 	if strings.TrimSpace(row.Text()) == "" {
 		c.removeRow(row)
+		c.restoreVersions(base)
 		// A reasoning model can return a complete thought and no reply when
 		// the token limit runs out mid-deliberation. Saying so beats leaving
 		// an empty turn on screen with no explanation.
@@ -582,19 +594,28 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 		if err := c.store.SetMessageContent(row.ID, row.Text()); err != nil {
 			c.fail("Could not save the reply: " + err.Error())
 		}
-	} else if id, err := c.store.AddMessage(store.Message{
-		ChatID:    c.chat.ID,
-		Role:      ollama.RoleAssistant,
-		Content:   row.Text(),
-		Thinking:  row.Thinking(),
-		EvalCount: stats.Tokens,
-		TokPerSec: stats.TokPerSec,
-	}); err != nil {
-		c.fail("Could not save the reply: " + err.Error())
 	} else {
-		row.ID = id
+		m := store.Message{
+			ChatID:    c.chat.ID,
+			Role:      ollama.RoleAssistant,
+			Content:   row.Text(),
+			Thinking:  row.Thinking(),
+			EvalCount: stats.Tokens,
+			TokPerSec: stats.TokPerSec,
+		}
+		if base != nil {
+			m.Versions = append(base, store.Version{Content: m.Content, Thinking: m.Thinking})
+			m.Version = len(m.Versions) - 1
+		}
+		if id, err := c.store.AddMessage(m); err != nil {
+			c.fail("Could not save the reply: " + err.Error())
+		} else {
+			row.ID = id
+			row.Versions, row.Version = m.Versions, m.Version
+		}
 	}
 	c.notifyChanged()
+	c.replyDone(row.Text())
 	if c.atBottom() {
 		c.scrollToBottom()
 	}
@@ -808,6 +829,7 @@ func (c *ChatView) setBusy(busy bool) {
 		return
 	}
 	c.busy = busy
+	c.refreshPagers()
 	if busy {
 		c.sendBtn.SetIconName(IconStop)
 		c.sendBtn.SetTooltipText("Stop generating")
@@ -949,8 +971,20 @@ func (c *ChatView) regenerate(row *MessageRow) {
 	if idx < 0 {
 		return
 	}
+	// The last reply of a conversation with one speaker keeps what it said:
+	// the new reply is stored beside it as another version rather than in
+	// its place. Further up, or in a group, a regenerate still rewinds.
+	c.swipeBase = nil
+	if idx == len(c.rows)-1 && row.Role == ollama.RoleAssistant && !c.isGroup() && row.ID != 0 {
+		base := append([]store.Version(nil), row.Versions...)
+		if len(base) == 0 {
+			base = []store.Version{{Content: row.Text(), Thinking: row.Thinking()}}
+		}
+		c.swipeBase = base
+	}
 	if row.ID != 0 {
 		if err := c.store.DeleteMessagesFrom(c.chat.ID, row.ID); err != nil {
+			c.swipeBase = nil
 			c.fail("Could not rewind the chat: " + err.Error())
 			return
 		}
@@ -1004,6 +1038,41 @@ func (c *ChatView) removeRow(row *MessageRow) {
 	}
 	c.column.Remove(row.Widget())
 	c.rows = append(c.rows[:idx], c.rows[idx+1:]...)
+	c.refreshPagers()
+}
+
+// restoreVersions puts back a reply that was being written again, when the new
+// attempt came to nothing: failed, stopped before a word, or empty. Writing a
+// reply again must never be how one is lost.
+func (c *ChatView) restoreVersions(base []store.Version) {
+	if len(base) == 0 || c.chat.ID == 0 {
+		return
+	}
+	m, err := c.storeVersions(c.chat.ID, base)
+	if err != nil {
+		c.fail("Could not put the earlier reply back: " + err.Error())
+		return
+	}
+	row := c.appendRow(ollama.RoleAssistant, m.Content, m.Thinking, m.ID, time.Now())
+	row.Versions, row.Version = m.Versions, m.Version
+	c.refreshPagers()
+}
+
+// storeVersions writes a reply's versions back as the last turn of a chat,
+// showing the newest of them.
+func (c *ChatView) storeVersions(chatID int64, base []store.Version) (store.Message, error) {
+	if len(base) == 0 || chatID == 0 {
+		return store.Message{}, nil
+	}
+	last := base[len(base)-1]
+	m := store.Message{ChatID: chatID, Role: ollama.RoleAssistant,
+		Content: last.Content, Thinking: last.Thinking}
+	if len(base) > 1 {
+		m.Versions, m.Version = base, len(base)-1
+	}
+	id, err := c.store.AddMessage(m)
+	m.ID = id
+	return m, err
 }
 
 func (c *ChatView) indexOf(row *MessageRow) int {
@@ -1018,6 +1087,13 @@ func (c *ChatView) indexOf(row *MessageRow) int {
 func (c *ChatView) notifyChanged() {
 	if c.OnChatChanged != nil {
 		c.OnChatChanged()
+	}
+}
+
+// replyDone passes a finished reply to whoever wants to know.
+func (c *ChatView) replyDone(text string) {
+	if c.OnReplyDone != nil {
+		c.OnReplyDone(c.chat.Title, text)
 	}
 }
 

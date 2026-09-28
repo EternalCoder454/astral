@@ -2,6 +2,8 @@ package store
 
 import (
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -83,6 +85,22 @@ type Message struct {
 	EvalCount   int
 	TokPerSec   float64
 	CreatedAt   time.Time
+
+	// Versions are the replies written for this turn, the one showing
+	// included, when it has been written more than once; Version is which of
+	// them is showing. Empty for a turn written once, which is almost all of
+	// them. Content and Thinking always hold the one showing, so everything
+	// that reads a transcript reads it without knowing versions exist.
+	Versions []Version
+	Version  int
+}
+
+// Version is one of the replies written for the same turn. Writing a reply
+// again keeps the one before it, so a better first attempt is not lost to a
+// worse second one.
+type Version struct {
+	Content  string `json:"c"`
+	Thinking string `json:"t,omitempty"`
 }
 
 // Chats returns every chat, most recently updated first, joined to its
@@ -251,7 +269,8 @@ func (s *Store) Messages(chatID int64) ([]Message, error) {
 
 func (s *Store) messages(chatID, afterID int64) ([]Message, error) {
 	rows, err := s.db.Query(`
-		SELECT id, chat_id, role, content, thinking, character_id, eval_count, tok_per_sec, created_at
+		SELECT id, chat_id, role, content, thinking, character_id, eval_count, tok_per_sec, created_at,
+		       versions, version
 		FROM messages WHERE chat_id = ? AND id > ? ORDER BY id`, chatID, afterID)
 	if err != nil {
 		return nil, err
@@ -261,11 +280,13 @@ func (s *Store) messages(chatID, afterID int64) ([]Message, error) {
 	for rows.Next() {
 		var m Message
 		var created int64
+		var versions string
 		if err := rows.Scan(&m.ID, &m.ChatID, &m.Role, &m.Content, &m.Thinking,
-			&m.CharacterID, &m.EvalCount, &m.TokPerSec, &created); err != nil {
+			&m.CharacterID, &m.EvalCount, &m.TokPerSec, &created, &versions, &m.Version); err != nil {
 			return nil, err
 		}
 		m.CreatedAt = fromUnix(created)
+		m.Versions = decodeVersions(versions, m.Version)
 		out = append(out, m)
 	}
 	return out, rows.Err()
@@ -288,11 +309,16 @@ func (s *Store) AddMessage(m Message) (int64, error) {
 	}
 	defer tx.Rollback() // no-op after a successful Commit
 
+	versions := encodeVersions(m.Versions)
+	if versions == "" {
+		m.Version = 0
+	}
 	res, err := tx.Exec(`
-		INSERT INTO messages (chat_id, role, content, thinking, character_id, eval_count, tok_per_sec, created_at)
-		VALUES (?,?,?,?,?,?,?,?)`,
+		INSERT INTO messages (chat_id, role, content, thinking, character_id, eval_count, tok_per_sec, created_at,
+		                      versions, version)
+		VALUES (?,?,?,?,?,?,?,?,?,?)`,
 		m.ChatID, m.Role, m.Content, m.Thinking, m.CharacterID,
-		m.EvalCount, m.TokPerSec, unix(m.CreatedAt))
+		m.EvalCount, m.TokPerSec, unix(m.CreatedAt), versions, m.Version)
 	if err != nil {
 		return 0, err
 	}
@@ -314,11 +340,73 @@ func (s *Store) AddMessage(m Message) (int64, error) {
 // in its context, and one wrong line left in place is imitated rather than
 // forgotten. Deleting and rerolling throws away everything that was right
 // about it.
+//
+// A turn with several versions has the one showing rewritten, so flipping away
+// from an edited version and back again finds the edit still there.
 func (s *Store) SetMessageContent(id int64, content string) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+	var raw string
+	var at int
+	if err := s.db.QueryRow(`SELECT versions, version FROM messages WHERE id = ?`, id).Scan(&raw, &at); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	if vs := decodeVersions(raw, at); len(vs) > 0 {
+		vs[at].Content = content
+		_, err := s.db.Exec(`UPDATE messages SET content = ?, versions = ? WHERE id = ?`,
+			content, encodeVersions(vs), id)
+		return err
+	}
 	_, err := s.db.Exec(`UPDATE messages SET content = ? WHERE id = ?`, content, id)
 	return err
+}
+
+// SetMessageVersion shows another of a turn's versions, and returns it.
+func (s *Store) SetMessageVersion(id int64, at int) (Version, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	var raw string
+	var now int
+	if err := s.db.QueryRow(`SELECT versions, version FROM messages WHERE id = ?`, id).Scan(&raw, &now); err != nil {
+		return Version{}, err
+	}
+	vs := decodeVersions(raw, now)
+	if at < 0 || at >= len(vs) {
+		return Version{}, fmt.Errorf("there is no version %d of that reply", at+1)
+	}
+	v := vs[at]
+	_, err := s.db.Exec(`UPDATE messages SET content = ?, thinking = ?, version = ? WHERE id = ?`,
+		v.Content, v.Thinking, at, id)
+	return v, err
+}
+
+// encodeVersions stores a turn's versions, or nothing for a turn with one.
+func encodeVersions(vs []Version) string {
+	if len(vs) < 2 {
+		return ""
+	}
+	b, err := json.Marshal(vs)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+// decodeVersions reads them back. Anything unreadable, or a showing version
+// that does not exist, reads as a turn with one version: the content column
+// still holds the reply, so nothing that matters is lost.
+func decodeVersions(raw string, at int) []Version {
+	if raw == "" {
+		return nil
+	}
+	var vs []Version
+	if err := json.Unmarshal([]byte(raw), &vs); err != nil || len(vs) < 2 || at < 0 || at >= len(vs) {
+		return nil
+	}
+	return vs
 }
 
 // DeleteMessage removes a single turn.

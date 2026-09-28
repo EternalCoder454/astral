@@ -79,7 +79,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request, d store.Devi
 			ch.Title = store.TitleFrom(text)
 		}
 	}
-	s.generate(w, r, ch, userID)
+	s.generate(w, r, ch, userID, nil)
 }
 
 // handleRegenerate throws away the last reply and writes another one.
@@ -111,21 +111,33 @@ func (s *Server) handleRegenerate(w http.ResponseWriter, r *http.Request, d stor
 		return
 	}
 	from := int64(0)
+	run := 0
 	for i := len(msgs) - 1; i >= 0; i-- {
 		if msgs[i].Role != ollama.RoleAssistant {
 			break
 		}
 		from = msgs[i].ID
+		run++
 	}
 	if from == 0 {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "there is no reply to write again"})
 		return
 	}
+	// A single reply keeps what it said, as the window's does: the new one is
+	// stored beside it as another version. A group turn is rewound as before.
+	var base []store.Version
+	if run == 1 && len(s.castFor(ch)) <= 1 {
+		last := msgs[len(msgs)-1]
+		base = append(base, last.Versions...)
+		if len(base) == 0 {
+			base = []store.Version{{Content: last.Content, Thinking: last.Thinking}}
+		}
+	}
 	if err := s.store.DeleteMessagesFrom(ch.ID, from); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	s.generate(w, r, ch, 0)
+	s.generate(w, r, ch, 0, base)
 }
 
 // generate streams one reply for a chat whose messages are already in the
@@ -140,7 +152,28 @@ func (s *Server) handleRegenerate(w http.ResponseWriter, r *http.Request, d stor
 // userID is the turn a send just stored, told to the phone first so the turn
 // it drew can be deleted or copied without reopening the chat. Zero for a
 // regenerate, which stores no turn of its own.
-func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat, userID int64) {
+//
+// base is the versions of the reply a regenerate is replacing. The new reply
+// is stored beside them, and if it never arrives they are put back, because
+// writing a reply again must never be how one is lost.
+func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat, userID int64, base []store.Version) {
+	saved := false
+	if len(base) > 0 {
+		defer func() {
+			if saved {
+				return
+			}
+			last := base[len(base)-1]
+			m := store.Message{ChatID: ch.ID, Role: ollama.RoleAssistant,
+				Content: last.Content, Thinking: last.Thinking}
+			if len(base) > 1 {
+				m.Versions, m.Version = base, len(base)-1
+			}
+			if _, err := s.store.AddMessage(m); err != nil {
+				log.Printf("astral: putting back chat %d's reply: %v", ch.ID, err)
+			}
+		}()
+	}
 	cfg := s.config()
 	ca := s.characterFor(ch)
 	model := ch.Model
@@ -369,14 +402,20 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat,
 		}
 		send("done", map[string]any{"beats": out, "title": ch.Title, "stopped": stopped()})
 	} else {
-		msgID, err := s.store.AddMessage(store.Message{
+		m := store.Message{
 			ChatID: ch.ID, Role: ollama.RoleAssistant, Content: content,
 			Thinking: thinking, EvalCount: stats.Tokens, TokPerSec: stats.TokPerSec,
-		})
+		}
+		if len(base) > 0 {
+			m.Versions = append(base, store.Version{Content: content, Thinking: thinking})
+			m.Version = len(m.Versions) - 1
+		}
+		msgID, err := s.store.AddMessage(m)
 		if err != nil {
 			send("error", map[string]string{"error": err.Error()})
 			return
 		}
+		saved = true
 		send("done", map[string]any{"id": msgID, "content": content, "title": ch.Title, "stopped": stopped()})
 	}
 

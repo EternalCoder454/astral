@@ -35,6 +35,15 @@ type Sidebar struct {
 	// costs a hash instead of rebuilding every row.
 	lastSig uint64
 
+	// search finds a chat by what was said in it. While it holds a query the
+	// list shows what it found, and chats is the full list to go back to.
+	search    *gtk.SearchEntry
+	searching bool
+	chats     []store.Chat
+	// OnSearch asks for the chats matching a query. The app answers with
+	// ShowResults.
+	OnSearch func(query string)
+
 	// Callbacks, all invoked on the main thread.
 	OnNewChat    func()
 	OnOpenChat   func(id int64)
@@ -108,6 +117,27 @@ func NewSidebar() *Sidebar {
 	knowledgeBtn.ConnectClicked(func() { fire(s.OnKnowledge) })
 	nav.Append(knowledgeBtn)
 	s.widget.Append(nav)
+
+	// Finding a chat by what was said in it. Above the list rather than in
+	// the header, because it is the list it changes.
+	s.search = gtk.NewSearchEntry()
+	s.search.SetPlaceholderText("Search Chats")
+	s.search.AddCSSClass("sidebar-search")
+	s.search.ConnectSearchChanged(func() {
+		q := strings.TrimSpace(s.search.Text())
+		if q == "" {
+			s.endSearch()
+			return
+		}
+		s.searching = true
+		fire(func() {
+			if s.OnSearch != nil {
+				s.OnSearch(q)
+			}
+		})
+	})
+	s.search.ConnectStopSearch(func() { s.search.SetText("") })
+	s.widget.Append(s.search)
 
 	// The conversation list.
 	s.listBox = gtk.NewBox(gtk.OrientationVertical, 1)
@@ -259,6 +289,12 @@ func navContent(icon, text string) *gtk.Box {
 // which rows moved between sections. The simpler code is also the correct one
 // here.
 func (s *Sidebar) SetChats(chats []store.Chat) {
+	s.chats = chats
+	if s.searching {
+		// The results stay until the search is cleared; the list is redrawn
+		// from what was kept here when it is.
+		return
+	}
 	// This is called after every message, twice a turn, and usually nothing
 	// about the list has changed, the open chat was already at the top. A
 	// rebuild is a few hundred widgets plus a popover and two gestures per
@@ -342,7 +378,95 @@ func chatSignature(chats []store.Chat) uint64 {
 }
 
 // chatRow builds one conversation entry.
-func (s *Sidebar) chatRow(ch store.Chat) *gtk.Button {
+// DevSearch types a query into the search box, for the dev harness.
+func (s *Sidebar) DevSearch(q string) { s.search.SetText(q) }
+
+// FocusSearch puts the cursor in the search box.
+func (s *Sidebar) FocusSearch() { s.search.GrabFocus() }
+
+// endSearch goes back to the ordinary list.
+func (s *Sidebar) endSearch() {
+	if !s.searching {
+		return
+	}
+	s.searching = false
+	s.lastSig = 0 // draw it again, whatever it was before
+	s.SetChats(s.chats)
+}
+
+// SearchResult is a chat a search found, and the line in it that matched.
+type SearchResult struct {
+	Chat    store.Chat
+	Snippet string
+}
+
+// ShowResults replaces the list with what a search found.
+func (s *Sidebar) ShowResults(query string, results []SearchResult) {
+	if !s.searching || strings.TrimSpace(s.search.Text()) != query {
+		return // a later query has already been asked, or it was cleared
+	}
+	s.clearList()
+	if len(results) == 0 {
+		empty := gtk.NewLabel("Nothing found.")
+		empty.SetXAlign(0)
+		empty.AddCSSClass("sidebar-empty")
+		s.listBox.Append(empty)
+		return
+	}
+	for _, r := range results {
+		s.listBox.Append(s.chatRowWith(r.Chat, r.Snippet))
+	}
+	s.applySelection()
+}
+
+// clearList empties the list and forgets its rows.
+func (s *Sidebar) clearList() {
+	for {
+		child := s.listBox.FirstChild()
+		if child == nil {
+			break
+		}
+		s.listBox.Remove(child)
+	}
+	s.rows = map[int64]*gtk.Button{}
+	s.rowMenus = map[int64]func(float64, float64){}
+}
+
+// snippetMarkup renders a search snippet, whose matching words are marked with
+// \x01 and \x02, as Pango markup with those words in bold. Each piece is
+// escaped on its own, so nothing in a message can become markup.
+func snippetMarkup(snippet string) string {
+	// The asterisks that mark narration mean nothing out of the bubble.
+	snippet = strings.ReplaceAll(snippet, "*", "")
+	var b strings.Builder
+	bold := false
+	start := 0
+	for i, r := range snippet {
+		if r != 1 && r != 2 {
+			continue
+		}
+		b.WriteString(glib.MarkupEscapeText(snippet[start:i]))
+		if r == 1 && !bold {
+			b.WriteString("<b>")
+			bold = true
+		} else if r == 2 && bold {
+			b.WriteString("</b>")
+			bold = false
+		}
+		start = i + 1
+	}
+	b.WriteString(glib.MarkupEscapeText(snippet[start:]))
+	if bold {
+		b.WriteString("</b>")
+	}
+	return b.String()
+}
+
+func (s *Sidebar) chatRow(ch store.Chat) *gtk.Button { return s.chatRowWith(ch, "") }
+
+// chatRowWith is a chat's row, with the line a search matched under the title
+// when there is one.
+func (s *Sidebar) chatRowWith(ch store.Chat, snippet string) *gtk.Button {
 	btn := gtk.NewButton()
 	btn.AddCSSClass("sidebar-item")
 
@@ -381,7 +505,21 @@ func (s *Sidebar) chatRow(ch store.Chat) *gtk.Button {
 		n.SetTooltipText(fmt.Sprintf("%d characters in this scene", ch.CastSize))
 		box.Append(n)
 	}
-	btn.SetChild(box)
+	if snippet != "" {
+		col := gtk.NewBox(gtk.OrientationVertical, 2)
+		col.Append(box)
+		line := gtk.NewLabel("")
+		line.SetMarkup(snippetMarkup(snippet))
+		line.SetXAlign(0)
+		line.SetWrap(true)
+		line.SetLines(2)
+		line.SetEllipsize(pango.EllipsizeEnd)
+		line.AddCSSClass("chat-row-snippet")
+		col.Append(line)
+		btn.SetChild(col)
+	} else {
+		btn.SetChild(box)
+	}
 
 	tip := title
 	switch {

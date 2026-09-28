@@ -160,6 +160,11 @@ type Config struct {
 	// Ollama keeps both loaded rather than swapping. See ollama.Running.
 	HousekeepingModel string `json:"housekeeping_model"`
 
+	// NotifyReplies says when a reply finishes while Astral is in the
+	// background, so a slow model can be left to write while you do something
+	// else.
+	NotifyReplies bool `json:"notify_replies"`
+
 	// VisionModel looks at the pictures sent into a chat. Empty means choose:
 	// the chat's own model when it can see, and otherwise the largest model
 	// that can and that fits on the card by itself. Named, it reads every
@@ -284,6 +289,7 @@ func DefaultConfig() Config {
 		RepeatLastN:    DefaultRepeatLastN,
 		NumCtx:         DefaultNumCtx,
 		ShowStats:      false,
+		NotifyReplies:  true,
 	}
 }
 

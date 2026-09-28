@@ -46,6 +46,16 @@ model reads at and a fraction of the time to send.
 **Scenes.** Pick a character and start playing. Astral keeps the transcript,
 remembers which model a scene was started with, and reopens where you left off.
 
+**Another take.** Writing the last reply again keeps the one before it. Arrows
+under the reply flip between every version it has had, and the arrow past the
+newest writes another, so a better first attempt is never lost to a worse
+second one. Escape stops a reply partway, and what was written is kept.
+
+**Finding a chat again.** The search box over the chat list (Ctrl+F) finds a
+chat by its title or by anything said in it, and shows the line that matched.
+While a slow model writes, you can get on with something else: Astral tells you
+when the reply is done.
+
 **Writing styles.** Named presets that control how the prose reads: sparse,
 ornate, present tense, screenplay terse. Switch between them, write your own, or
 have the model build one with you. A style changes the voice without touching
@@ -169,6 +179,11 @@ on the phone and, when you press Start pairing, a code to type into it. The
 phone keeps a token after that and stays signed in. Paired devices are listed
 there and can be removed, which takes effect on the next request they make.
 
+A reply is written on your PC, not over the connection, so a phone that locks
+its screen or drops off the Wi-Fi mid-reply does not lose it: the PC finishes
+and stores it, and the phone picks it up when you come back. Send turns into
+Stop while a reply is written, and Back closes a chat rather than the app.
+
 Any phone browser works. The
 [Android app](https://github.com/EternalCoder454/astral/releases) is the same
 interface with an icon, a full screen and the address remembered. It is
@@ -190,8 +205,9 @@ and refuses any build not signed with the same key as the one already
 installed, so a file altered on the way across your network is rejected by the
 system rather than trusted by Astral.
 
-Nothing leaves your network. There is no account, no server belonging to anyone
-else, and with phone access switched off nothing is listening.
+Your library and your conversations never leave your network. There is no
+account, no server belonging to anyone else, and with phone access switched off
+nothing is listening.
 
 ### Linux
 
@@ -415,14 +431,26 @@ button, so a long scene opens as quickly as a short one.
 | | |
 |---|---|
 | Database (characters, chats, messages) | `~/.local/share/astral/astral.db` |
+| Daily backups of it | `~/.local/share/astral/backups/` |
 | Imported portraits | `~/.local/share/astral/avatars/` |
 | Settings | `~/.config/astral/config.json` |
 
 The database is the data. It holds your transcripts, and nothing can rebuild it
 from elsewhere. If it is ever found damaged it is moved aside rather than
-deleted, and Astral says so.
+deleted, and Astral says so. A copy of it is also made once a day and the last
+seven are kept, so a scene deleted by mistake can be had back: quit Astral and
+copy one of them over `astral.db`. **Settings, About** opens the folder.
 
-Nothing leaves the machine. Astral talks to `localhost:11434` and nowhere else.
+Your library stays on this machine. Everything to do with a model goes to Ollama
+at `localhost:11434`, and Astral reaches anywhere else in three cases only:
+
+* **Web search**, while it is on. The model's search queries go to your SearXNG
+  or to DuckDuckGo, and the pages it chooses to read are fetched. Switch it off
+  under **Settings, Model, Web Search**.
+* **The update check** at launch, which reads one text file from GitHub and sends
+  nothing about you. Switch it off under **Settings, About**.
+* **Updating the phone app**, which your PC downloads from GitHub on the phone's
+  behalf when you ask it to.
 
 ## Development
 

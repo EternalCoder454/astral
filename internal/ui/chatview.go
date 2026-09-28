@@ -140,6 +140,9 @@ type ChatView struct {
 	// picture is an attachment waiting to go out with the turn that is being
 	// assembled.
 	picture pendingPicture
+	// swipeBase is the versions of a reply being written again, kept until
+	// the new one is stored beside them, or put back if it never arrives.
+	swipeBase []store.Version
 
 	// prefilled records that this turn's request ended in a partial assistant
 	// message, so the reply has to be joined back onto it. See
@@ -231,6 +234,10 @@ type ChatView struct {
 	// Both end the same way, with the app calling AttachImage.
 	OnImageFile  func(path string)
 	OnImageBytes func(data []byte)
+	// OnReplyDone is told when a reply has been written and stored, with the
+	// chat's title and the reply, so the window can say so when nobody is
+	// looking at it.
+	OnReplyDone func(title, text string)
 	// OnEditDirection is the direction chip being clicked. The dialog lives in
 	// the app layer, like the other editors.
 	OnEditDirection func()
@@ -421,6 +428,12 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 	// it runs before the text view inserts the character.
 	key := gtk.NewEventControllerKey()
 	key.ConnectKeyPressed(func(keyval, keycode uint, state gdk.ModifierType) bool {
+		// Escape stops a reply, the way it stops everything else that is
+		// running. It is the key a person reaches for when a reply goes wrong.
+		if keyval == gdk.KEY_Escape && c.busy {
+			c.Stop()
+			return true
+		}
 		if keyval != gdk.KEY_Return && keyval != gdk.KEY_KP_Enter {
 			return false
 		}
@@ -544,6 +557,14 @@ func (c *ChatView) Chat() store.Chat { return c.chat }
 // Clear empties the transcript and invalidates any in-flight reply.
 func (c *ChatView) Clear() {
 	c.Stop()
+	// A reply being written again when the chat is left will land nowhere, so
+	// the one it was replacing goes back into the chat it came from.
+	if base := c.swipeBase; base != nil {
+		c.swipeBase = nil
+		if _, err := c.storeVersions(c.chat.ID, base); err != nil {
+			c.fail("Could not put the earlier reply back: " + err.Error())
+		}
+	}
 	// Bumping the generation is what makes an in-flight reply land nowhere:
 	// see the staleness guard in finishStream.
 	c.gen++
@@ -619,10 +640,12 @@ func (c *ChatView) LoadScene(ch store.Chat, cast []chars.Character, msgs []store
 	c.refreshEarlierButton()
 	for _, m := range msgs {
 		row := c.appendRowAs(m.CharacterID, m.Role, m.Content, m.Thinking, m.ID, m.CreatedAt)
+		row.Versions, row.Version = m.Versions, m.Version
 		if m.TokPerSec > 0 && c.cfg.ShowStats {
 			row.SetMeta(ollama.Stats{Tokens: m.EvalCount, TokPerSec: m.TokPerSec}.Summary())
 		}
 	}
+	c.refreshPagers()
 	c.scrollToBottom()
 	c.settled = true
 	c.focusComposer()
@@ -697,6 +720,11 @@ func (c *ChatView) appendRowAs(speaker int64, role, text, thinking string, id in
 	// characters in a row are two speakers, however, so the run is broken by a
 	// change of either.
 	grouped := c.lastRole() == role && c.lastSpeaker() == speaker
+	// The arrows belong to the last reply only, so the one that was last
+	// loses them.
+	if n := len(c.rows); n > 0 {
+		c.rows[n-1].SetPager(false, nil, nil)
+	}
 	row := c.newRow(speaker, role, text, thinking, id, when, grouped)
 	c.markArriving(row)
 	c.column.Append(row.Widget())
@@ -799,9 +827,52 @@ func (c *ChatView) editRow(row *MessageRow) {
 			}
 		}
 		row.SetMarkdown(text)
+		if row.Version < len(row.Versions) {
+			row.Versions[row.Version].Content = text
+		}
 		c.notifyChanged()
 		return true
 	})
+}
+
+// refreshPagers puts the version arrows on the last reply, when it has
+// versions to flip between, and takes them off everything else.
+//
+// Only the last: every turn after a reply was written in answer to it, so
+// flipping one further up would leave the rest of the scene answering
+// something that is no longer there. Not in a group scene, where one turn is
+// several replies. And not while a reply is being written.
+func (c *ChatView) refreshPagers() {
+	for i, r := range c.rows {
+		show := i == len(c.rows)-1 && r.Role == ollama.RoleAssistant && !c.busy && !c.isGroup()
+		r.SetPager(show, func() { c.flipVersion(r, -1) }, func() { c.flipVersion(r, +1) })
+	}
+}
+
+// flipVersion shows the version of a reply before or after the one on screen.
+// Past the last, it writes another.
+func (c *ChatView) flipVersion(row *MessageRow, step int) {
+	if c.busy || row.ID == 0 {
+		return
+	}
+	at := row.Version + step
+	if at >= len(row.Versions) {
+		c.regenerate(row)
+		return
+	}
+	if at < 0 {
+		return
+	}
+	v, err := c.store.SetMessageVersion(row.ID, at)
+	if err != nil {
+		c.fail("Could not show that version: " + err.Error())
+		return
+	}
+	row.Version = at
+	row.SetMarkdown(v.Content)
+	row.SetThinking(v.Thinking)
+	c.refreshPagers()
+	c.notifyChanged()
 }
 
 // atBottom reports whether the transcript is scrolled to the end. Used to

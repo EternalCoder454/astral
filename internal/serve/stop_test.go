@@ -184,3 +184,28 @@ func TestAReplyOutlivesTheConnection(t *testing.T) {
 		t.Errorf("stored %q, want the whole reply", got)
 	}
 }
+
+// Writing the last reply again keeps the old one as another version, and a
+// failed attempt puts it back rather than leaving the scene without it.
+func TestRegenerateKeepsTheOldReply(t *testing.T) {
+	s := serverOn(t, slowModel(t, 5))
+	token := paired(t, s)
+	ch := seedScene(t, s)
+	do(t, s, "POST", "/api/chats/"+itoa(ch.ID)+"/regenerate", token, "{}")
+	msgs, _ := s.store.Messages(ch.ID)
+	last := msgs[len(msgs)-1]
+	if len(msgs) != 2 || len(last.Versions) != 2 || last.Versions[0].Content != "A reply." ||
+		last.Version != 1 || !strings.HasPrefix(last.Content, "word0") {
+		t.Fatalf("after writing it again: %+v", last)
+	}
+
+	// Against a model that is not there, the attempt fails, and both versions
+	// come back.
+	down, _ := testServer(t)
+	downToken := paired(t, down)
+	ch2 := seedScene(t, down)
+	do(t, down, "POST", "/api/chats/"+itoa(ch2.ID)+"/regenerate", downToken, "{}")
+	if got := lastReply(t, down, ch2.ID); got != "A reply." {
+		t.Errorf("after a failed attempt the last reply is %q", got)
+	}
+}

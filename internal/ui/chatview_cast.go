@@ -328,6 +328,7 @@ func (c *ChatView) finishGroupTurn(content, thinking string, stats ollama.Stats,
 	c.live = nil
 
 	c.notifyChanged()
+	c.replyDone(content)
 	if c.atBottom() {
 		c.scrollToBottom()
 	}
