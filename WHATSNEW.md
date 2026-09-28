@@ -3,6 +3,10 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.14
+- The picture reader writes a labelled sheet: Name, Age, Gender, Race, Face, Hair, Body, Clothing and the rest
+- In a design chat the sheet ends with Relationship and Reads As, ready to build a card from
+
 ## 0.5.13
 - Revising a character, style or world keeps everything you did not ask to change
 - General Chat searches the web for anything current, and every chat but a scene knows today's date
