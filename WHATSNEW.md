@@ -4,7 +4,7 @@ This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
 ## 0.5.16
-- Characters have their own Age, Gender, Race, Occupation and Relationship to You fields, and the designer fills them in
+- Characters have Age, Gender, Race, Occupation and Relationship to You fields, filled by the designer
 - New Persona in New Chat opens the Persona Creator, and the list there is labels only
 - The persona editor lines up, and an empty picture shows a frame to fill
 
