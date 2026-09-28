@@ -3,6 +3,11 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.16
+- Characters have their own Age, Gender, Race, Occupation and Relationship to You fields, and the designer fills them in
+- New Persona in New Chat opens the Persona Creator, and the list there is labels only
+- The persona editor lines up, and an empty picture shows a frame to fill
+
 ## 0.5.15
 - The picture reader, tuned on the 4B Image Model, marks hidden parts as cannot be seen instead of guessing
 - It never names a real person in a photograph
