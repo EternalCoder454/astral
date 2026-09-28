@@ -3,6 +3,14 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.1
+- Drop a picture straight from Files, or copy and paste it: both used to be refused every time
+- A design chat takes pictures even when your model cannot see: a model that can reads them first
+- Settings, Image Model chooses which model reads pictures, and only one is ever in memory
+- HEIC, AVIF, JPEG XL, SVG and more are accepted, and phone photos come in the right way up
+- The designer reads the people in a picture closely: age, face, hair, build, clothing, expression
+- Plain chats take pictures too
+
 ## 0.5.0
 - Knowledge: notes, saved pages and studied topics that General Chat and the designers draw on
 - Web search is on, reads whole pages, and works without SearXNG by using DuckDuckGo
