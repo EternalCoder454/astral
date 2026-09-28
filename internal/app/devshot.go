@@ -202,6 +202,10 @@ func (a *App) runDevView() {
 		case "load":
 			n, _ := strconv.Atoi(arg)
 			a.devLoad(n)
+		case "open":
+			// Opening a long chat and nothing else, to time its first frame.
+			n, _ := strconv.Atoi(arg)
+			a.devOpenLong(n)
 		case "stream":
 			a.devStream(arg)
 		case "sidebar":
@@ -376,6 +380,46 @@ func (a *App) devLoad(n int) {
 	} else {
 		log.Printf("astral: load: OK every message accounted for")
 	}
+}
+
+// devOpenLong seeds a chat of n messages and opens it the way the sidebar
+// does, so the frame timer measures what opening a long chat costs.
+func (a *App) devOpenLong(n int) {
+	if n <= 0 {
+		n = 400
+	}
+	ch, err := a.store.NewChat(0, "Long chat", a.cfg.Model, store.KindRoleplay)
+	if err != nil {
+		return
+	}
+	body := strings.Repeat("*She traces a finger along the parchment, following some invisible boundary.* "+
+		"\"The settlement is what's being argued.\" ", 3)
+	for i := 0; i < n; i++ {
+		role := ollama.RoleAssistant
+		if i%2 == 0 {
+			role = ollama.RoleUser
+		}
+		a.store.AddMessage(store.Message{ChatID: ch.ID, Role: role, Content: body})
+	}
+	start := time.Now()
+	coreglib.TimeoutAdd(1000, func() bool {
+		start = time.Now()
+		_ = a.openChat(ch.ID)
+		coreglib.IdleAdd(func() bool {
+			built, pending := a.chat.DevRowCount()
+			log.Printf("astral: open: %d rows built, %d waiting, %v to build", built, pending, time.Since(start).Round(time.Millisecond))
+			return false
+		})
+		// And again later, after whatever scrolling a driver has done.
+		for _, at := range []uint{5000, 9000} {
+			coreglib.TimeoutAdd(at, func() bool {
+				built, pending := a.chat.DevRowCount()
+				log.Printf("astral: open: later, %d rows built, %d waiting", built, pending)
+				return false
+			})
+		}
+		return false
+	})
 }
 
 // devStream opens the most recent chat and sends a message into it, logging how

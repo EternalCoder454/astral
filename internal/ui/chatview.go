@@ -48,7 +48,12 @@ const transcriptMaxWidth = 950
 //
 // Nothing is hidden from the model by this. The context sent on each turn is
 // read from the database (see history), not from the rows on screen.
-const renderWindow = 120
+//
+// It was 120, and a row's first layout costs about 5ms, so opening a long
+// scene held the window for 650ms before its first frame. It is 40 now, and the
+// rest arrive 40 at a time as you scroll towards them (see watchForEarlier), so
+// nobody has to find a button to read back.
+const renderWindow = 40
 
 // learnTimeout bounds the background lorebook pass. Like compaction it is not
 // blocking anything, so it can afford to be patient.
@@ -207,6 +212,8 @@ type ChatView struct {
 	// widgets yet, newest last. See renderWindow.
 	older      []store.Message
 	earlierBtn *gtk.Button
+	// loadingEarlier is set while a batch scrolled into is being built.
+	loadingEarlier bool
 
 	pendMu   sync.Mutex
 	pendText strings.Builder
@@ -305,6 +312,7 @@ func NewChatView(client *ollama.Client, st *store.Store, cfg store.Config) *Chat
 
 	c.scroll = gtk.NewScrolledWindow()
 	c.scroll.SetChild(c.clamp)
+	c.watchForEarlier()
 	c.scroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
 	c.scroll.SetVExpand(true)
 	c.widget.Append(c.scroll)
@@ -991,6 +999,46 @@ func (c *ChatView) loadEarlier() {
 	}
 	c.rows = append(rows, c.rows...)
 	c.refreshEarlierButton()
+}
+
+// watchForEarlier builds the next older batch when the transcript is scrolled
+// near its top, and keeps the message you were reading where it was: the rows
+// arrive above it, so the view moves down by exactly their height.
+func (c *ChatView) watchForEarlier() {
+	adj := c.scroll.VAdjustment()
+	adj.ConnectValueChanged(func() {
+		if c.loadingEarlier || len(c.older) == 0 || adj.Value() > 400 {
+			return
+		}
+		c.loadingEarlier = true
+		coreglib.IdleAdd(func() bool {
+			if len(c.older) == 0 {
+				c.loadingEarlier = false
+				return false
+			}
+			oldUpper, oldValue := adj.Upper(), adj.Value()
+			var h coreglib.SignalHandle
+			done := false
+			finish := func() {
+				if !done {
+					done = true
+					adj.HandlerDisconnect(h)
+					c.loadingEarlier = false
+				}
+			}
+			h = adj.ConnectChanged(func() {
+				if grew := adj.Upper() - oldUpper; grew > 0 && !done {
+					adj.SetValue(oldValue + grew)
+					finish()
+				}
+			})
+			// However the layout goes, the next batch is never blocked for
+			// good by one whose height never arrived.
+			coreglib.TimeoutAdd(1500, func() bool { finish(); return false })
+			c.loadEarlier()
+			return false
+		})
+	})
 }
 
 // lastRole is who spoke in the row currently at the bottom of the transcript.

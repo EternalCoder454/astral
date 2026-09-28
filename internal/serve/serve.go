@@ -133,6 +133,8 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("GET /api/state", s.guard(s.handleState))
 	mux.Handle("GET /api/chats/{id}", s.guard(s.handleChat))
 	mux.Handle("GET /api/chats/{id}/portrait", s.guard(s.handlePortrait))
+	mux.Handle("GET /api/characters/{id}/avatar", s.guard(s.handleAvatar))
+	mux.Handle("GET /api/search", s.guard(s.handleSearch))
 	mux.Handle("POST /api/chats", s.guard(s.handleNewChat))
 	mux.Handle("POST /api/chats/{id}/send", s.guard(s.handleSend))
 	mux.Handle("POST /api/chats/{id}/regenerate", s.guard(s.handleRegenerate))
@@ -216,6 +218,9 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request, d store.Dev
 		Accent   int    `json:"accent"`
 		Messages int    `json:"messages"`
 		Updated  int64  `json:"updated"`
+		// Character is who the chat is with, so the phone can show their
+		// picture on the row.
+		Character int64 `json:"character,omitempty"`
 	}
 	out := struct {
 		Persona    string        `json:"persona"`
@@ -235,13 +240,14 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request, d store.Dev
 	for _, c := range chats {
 		out.Chats = append(out.Chats, chatOut{
 			ID: c.ID, Title: c.Title, Who: c.CharacterName, Accent: c.Accent,
-			Messages: c.MessageCount, Updated: c.UpdatedAt.Unix(),
+			Messages: c.MessageCount, Updated: c.UpdatedAt.Unix(), Character: c.CharacterID,
 		})
 	}
 	if cs, err := s.store.Characters(); err == nil {
 		for _, c := range cs {
 			out.Characters = append(out.Characters, nameOut{ID: c.ID, Name: c.Name,
-				Note: chars.Substitute(c.Description, c.Name, cfg.PersonaName), Accent: c.Accent})
+				Note: chars.Substitute(c.Description, c.Name, cfg.PersonaName), Accent: c.Accent,
+				Avatar: pictureOf(c) != ""})
 		}
 	}
 	if ws, err := s.store.Worlds(); err == nil {
@@ -257,6 +263,8 @@ type nameOut struct {
 	Name   string `json:"name"`
 	Note   string `json:"note"`
 	Accent int    `json:"accent"`
+	// Avatar says a character has a picture, at /api/characters/{id}/avatar.
+	Avatar bool `json:"avatar,omitempty"`
 }
 
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, d store.Device) {
@@ -597,4 +605,30 @@ func deviceName(s string) string {
 		cut = cut[:i]
 	}
 	return strings.TrimRight(cut, " ,.;:") + "…"
+}
+
+// handleSearch finds chats by anything said in them, with the line that
+// matched, as the window's search box does. The phone's box filtered titles
+// only, so a scene could not be found by what happened in it.
+func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, d store.Device) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	type hitOut struct {
+		ID      int64  `json:"id"`
+		Snippet string `json:"snippet"`
+	}
+	out := []hitOut{}
+	if q != "" {
+		hits, err := s.store.SearchChats(q, 60)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		for _, h := range hits {
+			// The markers around the matching words are for the window's
+			// bold; the phone shows the line as it is.
+			snip := strings.NewReplacer("\x01", "", "\x02", "", "*", "").Replace(h.Snippet)
+			out = append(out, hitOut{ID: h.ChatID, Snippet: strings.TrimSpace(snip)})
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }

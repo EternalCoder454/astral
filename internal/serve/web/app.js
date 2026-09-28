@@ -514,13 +514,15 @@ function toast(text) {
 	toast.timer = setTimeout(() => { el.hidden = true; }, 3200);
 }
 
-function row({ title, note, initial, primary, onClick }) {
+function row({ title, note, initial, primary, onClick, picture }) {
 	const btn = document.createElement("button");
 	btn.className = "row" + (primary ? " row-primary" : "");
 	if (initial) {
 		const av = document.createElement("div");
 		av.className = "avatar";
 		av.textContent = initial;
+		// The character's own picture over the letter, once it has arrived.
+		if (picture) showAvatar(picture, av);
 		btn.append(av);
 	}
 	const text = document.createElement("div");
@@ -538,6 +540,31 @@ function row({ title, note, initial, primary, onClick }) {
 	btn.append(text);
 	btn.addEventListener("click", onClick);
 	return btn;
+}
+
+// avatarURLs holds each character's picture as a local URL, fetched once. It
+// needs the pairing token, which a CSS url() cannot send.
+const avatarURLs = new Map();
+
+// showAvatar puts character id's picture in el, and leaves the letter if there
+// is none or it cannot be fetched.
+function showAvatar(id, el) {
+	if (!avatarURLs.has(id)) {
+		avatarURLs.set(id, api("/api/characters/" + id + "/avatar")
+			.then((r) => (r.ok ? r.blob() : null))
+			.then((b) => (b ? URL.createObjectURL(b) : null))
+			.catch(() => null));
+	}
+	avatarURLs.get(id).then((url) => {
+		if (!url) return;
+		el.style.backgroundImage = `url("${url}")`;
+		el.classList.add("has-picture");
+	});
+}
+
+// hasPicture is whether character id has a picture to show.
+function hasPicture(id) {
+	return !!id && (state.characters || []).some((c) => c.id === id && c.avatar);
 }
 
 // shortModel drops the publisher. "huihui_ai/qwen3.6-abliterated:27b" is
@@ -605,6 +632,7 @@ async function loadState() {
 	for (const c of chats) {
 		const r = deletableChat(c);
 		r.dataset.find = [c.title, c.who].filter(Boolean).join(" ").toLowerCase();
+		r.dataset.id = String(c.id);
 		all.append(r);
 	}
 	filterChats();
@@ -615,6 +643,7 @@ async function loadState() {
 		cs.append(swipeable(
 			row({
 				title: c.name, note: c.note, initial: initialOf(c.name),
+				picture: c.avatar ? c.id : 0,
 				onClick: () => newChat({ character_id: c.id }),
 			}),
 			c.name,
@@ -788,6 +817,7 @@ function chatRow(c) {
 		title: c.title || "Untitled",
 		note: [c.who, c.messages ? c.messages + " messages" : "", ago(c.updated)].filter(Boolean).join(" · "),
 		initial: initialOf(c.who || c.title),
+		picture: hasPicture(c.character) ? c.character : 0,
 		onClick: () => openChat(c.id),
 	});
 }
@@ -1223,7 +1253,18 @@ async function stream(path, requestBody, mine) {
 		requestAnimationFrame(() => {
 			painting = false;
 			if (!here() || final) return;
-			body.textContent = reply;
+			// Finished paragraphs are drawn as they will stay, italics and
+			// all, and only the one still being written is plain text: the
+			// whole reply used to stay plain until the end and then change
+			// all at once, as the window's does not. A paragraph is finished
+			// once a blank line follows it, so half an asterisk is never
+			// read as markup.
+			const cut = reply.lastIndexOf("\n\n");
+			if (cut > 0) {
+				body.innerHTML = render(reply.slice(0, cut), "assistant") + "\n\n" + escape(reply.slice(cut + 2));
+			} else {
+				body.textContent = reply;
+			}
 			scrollDown(false);
 		});
 	};
@@ -1434,13 +1475,51 @@ function filterChats() {
 	const q = $("chats-search").value.trim().toLowerCase();
 	let shown = 0;
 	for (const r of $("chats-list").children) {
-		const hit = !q || (r.dataset.find || "").includes(q);
+		// Only what was found for the words in the box now, never the last
+		// search's while this one is on its way.
+		const said = hitsFor === q ? searchHits.get(r.dataset.id) : undefined;
+		const hit = !q || (r.dataset.find || "").includes(q) || said !== undefined;
 		r.hidden = !hit;
 		if (hit) shown++;
+		// A chat found by what was said in it shows the line that matched in
+		// place of its usual note, which comes back when the box is cleared.
+		const note = r.querySelector(".row-note");
+		if (note) {
+			if (note.dataset.usual === undefined) note.dataset.usual = note.textContent;
+			note.textContent = q && said ? "“" + said + "”" : note.dataset.usual;
+		}
 	}
 	$("chats-none").hidden = shown > 0 || !q;
 }
-$("chats-search").addEventListener("input", filterChats);
+
+// searchHits is what the PC's search found for the words in the box, by chat,
+// with the line that matched. Asked a moment after typing stops, since it is a
+// request to the PC and every letter would otherwise be one.
+const searchHits = new Map();
+let hitsFor = "";
+let searchTimer = 0;
+$("chats-search").addEventListener("input", () => {
+	filterChats();
+	clearTimeout(searchTimer);
+	const q = $("chats-search").value.trim();
+	if (q.length < 3) {
+		searchHits.clear();
+		filterChats();
+		return;
+	}
+	searchTimer = setTimeout(async () => {
+		try {
+			const hits = await (await api("/api/search?q=" + encodeURIComponent(q))).json();
+			if ($("chats-search").value.trim() !== q) return; // typed on since
+			searchHits.clear();
+			for (const h of hits) searchHits.set(String(h.id), h.snippet);
+			hitsFor = q.toLowerCase();
+			filterChats();
+		} catch (_) {
+			// Titles still filter; the search inside chats is a bonus.
+		}
+	}, 250);
+});
 $("update-go").addEventListener("click", () => {
 	try { localStorage.removeItem(LATER_KEY); } catch (_) {}
 	$("update-status").textContent = "Starting…";

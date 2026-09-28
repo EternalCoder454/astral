@@ -267,6 +267,14 @@ html, body {
 	overflow-wrap: anywhere;
 }
 
+/* A character's picture, when they have one, fills the circle and hides the
+   letter under it. */
+.avatar.has-picture {
+	background-size: cover;
+	background-position: center;
+	color: transparent;
+}
+
 .avatar {
 	width: 34px;
 	height: 34px;

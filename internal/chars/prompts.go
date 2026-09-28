@@ -77,6 +77,16 @@ var (
 		About: "The system prompt of a plain conversation with the model. Standing rules, knowledge " +
 			"and web search guidance are added after it.",
 		Default: AssistantSystem,
+		// The rules measured into it, which a rewrite by the Prompt Optimizer
+		// dropped while tidying: each is checked for in a rewrite and its loss
+		// is warned about before saving.
+		Anchors: []string{
+			"Lead with the answer",
+			"Stop when the answer is complete",
+			"Never invent a name, a number, a version, a path or a quotation",
+			"No em dashes and no en dashes",
+			"Never start a bullet or a numbered item with a bold word followed by a colon",
+		},
 	})
 
 	promptDesigner = prompts.Register(prompts.Prompt{
