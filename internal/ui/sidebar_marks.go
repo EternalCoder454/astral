@@ -23,8 +23,8 @@ import (
 type chatRow struct {
 	btn *gtk.Button
 	box *gtk.Box
-	dot *gtk.Box
-	// check stands in for the dot while the row is marked. Made the first
+	dot gtk.Widgetter
+	// check stands in for the avatar while the row is marked. Made the first
 	// time it is needed: most rows are never marked.
 	check *gtk.Image
 }
@@ -293,7 +293,7 @@ func (s *Sidebar) showMarks() {
 		} else {
 			row.btn.RemoveCSSClass("marked")
 		}
-		row.dot.SetVisible(!on)
+		gtk.BaseWidget(row.dot).SetVisible(!on)
 		if row.check != nil {
 			row.check.SetVisible(on)
 		}

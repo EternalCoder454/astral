@@ -184,12 +184,23 @@ frame:focus-within {
 	padding: 10px 12px;
 }
 
-/* The dot marking a chat row, tinted per character from code. */
-.chat-dot {
-	border-radius: 9999px;
-	min-width: 7px;
-	min-height: 7px;
-	background-color: @astral_faint;
+/* The picture beside a chat's title: the character's avatar, their initial
+   on their tint, or a tile for a chat with nobody in it. Row padding is taken
+   down to keep the row the height it was with a dot. */
+.chat-row {
+	padding-top: 5px;
+	padding-bottom: 5px;
+}
+
+.avatar.chat-avatar {
+	border-radius: 7px;
+	font-size: 0.72em;
+}
+
+.avatar.chat-kind {
+	background-color: alpha(@astral_faint, 0.18);
+	color: @astral_muted;
+	-gtk-icon-size: 12px;
 }
 
 .chat-row-title {
@@ -258,6 +269,7 @@ frame:focus-within {
 .chat-row-check {
 	color: @accent_color;
 	-gtk-icon-size: 14px;
+	min-width: 22px; /* the avatar's width, so the title does not move */
 }
 
 /* The bar under the list while chats are selected. */

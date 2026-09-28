@@ -278,9 +278,8 @@ func (s *Sidebar) SetProfile(name, subtitle, picture string) {
 	// A subtitle only when there is something worth saying. The persona
 	// description was shown here, which meant the pill read "Name: Christian
 	// Appeara...", the first few words of a prose field, truncated mid-word.
-	// A prompt to set one up is useful; a fragment of one is not. What is
-	// shown now is the persona's age, gender and race, short enough to read
-	// whole.
+	// A prompt to set one up is useful; a fragment of one is not, so for a
+	// persona the line under the name is left empty.
 	if strings.TrimSpace(subtitle) != "" {
 		m := gtk.NewLabel(subtitle)
 		m.SetXAlign(0)
@@ -417,6 +416,8 @@ func chatSignature(chats []store.Chat) uint64 {
 		writeInt(int64(c.Accent))
 		write([]byte(c.Title))
 		write([]byte(c.CharacterName))
+		write([]byte(c.AvatarPath))
+		write([]byte(c.Kind))
 		writeInt(int64(c.CastSize))
 		write([]byte{0})
 	}
@@ -516,24 +517,52 @@ func snippetMarkup(snippet string) string {
 
 func (s *Sidebar) chatRow(ch store.Chat) *gtk.Button { return s.chatRowWith(ch, "") }
 
+// chatAvatarSize is the picture beside a chat's title, in pixels.
+const chatAvatarSize = 22
+
+// chatMark is what stands beside a chat's title: its character's avatar, or
+// for a conversation with no character, a tile saying what kind it is.
+func chatMark(ch store.Chat) gtk.Widgetter {
+	var w gtk.Widgetter
+	if ch.CharacterName != "" {
+		w = NewCharacterAvatar(chars.Character{Name: ch.CharacterName, Accent: ch.Accent,
+			AvatarPath: ch.AvatarPath}, chatAvatarSize)
+	} else {
+		icon := IconChat
+		switch ch.Kind {
+		case store.KindDesigner, store.KindStyleDesigner, store.KindWorldDesigner,
+			store.KindPersonaDesigner, store.KindPromptOptimizer:
+			icon = IconDesigner
+		}
+		tile := gtk.NewBox(gtk.OrientationHorizontal, 0)
+		tile.AddCSSClass("avatar")
+		tile.AddCSSClass("chat-kind")
+		tile.SetSizeRequest(chatAvatarSize, chatAvatarSize)
+		img := gtk.NewImageFromIconName(icon)
+		img.SetHExpand(true)
+		img.SetHAlign(gtk.AlignCenter)
+		tile.Append(img)
+		w = tile
+	}
+	base := gtk.BaseWidget(w)
+	base.AddCSSClass("chat-avatar")
+	base.SetVAlign(gtk.AlignCenter)
+	return w
+}
+
 // chatRowWith is a chat's row, with the line a search matched under the title
 // when there is one.
 func (s *Sidebar) chatRowWith(ch store.Chat, snippet string) *gtk.Button {
 	btn := gtk.NewButton()
 	btn.AddCSSClass("sidebar-item")
+	btn.AddCSSClass("chat-row")
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 9)
 
-	// A tinted dot rather than a full avatar: at this size an avatar is an
-	// unreadable letter, while the dot still says which character a scene
-	// belongs to at a glance down the list.
-	dot := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	dot.AddCSSClass("chat-dot")
-	dot.SetSizeRequest(7, 7)
-	dot.SetVAlign(gtk.AlignCenter)
-	if ch.CharacterName != "" {
-		SetAccent(dot, ch.Accent)
-	}
+	// The character's picture, or their initial on their tint when they have
+	// none, so a scene is found down a long list by the face in it. It was a
+	// tinted dot, which said little more than that two scenes shared someone.
+	dot := chatMark(ch)
 	box.Append(dot)
 
 	title := ch.Title

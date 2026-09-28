@@ -95,19 +95,23 @@ func (a *App) savePersonaSetting() {
 }
 
 // refreshProfile shows the persona in use on the pill under the sidebar: its
-// name, with its age, gender and race under it, or an invitation to make one
-// when there is none.
+// name and picture, or an invitation to make one when there is none.
+//
+// Nothing under the name. It showed the persona's facts, and for a persona
+// without age, gender or race those fell back to the first words of its
+// prose, so the pill read "**Name:** Christian..." again after that had been
+// taken out once already.
 func (a *App) refreshProfile() {
 	if a.sidebar == nil {
 		return
 	}
-	facts, picture := "", ""
+	picture := ""
 	if a.store != nil && a.cfg.ActivePersona != 0 {
 		if p, err := a.store.Persona(a.cfg.ActivePersona); err == nil {
-			facts, picture = p.Facts(), p.AvatarPath
+			picture = p.AvatarPath
 		}
 	}
-	a.sidebar.SetProfile(a.cfg.PersonaName, facts, picture)
+	a.sidebar.SetProfile(a.cfg.PersonaName, "", picture)
 }
 
 // useByDefault makes a persona the one new chats are played as.
