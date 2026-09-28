@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"astral/internal/livetest"
 	"astral/internal/ollama"
 )
 
@@ -27,10 +28,7 @@ func TestLiveWorldDesigner(t *testing.T) {
 	if len(models) == 0 {
 		t.Skip("Ollama is running but has no models installed")
 	}
-	model := os.Getenv("ASTRAL_TEST_MODEL")
-	if model == "" {
-		model = models[0].Name
-	}
+	model := livetest.Model(t, client, models)
 
 	// A short interview, of the shape one actually has.
 	history := []ollama.Message{

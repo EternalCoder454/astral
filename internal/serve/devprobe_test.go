@@ -36,8 +36,10 @@ func TestDevServe(t *testing.T) {
 		Content: `She did not look up. "The tide was wrong, and so was the wind." *The pen kept moving, marking a line that would not hold by morning.*`})
 
 	cfg := store.DefaultConfig()
-	cfg.PersonaName = "Christian"
-	cfg.Model = "huihui_ai/qwen3.6-abliterated:27b"
+	cfg.PersonaName = "Wren"
+	// The small model, so a message sent from this harness cannot load a large
+	// one beside whatever is already on the card.
+	cfg.Model = "huihui_ai/qwen3.5-abliterated:4b"
 	s := New(st, func() store.Config { return cfg },
 		func() *ollama.Client { return ollama.NewClient("") },
 		func(next store.Config) error { cfg = next; return nil }, "0.3.0")

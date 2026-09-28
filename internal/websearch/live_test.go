@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"astral/internal/livetest"
 	"astral/internal/ollama"
 )
 
@@ -39,10 +40,7 @@ func liveSearch(t *testing.T) (*ollama.Client, string, Provider) {
 	if err != nil || len(models) == 0 {
 		t.Skip("no Ollama server with models")
 	}
-	model := os.Getenv("ASTRAL_TEST_MODEL")
-	if model == "" {
-		model = models[0].Name
-	}
+	model := livetest.Model(t, client, models)
 	return client, model, p
 }
 

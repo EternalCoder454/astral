@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"astral/internal/chars"
+	"astral/internal/livetest"
 	"astral/internal/ollama"
 	"astral/internal/store"
 	"astral/internal/world"
@@ -34,10 +35,7 @@ func TestLiveTurnThroughTheServer(t *testing.T) {
 	if len(installed) == 0 {
 		t.Skip("Ollama is running but has no models installed")
 	}
-	model := os.Getenv("ASTRAL_TEST_MODEL")
-	if model == "" {
-		model = installed[0].Name
-	}
+	model := livetest.Model(t, client, installed)
 
 	st, _, err := store.Open(filepath.Join(t.TempDir(), "astral.db"))
 	if err != nil {

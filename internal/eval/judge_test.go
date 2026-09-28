@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"astral/internal/livetest"
 	"astral/internal/ollama"
 )
 
@@ -35,6 +36,9 @@ func judgeClient(t *testing.T) (*ollama.Client, string) {
 	}
 	if !ollama.HasModel(models, m) {
 		t.Skipf("%s is not installed", m)
+	}
+	if err := livetest.Check(client, models, m, os.Getenv("ASTRAL_TEST_ALLOW_LARGE") != ""); err != nil {
+		t.Skip(err.Error())
 	}
 	return client, m
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"astral/internal/chars"
+	"astral/internal/livetest"
 	"astral/internal/ollama"
 )
 
@@ -116,6 +117,10 @@ func TestFramingPositiveVersusNegative(t *testing.T) {
 	for _, model := range strings.Split(*modelList, ",") {
 		model = strings.TrimSpace(model)
 		if model == "" || !ollama.HasModel(installed, model) {
+			continue
+		}
+		if err := livetest.Check(client, installed, model, os.Getenv("ASTRAL_TEST_ALLOW_LARGE") != ""); err != nil {
+			t.Logf("skipping %s: %v", model, err)
 			continue
 		}
 		type tally struct{ took, total int }

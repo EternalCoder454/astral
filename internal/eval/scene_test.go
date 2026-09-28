@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"astral/internal/chars"
+	"astral/internal/livetest"
 	"astral/internal/ollama"
 	"astral/internal/store"
 	"astral/internal/ui"
@@ -73,6 +74,9 @@ func TestLongScene(t *testing.T) {
 	}
 	if !ollama.HasModel(installed, model) {
 		t.Skipf("%s is not installed", model)
+	}
+	if err := livetest.Check(client, installed, model, os.Getenv("ASTRAL_TEST_ALLOW_LARGE") != ""); err != nil {
+		t.Skip(err.Error())
 	}
 
 	// A real database, in a temporary directory.

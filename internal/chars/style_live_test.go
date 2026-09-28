@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"astral/internal/livetest"
 	"astral/internal/ollama"
 )
 
@@ -33,10 +34,7 @@ func liveClient(t *testing.T) (*ollama.Client, string) {
 	if len(models) == 0 {
 		t.Skip("Ollama is running but has no models installed")
 	}
-	model := os.Getenv("ASTRAL_TEST_MODEL")
-	if model == "" {
-		model = models[0].Name
-	}
+	model := livetest.Model(t, client, models)
 	return client, model
 }
 

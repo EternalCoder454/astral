@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"astral/internal/chars"
+	"astral/internal/livetest"
 	"astral/internal/ollama"
 )
 
@@ -45,10 +46,7 @@ func TestPrefixCacheHoldsAcrossTurns(t *testing.T) {
 	if err != nil || len(installed) == 0 {
 		t.Skip("no Ollama server reachable")
 	}
-	model := os.Getenv("ASTRAL_TEST_MODEL")
-	if model == "" {
-		model = installed[0].Name
-	}
+	model := livetest.Model(t, client, installed)
 
 	c := chars.Character{
 		Name:        "Vesper Quill",

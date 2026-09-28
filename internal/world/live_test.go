@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"astral/internal/livetest"
 	"astral/internal/ollama"
 )
 
@@ -30,10 +31,7 @@ func TestLiveLearnRecordsFactsNotEvents(t *testing.T) {
 	if len(models) == 0 {
 		t.Skip("Ollama is running but has no models installed")
 	}
-	model := os.Getenv("ASTRAL_TEST_MODEL")
-	if model == "" {
-		model = models[0].Name
-	}
+	model := livetest.Model(t, client, models)
 
 	w := World{ID: 1, Name: "The Drowned Coast", Description: "Maps here go out of date."}
 

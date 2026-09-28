@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"astral/internal/chars"
+	"astral/internal/livetest"
 	"astral/internal/ollama"
 )
 
@@ -89,6 +90,10 @@ func TestThroughput(t *testing.T) {
 		}
 		if !ollama.HasModel(installed, model) {
 			t.Logf("skipping %s: not installed", model)
+			continue
+		}
+		if err := livetest.Check(client, installed, model, os.Getenv("ASTRAL_TEST_ALLOW_LARGE") != ""); err != nil {
+			t.Logf("skipping %s: %v", model, err)
 			continue
 		}
 		noThink := false

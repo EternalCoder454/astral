@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"astral/internal/livetest"
 	"astral/internal/ollama"
 )
 
@@ -34,10 +35,7 @@ func TestLiveRoleplayTurn(t *testing.T) {
 		t.Skip("Ollama is running but has no models installed")
 	}
 
-	model := os.Getenv("ASTRAL_TEST_MODEL")
-	if model == "" {
-		model = models[0].Name
-	}
+	model := livetest.Model(t, client, models)
 	t.Logf("using model %s", model)
 
 	c := Character{
@@ -118,10 +116,7 @@ func TestLiveInstructionsAreObeyed(t *testing.T) {
 	if len(models) == 0 {
 		t.Skip("Ollama is running but has no models installed")
 	}
-	model := os.Getenv("ASTRAL_TEST_MODEL")
-	if model == "" {
-		model = models[0].Name
-	}
+	model := livetest.Model(t, client, models)
 
 	base := Character{
 		Name:        "Vesper Quill",
@@ -185,10 +180,7 @@ func TestLiveWritingStyleAndCost(t *testing.T) {
 	if len(models) == 0 {
 		t.Skip("Ollama is running but has no models installed")
 	}
-	model := os.Getenv("ASTRAL_TEST_MODEL")
-	if model == "" {
-		model = models[0].Name
-	}
+	model := livetest.Model(t, client, models)
 
 	c := Character{
 		Name:        "Vesper Quill",
@@ -271,10 +263,7 @@ func TestLiveStyleDesignerIsSubstantive(t *testing.T) {
 	if len(models) == 0 {
 		t.Skip("Ollama is running but has no models installed")
 	}
-	model := os.Getenv("ASTRAL_TEST_MODEL")
-	if model == "" {
-		model = models[0].Name
-	}
+	model := livetest.Model(t, client, models)
 
 	history := []ollama.Message{
 		{Role: ollama.RoleAssistant, Content: StyleDesignerOpening},
@@ -333,10 +322,7 @@ func liveModel(t *testing.T) (*ollama.Client, string) {
 	if len(models) == 0 {
 		t.Skip("Ollama is running but has no models installed")
 	}
-	model := os.Getenv("ASTRAL_TEST_MODEL")
-	if model == "" {
-		model = models[0].Name
-	}
+	model := livetest.Model(t, client, models)
 	return client, model
 }
 
