@@ -256,7 +256,15 @@ func cardDescription(text string) *gtk.Label {
 	return l
 }
 
-// multilineField is a bordered text area, sized to a minimum number of lines.
+// multilineField is a bordered text area, sized to a minimum number of lines,
+// that grows with its text up to multilineMax and scrolls after that.
+//
+// It scrolls itself rather than leaning on the dialog's scrolling. A text view
+// with no scrolled window of its own grows to its whole text, and the page
+// around it scrolls, which works for the mouse wheel and for nothing else: the
+// view cannot move the page, so typing or moving the cursor past the bottom of
+// a long field went on out of sight. A long writing style could not be edited
+// at its end without reaching for the wheel after every line.
 func multilineField(text string, minLines int) (*gtk.Frame, *gtk.TextView) {
 	tv := gtk.NewTextView()
 	tv.SetWrapMode(gtk.WrapWordChar)
@@ -265,12 +273,22 @@ func multilineField(text string, minLines int) (*gtk.Frame, *gtk.TextView) {
 	tv.SetLeftMargin(6)
 	tv.SetRightMargin(6)
 	tv.Buffer().SetText(text)
-	tv.SetSizeRequest(-1, minLines*22)
+
+	sw := gtk.NewScrolledWindow()
+	sw.SetChild(tv)
+	sw.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	sw.SetPropagateNaturalHeight(true)
+	sw.SetMinContentHeight(minLines * 22)
+	sw.SetMaxContentHeight(max(multilineMax, minLines*22))
 
 	frame := gtk.NewFrame("")
-	frame.SetChild(tv)
+	frame.SetChild(sw)
 	return frame, tv
 }
+
+// multilineMax is how tall a text field grows before it scrolls: most of a
+// dialog, leaving the fields around it in view.
+const multilineMax = 360
 
 // textOf reads a text view's whole buffer.
 func textOf(tv *gtk.TextView) string {

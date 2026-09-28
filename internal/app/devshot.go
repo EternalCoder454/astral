@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -233,6 +234,25 @@ func (a *App) runDevView() {
 				a.newPersonaDesignerChat()
 			default:
 				a.showPersonas()
+			}
+		case "editstyle":
+			// A long style, as the Style Designer writes one, to scroll through.
+			var lines []string
+			for i := 1; i <= 60; i++ {
+				lines = append(lines, fmt.Sprintf("Rule %d: keep sentences short and concrete, and never summarise what just happened.", i))
+			}
+			a.editStyle(chars.WritingStyle{Name: "Long Style", Instructions: strings.Join(lines, "\n")}, true)
+		case "stylechat":
+			// A Style Designer conversation long enough to need scrolling.
+			ch, err := a.store.NewChat(0, "Designing a Style", a.cfg.Model, store.KindStyleDesigner)
+			if err == nil {
+				for i := 0; i < 12; i++ {
+					a.store.AddMessage(store.Message{ChatID: ch.ID, Role: ollama.RoleUser,
+						Content: fmt.Sprintf("Message %d: I want it sparse, present tense, and cold.", i)})
+					a.store.AddMessage(store.Message{ChatID: ch.ID, Role: ollama.RoleAssistant,
+						Content: fmt.Sprintf("Reply %d. %s", i, strings.Repeat("Short sentences land harder when the scene is tense, so we could keep them clipped. ", 4))})
+				}
+				_ = a.openChat(ch.ID)
 			}
 		case "attachfile":
 			// A designer with a text file queued, as a drop or the attach
