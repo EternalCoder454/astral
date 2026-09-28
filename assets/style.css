@@ -524,6 +524,15 @@ frame:focus-within {
 	opacity: 1;
 }
 
+/* The actions wrap in a flow box; its children carry no padding of their
+ * own, so a single line looks as it did when they were a row. */
+.message-actions flowboxchild {
+	padding: 0;
+	min-width: 0;
+	min-height: 0;
+	background: none;
+}
+
 .message-action:hover {
 	background-color: @astral_surface_hover;
 	color: @window_fg_color;

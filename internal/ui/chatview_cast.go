@@ -504,11 +504,11 @@ func (c *ChatView) castChip() *gtk.Button {
 	btn.AddCSSClass("chat-action-chip")
 	if c.isGroup() {
 		names := c.castNames()
-		btn.SetLabel(strconv.Itoa(len(names)) + " here")
+		btn.SetChild(chipLabel(strconv.Itoa(len(names))+" here", 10))
 		btn.AddCSSClass("direction-set")
 		btn.SetTooltipText(strings.Join(names, ", ") + "\n\nClick to add or remove someone.")
 	} else {
-		btn.SetLabel("Add Someone")
+		btn.SetChild(chipLabel("Add Someone", 14))
 		btn.SetTooltipText("Bring another character into this scene")
 	}
 	btn.ConnectClicked(func() {

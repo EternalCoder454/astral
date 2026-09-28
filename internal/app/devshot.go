@@ -195,6 +195,25 @@ func (a *App) runDevView() {
 			a.devRowMenu()
 		case "measure":
 			a.devMeasure()
+		case "minwidth":
+			// The scene, then what sets the window's narrowest width.
+			if chats, err := a.store.Chats(); err == nil && len(chats) > 0 {
+				_ = a.openChat(chats[0].ID)
+			}
+			// Again every two seconds for a while, so a capture that resizes
+			// the window can read the widths at each size it tries.
+			n := 0
+			coreglib.TimeoutAdd(2000, func() bool {
+				cur := "none"
+				if bp := a.win.CurrentBreakpoint(); bp != nil {
+					cur = bp.Condition().String()
+				}
+				log.Printf("astral: minwidth: window %d, sidebar collapsed %v, breakpoint %s, side %s",
+					a.win.Width(), a.split.Collapsed(), cur, a.sideBP.Condition().String())
+				a.devMinWidths(a.win.Content(), 0, 300)
+				n++
+				return n < 10
+			})
 		case "icons":
 			a.devIcons()
 		case "image":
@@ -642,6 +661,33 @@ func (a *App) devMeasure() {
 		}
 		return false
 	})
+}
+
+// devMinWidths logs every widget at least floor pixels wide at its narrowest,
+// indented by depth, so what stops the window getting narrow can be read off.
+// A window cannot be narrower than its content allows, and a breakpoint that
+// collapses the sidebar cannot help when the chat alone is too wide.
+func (a *App) devMinWidths(w gtk.Widgetter, depth, floor int) {
+	if w == nil {
+		return
+	}
+	base := gtk.BaseWidget(w)
+	if !base.Visible() {
+		return
+	}
+	min, nat, _, _ := base.Measure(gtk.OrientationHorizontal, -1)
+	if min >= floor {
+		what := base.CSSName() + " " + strings.Join(base.CSSClasses(), ".")
+		if l, ok := w.(*gtk.Label); ok {
+			what += " \"" + ui.Snippet(l.Text(), 60) + "\""
+		} else if b, ok := w.(*gtk.Button); ok && b.Label() != "" {
+			what += " \"" + ui.Snippet(b.Label(), 60) + "\""
+		}
+		log.Printf("astral: minwidth: %s%d (natural %d) %s", strings.Repeat("  ", depth), min, nat, what)
+	}
+	for c := base.FirstChild(); c != nil; c = gtk.BaseWidget(c).NextSibling() {
+		a.devMinWidths(c, depth+1, floor)
+	}
 }
 
 // devDemoScene fabricates a scene for a screenshot, so a capture does not

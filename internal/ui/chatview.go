@@ -579,7 +579,7 @@ func (c *ChatView) refreshModelChip() {
 	}
 	m := c.activeModel()
 	if m == "" {
-		c.modelBtn.SetLabel("Choose a Model")
+		c.modelBtn.SetChild(chipLabel("Choose a Model", 16))
 		c.modelBtn.SetTooltipText("Choose the model for this chat")
 		return
 	}
@@ -587,7 +587,7 @@ func (c *ChatView) refreshModelChip() {
 	// composer size that is a wall of text sitting where a small control
 	// should be. The short form is what distinguishes one of your models from
 	// another; the whole thing stays a hover away.
-	c.modelBtn.SetLabel(shortModel(m))
+	c.modelBtn.SetChild(chipLabel(shortModel(m), 30))
 	c.modelBtn.SetTooltipText(m + "\nClick to use a different model for this chat")
 }
 
@@ -1269,11 +1269,11 @@ func (c *ChatView) directionChip() *gtk.Button {
 		// asking to be read twice.
 		userName := c.youName()
 		shown := chars.Substitute(note, c.char.Name, userName)
-		btn.SetLabel("Direction: " + Snippet(shown, 60))
+		btn.SetChild(chipLabel("Direction: "+Snippet(shown, 60), 48))
 		btn.AddCSSClass("direction-set")
 		btn.SetTooltipText(shown + "\n\nClick to change or clear it.")
 	} else {
-		btn.SetLabel("Set a Direction")
+		btn.SetChild(chipLabel("Set a Direction", 18))
 		btn.SetTooltipText("Tell the scene where to go next")
 	}
 	btn.ConnectClicked(func() {

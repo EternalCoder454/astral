@@ -31,6 +31,13 @@ func (a *App) buildWindow() {
 		a.win.SetDefaultSize(a.cfg.WindowWidth, a.cfg.WindowHeight)
 	}
 	a.win.AddCSSClass("astral-window")
+	// The narrowest the window may go, stated. Without it libadwaita takes the
+	// content's own minimum, which with the sidebar open is wider than the
+	// point where the sidebar is meant to fold away: the breakpoint could never
+	// be reached, and a window dragged narrower anyway drew the part that did
+	// not fit as a black strip down the side, which stayed when it was
+	// widened again. With a minimum here, the breakpoints do the folding.
+	a.win.SetSizeRequest(windowMinWidth, windowMinHeight)
 
 	a.buildSidebar()
 	a.buildCenter()
@@ -59,20 +66,32 @@ func (a *App) buildWindow() {
 	a.split.SetEnableShowGesture(true)
 	a.split.SetEnableHideGesture(true)
 
-	// Below this width the sidebar overlays rather than sitting beside the
-	// chat, so the transcript keeps a readable column on a small window.
-	breakpoint := adw.NewBreakpoint(adw.BreakpointConditionParse("max-width: 700px"))
-	breakpoint.AddSetter(a.split, "collapsed", glib.NewValue(true))
-	a.win.AddBreakpoint(breakpoint)
+	// A window applies one breakpoint at a time, and when two match, the one
+	// added last wins. So they are added widest first, and each narrower one
+	// repeats what the wider ones set. The sidebar's used to come first and
+	// the portrait's second, and on every narrow window the portrait's won:
+	// the sidebar never folded away, the chat was squeezed past its minimum,
+	// and the window drew what did not fit as a black strip down the side.
 
-	// The portrait gives way earlier, and for a different reason. Three
+	// The portrait gives way first, and for a different reason. Three
 	// columns fit comfortably on a wide window; below about 1100px the one in
 	// the middle is the one that suffers, and the middle one is the scene. So
 	// past that point the portrait floats over the chat instead of taking a
 	// slice out of it.
-	portraitBP := adw.NewBreakpoint(adw.BreakpointConditionParse("max-width: 1100px"))
-	portraitBP.AddSetter(a.portraitSplit, "collapsed", glib.NewValue(true))
-	a.win.AddBreakpoint(portraitBP)
+	a.portraitBP = adw.NewBreakpoint(adw.BreakpointConditionParse(portraitBreakpoint(a.cfg.SidebarWidth)))
+	a.portraitBP.AddSetter(a.portraitSplit, "collapsed", glib.NewValue(true))
+	a.win.AddBreakpoint(a.portraitBP)
+
+	// Below this width the sidebar overlays rather than sitting beside the
+	// chat, so the transcript keeps a readable column on a small window, and
+	// the portrait stays floating as it already was.
+	//
+	// Where that is depends on how wide you dragged the sidebar, so the
+	// condition is set by applySidebarWidth rather than fixed here.
+	a.sideBP = adw.NewBreakpoint(adw.BreakpointConditionParse(sidebarBreakpoint(a.cfg.SidebarWidth)))
+	a.sideBP.AddSetter(a.split, "collapsed", glib.NewValue(true))
+	a.sideBP.AddSetter(a.portraitSplit, "collapsed", glib.NewValue(true))
+	a.win.AddBreakpoint(a.sideBP)
 
 	a.toasts = adw.NewToastOverlay()
 	a.toasts.SetChild(a.split)
@@ -83,6 +102,13 @@ func (a *App) buildWindow() {
 		a.sideBtn.SetActive(a.split.ShowSidebar())
 	})
 }
+
+// The window's smallest size: the header bar's buttons and title in one row,
+// and a composer with a line of transcript above it.
+const (
+	windowMinWidth  = 400
+	windowMinHeight = 420
+)
 
 // buildContent is everything to the right of the sidebar: header bar on top,
 // the welcome screen or a chat below.

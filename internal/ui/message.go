@@ -64,7 +64,7 @@ type MessageRow struct {
 	body    *gtk.Label
 	meta    *gtk.Label
 	name    *gtk.Label
-	actions *gtk.Box
+	actions *gtk.FlowBox
 	// pending holds the hover buttons until the row is first hovered; armed
 	// says a controller is watching for that, and built that it has happened.
 	pending []rowAction
@@ -235,7 +235,18 @@ func NewMessageRow(o MessageOpts) *MessageRow {
 	m.meta = gtk.NewLabel("")
 	m.meta.AddCSSClass("message-meta")
 	m.meta.SetVisible(false)
-	m.actions = gtk.NewBox(gtk.OrientationHorizontal, 2)
+	// A flow box rather than a row, so the buttons wrap onto a second line in
+	// a narrow window. In a row their combined width was the narrowest any
+	// message could be, and so the narrowest the window could be.
+	m.actions = gtk.NewFlowBox()
+	m.actions.AddCSSClass("message-actions")
+	m.actions.SetSelectionMode(gtk.SelectionNone)
+	m.actions.SetHomogeneous(false)
+	m.actions.SetMinChildrenPerLine(1)
+	m.actions.SetMaxChildrenPerLine(16)
+	m.actions.SetColumnSpacing(2)
+	m.actions.SetRowSpacing(2)
+	m.actions.SetVAlign(gtk.AlignCenter)
 	m.foot = foot
 	if fromUser {
 		foot.Append(m.actions)
@@ -418,17 +429,27 @@ func (m *MessageRow) buildActions() {
 	m.buttons = make(map[string]*gtk.Button, len(m.pending))
 	for _, a := range m.pending {
 		if a.menu != nil {
-			m.actions.Append(menuButton(a.menu))
+			m.appendAction(menuButton(a.menu))
 			continue
 		}
 		b := gtk.NewButtonFromIconName(a.icon)
 		b.SetTooltipText(a.tooltip)
 		b.AddCSSClass("message-action")
 		b.ConnectClicked(a.onClick)
-		m.actions.Append(b)
+		m.appendAction(b)
 		m.buttons[a.icon] = b
 	}
 	m.pending = nil
+}
+
+// appendAction adds a built button to the actions. The flow box wraps each
+// in a child of its own, which would otherwise take a stop in the Tab order
+// before the button it holds.
+func (m *MessageRow) appendAction(w gtk.Widgetter) {
+	m.actions.Append(w)
+	if p := gtk.BaseWidget(w).Parent(); p != nil {
+		gtk.BaseWidget(p).SetFocusable(false)
+	}
 }
 
 // SetActionTooltip changes what an action says it does, built or not.

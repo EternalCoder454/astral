@@ -42,10 +42,13 @@ type App struct {
 	client *ollama.Client
 	theme  *themer
 
-	win    *adw.ApplicationWindow
-	split  *adw.OverlaySplitView
-	toasts *adw.ToastOverlay
-	stack  *gtk.Stack
+	win   *adw.ApplicationWindow
+	split *adw.OverlaySplitView
+	// sideBP and portraitBP collapse the sidebar and the portrait when the
+	// window gets too narrow for them; their widths follow the sidebar's.
+	sideBP, portraitBP *adw.Breakpoint
+	toasts             *adw.ToastOverlay
+	stack              *gtk.Stack
 	// phone is the server another device on this network talks to. Nil until
 	// the setting is switched on; see phone.go.
 	phone   *serve.Server

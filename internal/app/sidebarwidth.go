@@ -1,8 +1,10 @@
 package app
 
 import (
+	"fmt"
 	"math"
 
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/graphene"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
@@ -60,7 +62,14 @@ func (a *App) sidebarWithGrip() *gtk.Box {
 		// Where the pointer is now, across the grip as it is laid out at this
 		// moment, which is also how the gesture measured it.
 		if x, ok := a.windowX(grip, grabbed+dx); ok {
-			a.applySidebarWidth(start + int(math.Round(x-from)))
+			w := start + int(math.Round(x-from))
+			// No wider than leaves the chat its column in this window.
+			// Past that the sidebar would fold over the chat mid-drag,
+			// which reads as the drag having broken something.
+			if limit := a.win.Width() - 6 - chatColumn; !a.split.Collapsed() && w > limit {
+				w = max(limit, min(start, w))
+			}
+			a.applySidebarWidth(w)
 		}
 	})
 	drag.ConnectDragEnd(func(dx, dy float64) {
@@ -112,6 +121,32 @@ func (a *App) applySidebarWidth(w int) {
 	a.split.SetMinSidebarWidth(float64(w))
 	a.split.SetMaxSidebarWidth(float64(w))
 	a.split.SetSidebarWidthFraction(1)
+	if a.sideBP != nil {
+		a.sideBP.SetCondition(adw.BreakpointConditionParse(sidebarBreakpoint(w)))
+	}
+	if a.portraitBP != nil {
+		a.portraitBP.SetCondition(adw.BreakpointConditionParse(portraitBreakpoint(w)))
+	}
+}
+
+// chatColumn is the narrowest the chat is let get beside the sidebar before
+// the sidebar gives way and slides over it instead.
+const chatColumn = 440
+
+// portraitColumn is room for the portrait panel at its widest.
+const portraitColumn = 320
+
+// sidebarBreakpoint is the window width below which the sidebar overlays the
+// chat, for a sidebar w pixels wide: its width, its grip, and a chat column.
+func sidebarBreakpoint(w int) string {
+	return fmt.Sprintf("max-width: %dpx", w+6+chatColumn)
+}
+
+// portraitBreakpoint is the width below which the portrait overlays the chat
+// rather than taking a column of its own. Never under 1100, where three
+// columns first stop being comfortable at the default sidebar width.
+func portraitBreakpoint(w int) string {
+	return fmt.Sprintf("max-width: %dpx", max(1100, w+6+chatColumn+portraitColumn))
 }
 
 // windowX is where a point x across widget w lies across the window.

@@ -90,6 +90,6 @@ func (c *ChatView) refreshPersonaChip() {
 	}
 	scene := c.chat.Kind == "" || c.chat.Kind == store.KindRoleplay
 	c.personaBtn.SetVisible(scene && c.OnPickPersona != nil)
-	c.personaBtn.SetLabel(c.youName())
+	c.personaBtn.SetChild(chipLabel(c.youName(), 16))
 	c.personaBtn.SetTooltipText("Click to play as someone other than " + c.youName())
 }

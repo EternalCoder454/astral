@@ -14,6 +14,7 @@ import (
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 )
 
 // Steering a scene one turn at a time, the controls every other roleplay app
@@ -405,9 +406,23 @@ func (c *ChatView) SpeakerName(role string, characterID int64) string {
 	return c.char.Name
 }
 
+// chipLabel is a chip's text as a label that shortens with an ellipsis.
+//
+// A button's own label never shortens, so its whole text is the narrowest the
+// button can be, and a direction running to sixty characters made the chat
+// alone too wide for a window under about a thousand pixels: the window could
+// be dragged narrower than its content and drew the rest as a black strip.
+func chipLabel(text string, maxChars int) *gtk.Label {
+	l := gtk.NewLabel(text)
+	l.SetEllipsize(pango.EllipsizeEnd)
+	l.SetMaxWidthChars(maxChars)
+	return l
+}
+
 // memoryChip opens the scene's memory: its record and what is pinned.
 func (c *ChatView) memoryChip() *gtk.Button {
-	btn := gtk.NewButtonWithLabel("Memory")
+	btn := gtk.NewButton()
+	btn.SetChild(chipLabel("Memory", 12))
 	btn.AddCSSClass("chat-action-chip")
 	btn.SetTooltipText("See and correct what this scene remembers")
 	btn.ConnectClicked(func() {
@@ -422,7 +437,7 @@ func (c *ChatView) memoryChip() *gtk.Button {
 // write, or the cast carrying on without you.
 func (c *ChatView) turnChip() *gtk.MenuButton {
 	btn := gtk.NewMenuButton()
-	btn.SetLabel("Who Answers")
+	btn.SetChild(chipLabel("Who Answers", 14))
 	btn.AddCSSClass("chat-action-chip")
 	btn.SetTooltipText("Choose who answers next, or let them talk without you")
 
