@@ -28,7 +28,9 @@ func TestDevServe(t *testing.T) {
 		Description: "A harbour town under permanent rain.",
 		Rules:       "Nobody sails east of the Sever."})
 	caID, _ := st.SaveCharacter(chars.Character{Name: "Vesper Quill",
-		Description: "A cartographer, impatient and precise.", WorldID: wid})
+		Description: "A cartographer, impatient and precise.", WorldID: wid,
+		// A portrait, to see the scene set in front of it.
+		PortraitPath: os.Getenv("ASTRAL_DEV_SERVE_PORTRAIT")})
 	ch, _ := st.NewChatIn(caID, 0, "The tide came in early", "m", store.KindRoleplay)
 	st.AddMessage(store.Message{ChatID: ch.ID, Role: ollama.RoleUser,
 		Content: `"You're late again." *I set the ruined chart on her desk.*`})
