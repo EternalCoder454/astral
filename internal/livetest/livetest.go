@@ -129,7 +129,10 @@ func Check(client *ollama.Client, installed []ollama.Model, model string, allowL
 			return nil
 		}
 	}
-	if !gpu.Fits(uint64(float64(size) * headroom)) {
+	// gpu.Fits, but through readVRAM, so a test can say what the card holds;
+	// asking the machine the tests run on said a CI runner with no card at
+	// all had room for anything.
+	if m, ok := readVRAM(); ok && m.Free() < uint64(float64(size)*headroom)+gpu.DesktopReserve {
 		return fmt.Errorf("%s (%.1f GB) does not fit in free video memory beside what is already "+
 			"loaded, with room kept for the desktop; not loading it", model, float64(size)/(1<<30))
 	}

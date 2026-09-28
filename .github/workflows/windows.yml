@@ -53,11 +53,19 @@ jobs:
           install: >-
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-pkgconf
-            mingw-w64-x86_64-gobject-introspection
+            mingw-w64-x86_64-gobject-introspection-runtime
             mingw-w64-x86_64-go
             mingw-w64-x86_64-gtk4
             mingw-w64-x86_64-libadwaita
             mingw-w64-x86_64-adwaita-icon-theme
+
+      # gotk4 asks pkg-config for gobject-introspection, and wants only its
+      # headers and link flags from it; the library is the runtime package
+      # above. Installed without its dependencies it no longer brings a Python
+      # and a Tcl along, several hundred megabytes of files to unpack that
+      # nothing here runs.
+      - name: Add the gobject-introspection headers
+        run: pacman -S --noconfirm --needed --nodeps --nodeps mingw-w64-x86_64-gobject-introspection
 
       - name: Locate the Go caches
         id: gocache

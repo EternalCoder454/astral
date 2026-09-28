@@ -8,6 +8,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
 	"astral/internal/ollama"
@@ -17,7 +18,10 @@ import (
 // own and only the last is rewritten; when it ends, it is one label with every
 // word in it, as a reply loaded from the database is.
 func TestStreamingFreezesParagraphs(t *testing.T) {
-	if !gtk.InitCheck() {
+	// A display as well as GTK: in CI's container gtk_init_check reports
+	// success with no display behind it, and the first widget made then
+	// crashes the whole test binary.
+	if !gtk.InitCheck() || gdk.DisplayGetDefault() == nil {
 		t.Skip("no display to start GTK on")
 	}
 	m := NewMessageRow(MessageOpts{Role: ollama.RoleAssistant, Mode: Roleplay})
