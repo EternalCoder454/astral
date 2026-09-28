@@ -62,7 +62,7 @@ func stream(ctx context.Context, chat ChatFunc, msgs []ollama.Message, onDelta f
 	allowed := map[string]bool{}
 	hits := map[string]int{}
 	var avoid []string
-	reply := ""   // what the reply has kept so far, after base
+	reply := ""    // what the reply has kept so far, after base
 	forwarded := 0 // how much of it has been passed on
 	var thinking strings.Builder
 	var total ollama.Stats

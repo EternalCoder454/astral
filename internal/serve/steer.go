@@ -393,11 +393,11 @@ func (s *Server) handleRewriteMine(w http.ResponseWriter, r *http.Request, d sto
 		return s.client().Chat(ctx, model, m, mineOpts, &noThink, d)
 	}
 	_, _, err = scene.Unslop(ctx, chat, scene.Draft(s.store, cfg, ch, cast, hist, mine.Content), func(d ollama.Delta) {
-			shown, _ := think.Next(d.Content)
-			if sofar.Len() < scene.DraftChars*2 {
-				sofar.WriteString(shown)
-			}
-		})
+		shown, _ := think.Next(d.Content)
+		if sofar.Len() < scene.DraftChars*2 {
+			sofar.WriteString(shown)
+		}
+	})
 	text := chars.CleanDraft(sofar.String(), userName)
 	if text == "" {
 		if err == nil || stopped() {
