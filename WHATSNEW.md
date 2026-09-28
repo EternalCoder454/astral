@@ -3,6 +3,15 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.2
+- Writing a reply again keeps the old one: arrows under it flip between every version
+- Search your chats by anything said in them, from the box over the chat list (Ctrl+F)
+- A copy of your library is saved every day, and the last seven are kept
+- A notification when a reply finishes while Astral is in the background, and Escape stops one
+- On your phone: Back closes the chat, not the app, and Send turns into Stop
+- On your phone: a reply is finished on your PC if the screen locks, and waits for you
+- On your phone: Copy works, chats can be swiped away, and lists stay up to date
+
 ## 0.5.1
 - Drop a picture straight from Files, or copy and paste it: both used to be refused every time
 - A design chat takes pictures even when your model cannot see: a model that can reads them first
