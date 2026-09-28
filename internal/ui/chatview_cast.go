@@ -530,7 +530,8 @@ func (c *ChatView) castChip() *gtk.Button {
 // the answer before anyone asked for it.
 func (c *ChatView) compactable() bool {
 	switch c.chat.Kind {
-	case store.KindDesigner, store.KindStyleDesigner, store.KindWorldDesigner, store.KindPromptOptimizer:
+	case store.KindDesigner, store.KindStyleDesigner, store.KindWorldDesigner, store.KindPromptOptimizer,
+		store.KindPersonaDesigner:
 		return false
 	case store.KindAssistant:
 		return true

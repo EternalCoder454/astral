@@ -174,7 +174,7 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat,
 			}
 		}()
 	}
-	cfg := s.config()
+	cfg := s.playedAs(s.config(), ch)
 	ca := s.characterFor(ch)
 	model := ch.Model
 	if model == "" {
@@ -457,11 +457,11 @@ func (s *Server) housekeep(chatID int64, cast []chars.Character) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	cfg := s.config()
 	ch, err := s.store.Chat(chatID)
 	if err != nil {
 		return
 	}
+	cfg := s.playedAs(s.config(), ch)
 	sceneModel := ch.Model
 	if sceneModel == "" {
 		sceneModel = cfg.Model
@@ -635,4 +635,16 @@ func (s *Server) handleStop(w http.ResponseWriter, r *http.Request, d store.Devi
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"stopped": s.busy.stop(id)})
+}
+
+// playedAs is the settings with the chat's own persona in place of the one in
+// use by default, so a scene started as someone reads as them from the phone
+// too.
+func (s *Server) playedAs(cfg store.Config, ch store.Chat) store.Config {
+	if ch.PersonaID != 0 {
+		if p, err := s.store.Persona(ch.PersonaID); err == nil {
+			cfg.PersonaName, cfg.PersonaDescription = p.Name, p.Description()
+		}
+	}
+	return cfg
 }

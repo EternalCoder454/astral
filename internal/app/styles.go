@@ -330,7 +330,7 @@ func (a *App) pushConfig() {
 		a.chat.SetConfig(a.cfg)
 	}
 	if a.sidebar != nil {
-		a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.PersonaDescription)
+		a.refreshProfile()
 	}
 	a.refreshWelcome()
 }

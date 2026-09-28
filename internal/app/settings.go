@@ -21,9 +21,7 @@ type settingsForm struct {
 	model   *gtk.DropDown
 	models  []string
 
-	personaName *gtk.Entry
-	personaDesc *gtk.TextView
-	keepAlive   *gtk.Entry
+	keepAlive *gtk.Entry
 
 	theme    *gtk.DropDown
 	fontMode *gtk.DropDown
@@ -310,19 +308,30 @@ func (a *App) buildAboutPage(f *settingsForm) *gtk.Box {
 func (a *App) buildYouPage(f *settingsForm) *gtk.Box {
 	page := settingsPage()
 
-	outer, card := groupCard("Your Persona")
-	f.personaName = gtk.NewEntry()
-	f.personaName.SetText(a.cfg.PersonaName)
-	f.personaName.SetPlaceholderText("Leave empty to stay unnamed")
-	card.Append(labelledField("Your Name",
-		"Characters address you by this, and it replaces {{user}} in their cards.",
-		f.personaName))
-
-	frame, view := multilineField(a.cfg.PersonaDescription, 5)
-	f.personaDesc = view
-	card.Append(labelledField("About You",
-		"Optional. Who you are in the scene: appearance, role, anything the character already knows.",
-		frame))
+	// Who you are lives in Personas now, where there can be several of you,
+	// each with an age, a race, an appearance and the rest in fields of
+	// their own. This says who is in use and goes there.
+	outer, card := groupCard("Personas")
+	inUse := "Nobody yet. Make a persona and the characters will know who they are talking to."
+	if p, err := a.store.Persona(a.cfg.ActivePersona); err == nil {
+		inUse = p.DisplayName()
+		if f := p.Facts(); f != "" {
+			inUse += ", " + f
+		}
+	}
+	who := wrappingLabel(inUse)
+	who.AddCSSClass("field-label")
+	card.Append(labelledField("In Use",
+		"New chats are played as this persona, and each chat remembers who it was started as.",
+		who))
+	personas := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	manageP := gtk.NewButtonWithLabel("Manage Personas…")
+	manageP.ConnectClicked(func() { a.showPersonas() })
+	personas.Append(manageP)
+	createP := gtk.NewButtonWithLabel("Create a Persona…")
+	createP.ConnectClicked(func() { a.newPersonaDesignerChat() })
+	personas.Append(createP)
+	card.Append(personas)
 	page.Append(outer)
 
 	styleOuter, styleCard := groupCard("Writing Style")
@@ -390,8 +399,6 @@ func (a *App) applySettings(f *settingsForm) {
 	if u := strings.TrimSpace(f.baseURL.Text()); u != "" {
 		a.cfg.BaseURL = u
 	}
-	a.cfg.PersonaName = strings.TrimSpace(f.personaName.Text())
-	a.cfg.PersonaDescription = textOf(f.personaDesc)
 	// Empty is a real choice now, the server's setting, so it is saved rather
 	// than ignored.
 	a.cfg.KeepAlive = strings.TrimSpace(f.keepAlive.Text())
@@ -440,7 +447,7 @@ func (a *App) applySettings(f *settingsForm) {
 		a.refreshAttachAvailability()
 	}
 	if a.sidebar != nil {
-		a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.PersonaDescription)
+		a.refreshProfile()
 	}
 	a.probeModels()
 }
@@ -498,7 +505,7 @@ func (a *App) showModelPicker() {
 		}
 		a.chat.SetModel(picked)
 		a.chat.SetConfig(a.cfg)
-		a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.PersonaDescription)
+		a.refreshProfile()
 		a.refreshWelcome()
 		// A model that can see, or one that cannot, changes whether the chat
 		// takes pictures, and it used to go on answering for the old model

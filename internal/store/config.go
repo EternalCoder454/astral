@@ -80,8 +80,14 @@ type Config struct {
 
 	// PersonaName / PersonaDescription are who the user plays as. Empty is
 	// fine and common, plenty of scenes work with an unnamed protagonist.
+	//
+	// Since there can be several personas these are the one in use by
+	// default, written out: ActivePersona says which, and the app writes its
+	// name and description here whenever it changes, so everything that only
+	// wants "who am I" reads it from one place.
 	PersonaName        string `json:"persona_name"`
 	PersonaDescription string `json:"persona_description"`
+	ActivePersona      int64  `json:"active_persona"`
 
 	// GlobalInstructions is the freeform instruction block the rulebook
 	// replaced. It is emptied into Rulebook the first time a config written

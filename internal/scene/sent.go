@@ -29,6 +29,8 @@ func sentKind(kind string, group bool) (string, string) {
 		return "world", "World Designer Request"
 	case store.KindPromptOptimizer:
 		return "optimizer", "Prompt Optimizer Request"
+	case store.KindPersonaDesigner:
+		return "persona", "Persona Creator Request"
 	}
 	if group {
 		return "group", "Group Scene Request"

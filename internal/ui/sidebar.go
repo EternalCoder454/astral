@@ -67,8 +67,13 @@ type Sidebar struct {
 	// OnPrompts opens the list of prompts and the Prompt Optimizer.
 	OnPrompts  func()
 	OnSettings func()
-	// OnPersona opens the persona editor from the profile menu.
-	OnPersona func()
+	// OnPersona opens the list of your personas from the profile menu, and
+	// OnCreatePersona the Persona Creator. OnUsePersona switches which one
+	// new chats are played as.
+	OnPersona       func()
+	OnCreatePersona func()
+	OnUsePersona    func(id int64)
+	personaBox      *gtk.Box
 	// OnAbout opens the about dialog from the profile menu.
 	OnAbout func()
 	// OnStyles opens the writing styles list.
@@ -223,7 +228,12 @@ func (s *Sidebar) buildProfileMenu() *gtk.Popover {
 		})
 		box.Append(b)
 	}
-	add(IconEdit, "Edit Your Persona", func() { fire(s.OnPersona) })
+	// Your personas first, to switch between with one click; filled by
+	// SetPersonas.
+	s.personaBox = gtk.NewBox(gtk.OrientationVertical, 2)
+	box.Append(s.personaBox)
+	add(IconEdit, "Personas", func() { fire(s.OnPersona) })
+	add(IconAdd, "Create a Persona", func() { fire(s.OnCreatePersona) })
 	add(IconDesigner, "Writing Styles", func() { fire(s.OnStyles) })
 	add(IconInfo, "About Astral", func() { fire(s.OnAbout) })
 
@@ -241,7 +251,8 @@ func (s *Sidebar) buildProfileMenu() *gtk.Popover {
 // once under your name, where it has nothing to do with you, and again on the
 // composer where it is actually actionable. This one is gone.
 func (s *Sidebar) SetProfile(name, subtitle string) {
-	if name == "" {
+	unnamed := name == ""
+	if unnamed {
 		name = "You"
 	}
 
@@ -258,8 +269,16 @@ func (s *Sidebar) SetProfile(name, subtitle string) {
 	// A subtitle only when there is something worth saying. The persona
 	// description was shown here, which meant the pill read "Name: Christian
 	// Appeara...", the first few words of a prose field, truncated mid-word.
-	// A prompt to set one up is useful; a fragment of one is not.
-	if strings.TrimSpace(subtitle) == "" {
+	// A prompt to set one up is useful; a fragment of one is not. What is
+	// shown now is the persona's age, gender and race, short enough to read
+	// whole.
+	if strings.TrimSpace(subtitle) != "" {
+		m := gtk.NewLabel(subtitle)
+		m.SetXAlign(0)
+		m.SetEllipsize(pango.EllipsizeEnd)
+		m.AddCSSClass("profile-sub")
+		col.Append(m)
+	} else if unnamed {
 		m := gtk.NewLabel("Set up your persona")
 		m.SetXAlign(0)
 		m.SetEllipsize(pango.EllipsizeEnd)
@@ -700,4 +719,61 @@ func fire(fn func()) {
 	if fn != nil {
 		fn()
 	}
+}
+
+// PersonaChoice is one of your personas as the profile menu lists it.
+type PersonaChoice struct {
+	ID    int64
+	Name  string
+	Facts string
+}
+
+// SetPersonas lists your personas at the top of the profile menu, with a
+// check on the one new chats are played as. A single persona is not listed:
+// there is nothing to switch to.
+func (s *Sidebar) SetPersonas(list []PersonaChoice, active int64) {
+	if s.personaBox == nil {
+		return
+	}
+	for child := s.personaBox.FirstChild(); child != nil; child = s.personaBox.FirstChild() {
+		s.personaBox.Remove(child)
+	}
+	if len(list) < 2 {
+		s.personaBox.SetVisible(false)
+		return
+	}
+	for _, p := range list {
+		id := p.ID
+		b := gtk.NewButton()
+		b.AddCSSClass("sidebar-item")
+		icon := ""
+		if id == active {
+			icon = IconCheck
+		}
+		row := rowContent(icon, p.Name)
+		if icon == "" {
+			// The names line up whether or not they carry the check.
+			spacer := gtk.NewBox(gtk.OrientationHorizontal, 0)
+			spacer.SetSizeRequest(16, -1)
+			row.Prepend(spacer)
+		}
+		b.SetChild(row)
+		tip := "Play new chats as " + p.Name
+		if p.Facts != "" {
+			tip += " (" + p.Facts + ")"
+		}
+		b.SetTooltipText(tip)
+		b.ConnectClicked(func() {
+			s.profileMenu.Popdown()
+			if s.OnUsePersona != nil {
+				s.OnUsePersona(id)
+			}
+		})
+		s.personaBox.Append(b)
+	}
+	sep := gtk.NewSeparator(gtk.OrientationHorizontal)
+	sep.SetMarginTop(4)
+	sep.SetMarginBottom(4)
+	s.personaBox.Append(sep)
+	s.personaBox.SetVisible(true)
 }

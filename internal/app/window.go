@@ -158,7 +158,9 @@ func (a *App) buildSidebar() {
 	a.sidebar.OnKnowledge = a.showKnowledge
 	a.sidebar.OnPrompts = a.showPrompts
 	a.sidebar.OnSettings = a.showSettings
-	a.sidebar.OnPersona = func() { a.showSettingsPage("persona") }
+	a.sidebar.OnPersona = a.showPersonas
+	a.sidebar.OnCreatePersona = a.newPersonaDesignerChat
+	a.sidebar.OnUsePersona = a.usePersonaByID
 	a.sidebar.OnStyles = a.showStyles
 	a.sidebar.OnAbout = a.showAbout
 	a.sidebar.OnOpenChat = func(id int64) {
@@ -215,6 +217,15 @@ func (a *App) buildCenter() {
 	a.chat.OnEditDirection = a.editDirection
 	a.chat.OnBuildStyle = a.buildStyleFromChat
 	a.chat.OnBuildWorld = a.buildWorldFromChat
+	a.chat.OnBuildPersona = a.buildPersonaFromChat
+	a.chat.OnPickPersona = a.showPersonaPicker
+	a.chat.PersonaFor = func(id int64) (chars.Profile, bool) {
+		if a.store == nil {
+			return chars.Profile{}, false
+		}
+		p, err := a.store.Persona(id)
+		return p, err == nil
+	}
 	a.chat.OnSavePrompt = a.savePromptFromChat
 	a.chat.OnSaveToKnowledge = a.saveReplyToKnowledge
 	a.chat.OnLoreLearned = func(applied, held int) {

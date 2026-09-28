@@ -27,6 +27,9 @@ const (
 	// prompt. Its note holds the id of the prompt it is about, or nothing when
 	// the prompt was brought in the conversation itself.
 	KindPromptOptimizer = "prompt"
+	// KindPersonaDesigner is the Persona Creator, whose product is one of the
+	// people you play as.
+	KindPersonaDesigner = "persona"
 )
 
 // Chat is one conversation.
@@ -57,7 +60,11 @@ type Chat struct {
 	// Unlike a character's instructions, which are standing rules, this is
 	// about the next few turns and is expected to be rewritten or cleared as
 	// the scene moves.
-	Note      string
+	Note string
+	// PersonaID is which of your personas you play as in this chat. Zero means
+	// whichever is in use by default, which is what every chat from before
+	// there were several of you has.
+	PersonaID int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
@@ -152,13 +159,13 @@ func (s *Store) Chat(id int64) (Chat, error) {
 	var created, updated int64
 	err := s.db.QueryRow(`
 		SELECT c.id, c.character_id, c.world_id, c.title, c.model, c.kind, c.summary, c.summary_upto,
-		       c.lore_upto, c.style_name, c.note, c.created_at, c.updated_at,
+		       c.lore_upto, c.style_name, c.note, c.persona_id, c.created_at, c.updated_at,
 		       COALESCE(ch.name, ''), COALESCE(ch.accent, 0)
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
 		WHERE c.id = ?`, id).
 		Scan(&c.ID, &c.CharacterID, &c.WorldID, &c.Title, &c.Model, &c.Kind, &c.Summary, &c.SummaryUpto,
-			&c.LoreUpto, &c.StyleName, &c.Note, &created, &updated, &c.CharacterName, &c.Accent)
+			&c.LoreUpto, &c.StyleName, &c.Note, &c.PersonaID, &created, &updated, &c.CharacterName, &c.Accent)
 	if err == sql.ErrNoRows {
 		return c, fmt.Errorf("no chat with id %d", id)
 	}

@@ -133,6 +133,11 @@ type ChatView struct {
 	attachChip   *gtk.Box
 	// files is text files waiting to go with the next message, and
 	// fileChips shows them; see attachfiles.go.
+	// youProfile is the persona this chat is played as, when youSet; see
+	// chatpersona.go. personaBtn shows it.
+	youProfile chars.Profile
+	youSet     bool
+	personaBtn *gtk.Button
 	files      []attachedText
 	fileChips  *gtk.Box
 	attachName *gtk.Label
@@ -226,6 +231,12 @@ type ChatView struct {
 	OnBuildStyle func()
 	// OnBuildWorld is the same for a world design chat.
 	OnBuildWorld func()
+	// OnBuildPersona turns a Persona Creator chat into a persona.
+	OnBuildPersona func()
+	// PersonaFor looks up one of your personas, and OnPickPersona asks the
+	// app to choose who you are in this chat; see chatpersona.go.
+	PersonaFor    func(id int64) (chars.Profile, bool)
+	OnPickPersona func()
 	// OnSavePrompt is the same for the Prompt Optimizer.
 	OnSavePrompt func()
 	// OnAttachImage asks the app to choose an image. The app calls
@@ -315,6 +326,7 @@ func (c *ChatView) Widget() gtk.Widgetter { return c.root }
 func (c *ChatView) SetConfig(cfg store.Config) {
 	c.cfg = cfg
 	c.refreshModelChip()
+	c.refreshPersonaChip()
 }
 
 func (c *ChatView) buildComposer() *gtk.Widget {
@@ -397,6 +409,16 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 		}
 	})
 	tools.Append(c.attachBtn)
+
+	c.personaBtn = gtk.NewButton()
+	c.personaBtn.AddCSSClass("composer-model")
+	c.personaBtn.SetVisible(false)
+	c.personaBtn.ConnectClicked(func() {
+		if c.OnPickPersona != nil {
+			c.OnPickPersona()
+		}
+	})
+	tools.Append(c.personaBtn)
 
 	c.modelBtn = gtk.NewButton()
 	c.modelBtn.AddCSSClass("composer-model")
@@ -635,10 +657,11 @@ func (c *ChatView) LoadScene(ch store.Chat, cast []chars.Character, msgs []store
 	c.mode = Roleplay
 	switch ch.Kind {
 	case store.KindDesigner, store.KindAssistant, store.KindStyleDesigner, store.KindWorldDesigner,
-		store.KindPromptOptimizer:
+		store.KindPromptOptimizer, store.KindPersonaDesigner:
 		c.mode = Plain
 	}
 	c.refreshModelChip()
+	c.loadPersona()
 	c.refreshPlaceholder()
 	c.refreshActions()
 	for _, member := range cast {
@@ -696,13 +719,12 @@ func (c *ChatView) speakerFor(role string, speaker int64) (string, string, int) 
 			return "World Designer", "✦", 2
 		case store.KindPromptOptimizer:
 			return "Prompt Optimizer", "✦", 4
+		case store.KindPersonaDesigner:
+			return "Persona Creator", "✦", 2
 		}
 	}
 	if role == ollama.RoleUser {
-		name := c.cfg.PersonaName
-		if name == "" {
-			name = chars.DefaultPersonaName
-		}
+		name := c.youName()
 		return name, firstLetter(name), 0
 	}
 	if name := c.char.Name; name != "" {
@@ -1054,6 +1076,13 @@ func (c *ChatView) refreshActions() {
 				c.OnSavePrompt()
 			}
 		}
+	case store.KindPersonaDesigner:
+		label, tip = "Create Persona", "Turn this conversation into one of your personas"
+		fire = func() {
+			if c.OnBuildPersona != nil {
+				c.OnBuildPersona()
+			}
+		}
 	case store.KindWorldDesigner:
 		label, tip = "Create World", "Turn this conversation into a world and its lorebook"
 		if c.chat.WorldID != 0 {
@@ -1097,10 +1126,7 @@ func (c *ChatView) directionChip() *gtk.Button {
 		// written once should keep working if the scene changes character,
 		// but a chip reading "{{char}} is close to admitting..." is a chip
 		// asking to be read twice.
-		userName := c.cfg.PersonaName
-		if userName == "" {
-			userName = chars.DefaultPersonaName
-		}
+		userName := c.youName()
 		shown := chars.Substitute(note, c.char.Name, userName)
 		btn.SetLabel("Direction: " + Snippet(shown, 60))
 		btn.AddCSSClass("direction-set")

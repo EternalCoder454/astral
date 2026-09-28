@@ -396,6 +396,12 @@ func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request, d store.D
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	// Played as whoever is in use by default, as a chat started on the PC is.
+	if cfg.ActivePersona != 0 {
+		if err := s.store.SetChatPersona(ch.ID, cfg.ActivePersona); err == nil {
+			ch.PersonaID = cfg.ActivePersona
+		}
+	}
 
 	// The opening message, which the window shows and this did not: a phone
 	// opened a character onto an empty screen, and the first reply had to
@@ -406,7 +412,7 @@ func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request, d store.D
 	// asks for its messages, and there is nowhere for an unsaved greeting to
 	// live in between.
 	if ca := s.characterFor(ch); ca.Name != "" {
-		if g := chars.Greeting(ca, scene.Persona(cfg)); g != "" {
+		if g := chars.Greeting(ca, scene.Persona(s.playedAs(cfg, ch))); g != "" {
 			if _, err := s.store.AddMessage(store.Message{
 				ChatID: ch.ID, Role: ollama.RoleAssistant, Content: g,
 			}); err != nil {

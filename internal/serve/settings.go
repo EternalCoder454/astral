@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"astral/internal/chars"
 	"astral/internal/store"
 )
 
@@ -39,7 +40,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request, d store.
 	out := settingsOut{
 		Model:       cfg.Model,
 		Persona:     cfg.PersonaName,
-		PersonaNote: cfg.PersonaDescription,
+		PersonaNote: s.personaNote(cfg),
 		Style:       cfg.Style().Name,
 		Temperature: cfg.Temperature,
 		NumPredict:  cfg.NumPredict,
@@ -85,11 +86,11 @@ func (s *Server) handleSaveSettings(w http.ResponseWriter, r *http.Request, d st
 	if body.Model != nil {
 		cfg.Model = strings.TrimSpace(*body.Model)
 	}
-	if body.Persona != nil {
-		cfg.PersonaName = strings.TrimSpace(*body.Persona)
-	}
-	if body.PersonaNote != nil {
-		cfg.PersonaDescription = strings.TrimSpace(*body.PersonaNote)
+	if body.Persona != nil || body.PersonaNote != nil {
+		if err := s.editPersona(&cfg, body.Persona, body.PersonaNote); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
 	}
 	if body.Style != nil {
 		cfg.ActiveStyle = strings.TrimSpace(*body.Style)
@@ -118,4 +119,43 @@ func (s *Server) handleForget(w http.ResponseWriter, r *http.Request, d store.De
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "forgotten"})
+}
+
+// The phone edits the persona in use by default as a name and a note. The note
+// is the persona's free field, Other Details on the PC; its age, race and the
+// rest are edited there, where there is room for them.
+
+// personaNote is what the phone shows as the note.
+func (s *Server) personaNote(cfg store.Config) string {
+	if cfg.ActivePersona != 0 {
+		if p, err := s.store.Persona(cfg.ActivePersona); err == nil {
+			return p.Details
+		}
+	}
+	return cfg.PersonaDescription
+}
+
+// editPersona writes the phone's name and note into the persona in use by
+// default, making one if there is none yet, and brings the settings' copy of
+// it up to date.
+func (s *Server) editPersona(cfg *store.Config, name, note *string) error {
+	var p chars.Profile
+	if cfg.ActivePersona != 0 {
+		if found, err := s.store.Persona(cfg.ActivePersona); err == nil {
+			p = found
+		}
+	}
+	if name != nil {
+		p.Name = strings.TrimSpace(*name)
+	}
+	if note != nil {
+		p.Details = strings.TrimSpace(*note)
+	}
+	id, err := s.store.SavePersona(p)
+	if err != nil {
+		return err
+	}
+	cfg.ActivePersona = id
+	cfg.PersonaName, cfg.PersonaDescription = p.Name, p.Description()
+	return nil
 }

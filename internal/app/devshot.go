@@ -206,6 +206,34 @@ func (a *App) runDevView() {
 		case "sidebar":
 			n, _ := strconv.Atoi(arg)
 			a.devSidebar(n)
+		case "personas":
+			// A second persona beside the one migrated from the settings, so
+			// the list and the menu have something to switch between.
+			if all, _ := a.store.Personas(); len(all) < 2 {
+				a.store.SavePersona(chars.Profile{Name: "Brand Ashcombe", Age: "41", Gender: "man",
+					Race: "human", Appearance: "Broad, grey at the temples, a smuggler's coat.",
+					Background: "Runs cargo past the harbourmaster."})
+				a.refreshPersonaMenu()
+			}
+			switch arg {
+			case "edit":
+				if all, _ := a.store.Personas(); len(all) > 1 {
+					a.editPersona(all[1])
+				}
+			case "pick":
+				if chats, err := a.store.Chats(); err == nil && len(chats) > 0 {
+					_ = a.openChat(chats[0].ID)
+					a.showPersonaPicker()
+				}
+			case "scene":
+				if chats, err := a.store.Chats(); err == nil && len(chats) > 0 {
+					_ = a.openChat(chats[0].ID)
+				}
+			case "creator":
+				a.newPersonaDesignerChat()
+			default:
+				a.showPersonas()
+			}
 		case "attachfile":
 			// A designer with a text file queued, as a drop or the attach
 			// button leaves it.

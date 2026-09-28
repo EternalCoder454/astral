@@ -141,6 +141,7 @@ func (c *ChatView) ensureChat(firstMessage string) error {
 	kind, note := c.chat.Kind, c.chat.Note
 	c.chat = ch
 	c.chat.Kind = kind
+	c.recordPersona()
 	// The note says what a revision or an optimizer chat is about, and it
 	// was set before there was a row to keep it in. Replaced along with the
 	// rest, it was lost at the first message: a style being revised turned
@@ -203,9 +204,10 @@ func (c *ChatView) nextGreeting() {
 }
 
 func (c *ChatView) persona() chars.Persona {
+	name, description := c.you()
 	return chars.Persona{
-		Name:               c.cfg.PersonaName,
-		Description:        c.cfg.PersonaDescription,
+		Name:               name,
+		Description:        description,
 		GlobalInstructions: c.cfg.RulesText(),
 		Style:              c.cfg.Style(),
 	}
@@ -678,10 +680,7 @@ func (c *ChatView) maybeLearn() {
 	client, model, sceneModel := c.client, c.housekeepingModel(), c.activeModel()
 	w, existing := c.world, c.lore
 	charName := c.char.Name
-	userName := c.cfg.PersonaName
-	if userName == "" {
-		userName = chars.DefaultPersonaName
-	}
+	userName := c.youName()
 	opts := c.options()
 
 	go func() {

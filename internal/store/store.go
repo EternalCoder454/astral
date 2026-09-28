@@ -302,6 +302,10 @@ func (s *Store) migrate() error {
 	)`)
 	s.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_token ON devices(token_hash)`)
 
+	// The people you play as, and which of them each chat was started with.
+	// See personas.go.
+	s.migratePersonas()
+
 	// The knowledge base. See knowledge.go.
 	s.migrateKnowledge()
 

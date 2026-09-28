@@ -71,6 +71,16 @@ While anything is selected, a click selects too, and the bar under the list
 deletes them all (Delete) or lets them go (Escape). A deleted chat can be put
 back with Undo on the message that follows, until that message goes away.
 
+**Personas.** The people you play as, as many as you like, from the menu under
+your name. Each has a name, an age, a gender, a race, an appearance, a
+personality, a background and anything else in a field of its own, which is how
+they reach the characters: as what they see and know about you. New chats are
+played as the persona in use, every chat remembers who it was started as, and
+the button beside the model in a scene changes who you are in it. The Persona
+Creator builds one with you the way the character designer builds a character.
+The persona you had before there could be several became the first, and your
+earlier scenes are still played as it.
+
 **Writing styles.** Named presets that control how the prose reads: sparse,
 ornate, present tense, screenplay terse. Switch between them, write your own, or
 have the model build one with you. A style changes the voice without touching

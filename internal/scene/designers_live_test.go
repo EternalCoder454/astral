@@ -40,6 +40,12 @@ type designScript struct {
 }
 
 var designScripts = []designScript{
+	{"persona: a smuggler", store.KindPersonaDesigner, []string{
+		"I want to play a smuggler who runs cargo along a rainy coast.",
+		"Woman, mid thirties, half-elf. Scarred hands, always in an oilskin coat.",
+		"The harbourmaster owes her money and everyone knows it. She is dry, patient, hard to rattle.",
+		"That's her. Call her Maren Voss. Build it.",
+	}},
 	{"vague detective", store.KindDesigner, []string{
 		"A tired detective.",
 		"Bitter about it, not funny. She lost her partner last year and blames herself.",
@@ -115,6 +121,8 @@ func openingFor(kind string) string {
 		return chars.StyleDesignerOpening
 	case store.KindWorldDesigner:
 		return world.DesignerOpening
+	case store.KindPersonaDesigner:
+		return chars.PersonaDesignerOpening
 	}
 	return chars.DesignerOpening
 }
@@ -227,7 +235,7 @@ func TestLiveDesignersHeavy(t *testing.T) {
 			}
 			if i == len(sc.turns)-1 {
 				if strings.Contains(low, "create character") || strings.Contains(low, "create style") ||
-					strings.Contains(low, "create world") {
+					strings.Contains(low, "create world") || strings.Contains(low, "create persona") {
 					tl.button++
 				} else {
 					flags = append(flags, "NO BUTTON NAMED")
@@ -274,6 +282,24 @@ func TestLiveDesignersHeavy(t *testing.T) {
 			}
 			if strings.Contains(s.Instructions, "*") {
 				miss = append(miss, "talks about asterisks")
+			}
+			rep.printf("build problems: %v\n", miss)
+		case store.KindPersonaDesigner:
+			p, err := chars.BuildPersonaFromConversation(ctx, client, model, hist, opts)
+			if err != nil {
+				t.Errorf("%s: building the persona failed: %v", sc.name, err)
+				break
+			}
+			rep.printf("\n=== BUILT PERSONA\n%s\n%s\n", p.Name, p.Description())
+			var miss []string
+			for f, v := range map[string]string{"name": p.Name, "age": p.Age, "gender": p.Gender,
+				"race": p.Race, "appearance": p.Appearance} {
+				if strings.TrimSpace(v) == "" {
+					miss = append(miss, f)
+				}
+			}
+			if dashes(p.Description()) > 0 {
+				miss = append(miss, "dashes")
 			}
 			rep.printf("build problems: %v\n", miss)
 		case store.KindWorldDesigner:

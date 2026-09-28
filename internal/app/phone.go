@@ -55,7 +55,7 @@ func (a *App) applyConfigFromPhone(cfg store.Config) error {
 			a.chat.SetConfig(cfg)
 		}
 		if a.sidebar != nil {
-			a.sidebar.SetProfile(cfg.PersonaName, cfg.PersonaDescription)
+			a.refreshProfile()
 		}
 		return false
 	})

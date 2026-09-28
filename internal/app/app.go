@@ -129,6 +129,9 @@ func (a *App) activate() {
 	// Before anything is built or sent: every prompt is read through the
 	// prompts package, which has to know your versions first.
 	a.loadPromptOverrides()
+	// And who you are, which the persona you had before there could be
+	// several becomes the first of.
+	a.migratePersonas()
 
 	a.client = ollama.NewClient(cfg.BaseURL)
 	a.client.KeepAlive = cfg.KeepAlive
@@ -156,6 +159,7 @@ func (a *App) activate() {
 	// not waiting on a network round trip to a server that may not be running.
 	a.runDevSeed()
 	a.refreshSidebar()
+	a.refreshPersonaMenu()
 	a.showWelcome()
 	a.probeModels()
 	a.maybeCheckForUpdate()
@@ -250,7 +254,7 @@ func (a *App) onModelsChanged() {
 		a.chat.SetConfig(a.cfg)
 	}
 	if a.sidebar != nil {
-		a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.PersonaDescription)
+		a.refreshProfile()
 	}
 	a.refreshOfflineChip()
 	a.refreshWelcome()
@@ -316,7 +320,7 @@ func (a *App) refreshSidebar() {
 	if a.chat != nil {
 		a.sidebar.Select(a.chat.Chat().ID)
 	}
-	a.sidebar.SetProfile(a.cfg.PersonaName, a.cfg.PersonaDescription)
+	a.refreshProfile()
 }
 
 // Astral opens on Home, always.

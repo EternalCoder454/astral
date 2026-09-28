@@ -141,6 +141,8 @@ func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character,
 			}
 		}
 		return system(withTools(cfg, world.DesignerPrompt()))
+	case store.KindPersonaDesigner:
+		return system(withTools(cfg, chars.PersonaDesignerPrompt()))
 	case store.KindPromptOptimizer:
 		// Its subject is Astral's own prompts, every one of them in front of it
 		// or a tool call away, and it can search and keep what it learns like
@@ -289,7 +291,7 @@ func Fetcher() *websearch.Fetcher { return pageFetcher }
 func CanSearch(kind string) bool {
 	switch kind {
 	case store.KindAssistant, store.KindDesigner, store.KindStyleDesigner, store.KindWorldDesigner,
-		store.KindPromptOptimizer:
+		store.KindPromptOptimizer, store.KindPersonaDesigner:
 		return true
 	}
 	return false
