@@ -11,13 +11,19 @@ name: android
 
 on:
   push:
-    branches: [beta, release]
+    # Not the release branch, which only fast-forwards to a beta commit that
+    # was built already; see windows.yml.
+    branches: [beta]
     paths:
       - "packaging/android/**"
       - "internal/serve/web/**"
       - ".github/workflows/android.yml"
     tags: ["v*"]
   workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write

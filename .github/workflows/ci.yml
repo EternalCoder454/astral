@@ -9,7 +9,9 @@ name: ci
 
 on:
   push:
-    branches: [beta, release]
+    # The release branch only fast-forwards to beta commits, which were tested
+    # when they landed there.
+    branches: [beta]
     # No paths-ignore for documentation. WHATSNEW.md is asserted on by
     # TestShippedNotes, so skipping a run for a Markdown change skipped the one
     # file whose edits can fail the suite. The exclusion was there to dodge a

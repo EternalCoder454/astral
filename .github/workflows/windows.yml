@@ -11,12 +11,20 @@
 
 name: windows
 
+# Not on the release branch: it only ever fast-forwards to a beta commit that
+# was built already, and building it again beside the tag's build doubled the
+# Windows jobs of every release for nothing.
 on:
   push:
-    branches: [beta, release]
+    branches: [beta]
     paths-ignore: ["**.md", "screenshots/**"]
     tags: ["v*"]
   workflow_dispatch:
+
+# A newer push to the same branch makes an older build pointless.
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -31,14 +39,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # This step was most of the run, two and a half minutes of four. Most of
+      # it was upgrading every package in a fresh MSYS2 before installing
+      # anything (update), and the whole toolchain group, which brings gdb and
+      # a Python with it, where cgo needs only gcc. git went too: go build no
+      # longer asks it for the commit (-buildvcs=false below), and the version
+      # comes from version.go.
       - name: Set up MSYS2
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
-          update: true
+          update: false
           install: >-
-            git
-            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-gcc
             mingw-w64-x86_64-pkgconf
             mingw-w64-x86_64-gobject-introspection
             mingw-w64-x86_64-go
@@ -79,7 +92,7 @@ jobs:
           echo "version: $VERSION"
           echo "ASTRAL_VERSION=$VERSION" >> "$GITHUB_ENV"
           # -H windowsgui keeps a console window from opening behind the app.
-          go build -v \
+          go build -buildvcs=false \
             -ldflags "-s -w -H windowsgui -X 'astral/internal/app.version=$VERSION'" \
             -o dist/astral.exe .
 
