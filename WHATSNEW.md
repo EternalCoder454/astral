@@ -3,6 +3,10 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.23
+- Widening a narrowed window no longer opens an empty dark panel down the right side
+- A sidebar or portrait you closed stays closed when the window is narrowed and widened again
+
 ## 0.5.22
 - Narrowing the window folds the sidebar away as it should, instead of leaving a black strip down the side
 - Long directions and model names shorten to fit, and a reply's buttons wrap, so the chat fits any width
