@@ -48,12 +48,7 @@ func (a *App) buildWebSearch(f *settingsForm) *gtk.Box {
 	f.webSearch.SetActive(a.cfg.WebSearch)
 	card.Append(f.webSearch)
 
-	hint := wrappingLabel("For every conversation except a scene: General Chat, the designers and the " +
-		"Prompt Optimizer. The model decides when it needs to search, prefers primary and reputable " +
-		"sources, and may open a result to read it. What it finds worth keeping it can save to " +
-		"Knowledge. What leaves " +
-		"this machine is the words it searches for and the pages it opens: no part of your " +
-		"conversation, your characters or your worlds.")
+	hint := wrappingLabel("Used outside scenes, and only the searches themselves leave this machine.")
 	hint.AddCSSClass("settings-hint")
 	card.Append(hint)
 
@@ -64,30 +59,25 @@ func (a *App) buildWebSearch(f *settingsForm) *gtk.Box {
 	})
 	f.provider.SetSelected(uint(providerRow(a.cfg.SearchProvider)))
 	card.Append(labelledField("Search With",
-		"SearXNG is a search engine you run yourself and asks several engines at once. "+
-			"DuckDuckGo needs nothing set up.",
+		"SearXNG is one you host yourself; DuckDuckGo needs no setup.",
 		f.provider))
 
 	f.searxngURL = gtk.NewEntry()
 	f.searxngURL.SetText(a.cfg.SearXNGURL)
 	f.searxngURL.SetPlaceholderText("http://localhost:8080")
 	card.Append(labelledField("SearXNG Address",
-		"Optional. Start one with "+
-			"docker run -d -p 8080:8080 searxng/searxng, then add \"json\" to search.formats "+
-			"in its settings.yml.",
+		"Optional, and it needs \"json\" added to search.formats in settings.yml.",
 		f.searxngURL))
 
 	f.keepReading = gtk.NewCheckButton()
-	f.keepReading.SetChild(wrappingLabel("Keep the pages it reads in Knowledge, so a subject looked up once is known next time"))
+	f.keepReading.SetChild(wrappingLabel("Save the pages it reads to Knowledge"))
 	f.keepReading.SetActive(a.cfg.KeepReading)
 	card.Append(f.keepReading)
 
 	f.searchN = gtk.NewEntry()
 	f.searchN.SetText(fmt.Sprintf("%d", a.cfg.SearchResults))
 	card.Append(labelledField("Results per Search",
-		fmt.Sprintf("Higher gives the model more to read and leaves less room for the "+
-			"conversation, lower is faster and may miss the answer. Default is %d.",
-			store.DefaultSearchResults),
+		fmt.Sprintf("More to read, but less room for the chat (default %d).", store.DefaultSearchResults),
 		f.searchN))
 
 	status := wrappingLabel("")
@@ -116,8 +106,7 @@ func (a *App) buildWebSearch(f *settingsForm) *gtk.Box {
 				case err != nil:
 					status.SetText(err.Error())
 				case n == 0:
-					status.SetText("It answered, but found nothing. That usually means its " +
-						"engines are all failing; check the instance's own page.")
+					status.SetText("It answered but found nothing, so check the instance's engines.")
 				default:
 					status.SetText(fmt.Sprintf("Working: %d results came back from %s.", n, provider.Name()))
 				}
@@ -134,9 +123,7 @@ func (a *App) buildWebSearch(f *settingsForm) *gtk.Box {
 	f.embedModel.SetText(a.cfg.EmbeddingModel)
 	f.embedModel.SetPlaceholderText("Automatic")
 	card.Append(labelledField("Embedding Model for Knowledge",
-		"Lets Knowledge be searched by meaning as well as by words. Leave empty to use the first "+
-			"embedding model installed; with none, it searches by words, which works everywhere. "+
-			"A small one is enough: ollama pull embeddinggemma.",
+		"Lets Knowledge search by meaning as well as by words.",
 		f.embedModel))
 	return outer
 }

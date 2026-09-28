@@ -233,7 +233,7 @@ func (a *App) buildCenter() {
 		// anything held back needs a decision. Kept to one line.
 		switch {
 		case held > 0 && applied > 0:
-			a.toast(fmt.Sprintf("Learned %d things about this world. %d need a look.", applied+held, held))
+			a.toast(fmt.Sprintf("Learned %d things about this world, and %d need a look.", applied+held, held))
 		case held > 0:
 			a.toast(fmt.Sprintf("%d possible lore entries need a look.", held))
 		default:
@@ -435,7 +435,7 @@ func (a *App) actionRenameChat(id int64) {
 	if err != nil {
 		return
 	}
-	a.promptText("Rename chat", "Name", ch.Title, func(name string) {
+	a.promptText("Rename Chat", "Name", ch.Title, func(name string) {
 		if name == "" {
 			return
 		}

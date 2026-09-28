@@ -60,9 +60,7 @@ func (a *App) showPrompts() {
 	page.SetMarginStart(14)
 	page.SetMarginEnd(14)
 
-	about := wrappingLabel("Every prompt Astral sends a model. Open one to read it or change it by hand, " +
-		"or optimize it with the Prompt Optimizer, which can read all of them. Your version is used " +
-		"everywhere that prompt is sent, and the original can always be put back.")
+	about := wrappingLabel("Every prompt Astral sends, which you can edit or optimize.")
 	about.AddCSSClass("settings-hint")
 	page.Append(about)
 	page.Append(a.optimizeAllRow(d))
@@ -134,7 +132,7 @@ func (a *App) promptCard(p prompts.Prompt, parent *adw.Dialog) *gtk.Button {
 	if prompts.Overridden(p.ID) {
 		tag := gtk.NewLabel("Yours")
 		tag.AddCSSClass("character-card-tag")
-		tag.SetTooltipText("You have rewritten this prompt, and your version is the one sent")
+		tag.SetTooltipText("Your rewritten version is the one sent")
 		head.Append(tag)
 	}
 	col.Append(head)
@@ -193,7 +191,7 @@ func (a *App) editPrompt(id string) {
 	buttons := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	optimize := gtk.NewButtonWithLabel("Optimize…")
 	optimize.AddCSSClass("suggested-action")
-	optimize.SetTooltipText("Talk it over with the Prompt Optimizer, which can read every prompt Astral sends")
+	optimize.SetTooltipText("Talk it over with the Prompt Optimizer")
 	optimize.ConnectClicked(func() {
 		d.Close()
 		a.startPromptOptimizer(id)
@@ -213,8 +211,8 @@ func (a *App) editPrompt(id string) {
 		reset := gtk.NewButtonWithLabel("Put the Original Back")
 		reset.AddCSSClass("destructive-action")
 		reset.ConnectClicked(func() {
-			a.confirm("Put the original "+p.Name+" back?",
-				"Your version is deleted, and Astral's own is sent again from the next request.",
+			a.confirm("Put the Original "+p.Name+" Back",
+				"Your version is deleted and Astral's own is used again.",
 				"Put It Back", func() {
 					if err := a.store.DeletePromptOverride(id); err != nil {
 						a.toast("Could not put it back: " + err.Error())
@@ -247,7 +245,7 @@ func (a *App) savePrompt(id, text string) bool {
 	var err error
 	switch {
 	case text == "":
-		a.toast("An empty prompt would send the model nothing. Put the original back instead.")
+		a.toast("An empty prompt sends nothing, so put the original back instead.")
 		return false
 	case text == strings.TrimSpace(p.Default):
 		err = a.store.DeletePromptOverride(id)
@@ -290,7 +288,7 @@ func (a *App) startPromptOptimizer(id string) {
 func (a *App) savePromptFromChat() {
 	proposal, ok := latestProposal(a.chat.History())
 	if !ok {
-		a.toast("No reply has a finished prompt in it yet. Ask for a rewrite first.")
+		a.toast("No reply has a finished prompt yet, so ask for a rewrite.")
 		return
 	}
 	id := strings.TrimSpace(a.chat.Chat().Note)
@@ -320,9 +318,7 @@ func (a *App) savePromptFromChat() {
 	page.SetMarginBottom(14)
 	page.SetMarginStart(14)
 	page.SetMarginEnd(14)
-	hint := wrappingLabel("This is the prompt from the optimizer's latest reply. Change anything you " +
-		"like before saving it. Astral sends it in place of its own " + p.Name + " from the next request, " +
-		"and the original can be put back from Prompts at any time.")
+	hint := wrappingLabel("The optimizer's latest prompt, which you can edit before saving.")
 	hint.AddCSSClass("settings-hint")
 	page.Append(hint)
 	for _, problem := range promptopt.ProblemsFor(p, proposal) {

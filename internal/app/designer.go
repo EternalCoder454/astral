@@ -288,7 +288,7 @@ func (a *App) buildCharacterFromChat() {
 			// it.
 			if _, revising := a.revising(); revising {
 				a.editCharacterWith(c, func(saved chars.Character) {
-					a.toast(saved.Name + " is saved. Their scenes carry on with the new card.")
+					a.toast(saved.Name + " is saved, and their scenes carry on with the new card.")
 				})
 				return false
 			}
@@ -318,8 +318,8 @@ func (a *App) revising() (chars.Character, bool) {
 
 // confirmStartScene offers to open a scene with a freshly designed character.
 func (a *App) confirmStartScene(c chars.Character) {
-	d := adw.NewAlertDialog(c.Name+" is ready", "Start a scene with them now?")
-	d.AddResponse("later", "Not yet")
+	d := adw.NewAlertDialog(c.Name+" Is Ready", "You can start a scene with them now.")
+	d.AddResponse("later", "Not Yet")
 	d.AddResponse("play", "Start the Scene")
 	d.SetResponseAppearance("play", adw.ResponseSuggested)
 	d.SetDefaultResponse("play")
@@ -337,13 +337,13 @@ func friendlyBuildError(err error) string {
 	s := err.Error()
 	switch {
 	case contains(s, "context deadline exceeded"):
-		return "the model took too long. A smaller model will be much quicker at this."
+		return "the model took too long, and a smaller one would be quicker."
 	case contains(s, "cannot reach Ollama"):
-		return "Ollama stopped responding. Check it is still running."
+		return "Ollama stopped responding, so check it is still running."
 	case contains(s, "format"), contains(s, "schema"):
 		// Structured output needs a recent Ollama; an old one rejects the
 		// schema outright, which is worth saying rather than blaming the model.
-		return "this model or your version of Ollama doesn't support structured output. Updating Ollama usually fixes it."
+		return "this model or Ollama doesn't support structured output, so try updating Ollama."
 	default:
 		return s
 	}

@@ -194,10 +194,7 @@ func (s *Server) handlePair(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not make a token"})
 		return
 	}
-	name := strings.TrimSpace(body.Name)
-	if len(name) > 60 {
-		name = name[:60]
-	}
+	name := deviceName(body.Name)
 	if _, err := s.store.AddDevice(name, token); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -582,4 +579,22 @@ func Addresses(port int) []string {
 		}
 	}
 	return out
+}
+
+// deviceName is the name a phone paired under, kept to sixty characters. Cut
+// at a word, in characters rather than bytes: it was cut at the sixtieth byte,
+// which left "the cracked screen prote" on Settings and could split a letter
+// that takes several bytes, an emoji in a phone's name, in half.
+func deviceName(s string) string {
+	s = strings.TrimSpace(s)
+	r := []rune(s)
+	const most = 60
+	if len(r) <= most {
+		return s
+	}
+	cut := string(r[:most])
+	if i := strings.LastIndexByte(cut, ' '); i > most/2 {
+		cut = cut[:i]
+	}
+	return strings.TrimRight(cut, " ,.;:") + "…"
 }

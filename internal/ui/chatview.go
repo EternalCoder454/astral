@@ -405,7 +405,7 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 
 	c.attachBtn = gtk.NewButtonFromIconName(IconFolder)
 	c.attachBtn.AddCSSClass("composer-model")
-	c.attachBtn.SetTooltipText("Attach a file for the model to read, or a picture for it to look at")
+	c.attachBtn.SetTooltipText("Attach a file or a picture")
 	c.attachBtn.SetVisible(false)
 	c.attachBtn.ConnectClicked(func() {
 		if c.OnAttachImage != nil {
@@ -521,7 +521,7 @@ func (c *ChatView) refreshPlaceholder() {
 	case c.char.Name != "":
 		text = "Write your reply, or *describe what you do*"
 	case c.chat.Kind == store.KindDesigner:
-		text = "Describe who you want, in as much or as little detail as you like"
+		text = "Describe who you want"
 	case c.chat.Kind == store.KindStyleDesigner:
 		text = "Describe how you want the writing to read"
 	case c.chat.Kind == store.KindPromptOptimizer && strings.TrimSpace(c.chat.Note) == "":
@@ -964,7 +964,7 @@ func (c *ChatView) refreshEarlierButton() {
 		c.earlierBtn.ConnectClicked(c.loadEarlier)
 		c.column.Prepend(c.earlierBtn)
 	}
-	c.earlierBtn.SetLabel(fmt.Sprintf("Show %d earlier messages", min(len(c.older), renderWindow)))
+	c.earlierBtn.SetLabel(fmt.Sprintf("Show %d Earlier Messages", min(len(c.older), renderWindow)))
 }
 
 // loadEarlier builds the next batch of older messages above what is already
@@ -1076,7 +1076,7 @@ func (c *ChatView) refreshActions() {
 			}
 		}
 	case store.KindPromptOptimizer:
-		label, tip = "Save Prompt", "Use the prompt from the last reply in place of the one Astral sends now"
+		label, tip = "Save Prompt", "Use the last reply's prompt from now on"
 		if strings.TrimSpace(c.chat.Note) == "" {
 			label, tip = "Copy Prompt", "Copy the prompt from the last reply"
 		}
@@ -1142,7 +1142,7 @@ func (c *ChatView) directionChip() *gtk.Button {
 		btn.SetTooltipText(shown + "\n\nClick to change or clear it.")
 	} else {
 		btn.SetLabel("Set a Direction")
-		btn.SetTooltipText("Tell the scene where to go next, without saying it out loud in the story")
+		btn.SetTooltipText("Tell the scene where to go next")
 	}
 	btn.ConnectClicked(func() {
 		if c.OnEditDirection != nil {
@@ -1377,7 +1377,6 @@ func (c *ChatView) warnIfCardTooLarge(ca chars.Character) {
 	}
 	fixed := len(chars.BuildSystem(ca, c.persona()))
 	c.fail(fmt.Sprintf(
-		"%s's description is too long for the context size. It needs about %d tokens on its own, "+
-			"and the window is %d. Shorten the card, or raise the context size in Settings.",
+		"%s's card needs about %d tokens, too many for a context of %d, so shorten it or raise the context size.",
 		ca.Name, fixed/4, c.cfg.NumCtx))
 }

@@ -13,7 +13,7 @@
 <section id="pair" class="screen pair" hidden>
   <div class="pair-card">
     <h1>Astral</h1>
-    <p class="muted">On your PC, open Settings, then You, and start pairing under Phone Access. Type the code it shows.</p>
+    <p class="muted">Type the code from Phone Access in your PC's Settings.</p>
     <input id="pair-code" inputmode="latin" autocapitalize="characters" autocomplete="off"
            spellcheck="false" maxlength="8" placeholder="CODE" aria-label="Pairing code">
     <input id="pair-name" type="text" autocomplete="off" placeholder="What to call this device" aria-label="Device name">
@@ -80,6 +80,10 @@
 
     <h2 class="heading">You</h2>
     <div class="card">
+      <label class="field" id="set-persona-pick-field" hidden>
+        <span>Playing As</span>
+        <select id="set-persona-pick"></select>
+      </label>
       <label class="field">
         <span>Your Name</span>
         <input id="set-persona" type="text" autocomplete="off">
@@ -107,22 +111,22 @@
       <p id="set-update" class="muted"></p>
     </div>
     <div class="rows" style="margin-top:10px">
-      <button id="set-update-app" class="row" hidden>
+      <button id="set-update-app" class="row row-full" hidden>
         <span class="row-text">
           <span class="row-title" id="set-update-title">Check for a Newer App</span>
           <span class="row-note" id="set-update-note">Downloads it through your PC and installs it</span>
         </span>
       </button>
-      <a id="set-releases" class="row" href="https://github.com/EternalCoder454/astral/releases" target="_blank" rel="noreferrer">
+      <a id="set-releases" class="row row-full" href="https://github.com/EternalCoder454/astral/releases" target="_blank" rel="noreferrer">
         <span class="row-text">
           <span class="row-title">Releases Page</span>
           <span class="row-note">Every build, if you would rather install one yourself</span>
         </span>
       </a>
-      <button id="set-forget" class="row row-danger">
+      <button id="set-forget" class="row row-danger row-full">
         <span class="row-text">
           <span class="row-title">Unpair This Device</span>
-          <span class="row-note">Forgets the token. You will need a new code.</span>
+          <span class="row-note">You will need a new code to pair again.</span>
         </span>
       </button>
     </div>
@@ -152,6 +156,20 @@
 </nav>
 
 <div id="toast" class="toast" role="status" hidden></div>
+
+<!-- A new version of the app, offered the way the window offers a new Astral. -->
+<div id="update-sheet" class="sheet-backdrop" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="update-heading">
+    <h2 id="update-heading" class="sheet-kicker">Update Available</h2>
+    <h3 id="update-title" class="sheet-title">Astral</h3>
+    <ul id="update-notes" class="sheet-notes"></ul>
+    <p id="update-status" class="muted" role="status"></p>
+    <div class="sheet-buttons">
+      <button id="update-later" class="sheet-button">Later</button>
+      <button id="update-go" class="sheet-button primary">Update</button>
+    </div>
+  </div>
+</div>
 <script src="app.js"></script>
 </body>
 </html>

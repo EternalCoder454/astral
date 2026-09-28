@@ -141,8 +141,8 @@ func (a *App) styleRow(st chars.WritingStyle, active bool, parent *adw.Dialog) *
 		del.AddCSSClass("flat")
 		del.ConnectClicked(func() {
 			parent.Close()
-			a.confirm("Delete the "+style.Name+" style?",
-				"Scenes written in it are unaffected. If it is in use, Astral falls back to Default.",
+			a.confirm("Delete the "+style.Name+" Style",
+				"Scenes written in it are unaffected, and Default takes its place.",
 				"Delete", func() {
 					a.cfg.DeleteStyle(style.Name)
 					if err := store.SaveConfig(a.cfg); err != nil {
@@ -180,7 +180,7 @@ func (a *App) editStyle(st chars.WritingStyle, isNew bool) {
 	nameEntry := gtk.NewEntry()
 	nameEntry.SetText(st.Name)
 	nameEntry.SetPlaceholderText("Sparse and cold")
-	card.Append(labelledField("Name", "How it appears in the list. Two or three words.", nameEntry))
+	card.Append(labelledField("Name", "Two or three words, shown in the list.", nameEntry))
 
 	body := st.Instructions
 	if isNew && strings.TrimSpace(body) == "" {
@@ -191,8 +191,7 @@ func (a *App) editStyle(st chars.WritingStyle, isNew bool) {
 	}
 	frame, view := multilineField(body, 10)
 	card.Append(labelledField("Instructions",
-		"One instruction per line: length, tense, what to avoid. Use {{char}} and {{user}}, "+
-			"never a name.",
+		"One per line, using {{char}} and {{user}} rather than names.",
 		frame))
 	page.Append(outer)
 

@@ -366,3 +366,27 @@ func TestANewChatOpensWithTheGreeting(t *testing.T) {
 		t.Errorf("the chat resolves to %q, not the character it was opened with", got.Name)
 	}
 }
+
+// The phone can switch who you play as, and the name and note it then saves
+// belong to the persona it switched to.
+func TestThePhoneSwitchesPersona(t *testing.T) {
+	s, st := testServer(t)
+	tok := paired(t, s)
+	a, _ := st.SavePersona(chars.Profile{Name: "Wren", Details: "Owes the guild."})
+	b, _ := st.SavePersona(chars.Profile{Name: "Brand", Details: "Runs cargo."})
+	body := `{"active_persona":` + strconv.FormatInt(b, 10) + `,"persona":"Brand Ashcombe","persona_note":"Runs cargo past the harbourmaster."}`
+	if w := do(t, s, "POST", "/api/settings", tok, body); w.Code != http.StatusOK {
+		t.Fatalf("saving = %d: %s", w.Code, w.Body.String())
+	}
+	got, _ := st.Persona(b)
+	if got.Name != "Brand Ashcombe" || got.Details != "Runs cargo past the harbourmaster." {
+		t.Errorf("the switched-to persona is %+v", got)
+	}
+	if first, _ := st.Persona(a); first.Name != "Wren" {
+		t.Errorf("the persona switched away from was changed: %+v", first)
+	}
+	out := do(t, s, "GET", "/api/settings", tok, "").Body.String()
+	if !strings.Contains(out, `"active_persona":`+strconv.FormatInt(b, 10)) || !strings.Contains(out, `"personas":[`) {
+		t.Errorf("settings do not list the personas and who is in use:\n%s", out)
+	}
+}

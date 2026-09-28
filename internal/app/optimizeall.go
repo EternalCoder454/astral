@@ -120,8 +120,7 @@ func (a *App) optimizeAllRow(parent *adw.Dialog) *gtk.Box {
 		}
 		b := a.batch
 		if b == nil {
-			label.SetText("Have the Prompt Optimizer go through every prompt, one at a time, with the " +
-				"model you chat with. Nothing changes until you review what it wrote.")
+			label.SetText("Optimize every prompt in turn, keeping only what you approve.")
 			button.SetLabel("Optimize All")
 			button.AddCSSClass("suggested-action")
 			handler = button.ConnectClicked(func() { a.startOptimizeAll() })
@@ -135,7 +134,7 @@ func (a *App) optimizeAllRow(parent *adw.Dialog) *gtk.Box {
 			handler = button.ConnectClicked(func() { b.cancel() })
 			return
 		}
-		label.SetText(fmt.Sprintf("Optimize All went through %d prompts. Review what it wrote and keep what you like.", done))
+		label.SetText(fmt.Sprintf("Optimize All went through %d prompts, ready for review.", done))
 		button.SetLabel("Review")
 		button.AddCSSClass("suggested-action")
 		handler = button.ConnectClicked(func() {
@@ -194,10 +193,7 @@ func (a *App) showOptimizeReview() {
 	page.SetMarginBottom(14)
 	page.SetMarginStart(14)
 	page.SetMarginEnd(14)
-	intro := wrappingLabel("Written by " + b.model + ". Compare each one with the prompt as it is now, and " +
-		"tick the ones you judge better; those are used when you press Save. Astral's own prompts were " +
-		"tuned by testing, so a rewrite that reads well can still have lost something. Anything you save " +
-		"can be put back from Prompts at any time.")
+	intro := wrappingLabel("Written by " + b.model + ", and only the ones you tick are saved.")
 	intro.AddCSSClass("settings-hint")
 	page.Append(intro)
 

@@ -53,7 +53,7 @@ func (a *App) showCharacters() {
 		a.toast("Could not read your characters: " + err.Error())
 	}
 	if len(characters) == 0 {
-		empty := gtk.NewLabel("No characters yet.\n\nImport a card with the folder button, or create one with +.")
+		empty := gtk.NewLabel("No characters yet, so import a card or create one.")
 		empty.SetWrap(true)
 		empty.SetJustify(gtk.JustifyCenter)
 		empty.SetVExpand(true)
@@ -173,7 +173,7 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 	// edits the words; this argues about them, which is what you want when the
 	// problem is that the description is all adjectives.
 	revise := gtk.NewButtonFromIconName(ui.IconDesigner)
-	revise.SetTooltipText("Talk through " + c.Name + " with the designer and write them again")
+	revise.SetTooltipText("Revise " + c.Name + " with the designer")
 	revise.AddCSSClass("flat")
 	revise.ConnectClicked(func() {
 		parent.Close()
@@ -186,8 +186,8 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 	del.AddCSSClass("flat")
 	del.ConnectClicked(func() {
 		parent.Close()
-		a.confirm("Delete "+character.Name+"?",
-			"The character will be removed. Chats you have already played with them are kept.",
+		a.confirm("Delete "+character.Name,
+			"The character is removed, but their chats are kept.",
 			"Delete", func() {
 				if err := a.store.DeleteCharacter(character.ID); err != nil {
 					a.toast("Could not delete: " + err.Error())
@@ -254,14 +254,13 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	descFrame, descView := multilineField(c.Description, 3)
 	f.description = descView
 	idCard.Append(labelledField("Description",
-		"Who they are and what they want. Behaviour, not adjectives: a model can act on "+
-			"\"answers questions with questions\", not on \"complex\".",
+		"Who they are and what they want, as behaviour rather than adjectives.",
 		descFrame))
 
 	persFrame, persView := multilineField(c.Personality, 2)
 	f.personality = persView
 	idCard.Append(labelledField("Personality",
-		"A few traits, usually comma-separated, wry, guarded, quick to anger.",
+		"A few comma-separated traits, like wry, guarded, quick to anger.",
 		persFrame))
 
 	appFrame, appView := multilineField(c.Appearance, 2)
@@ -273,14 +272,13 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	speechFrame, speechView := multilineField(c.Speech, 2)
 	f.speech = speechView
 	idCard.Append(labelledField("How They Talk",
-		"Sentence length, what they contract, what they never say out loud. The single "+
-			"most useful field here.",
+		"Sentence length, habits, and what they never say out loud.",
 		speechFrame))
 
 	// Two images, because the crops want different things: the avatar is a
 	// face at 28px beside every message, the portrait is the whole figure
 	// beside the scene.
-	idCard.Append(a.imageField("Avatar", "Shown beside every message and in lists. A face works best.",
+	idCard.Append(a.imageField("Avatar", "A face, shown beside every message and in lists.",
 		c.Name+"-avatar",
 		func() string { return c.AvatarPath },
 		func(p string) { c.AvatarPath = p }))
@@ -309,16 +307,16 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 			c.WorldID = worldIDs[i]
 		}
 	})
-	hint := "The setting they live in. Its lorebook is sent when the conversation touches it, and anything learned while playing them is written there."
+	hint := "The setting they live in, whose lorebook the scene uses."
 	if len(worlds) == 0 {
-		hint = "No worlds yet. Create one under Worlds (Ctrl+W) to give this character a setting with a lorebook."
+		hint = "No worlds yet: create one under Worlds (Ctrl+W)."
 	}
 	idCard.Append(labelledField("World", hint, worldDrop))
 
 	f.tags = gtk.NewEntry()
 	f.tags.SetText(strings.Join(c.Tags, ", "))
 	f.tags.SetPlaceholderText("fantasy, detective, slow-burn")
-	idCard.Append(labelledField("Tags", "Comma-separated. Only used for finding them again.", f.tags))
+	idCard.Append(labelledField("Tags", "Comma-separated, and only used for finding them again.", f.tags))
 	page.Append(idOuter)
 
 	// The scene.
@@ -330,13 +328,13 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 	firstFrame, firstView := multilineField(c.FirstMes, 3)
 	f.firstMes = firstView
 	sceneCard.Append(labelledField("Opening Message",
-		"Their first words. The model copies its length and tone, so write it the way you want the scene to read.",
+		"Their first words, whose length and tone the model copies.",
 		firstFrame))
 
 	exFrame, exView := multilineField(c.MesExample, 3)
 	f.mesExample = exView
 	sceneCard.Append(labelledField("Example Dialogue",
-		"Optional. Put <START> between exchanges and prefix lines with {{user}}: and {{char}}:.",
+		"Optional sample lines starting {{user}}: or {{char}}:, split by <START>.",
 		exFrame))
 	page.Append(sceneOuter)
 
@@ -355,8 +353,7 @@ func (a *App) editCharacterWith(c chars.Character, onSaved func(chars.Character)
 		insCard.Append(revise)
 	}
 	insCard.Append(labelledField("Rules for This Character",
-		"Your own rules for them, one per line: \"keep replies to one paragraph\", "+
-			"\"{{char}} always lies about her past\".",
+		"Your own rules for them, one per line.",
 		insFrame))
 	page.Append(insOuter)
 
@@ -492,11 +489,11 @@ func (a *App) actionImportCharacter() {
 	dialog.SetTitle("Import a Character Card")
 
 	cards := gtk.NewFileFilter()
-	cards.SetName("Character cards")
+	cards.SetName("Character Cards")
 	cards.AddPattern("*.png")
 	cards.AddPattern("*.json")
 	all := gtk.NewFileFilter()
-	all.SetName("All files")
+	all.SetName("All Files")
 	all.AddPattern("*")
 
 	filters := gio.NewListStore(gtk.GTypeFileFilter)
@@ -537,7 +534,7 @@ func (a *App) importCard(path string) {
 	}
 	c.ID = id
 	a.refreshWelcome()
-	a.toast(fmt.Sprintf("Imported %s. Opening a scene…", c.Name))
+	a.toast(fmt.Sprintf("Imported %s, opening a scene…", c.Name))
 	a.newChat(c)
 }
 

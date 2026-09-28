@@ -109,3 +109,13 @@ func TestCodesAndTokensAreRandom(t *testing.T) {
 		tokens[tok] = true
 	}
 }
+
+func TestALongDeviceNameIsCutAtAWord(t *testing.T) {
+	got := deviceName("Zach's Pixel 9 Pro XL, the one with the cracked screen protector")
+	if got != "Zach's Pixel 9 Pro XL, the one with the cracked screen…" {
+		t.Errorf("deviceName = %q", got)
+	}
+	if got := deviceName("Pixel"); got != "Pixel" {
+		t.Errorf("a short name was changed to %q", got)
+	}
+}

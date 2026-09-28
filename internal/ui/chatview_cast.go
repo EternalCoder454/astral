@@ -315,7 +315,7 @@ func (c *ChatView) finishGroupTurn(content, thinking string, stats ollama.Stats,
 		c.live = nil
 		switch {
 		case thinking != "":
-			c.fail("The model spent its whole reply limit thinking. Turn reasoning off, or raise the reply limit, in Settings.")
+			c.fail("The model spent its whole reply limit thinking, so raise the limit or turn reasoning off in Settings.")
 		case !cancelled:
 			c.fail("The model returned an empty reply.")
 		}
@@ -393,9 +393,8 @@ func (c *ChatView) warnIfCastTooLarge() {
 	}
 	fixed := len(chars.BuildGroupSystem(c.cast, c.persona(), scene.Relations(c.store, c.cast)))
 	c.fail(fmt.Sprintf(
-		"These %d characters do not fit the context size together. Their descriptions need about "+
-			"%d tokens, and the window is %d. Use fewer of them, shorten a card, or raise the "+
-			"context size in Settings.",
+		"These %d characters need about %d tokens, too many for a context of %d, so use fewer "+
+			"or raise the context size.",
 		len(c.cast), fixed/4, c.cfg.NumCtx))
 }
 
@@ -436,8 +435,7 @@ func (c *ChatView) SetCast(cast []chars.Character) bool {
 		// Emptying a cast would leave the replies already written with nobody to
 		// attribute them to: they carry names, and the framing that explains what
 		// a name on a reply means only exists for a scene with a cast.
-		c.fail("Removing everyone would leave this scene's earlier replies with no one " +
-			"to attribute them to. Swap somebody out instead.")
+		c.fail("Swap somebody out instead, since earlier replies need someone to belong to.")
 		return false
 	}
 	if len(cast) == 0 {

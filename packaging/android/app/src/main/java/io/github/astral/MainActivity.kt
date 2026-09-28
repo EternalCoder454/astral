@@ -15,9 +15,13 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 
 /**
  * Astral on a phone.
@@ -89,7 +93,32 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        setContentView(web)
+        // In a frame rather than on its own: a WebView draws its page over
+        // its own padding, so the room for the bars is made around it.
+        val frame = FrameLayout(this).apply {
+            setBackgroundColor(Color.parseColor("#03050d"))
+            addView(web, FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ))
+        }
+        setContentView(frame)
+
+        // The page is kept clear of the status bar, the navigation bar and
+        // the keyboard by padding the view it sits in. Android 15 draws every
+        // app that targets it edge to edge, under both bars, and in that mode
+        // adjustResize no longer makes room for the keyboard: the top bar sat
+        // under the clock and the message box under the keyboard. Doing it
+        // here, on every version, means one layout rather than two.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        ViewCompat.setOnApplyWindowInsetsListener(frame) { view, insets ->
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+            )
+            val keyboard = insets.getInsets(WindowInsetsCompat.Type.ime())
+            view.setPadding(bars.left, bars.top, bars.right, maxOf(bars.bottom, keyboard.bottom))
+            WindowInsetsCompat.CONSUMED
+        }
 
         // The hardware back button walks back through the app rather than
         // closing it, which is what every other Android app does.

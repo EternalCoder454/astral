@@ -25,31 +25,41 @@ type settingsOut struct {
 	Models      []string `json:"models"`
 	Persona     string   `json:"persona"`
 	PersonaNote string   `json:"persona_note"`
-	Style       string   `json:"style"`
-	Styles      []string `json:"styles"`
-	Temperature float64  `json:"temperature"`
-	NumPredict  int      `json:"num_predict"`
-	NumCtx      int      `json:"num_ctx"`
-	Device      string   `json:"device"`
-	Version     string   `json:"version"`
-	Update      string   `json:"update"`
+	// Personas are the people you play as, and ActivePersona the one new
+	// chats are played as; the phone switches between them.
+	Personas      []personaOut `json:"personas,omitempty"`
+	ActivePersona int64        `json:"active_persona"`
+	Style         string       `json:"style"`
+	Styles        []string     `json:"styles"`
+	Temperature   float64      `json:"temperature"`
+	NumPredict    int          `json:"num_predict"`
+	NumCtx        int          `json:"num_ctx"`
+	Device        string       `json:"device"`
+	Version       string       `json:"version"`
+	Update        string       `json:"update"`
 }
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request, d store.Device) {
 	cfg := s.config()
 	out := settingsOut{
-		Model:       cfg.Model,
-		Persona:     cfg.PersonaName,
-		PersonaNote: s.personaNote(cfg),
-		Style:       cfg.Style().Name,
-		Temperature: cfg.Temperature,
-		NumPredict:  cfg.NumPredict,
-		NumCtx:      cfg.NumCtx,
-		Device:      d.Name,
-		Version:     s.version,
+		Model:         cfg.Model,
+		Persona:       cfg.PersonaName,
+		PersonaNote:   s.personaNote(cfg),
+		ActivePersona: cfg.ActivePersona,
+		Style:         cfg.Style().Name,
+		Temperature:   cfg.Temperature,
+		NumPredict:    cfg.NumPredict,
+		NumCtx:        cfg.NumCtx,
+		Device:        d.Name,
+		Version:       s.version,
 	}
 	for _, st := range cfg.Styles() {
 		out.Styles = append(out.Styles, st.Name)
+	}
+	if all, err := s.store.Personas(); err == nil {
+		for _, p := range all {
+			out.Personas = append(out.Personas, personaOut{ID: p.ID, Name: p.DisplayName(), Note: p.Details, Facts: p.Facts()})
+		}
 	}
 	// Asking the model server what it has is a network call, so a phone with
 	// no answer gets the list it can still act on: the model in use.
@@ -70,13 +80,14 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request, d store.
 // has never heard of.
 func (s *Server) handleSaveSettings(w http.ResponseWriter, r *http.Request, d store.Device) {
 	var body struct {
-		Model       *string  `json:"model"`
-		Persona     *string  `json:"persona"`
-		PersonaNote *string  `json:"persona_note"`
-		Style       *string  `json:"style"`
-		Temperature *float64 `json:"temperature"`
-		NumPredict  *int     `json:"num_predict"`
-		NumCtx      *int     `json:"num_ctx"`
+		Model         *string  `json:"model"`
+		Persona       *string  `json:"persona"`
+		PersonaNote   *string  `json:"persona_note"`
+		ActivePersona *int64   `json:"active_persona"`
+		Style         *string  `json:"style"`
+		Temperature   *float64 `json:"temperature"`
+		NumPredict    *int     `json:"num_predict"`
+		NumCtx        *int     `json:"num_ctx"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unreadable request"})
@@ -85,6 +96,14 @@ func (s *Server) handleSaveSettings(w http.ResponseWriter, r *http.Request, d st
 	cfg := s.config()
 	if body.Model != nil {
 		cfg.Model = strings.TrimSpace(*body.Model)
+	}
+	// Who is in use first, so a name and note sent with it are that
+	// persona's.
+	if body.ActivePersona != nil && *body.ActivePersona != cfg.ActivePersona {
+		if p, err := s.store.Persona(*body.ActivePersona); err == nil {
+			cfg.ActivePersona = p.ID
+			cfg.PersonaName, cfg.PersonaDescription = p.Name, p.Description()
+		}
 	}
 	if body.Persona != nil || body.PersonaNote != nil {
 		if err := s.editPersona(&cfg, body.Persona, body.PersonaNote); err != nil {
@@ -158,4 +177,12 @@ func (s *Server) editPersona(cfg *store.Config, name, note *string) error {
 	cfg.ActivePersona = id
 	cfg.PersonaName, cfg.PersonaDescription = p.Name, p.Description()
 	return nil
+}
+
+// personaOut is one of your personas as the phone lists them.
+type personaOut struct {
+	ID    int64  `json:"id"`
+	Name  string `json:"name"`
+	Note  string `json:"note"`
+	Facts string `json:"facts,omitempty"`
 }

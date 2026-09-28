@@ -152,7 +152,7 @@ func (a *App) activate() {
 	a.watchScaleChanges()
 
 	if a.dbRecovered {
-		a.toast("Your database could not be read and was replaced. The damaged copy was kept alongside it.")
+		a.toast("Your database was unreadable, so it was replaced and the damaged copy kept.")
 	}
 
 	// Everything below happens after the window is up, so the first frame is
@@ -272,16 +272,13 @@ func (a *App) refreshOfflineChip() {
 	}
 	switch {
 	case a.probeErr != nil:
-		a.offlineBtn.SetTooltipText("Ollama is not answering at " + a.cfg.BaseURL +
-			".\nStart it with `ollama serve`, then click here to check again.")
+		a.offlineBtn.SetTooltipText("Start Ollama at " + a.cfg.BaseURL + ", then click here to check again.")
 		a.offlineBtn.SetVisible(true)
 	case len(a.models) == 0:
-		a.offlineBtn.SetTooltipText("Ollama is running but has no models installed.\n" +
-			"Pull one with `ollama pull qwen3:8b`, then click here to check again.")
+		a.offlineBtn.SetTooltipText("Pull a model with `ollama pull qwen3:8b`, then click here to check again.")
 		a.offlineBtn.SetVisible(true)
 	case !ollama.HasModel(a.models, a.cfg.Model):
-		a.offlineBtn.SetTooltipText(a.cfg.Model + " is no longer installed.\n" +
-			"Choose another model in Settings, or pull it back.")
+		a.offlineBtn.SetTooltipText(a.cfg.Model + " is no longer installed, so choose another or pull it back.")
 		a.offlineBtn.SetVisible(true)
 	default:
 		a.offlineBtn.SetVisible(false)

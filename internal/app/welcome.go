@@ -124,7 +124,7 @@ func (a *App) appendWorlds() {
 	more := gtk.NewButton()
 	more.AddCSSClass("welcome-action")
 	if len(worlds) > maxShown {
-		more.SetLabel(fmt.Sprintf("All %d worlds…", len(worlds)))
+		more.SetLabel(fmt.Sprintf("All %d Worlds…", len(worlds)))
 	} else {
 		more.SetLabel("Manage Worlds")
 	}
@@ -198,7 +198,7 @@ func (a *App) appendCast() {
 		return
 	}
 
-	heading := gtk.NewLabel("Start a scene")
+	heading := gtk.NewLabel("Start a Scene")
 	heading.SetXAlign(0)
 	heading.AddCSSClass("welcome-section")
 	a.welcomeBox.Append(heading)
@@ -262,13 +262,12 @@ func (a *App) appendCast() {
 // buildEmptyCast is the first-run state: no characters yet.
 func (a *App) buildEmptyCast() *gtk.Box {
 	outer, card := groupCard("")
-	t := gtk.NewLabel("No characters yet")
+	t := gtk.NewLabel("No Characters Yet")
 	t.SetXAlign(0)
 	t.AddCSSClass("setup-title")
 	card.Append(t)
 
-	b := gtk.NewLabel("Describe who you want and the model builds them with you. " +
-		"Or import a card you already have.")
+	b := gtk.NewLabel("Describe someone and the model builds them with you.")
 	b.SetXAlign(0)
 	b.SetWrap(true)
 	b.AddCSSClass("setup-body")
@@ -356,22 +355,21 @@ func (a *App) buildSetupCard() *gtk.Box {
 	var cmd string
 	switch {
 	case a.probeErr != nil:
-		title.SetText("Ollama isn't running")
-		body.SetText(fmt.Sprintf("Astral talks to a model server on this machine. Start it, then press Retry.\n\nTried: %s", a.cfg.BaseURL))
+		title.SetText("Ollama Isn't Running")
+		body.SetText(fmt.Sprintf("Start Ollama at %s, then press Retry.", a.cfg.BaseURL))
 		cmd = "ollama serve"
 	case len(a.models) == 0:
-		title.SetText("No models installed")
-		body.SetText("Ollama is running but has nothing to run. Pull a model to get started, this one is a good balance of quality and size for roleplay.")
+		title.SetText("No Models Installed")
+		body.SetText("Pull this model to get started.")
 		cmd = "ollama pull qwen3:8b"
 	case a.cfg.Model != "" && !ollama.HasModel(a.models, a.cfg.Model):
 		// Configured, but no longer there. Naming it matters: the difference
 		// between "pull it back" and "pick another" is which one you wanted.
-		title.SetText(a.cfg.Model + " isn't installed")
-		body.SetText("Astral is set to use a model Ollama no longer has. Pull it back, or choose one of the " +
-			fmt.Sprintf("%d", len(a.models)) + " you do have.")
+		title.SetText(a.cfg.Model + " Isn't Installed")
+		body.SetText(fmt.Sprintf("Pull it back, or choose one of the %d you have.", len(a.models)))
 		cmd = "ollama pull " + a.cfg.Model
 	default:
-		title.SetText("No model selected")
+		title.SetText("No Model Selected")
 		body.SetText("Pick which of your installed models Astral should use.")
 	}
 	card.Append(title)

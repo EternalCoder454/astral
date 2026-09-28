@@ -25,12 +25,11 @@ const repoURL = projectURL + ".git"
 // startUpdate runs the update behind a dialog that reports what is happening.
 func (a *App) startUpdate() {
 	if runtime.GOOS != "linux" {
-		a.toast("Automatic updates are only set up for Linux. " +
-			"Download the latest version from " + projectURL)
+		a.toast("Automatic updates are Linux only, so download it from " + projectURL)
 		return
 	}
 	d := adw.NewAlertDialog("Updating Astral", "")
-	status := gtk.NewLabel("Fetching and building the new version.\nThis takes a minute or two.")
+	status := gtk.NewLabel("Fetching and building the new version, which takes a minute or two.")
 	status.SetXAlign(0)
 	status.SetWrap(true)
 	status.SetMaxWidthChars(notesWidthChars)

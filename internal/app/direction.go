@@ -44,7 +44,7 @@ func (a *App) editDirection() {
 	outer, card := groupCard("")
 	frame, view := multilineField(a.chat.Note(), 5)
 	card.Append(labelledField("Where This Scene Should Go Next",
-		"Sent every turn until you change it. The model steers toward it without saying it out loud.",
+		"The model quietly steers toward this until you change it.",
 		frame))
 
 	ex := gtk.NewLabel("For example:\n" + strings.Join(directionExamples, "\n"))
@@ -91,7 +91,7 @@ func (a *App) editDirection() {
 		} else {
 			// Said explicitly, because the reply already on screen was written
 			// before this existed and it would otherwise look ignored.
-			a.toast("Direction set. It applies from your next message.")
+			a.toast("Direction set, from your next message on.")
 		}
 	})
 	header.PackEnd(save)

@@ -531,8 +531,7 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	}
 
 	if c.collapsed {
-		c.fail("The model started " + c.collapseWhy + ", so this reply was stopped. " +
-			"Delete it and try again, or lower the temperature in Settings.")
+		c.fail("The model started " + c.collapseWhy + " and was stopped, so try again or lower the temperature.")
 	}
 
 	// A stopped reply keeps what had already arrived: it is usually most of a
@@ -610,7 +609,7 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 		// the token limit runs out mid-deliberation. Saying so beats leaving
 		// an empty turn on screen with no explanation.
 		if msg.Thinking != "" {
-			c.fail("The model spent its whole reply limit thinking. Turn reasoning off, or raise the reply limit, in Settings.")
+			c.fail("The model spent its whole reply limit thinking, so raise the limit or turn reasoning off in Settings.")
 		} else if !cancelled {
 			c.fail("The model returned an empty reply.")
 		}
@@ -833,11 +832,11 @@ func friendlyError(err error) string {
 	s := err.Error()
 	switch {
 	case errors.Is(err, ollama.ErrUnreachable):
-		return "Ollama isn't running. Start it with `ollama serve`, then try again."
+		return "Ollama isn't running, so start it with `ollama serve` and try again."
 	case strings.Contains(s, "not found") || strings.Contains(s, "404"):
-		return "That model isn't installed. Pull it with `ollama pull <model>` and try again."
+		return "That model isn't installed, so pull it with `ollama pull <model>`."
 	case strings.Contains(s, "memory") || strings.Contains(s, "requires more"):
-		return "The model needs more memory than is free. Try a smaller model or a lower context size."
+		return "The model needs more memory than is free, so try a smaller model or context."
 	default:
 		return s
 	}
@@ -1191,15 +1190,11 @@ func (c *ChatView) checkModelFits(model string) {
 			c.warnedSpill = true
 			if scene {
 				c.fail(fmt.Sprintf(
-					"%s only fits %.0f%% in video memory, so it is running partly on the CPU and "+
-						"is much slower than it could be. Lower the context size in Settings, "+
-						"or use a smaller model.",
+					"%s only fits %.0f%% in video memory, so lower the context size or use a smaller model.",
 					shortModel(model), 100*l.OnGPU()))
 			} else {
 				c.fail(fmt.Sprintf(
-					"%s only fits %.0f%% in video memory beside %s, so the background work is "+
-						"running partly on the CPU. Use a smaller background model, or lower "+
-						"the context size.",
+					"%s only fits %.0f%% in video memory beside %s, so use a smaller background model.",
 					shortModel(model), 100*l.OnGPU(), shortModel(c.activeModel())))
 			}
 			return false

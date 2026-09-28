@@ -72,7 +72,7 @@ func (a *App) showKnowledge() {
 	header.PackEnd(newBtn)
 
 	studyBtn := gtk.NewButtonFromIconName(ui.IconSearch)
-	studyBtn.SetTooltipText("Study a topic: search the web, read the best pages and write notes")
+	studyBtn.SetTooltipText("Study a topic on the web and write notes")
 	studyBtn.ConnectClicked(func() {
 		d.Close()
 		a.studyTopic("")
@@ -113,10 +113,7 @@ func (a *App) showKnowledge() {
 		if len(shown) == 0 {
 			var msg string
 			if query == "" {
-				msg = "Nothing here yet.\n\nWhat you add is used by every conversation that is not a " +
-					"scene whenever it touches the subject, and those conversations save what they find " +
-					"here too. Write an entry, import notes you already have, or study a topic and let " +
-					"Astral read about it for you."
+				msg = "Nothing here yet, but chats outside scenes use what you add."
 			} else {
 				msg = "Nothing matches that."
 			}
@@ -193,8 +190,8 @@ func (a *App) showKnowledge() {
 // server.
 func (a *App) describeKnowledge(l *gtk.Label) {
 	n := a.store.KnowledgeCount()
-	base := fmt.Sprintf("%d %s. ", n, plural(n, "entry", "entries"))
-	l.SetText(base + "Searched by the words in them.")
+	base := fmt.Sprintf("%d %s, ", n, plural(n, "entry", "entries"))
+	l.SetText(base + "searched by their words.")
 	client, cfg := a.client, a.cfg
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
@@ -202,10 +199,9 @@ func (a *App) describeKnowledge(l *gtk.Label) {
 		model := scene.EmbedModel(ctx, client, cfg)
 		coreglib.IdleAdd(func() bool {
 			if model != "" {
-				l.SetText(base + "Searched by the words in them and by meaning, with " + model + ".")
+				l.SetText(base + "searched by words and by meaning with " + model + ".")
 			} else {
-				l.SetText(base + "Searched by the words in them. Install an embedding model, " +
-					"such as embeddinggemma or nomic-embed-text, and it will search by meaning as well.")
+				l.SetText(base + "searched by words until you install an embedding model.")
 			}
 			return false
 		})
@@ -314,18 +310,16 @@ func (a *App) editKnowledge(e store.KnowledgeEntry) {
 	page.SetMarginEnd(14)
 	page.Append(labelledField("Title", "", title))
 	page.Append(labelledField("Text",
-		"Write it for the model as much as for yourself: specific facts, names and numbers, "+
-			"not a summary of a summary. Long entries are fine; they are read a few paragraphs "+
-			"at a time.", frame))
-	page.Append(labelledField("Tags", "Separated by commas. Optional.", tags))
-	page.Append(labelledField("Source", "Where it came from, if it came from somewhere. Optional.", source))
+		"Specific facts, names and numbers; long entries are fine.", frame))
+	page.Append(labelledField("Tags", "Optional, separated by commas.", tags))
+	page.Append(labelledField("Source", "Optional, where it came from.", source))
 
 	if e.ID != 0 {
 		del := gtk.NewButtonWithLabel("Delete Entry")
 		del.AddCSSClass("destructive-action")
 		del.SetHAlign(gtk.AlignStart)
 		del.ConnectClicked(func() {
-			a.confirm("Delete "+e.Title+"?", "It will no longer be used by any conversation.", "Delete", func() {
+			a.confirm("Delete "+e.Title, "It will no longer be used by any conversation.", "Delete", func() {
 				if err := a.store.DeleteKnowledge(e.ID); err != nil {
 					a.toast("Could not delete: " + err.Error())
 					return
@@ -405,12 +399,12 @@ func (a *App) studyTopic(initial string) {
 				topic.SetSensitive(true)
 				switch {
 				case err != nil && len(result.Pages) > 0:
-					status.SetText(fmt.Sprintf("Kept %d %s. %s", len(result.Pages),
+					status.SetText(fmt.Sprintf("Kept %d %s: %s", len(result.Pages),
 						plural(len(result.Pages), "page", "pages"), err.Error()))
 				case err != nil:
 					status.SetText(err.Error())
 				default:
-					status.SetText(fmt.Sprintf("Done. Read and kept %d %s, and wrote notes from them.",
+					status.SetText(fmt.Sprintf("Done: read %d %s and wrote notes from them.",
 						len(result.Pages), plural(len(result.Pages), "page", "pages")))
 					noteID := result.NoteID
 					open.SetVisible(true)
@@ -434,9 +428,7 @@ func (a *App) studyTopic(initial string) {
 	page.SetMarginBottom(18)
 	page.SetMarginStart(18)
 	page.SetMarginEnd(18)
-	intro := wrappingLabel("Astral searches the web for it, reads the best few pages, keeps them, " +
-		"and has the model write notes from what they say. Every conversation that is not a scene " +
-		"uses all of it from then on, without searching again.")
+	intro := wrappingLabel("Astral reads the best pages on it and writes notes to keep.")
 	intro.AddCSSClass("settings-hint")
 	page.Append(intro)
 	page.Append(labelledField("Topic", "", topic))
@@ -525,7 +517,7 @@ func (a *App) importKnowledgeFile(path string) error {
 func (a *App) saveReplyToKnowledge(text string, chatTitle string, chatID int64) {
 	title := strings.TrimSpace(chatTitle)
 	if title == "" {
-		title = "Saved from a chat"
+		title = "Saved from a Chat"
 	}
 	id, err := a.store.SaveKnowledge(store.KnowledgeEntry{
 		Title:  title,

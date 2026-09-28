@@ -63,8 +63,7 @@ func (a *App) showLorebook(w world.World) {
 	}
 
 	if len(entries) == 0 {
-		empty := gtk.NewLabel("Nothing here yet.\n\nAstral writes entries as you play, " +
-			"and sends them back whenever they come up. You can add your own with +.")
+		empty := gtk.NewLabel("Nothing here yet, but Astral writes entries as you play.")
 		empty.SetWrap(true)
 		empty.SetJustify(gtk.JustifyCenter)
 		empty.SetVExpand(true)
@@ -73,11 +72,11 @@ func (a *App) showLorebook(w world.World) {
 	}
 
 	if len(held) > 0 {
-		heading := gtk.NewLabel("Waiting for review")
+		heading := gtk.NewLabel("Waiting for Review")
 		heading.SetXAlign(0)
 		heading.AddCSSClass("settings-heading")
 		page.Append(heading)
-		hint := gtk.NewLabel("Astral was not confident about these, so they are switched off and are not being used. Turn one on to accept it.")
+		hint := gtk.NewLabel("Astral was unsure of these, so turn one on to accept it.")
 		hint.SetXAlign(0)
 		hint.SetWrap(true)
 		hint.AddCSSClass("settings-hint")
@@ -133,9 +132,7 @@ func (a *App) loreRow(e world.Entry, w world.World, parent *adw.Dialog) *gtk.Box
 		// Not "learned · 45%", which reads as a progress bar rather than as a
 		// confidence, and left people wondering what the other 55% would be.
 		tag := gtk.NewLabel(fmt.Sprintf("model · %.0f%% sure", e.Confidence*100))
-		tag.SetTooltipText(fmt.Sprintf(
-			"Astral wrote this entry from the scene rather than you, and was %.0f%% sure of it. "+
-				"Below 75%% an entry is switched off until you have looked at it.", e.Confidence*100))
+		tag.SetTooltipText(fmt.Sprintf("Astral wrote this and was %.0f%% sure of it.", e.Confidence*100))
 		tag.AddCSSClass("character-card-tag")
 		head.Append(tag)
 	}
@@ -213,8 +210,8 @@ func (a *App) loreRow(e world.Entry, w world.World, parent *adw.Dialog) *gtk.Box
 	del.AddCSSClass("flat")
 	del.ConnectClicked(func() {
 		parent.Close()
-		a.confirm("Delete “"+entry.Name+"”?",
-			"It will stop being sent to the model. If the scene establishes it again, Astral may learn it back.",
+		a.confirm("Delete “"+entry.Name+"”",
+			"It stops being sent to the model, though Astral may learn it again.",
 			"Delete", func() {
 				if err := a.store.DeleteLoreEntry(entry.ID); err != nil {
 					a.toast("Could not delete: " + err.Error())
@@ -251,19 +248,19 @@ func (a *App) editLore(e world.Entry, w world.World) {
 	nameEntry.SetText(e.Name)
 	nameEntry.SetPlaceholderText("Kestrel Bay")
 	card.Append(labelledField("Name",
-		"What this is about. Astral matches on it to update the entry later, so renaming starts a new one.",
+		"What this is about; renaming it starts a new entry.",
 		nameEntry))
 
 	keysEntry := gtk.NewEntry()
 	keysEntry.SetText(strings.Join(e.Keys, ", "))
 	keysEntry.SetPlaceholderText("Kestrel Bay, the Bay, the ferry")
 	card.Append(labelledField("Triggers",
-		"Comma separated. The entry is sent when the conversation mentions one, so keep them specific.",
+		"Specific, comma-separated words that send this entry when mentioned.",
 		keysEntry))
 
 	frame, view := multilineField(e.Content, 7)
 	card.Append(labelledField("What Is True",
-		"Plain statements of fact. Under sixty words works best.",
+		"Plain statements of fact, ideally under sixty words.",
 		frame))
 
 	constant := gtk.NewCheckButton()

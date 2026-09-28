@@ -120,6 +120,11 @@ html, body {
 
 .screen[hidden] { display: none; }
 
+/* Hidden means hidden, whatever the element's own display says. A row sets
+   display: flex, and an author's display beats the browser's rule for
+   [hidden], so the app's update row showed in a browser that cannot use it. */
+[hidden] { display: none !important; }
+
 /* Material's small top app bar: 64dp, on the surface, no rule under it. It is
    separated by being a different tone, not by a line. */
 .topbar {
@@ -228,19 +233,38 @@ html, body {
 
 .row-text { flex: 1; min-width: 0; }
 
+/* Block, whatever element they are on. The rows written into the page are
+   spans, and a span ignores overflow and ellipsis, so on Settings a long line
+   (the notes of an update, a device name) ran straight out of its row. */
 .row-title {
+	display: block;
 	font-weight: 600;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
+/* Two lines at most in a list, then an ellipsis: enough to say what a thing
+   is without one long description making its row twice the height of the
+   others. */
 .row-note {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
 	font-size: 0.82rem;
 	color: var(--muted);
 	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	overflow-wrap: anywhere;
+}
+
+/* A row whose words are the point, such as what an update brings or why it
+   failed: shown whole, wrapped, however long. */
+.row-full .row-title,
+.row-full .row-note {
+	white-space: normal;
+	-webkit-line-clamp: unset;
+	display: block;
+	overflow-wrap: anywhere;
 }
 
 .avatar {
@@ -289,9 +313,15 @@ html, body {
 }
 
 /* A character with a portrait is set behind their scene. The picture is
-   dimmed so the page stays the same shade it always is, and the bubbles let it
-   through: see-through enough to show the picture, blurred and tinted behind
-   the words so the words still read as well as on the plain page. */
+   dimmed a little and the bubbles let it through, softened behind the words
+   rather than hidden. Tuned by measurement on four photographs, bright,
+   dark and busy: the first version (bubbles at 62%, a 14px blur, the page
+   dimmed to half) read well and hid the picture almost entirely. These let
+   about twice as much of it through, and keep speech at a contrast of 4.4 or
+   better against the brightest part of the brightest photograph behind it,
+   with a shadow under the letters on top of that. Narration, which is drawn
+   faded, is faded less here, since fading it over a picture made it the part
+   hardest to read. */
 .chat.has-portrait { isolation: isolate; }
 
 .chat.has-portrait::before,
@@ -309,19 +339,22 @@ html, body {
 
 .chat.has-portrait::after {
 	background: linear-gradient(
-		color-mix(in srgb, var(--md-surface) 45%, transparent),
-		color-mix(in srgb, var(--md-surface) 62%, transparent));
+		color-mix(in srgb, var(--md-surface) 22%, transparent),
+		color-mix(in srgb, var(--md-surface) 38%, transparent));
 }
 
 .chat.has-portrait .bubble {
-	background: color-mix(in srgb, var(--md-surface-container-high) 62%, transparent);
-	-webkit-backdrop-filter: blur(14px) saturate(1.2);
-	backdrop-filter: blur(14px) saturate(1.2);
+	background: color-mix(in srgb, var(--md-surface-container-high) 58%, transparent);
+	-webkit-backdrop-filter: blur(5px) saturate(1.1);
+	backdrop-filter: blur(5px) saturate(1.1);
+	text-shadow: 0 1px 3px rgb(0 0 0 / 0.7);
 }
 
 .chat.has-portrait .from-user .bubble {
-	background: color-mix(in srgb, var(--md-primary-container) 70%, transparent);
+	background: color-mix(in srgb, var(--md-primary-container) 68%, transparent);
 }
+
+.chat.has-portrait .narration { opacity: 0.82; }
 
 .chat.has-portrait .topbar,
 .chat.has-portrait .composer {
@@ -565,7 +598,7 @@ body.in-chat .screen { inset: 0; }
 
 
 
-.muted { color: var(--muted); font-size: 0.9rem; margin: 0; }
+.muted { color: var(--muted); font-size: 0.9rem; margin: 0; overflow-wrap: anywhere; }
 .error { color: #ffb4b4; font-size: 0.88rem; min-height: 1.2em; margin: 0; }
 
 .icon {
@@ -644,6 +677,91 @@ a.row { text-decoration: none; }
 
 .toast[hidden] { display: none; }
 
+.empty-chat {
+	margin: auto;
+	color: var(--muted);
+	font-size: 0.95rem;
+	text-align: center;
+}
+
+/* A popup rising from the bottom, as Android's own sheets do, for the one
+   question worth interrupting for: a new version of the app. */
+.sheet-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 30;
+	display: flex;
+	align-items: flex-end;
+	background: rgb(0 0 0 / 0.5);
+}
+
+.sheet-backdrop[hidden] { display: none; }
+
+.sheet {
+	width: 100%;
+	max-height: 80vh;
+	overflow-y: auto;
+	padding: 22px var(--gutter) calc(18px + env(safe-area-inset-bottom));
+	border-radius: 28px 28px 0 0;
+	background: var(--md-surface-container-high);
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	animation: sheet-up 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes sheet-up {
+	from { transform: translateY(40px); opacity: 0; }
+	to { transform: none; opacity: 1; }
+}
+
+.sheet-kicker {
+	margin: 0;
+	font-size: 0.8rem;
+	font-weight: 600;
+	letter-spacing: 0.5px;
+	color: var(--md-primary);
+}
+
+.sheet-title {
+	margin: 0;
+	font-size: 1.4rem;
+	font-weight: 500;
+}
+
+.sheet-notes {
+	margin: 0;
+	padding-left: 1.2em;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	color: var(--md-on-surface-variant);
+	overflow-wrap: anywhere;
+}
+
+.sheet-buttons {
+	display: flex;
+	gap: 10px;
+	margin-top: 6px;
+}
+
+.sheet-button {
+	flex: 1;
+	min-height: 48px;
+	border: none;
+	border-radius: 999px;
+	font: inherit;
+	font-weight: 600;
+	color: var(--text);
+	background: var(--md-surface-container-highest);
+}
+
+.sheet-button.primary {
+	background: var(--md-primary);
+	color: var(--md-on-primary);
+}
+
+
 /* On a phone the greeting is what the top bar is for. The model is a detail,
    so it gives up the room rather than taking it. */
 @media (max-width: 430px) {
@@ -684,6 +802,11 @@ a.row { text-decoration: none; }
 	will-change: transform;
 	/* Opaque, so the button underneath is hidden until the row moves off it. */
 	background: var(--md-surface);
+	/* Sideways movement is the page's to handle, up and down the browser's.
+	   Left to the browser, a sideways drag was one it might yet scroll, so it
+	   took the gesture over partway through and cancelled it, and the row
+	   slid a little way and snapped back. */
+	touch-action: pan-y;
 }
 
 .swipe-front.dragging {
@@ -707,6 +830,14 @@ a.row { text-decoration: none; }
 	/* Above the row's own ripple but below the row itself, so it is only
 	   reachable once the row has moved off it. */
 	z-index: 0;
+	/* Not there at all until a swipe starts. The row covers it, but on a
+	   phone's fractional pixels the row's edge and the button's did not land
+	   on the same line, and a strip of red showed under every row. */
+	visibility: hidden;
+}
+
+.swipe.revealing .swipe-delete {
+	visibility: visible;
 }
 
 .swipe-delete:active {

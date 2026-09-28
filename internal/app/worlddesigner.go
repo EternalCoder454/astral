@@ -95,7 +95,7 @@ func (a *App) buildWorldFromChat() {
 					a.toast("Could not save the world: " + err.Error())
 					return false
 				}
-				a.toast(merged.Name + " is saved. Its lorebook is untouched.")
+				a.toast(merged.Name + " is saved, with its lorebook untouched.")
 				a.showWorld(merged)
 				return false
 			}
@@ -141,7 +141,7 @@ func (a *App) saveWorldDraft(draft world.Draft) {
 	}
 	switch kept {
 	case 0:
-		a.toast(draft.World.Name + " is saved. Its lorebook is empty, so add what should be in it.")
+		a.toast(draft.World.Name + " is saved, with an empty lorebook to fill.")
 	case 1:
 		a.toast(draft.World.Name + " is saved, with one thing in its lorebook.")
 	default:

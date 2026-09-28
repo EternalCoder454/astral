@@ -61,10 +61,7 @@ func (a *App) showAbout() {
 	about.SetApplicationName("Astral")
 	about.SetApplicationIcon(appID)
 	about.SetVersion(version)
-	about.SetComments("A world roleplay system for local language models. " +
-		"Build characters, set a scene, and play it out. Everything runs on this machine. " +
-		"The only thing that leaves it is a web search, when General Chat or a designer needs one, " +
-		"and you can turn that off in Settings.")
+	about.SetComments("A world roleplay system for local language models, run on this machine.")
 	about.SetWebsite(projectURL)
 	about.SetIssueURL(projectURL + "/issues")
 	about.SetLicenseType(gtk.LicenseMITX11)

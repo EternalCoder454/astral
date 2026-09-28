@@ -26,9 +26,7 @@ import (
 func (a *App) buildRulebook() *gtk.Box {
 	outer, card := groupCard("Rules")
 
-	hint := wrappingLabel("Every scene and every chat is played under these, on top of " +
-		"whatever a character's own card says. Write {{char}} for whoever is being played and " +
-		"{{user}} for you. Switch one off to try a scene without it.")
+	hint := wrappingLabel("Every chat follows these, with {{char}} for the character and {{user}} for you.")
 	hint.AddCSSClass("settings-hint")
 	card.Append(hint)
 
@@ -51,8 +49,7 @@ func (a *App) buildRulebook() *gtk.Box {
 		}
 		rules := a.cfg.Rules()
 		if len(rules) == 0 {
-			none := wrappingLabel("No rules yet. Anything you would otherwise retype into " +
-				"every character belongs here.")
+			none := wrappingLabel("No rules yet.")
 			none.AddCSSClass("settings-hint")
 			rows.Append(none)
 			return
@@ -74,8 +71,7 @@ func (a *App) buildRulebook() *gtk.Box {
 			return
 		}
 		if !a.cfg.AddRule(text) {
-			a.toast(fmt.Sprintf("That is the limit of %d rules. A list long enough to "+
-				"contradict itself is worse than a short one.", store.MaxRules))
+			a.toast(fmt.Sprintf("That is the limit of %d rules.", store.MaxRules))
 			return
 		}
 		entry.SetText("")

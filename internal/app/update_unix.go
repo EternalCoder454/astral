@@ -24,19 +24,17 @@ func (a *App) installUpdate(branch string, onStatus func(text string, done bool)
 				onStatus("The update did not finish:\n"+tailLines(string(out), 400), true)
 				return false
 			}
-			onStatus("Updated. Restarting Astral…", true)
+			onStatus("Updated, restarting Astral…", true)
 
 			exe, e := installedBinary()
 			if e != nil {
-				onStatus("Installed, but Astral could not restart itself: "+e.Error()+
-					"\nStart it again to finish.", true)
+				onStatus("Installed, but restart Astral yourself to finish: "+e.Error(), true)
 				return false
 			}
 			// Replace this process with the freshly installed binary. On
 			// success this never returns.
 			if e := syscall.Exec(exe, []string{exe}, os.Environ()); e != nil {
-				onStatus("Installed, but Astral could not restart itself: "+e.Error()+
-					"\nStart it again to finish.", true)
+				onStatus("Installed, but restart Astral yourself to finish: "+e.Error(), true)
 			}
 			return false
 		})

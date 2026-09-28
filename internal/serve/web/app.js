@@ -247,9 +247,12 @@ function plainLine(s) {
 		.replace(/\*([^*]+)\*/g, "<em>$1</em>");
 }
 
-// The kinds of chat that are conversations rather than scenes, named as the
-// store names them.
-const PLAIN_KINDS = new Set(["assistant", "designer", "style", "world"]);
+// A scene is the one kind of chat whose prose is roleplay; every other kind is
+// a conversation and reads as plain text. Named this way round because the
+// list of conversation kinds grows: it was a list of those, and the Persona
+// Creator and the Prompt Optimizer, added later, came out as italic
+// narration from end to end.
+const SCENE_KINDS = new Set(["roleplay", ""]);
 
 // proseFor picks how a message body is read, which depends on the kind of chat
 // and on who wrote it.
@@ -258,7 +261,7 @@ const PLAIN_KINDS = new Set(["assistant", "designer", "style", "world"]);
 // for a model that forgets its asterisks. That reasoning does not reach your
 // own messages: you put the asterisks where you meant them.
 function proseFor(role) {
-	if (PLAIN_KINDS.has(current?.kind)) return plainLine;
+	if (!SCENE_KINDS.has(current?.kind ?? "")) return plainLine;
 	return role === "user" ? ownLine : replyLine;
 }
 
@@ -314,11 +317,30 @@ async function loadSettings() {
 	$("set-temperature").value = settings.temperature ?? "";
 	$("set-persona").value = settings.persona || "";
 	$("set-persona-note").value = settings.persona_note || "";
+	// Several personas: a choice of who you play as, which fills the name
+	// and note below with that one's.
+	const pick = $("set-persona-pick");
+	const personas = settings.personas || [];
+	$("set-persona-pick-field").hidden = personas.length < 2;
+	pick.replaceChildren();
+	for (const p of personas) {
+		const opt = document.createElement("option");
+		opt.value = String(p.id);
+		opt.textContent = p.facts ? p.name + " (" + p.facts + ")" : p.name;
+		pick.append(opt);
+	}
+	pick.value = String(settings.active_persona || "");
+	pick.onchange = () => {
+		const p = personas.find((x) => String(x.id) === pick.value);
+		if (!p) return;
+		$("set-persona").value = p.name;
+		$("set-persona-note").value = p.note || "";
+	};
 	$("set-device").textContent = "Paired as " + (settings.device || "this device");
 	$("set-version").textContent = "Astral " + (settings.version || "?") + " on your PC";
 	$("set-update").textContent = inApp()
-		? "This app is version " + appVersion() + ". Your PC updates itself from Settings there."
-		: "Opened in a browser, so there is no app to update. Your PC updates itself from Settings there.";
+		? "This app is version " + appVersion() + "."
+		: "Opened in a browser, so there is nothing to update here.";
 	$("set-update-app").hidden = !inApp();
 }
 
@@ -354,6 +376,7 @@ async function checkForAppUpdate(force = false) {
 		}
 		pendingVersion = info.version;
 		setUpdateRow("Install " + info.version, (info.notes || []).slice(0, 2).join(" · "));
+		offerUpdate(info);
 	} catch (e) {
 		setUpdateRow("Could not check", e.message);
 	}
@@ -363,7 +386,32 @@ async function checkForAppUpdate(force = false) {
 function setUpdateRow(title, note) {
 	$("set-update-title").textContent = title;
 	$("set-update-note").textContent = note;
+	// The popup, while it is open, says the same thing.
+	if (!$("update-sheet").hidden) $("update-status").textContent = [title, note].filter(Boolean).join(" · ");
 }
+
+// LATER_KEY holds the version you said Later to, so the popup is not back
+// every time the app opens; the next version asks again.
+const LATER_KEY = "astral.updateLater";
+
+// offerUpdate is the popup the desktop shows when there is a new version: what
+// it brings, and one button to install it.
+function offerUpdate(info) {
+	if (!inApp() || !info?.version) return;
+	try { if (localStorage.getItem(LATER_KEY) === info.version) return; } catch (_) {}
+	$("update-title").textContent = "Astral " + info.version;
+	const notes = $("update-notes");
+	notes.replaceChildren();
+	for (const n of (info.notes || []).slice(0, 8)) {
+		const li = document.createElement("li");
+		li.textContent = n;
+		notes.append(li);
+	}
+	$("update-status").textContent = "";
+	$("update-sheet").hidden = false;
+}
+
+function closeUpdate() { $("update-sheet").hidden = true; }
 
 function startAppUpdate() {
 	if (!pendingVersion) { checkForAppUpdate(true); return; }
@@ -386,6 +434,7 @@ window.astralUpdateProgress = (pct) => {
 window.astralUpdateFailed = (msg) => {
 	setUpdateRow("The update failed", msg);
 	toast(msg);
+	window.dispatchEvent(new Event("astral-update-failed"));
 };
 
 function fillSelect(el, values, chosen, label = (v) => v) {
@@ -407,6 +456,8 @@ async function saveSettings() {
 		style: $("set-style").value,
 		persona: $("set-persona").value,
 		persona_note: $("set-persona-note").value,
+		...(!$("set-persona-pick-field").hidden && $("set-persona-pick").value
+			? { active_persona: Number($("set-persona-pick").value) } : {}),
 		// A box left empty means "leave it as it is", not zero. Sending zero
 		// for an empty temperature box set the model to its most rigid.
 		num_ctx: numberOrNull($("set-numctx").value),
@@ -416,7 +467,7 @@ async function saveSettings() {
 	try {
 		const res = await api("/api/settings", { method: "POST", body: JSON.stringify(body) });
 		settings = await res.json();
-		toast("Saved. Your PC is using these too.");
+		toast("Saved, and your PC uses these too.");
 		loadState();
 	} catch (e) {
 		toast(e.message);
@@ -608,7 +659,12 @@ function swipeable(inner, label, onDelete) {
 	let armed = false;
 
 	const setX = (x) => { front.style.transform = x ? "translateX(" + x + "px)" : ""; };
-	const close = () => { open = false; setX(0); armed = false; action.textContent = "Delete"; };
+	// The button is shown only while a swipe is uncovering it, and hidden
+	// again once the row has slid back over it; see .revealing in style.css.
+	const close = () => {
+		open = false; setX(0); armed = false; action.textContent = "Delete";
+		setTimeout(() => { if (!open && !dragging) wrap.classList.remove("revealing"); }, 220);
+	};
 
 	front.addEventListener("pointerdown", (e) => {
 		if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -631,6 +687,7 @@ function swipeable(inner, label, onDelete) {
 				front.setPointerCapture?.(e.pointerId);
 			} catch (_) {}
 			front.classList.add("dragging");
+			wrap.classList.add("revealing");
 		}
 		dx = Math.min(0, Math.max(-OPEN - 24, mx + (open ? -OPEN : 0)));
 		setX(dx);
@@ -694,10 +751,23 @@ function deletableChat(c) {
 	});
 }
 
+// ago is when something last happened, as short as a list can say it.
+function ago(unix) {
+	if (!unix) return "";
+	const s = Date.now() / 1000 - unix;
+	if (s < 60) return "Now";
+	if (s < 3600) return Math.floor(s / 60) + " min ago";
+	if (s < 86400) return Math.floor(s / 3600) + " h ago";
+	const d = new Date(unix * 1000);
+	if (s < 2 * 86400) return "Yesterday";
+	if (s < 6 * 86400) return d.toLocaleDateString(undefined, { weekday: "long" });
+	return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
 function chatRow(c) {
 	return row({
 		title: c.title || "Untitled",
-		note: [c.who, c.messages ? c.messages + " messages" : ""].filter(Boolean).join(" · "),
+		note: [c.who, c.messages ? c.messages + " messages" : "", ago(c.updated)].filter(Boolean).join(" · "),
 		initial: initialOf(c.who || c.title),
 		onClick: () => openChat(c.id),
 	});
@@ -738,6 +808,16 @@ function showChat(chat) {
 	const t = $("transcript");
 	t.replaceChildren();
 	for (const m of chat.messages || []) t.append(bubble(m.role, m.content, m.who, m.accent, m.id));
+	if (!t.children.length) {
+		// An empty chat said nothing at all, which on a phone reads as one
+		// that failed to load.
+		const hint = document.createElement("p");
+		hint.className = "empty-chat";
+		hint.textContent = chat.who && SCENE_KINDS.has(chat.kind ?? "")
+			? "Start the scene with " + chat.who + "."
+			: "Say something to begin.";
+		t.append(hint);
+	}
 	showPortrait(chat);
 	show("chat");
 	scrollDown(false);
@@ -881,7 +961,7 @@ function toggleActions(wrap) {
 			await copyText(text);
 			toast("Copied.");
 		} catch (_) {
-			toast("This browser will not let a page copy. Hold the text to select it.");
+			toast("This browser cannot copy, so hold the text to select it.");
 		}
 		row.remove();
 	});
@@ -915,6 +995,9 @@ function toggleActions(wrap) {
 
 	wrap.append(row);
 	paintIcons(row);
+	// Under the last message the row opened behind the message box, where
+	// nothing said it was there.
+	row.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
 // copyText puts text on the clipboard.
@@ -967,6 +1050,7 @@ function scrollDown(smooth = true) {
 
 async function send(text) {
 	if (!current || busyHere()) return;
+	document.querySelector("#transcript .empty-chat")?.remove();
 	const mine = bubble("user", text);
 	$("transcript").append(mine);
 	const outcome = await stream("/api/chats/" + current.id + "/send", JSON.stringify({ text }), mine);
@@ -1059,13 +1143,20 @@ async function stream(path, requestBody, mine) {
 	let finished = false;
 	let stopped = false;
 	// Plain text while it streams: half an asterisk is not markup.
+	//
+	// The last paint can still be waiting for its frame when the reply ends,
+	// and the end draws the finished reply at once. The waiting paint then
+	// ran after it and put the plain text back over the finished one, so a
+	// reply kept its raw asterisks, no italics, until the chat was opened
+	// again. final stops it.
 	let painting = false;
+	let final = false;
 	const paint = () => {
-		if (painting) return;
+		if (painting || final) return;
 		painting = true;
 		requestAnimationFrame(() => {
 			painting = false;
-			if (!here()) return;
+			if (!here() || final) return;
 			body.textContent = reply;
 			scrollDown(false);
 		});
@@ -1162,6 +1253,7 @@ async function stream(path, requestBody, mine) {
 	}
 
 	settle();
+	final = true;
 	body.classList.remove("dots");
 
 	if (outcome === "dropped") {
@@ -1216,7 +1308,7 @@ $("pair-go").addEventListener("click", async () => {
 		localStorage.setItem(TOKEN_KEY, token);
 		await start();
 	} catch (e) {
-		$("pair-error").textContent = "Could not reach your PC. Same Wi-Fi?";
+		$("pair-error").textContent = "Could not reach your PC on this Wi-Fi.";
 	}
 });
 
@@ -1260,6 +1352,18 @@ document.addEventListener("visibilitychange", () => {
 });
 
 $("set-save").addEventListener("click", saveSettings);
+$("update-go").addEventListener("click", () => {
+	try { localStorage.removeItem(LATER_KEY); } catch (_) {}
+	$("update-status").textContent = "Starting…";
+	// Once: a second press would start a second download of the same file.
+	$("update-go").disabled = true;
+	startAppUpdate();
+});
+window.addEventListener("astral-update-failed", () => { $("update-go").disabled = false; });
+$("update-later").addEventListener("click", () => {
+	try { localStorage.setItem(LATER_KEY, pendingVersion); } catch (_) {}
+	closeUpdate();
+});
 $("set-update-app").addEventListener("click", startAppUpdate);
 $("set-forget").addEventListener("click", forgetDevice);
 
@@ -1298,15 +1402,19 @@ async function start() {
 		await loadState();
 		// Astral opens on Home, here as well as on the PC.
 		show("home");
+		// A new app is offered as the window offers a new Astral: on opening,
+		// quietly, and never more than once in half an hour.
+		checkForAppUpdate().catch(() => {});
 	} catch (e) {
 		if (!token) return; // unpaired; the pairing screen is up
 		// Home, with a way to try again, rather than a blank page and a toast
 		// that goes away.
 		show("home");
 		const start_ = $("home-start");
+		toast(e.message);
 		start_.replaceChildren(row({
 			title: "Could Not Reach Your PC",
-			note: e.message + ". Tap to try again.",
+			note: "Tap to try again.",
 			primary: true,
 			onClick: start,
 		}));

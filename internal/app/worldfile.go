@@ -60,11 +60,11 @@ func (a *App) actionImportWorld() {
 	dialog.SetTitle("Import a World")
 
 	worlds := gtk.NewFileFilter()
-	worlds.SetName("Astral worlds")
+	worlds.SetName("Astral Worlds")
 	worlds.AddPattern("*.world.json")
 	worlds.AddPattern("*.json")
 	all := gtk.NewFileFilter()
-	all.SetName("All files")
+	all.SetName("All Files")
 	all.AddPattern("*")
 
 	filters := gio.NewListStore(gtk.GTypeFileFilter)

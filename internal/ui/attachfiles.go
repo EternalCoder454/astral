@@ -64,7 +64,7 @@ func (c *ChatView) attachText(file *gio.File) {
 			case c.acceptsImages() && c.OnImageBytes != nil:
 				c.OnImageBytes(data)
 			default:
-				c.fail(fmt.Sprintf("Could not attach %s: %v. Astral reads text files, such as .md, .txt and .json.", name, terr))
+				c.fail(fmt.Sprintf("Could not attach %s, since only text files can be read: %v", name, terr))
 			}
 			return false
 		})

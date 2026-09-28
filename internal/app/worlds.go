@@ -50,8 +50,7 @@ func (a *App) showWorlds() {
 		a.toast("Could not read your worlds: " + err.Error())
 	}
 	if len(worlds) == 0 {
-		empty := gtk.NewLabel("No worlds yet.\n\nA world is a setting your characters share, " +
-			"and Astral remembers what is true in it as you play.")
+		empty := gtk.NewLabel("No worlds yet, so create a setting your characters can share.")
 		empty.SetWrap(true)
 		empty.SetJustify(gtk.JustifyCenter)
 		empty.SetVExpand(true)
@@ -144,8 +143,8 @@ func (a *App) worldRow(w world.World, parent *adw.Dialog) *gtk.Box {
 	del.AddCSSClass("flat")
 	del.ConnectClicked(func() {
 		parent.Close()
-		a.confirm("Delete "+setting.Name+"?",
-			"Its lorebook goes with it. Characters who lived there are kept, and simply stop having a setting.",
+		a.confirm("Delete "+setting.Name,
+			"Its lorebook is deleted too, but its characters are kept.",
 			"Delete", func() {
 				if err := a.store.DeleteWorld(setting.ID); err != nil {
 					a.toast("Could not delete: " + err.Error())
@@ -188,7 +187,7 @@ func (a *App) editWorld(w world.World) {
 
 	rulesFrame, rulesView := multilineField(w.Rules, 5)
 	card.Append(labelledField("Rules",
-		"What is always true here. Sent every turn, so keep it short.",
+		"Always true here and sent every turn, so keep it short.",
 		rulesFrame))
 	page.Append(outer)
 
@@ -377,7 +376,7 @@ func (a *App) showWorld(w world.World) {
 		}
 	}
 
-	heading := gtk.NewLabel("Play here")
+	heading := gtk.NewLabel("Play Here")
 	heading.SetXAlign(0)
 	heading.AddCSSClass("settings-heading")
 	page.Append(heading)
@@ -395,11 +394,11 @@ func (a *App) showWorld(w world.World) {
 	enterRow.Append(enterIcon)
 	enterCol := gtk.NewBox(gtk.OrientationVertical, 1)
 	enterCol.SetHExpand(true)
-	enterTitle := gtk.NewLabel("Start a scene here")
+	enterTitle := gtk.NewLabel("Start a Scene Here")
 	enterTitle.SetXAlign(0)
 	enterTitle.AddCSSClass("launch-row-title")
 	enterCol.Append(enterTitle)
-	enterNote := gtk.NewLabel("No character needed. The model plays the place and whoever you meet.")
+	enterNote := gtk.NewLabel("The model plays the place and whoever you meet.")
 	enterNote.SetXAlign(0)
 	enterNote.SetWrap(true)
 	enterNote.AddCSSClass("launch-row-note")
@@ -464,7 +463,7 @@ func (a *App) showWorld(w world.World) {
 	// anybody whose setting is already written down somewhere.
 	fromText := gtk.NewButtonWithLabel("Read Lore from Text…")
 	fromText.SetHAlign(gtk.AlignStart)
-	fromText.SetTooltipText("Paste notes or a document, and have the model write the entries")
+	fromText.SetTooltipText("Have the model write entries from your notes")
 	fromText.ConnectClicked(func() {
 		d.Close()
 		a.showLoreFromText(w, func() { a.showWorld(w) })
@@ -546,9 +545,9 @@ func (a *App) worldCastRow(c chars.Character, w world.World, parent *adw.Dialog)
 	out.AddCSSClass("flat")
 	out.ConnectClicked(func() {
 		parent.Close()
-		a.confirm("Move "+character.Name+" out of "+w.Name+"?",
-			"They are kept, and simply stop having a setting. Their scenes will no longer draw on this world's lorebook.",
-			"Move out", func() {
+		a.confirm("Move "+character.Name+" Out of "+w.Name,
+			"Their scenes stop drawing on this world's lorebook.",
+			"Move Out", func() {
 				character.WorldID = 0
 				if _, err := a.store.SaveCharacter(character); err != nil {
 					a.toast("Could not move them out: " + err.Error())
@@ -592,7 +591,7 @@ func (a *App) lorebookRow(w world.World, parent *adw.Dialog) *gtk.Button {
 	}
 	col.Append(head)
 
-	body := gtk.NewLabel("What is true in this world. Astral writes to it as you play, and sends back whatever the scene brings up.")
+	body := gtk.NewLabel("What is true here, kept up to date as you play.")
 	body.SetXAlign(0)
 	body.SetWrap(true)
 	body.AddCSSClass("character-card-desc")
@@ -631,7 +630,7 @@ func (a *App) moveIntoWorld(w world.World, candidates []chars.Character) {
 	list.SetMarginStart(14)
 	list.SetMarginEnd(14)
 
-	hint := gtk.NewLabel("Their scenes will start drawing on this world's lorebook. Anyone already in another world moves out of it.")
+	hint := gtk.NewLabel("They leave any other world and use this one's lorebook.")
 	hint.SetXAlign(0)
 	hint.SetWrap(true)
 	hint.AddCSSClass("settings-hint")

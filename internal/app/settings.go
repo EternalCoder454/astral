@@ -134,7 +134,7 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	// models. The only thing worth saying here is what to do when it is empty.
 	hint := ""
 	if len(f.models) == 0 {
-		hint = "Nothing installed yet. Run `ollama pull qwen3:8b`, then press Check Again."
+		hint = "Run `ollama pull qwen3:8b`, then press Check Again."
 	}
 
 	// The refresh sits on the same row as the thing it refreshes. Under it, on
@@ -162,9 +162,7 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	// background model nobody chose.
 	f.housekeeping.SetSelected(uint(housekeepingRow(f.models, a.cfg.HousekeepingModel)))
 	card.Append(labelledField("Background Model",
-		"Writes the recap and the lorebook. Used only when it fits in video memory beside your main "+
-			"model; when it would not, your main model does the work instead, rather than both "+
-			"crowding the card.",
+		"Writes recaps and lore when it fits beside your main model.",
 		f.housekeeping))
 
 	// Same shape as the background model: row 0 is the automatic choice,
@@ -172,15 +170,13 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	f.vision = gtk.NewDropDownFromStrings(f.visionLabels(a))
 	f.vision.SetSelected(uint(housekeepingRow(f.models, a.cfg.VisionModel)))
 	card.Append(labelledField("Image Model",
-		"Looks at the pictures you give a design chat or a plain chat. Automatic uses the chat's own "+
-			"model when it can see, and otherwise the largest one that can and fits in video memory. "+
-			"Only one model is in memory while it looks.",
+		"Looks at the pictures you add to a chat.",
 		f.vision))
 
 	f.baseURL = gtk.NewEntry()
 	f.baseURL.SetText(a.cfg.BaseURL)
 	card.Append(labelledField("Ollama Address",
-		"Change this only if Ollama runs somewhere other than this machine's default port.",
+		"Change this only if Ollama is not on its default port.",
 		f.baseURL))
 	page.Append(outer)
 
@@ -188,27 +184,25 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	sOuter, sCard := groupCard("Sampling")
 	f.temperature = newSlider(0, 2, 0.05, a.cfg.Temperature)
 	sCard.Append(labelledField("Temperature",
-		fmt.Sprintf("Higher is more erratic, lower is more consistent. Default is %.2f.",
-			store.DefaultTemperature),
+		fmt.Sprintf("Higher is wilder, lower is steadier (default %.2f).", store.DefaultTemperature),
 		f.temperature))
 
 	f.topP = newSlider(0.1, 1, 0.01, a.cfg.TopP)
 	sCard.Append(labelledField("Top-p",
-		fmt.Sprintf("Lower cuts more of the unlikely words before choosing, so the prose stays "+
-			"nearer the obvious. Default is %.2f.", store.DefaultTopP),
+		fmt.Sprintf("Lower keeps word choices nearer the obvious (default %.2f).", store.DefaultTopP),
 		f.topP))
 
 	f.repeat = newSlider(1, 1.5, 0.01, a.cfg.RepeatPenalty)
 	sCard.Append(labelledField("Repetition Penalty",
-		fmt.Sprintf("Higher pushes harder against phrases the model has already used, at the "+
-			"cost of sounding forced. Default is %.2f.", store.DefaultRepeatPenalty),
+		fmt.Sprintf("Higher avoids repeated phrases but can sound forced (default %.2f).",
+			store.DefaultRepeatPenalty),
 		f.repeat))
 
 	f.numCtx = gtk.NewEntry()
 	f.numCtx.SetText(fmt.Sprintf("%d", a.cfg.NumCtx))
 	sCard.Append(labelledField("Context Size (tokens)",
-		fmt.Sprintf("Higher remembers more of the scene and uses more memory, lower forgets "+
-			"sooner and runs lighter. Default is %d.", store.DefaultNumCtx),
+		fmt.Sprintf("Higher remembers more of the scene but uses more memory (default %d).",
+			store.DefaultNumCtx),
 		f.numCtx))
 
 	// The reply limit was already referenced by the "the model spent its whole
@@ -218,20 +212,18 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	f.numPredict.SetText(fmt.Sprintf("%d", a.cfg.NumPredict))
 	f.numPredict.SetPlaceholderText(fmt.Sprintf("%d", chars.DefaultReplyTokens))
 	sCard.Append(labelledField("Reply Limit (tokens)",
-		fmt.Sprintf("Higher allows a longer reply, and leaves less room for the scene. "+
-			"0 for the default of %d.", chars.DefaultReplyTokens),
+		fmt.Sprintf("The longest reply allowed, or 0 for the default of %d.", chars.DefaultReplyTokens),
 		f.numPredict))
 
 	f.keepAlive = gtk.NewEntry()
 	f.keepAlive.SetText(a.cfg.KeepAlive)
 	f.keepAlive.SetPlaceholderText("Ollama's setting")
 	sCard.Append(labelledField("Keep the Model Loaded For",
-		"Leave empty to use Ollama's own setting. Longer avoids a reload after a pause, but "+
-			"holds video memory the whole time. \"30m\", \"2h\", or \"-1\" to never unload.",
+		"For example \"30m\" or \"2h\", or \"-1\" to never unload.",
 		f.keepAlive))
 
 	f.think = gtk.NewCheckButton()
-	f.think.SetChild(wrappingLabel("Let reasoning models think first (shown collapsed above each reply)"))
+	f.think.SetChild(wrappingLabel("Let reasoning models think before they reply"))
 	f.think.SetActive(a.cfg.Think)
 	sCard.Append(f.think)
 	page.Append(sOuter)
@@ -270,7 +262,7 @@ func (a *App) buildAboutPage(f *settingsForm) *gtk.Box {
 		f.channel.SetSelected(1)
 	}
 	upCard.Append(labelledField("Channel",
-		"Release is the tested one. Beta is ahead of it and may be rough.",
+		"Beta gets changes sooner but may be rough.",
 		f.channel))
 
 	check := gtk.NewButtonWithLabel("Check Now")
@@ -283,8 +275,7 @@ func (a *App) buildAboutPage(f *settingsForm) *gtk.Box {
 	page.Append(upOuter)
 
 	backOuter, backCard := groupCard("Backups")
-	backHint := wrappingLabel("A copy of your library is saved once a day, and the last seven are kept. " +
-		"To go back to one, quit Astral and copy it over astral.db in the folder above it.")
+	backHint := wrappingLabel("Daily copies of your library; to restore, quit and copy one over astral.db.")
 	backHint.AddCSSClass("settings-hint")
 	backCard.Append(backHint)
 	open := gtk.NewButtonWithLabel("Open Backups Folder")
@@ -312,7 +303,7 @@ func (a *App) buildYouPage(f *settingsForm) *gtk.Box {
 	// each with an age, a race, an appearance and the rest in fields of
 	// their own. This says who is in use and goes there.
 	outer, card := groupCard("Personas")
-	inUse := "Nobody yet. Make a persona and the characters will know who they are talking to."
+	inUse := "Nobody yet, so characters don't know who you are."
 	if p, err := a.store.Persona(a.cfg.ActivePersona); err == nil {
 		inUse = p.DisplayName()
 		if f := p.Facts(); f != "" {
@@ -322,7 +313,7 @@ func (a *App) buildYouPage(f *settingsForm) *gtk.Box {
 	who := wrappingLabel(inUse)
 	who.AddCSSClass("field-label")
 	card.Append(labelledField("In Use",
-		"New chats are played as this persona, and each chat remembers who it was started as.",
+		"New chats are played as this persona.",
 		who))
 	personas := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	manageP := gtk.NewButtonWithLabel("Manage Personas…")
@@ -350,18 +341,18 @@ func (a *App) buildYouPage(f *settingsForm) *gtk.Box {
 	page.Append(a.buildRulebook())
 
 	appOuter, appCard := groupCard("Appearance")
-	f.theme = gtk.NewDropDownFromStrings([]string{"Dark", "Light", "Follow the system"})
+	f.theme = gtk.NewDropDownFromStrings([]string{"Dark", "Light", "Follow the System"})
 	f.theme.SetSelected(uint(themeIndex(a.cfg.Theme)))
 	appCard.Append(labelledField("Theme", "", f.theme))
 
-	f.fontMode = gtk.NewDropDownFromStrings([]string{"Automatic", "Crisp (1080p screens)", "Smooth (HiDPI screens)"})
+	f.fontMode = gtk.NewDropDownFromStrings([]string{"Automatic", "Crisp (1080p Screens)", "Smooth (HiDPI Screens)"})
 	f.fontMode.SetSelected(uint(fontIndex(a.cfg.FontRendering)))
 	appCard.Append(labelledField("Text Rendering",
-		"Automatic picks per screen. Change it if text looks soft or unevenly spaced.",
+		"Change this if text looks soft or unevenly spaced.",
 		f.fontMode))
 
 	f.showStat = gtk.NewCheckButton()
-	f.showStat.SetChild(wrappingLabel("Show generation speed and token count under each reply (for measuring the model, not for reading)"))
+	f.showStat.SetChild(wrappingLabel("Show speed and token count under each reply"))
 	f.showStat.SetActive(a.cfg.ShowStats)
 	appCard.Append(f.showStat)
 
@@ -457,9 +448,9 @@ func (a *App) showModelPicker() {
 	if len(a.models) == 0 {
 		a.probeModels()
 		if a.probeErr != nil {
-			a.toast("Ollama isn't running. Start it with `ollama serve`.")
+			a.toast("Ollama isn't running: start it with `ollama serve`.")
 		} else {
-			a.toast("No models installed. Pull one with `ollama pull qwen3:8b`.")
+			a.toast("No models installed: pull one with `ollama pull qwen3:8b`.")
 		}
 		return
 	}
@@ -488,7 +479,7 @@ func (a *App) showModelPicker() {
 	}
 	d.SetExtraChild(scrolled(list))
 	d.AddResponse("cancel", "Cancel")
-	d.AddResponse("ok", "Use this model")
+	d.AddResponse("ok", "Use This Model")
 	d.SetResponseAppearance("ok", adw.ResponseSuggested)
 	d.SetDefaultResponse("ok")
 	d.SetCloseResponse("cancel")
@@ -556,7 +547,7 @@ func housekeepingRow(models []string, want string) int {
 // housekeepingLabels is the model list with a "same as the scene" row in
 // front, which is both the default and what an empty setting means.
 func (f *settingsForm) housekeepingLabels(a *App) []string {
-	out := []string{"Same as the scene's model"}
+	out := []string{"Same as the Scene's Model"}
 	for _, m := range a.models {
 		out = append(out, m.Label())
 	}

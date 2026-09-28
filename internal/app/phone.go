@@ -56,6 +56,8 @@ func (a *App) applyConfigFromPhone(cfg store.Config) error {
 		}
 		if a.sidebar != nil {
 			a.refreshProfile()
+			// The phone may have switched who you play as.
+			a.refreshPersonaMenu()
 		}
 		return false
 	})
@@ -93,8 +95,7 @@ func (a *App) phoneCards(f *settingsForm) []gtk.Widgetter {
 	f.phone.SetActive(a.cfg.PhoneAccess)
 	card.Append(f.phone)
 
-	hint := wrappingLabel("Your phone runs the screen. This machine runs the model, " +
-		"and nothing leaves it.")
+	hint := wrappingLabel("Your phone shows the chat while this machine runs the model.")
 	hint.AddCSSClass("settings-hint")
 	card.Append(hint)
 

@@ -115,7 +115,7 @@ func (c *ChatView) dropRefusal() string {
 	if c.acceptsImages() || c.acceptsFiles() {
 		return ""
 	}
-	return "Files and images go to a designer or a plain chat. A scene reads only what is said in it."
+	return "Files and images go to a designer or a plain chat, not a scene."
 }
 
 // imageRefusal is why an image in particular is not being taken.
@@ -129,9 +129,9 @@ func (c *ChatView) imageRefusal() string {
 		if c.acceptsFiles() {
 			return "This chat reads text files, not images."
 		}
-		return "Images go to a design chat or a plain chat. A scene has no way to show one."
+		return "Images go to a design chat or a plain chat, not a scene."
 	}
-	return "None of your models can see images. Pull one that can, such as gemma3 or qwen2.5vl, then choose Check Again in Settings."
+	return "None of your models can see images, so pull one such as gemma3."
 }
 
 // dropOffer is what the drop indicator offers to take.
@@ -230,7 +230,7 @@ func (c *ChatView) attachFiles(files []*gio.File) bool {
 			c.fail(why)
 		} else {
 			if len(images) > 1 {
-				c.fail(fmt.Sprintf("Attached the first of %d images. One goes with each message.", len(images)))
+				c.fail(fmt.Sprintf("Attached the first of %d images, as one goes with each message.", len(images)))
 			}
 			took = c.attachFile(images[0])
 		}

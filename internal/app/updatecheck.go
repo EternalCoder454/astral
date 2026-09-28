@@ -100,10 +100,10 @@ func (a *App) showUpdateFound(rel *update.Release) {
 	if a.win == nil {
 		return
 	}
-	d := adw.NewAlertDialog("Astral "+rel.Version+" is available", "")
+	d := adw.NewAlertDialog("Astral "+rel.Version+" Is Available", "")
 	d.SetExtraChild(updateNotes(rel))
 	d.AddResponse("later", "Later")
-	d.AddResponse("now", "Update now")
+	d.AddResponse("now", "Update Now")
 	d.SetResponseAppearance("now", adw.ResponseSuggested)
 	d.SetDefaultResponse("now")
 	d.SetCloseResponse("later")

@@ -41,7 +41,7 @@ func imageFilters() *gio.ListStore {
 	}
 	images.AddPixbufFormats()
 	all := gtk.NewFileFilter()
-	all.SetName("All files")
+	all.SetName("All Files")
 	all.AddPattern("*")
 
 	filters := gio.NewListStore(gtk.GTypeFileFilter)

@@ -129,21 +129,21 @@ func NewSidebar() *Sidebar {
 	worldsBtn := gtk.NewButton()
 	worldsBtn.AddCSSClass("sidebar-item")
 	worldsBtn.SetChild(navContent(IconWorlds, "Worlds"))
-	worldsBtn.SetTooltipText("Settings your characters live in, and what they remember (Ctrl+W)")
+	worldsBtn.SetTooltipText("Settings your characters live in (Ctrl+W)")
 	worldsBtn.ConnectClicked(func() { fire(s.OnWorlds) })
 	nav.Append(worldsBtn)
 
 	knowledgeBtn := gtk.NewButton()
 	knowledgeBtn.AddCSSClass("sidebar-item")
 	knowledgeBtn.SetChild(navContent(IconKnowledge, "Knowledge"))
-	knowledgeBtn.SetTooltipText("Notes, saved pages and studied topics that every conversation but a scene draws on")
+	knowledgeBtn.SetTooltipText("Notes and pages your chats draw on")
 	knowledgeBtn.ConnectClicked(func() { fire(s.OnKnowledge) })
 	nav.Append(knowledgeBtn)
 
 	promptsBtn := gtk.NewButton()
 	promptsBtn.AddCSSClass("sidebar-item")
 	promptsBtn.SetChild(navContent(IconDesigner, "Prompts"))
-	promptsBtn.SetTooltipText("Every prompt Astral sends, and the Prompt Optimizer that improves them")
+	promptsBtn.SetTooltipText("Read, edit and optimize every prompt Astral sends")
 	promptsBtn.ConnectClicked(func() { fire(s.OnPrompts) })
 	nav.Append(promptsBtn)
 	s.widget.Append(nav)
@@ -367,7 +367,7 @@ func (s *Sidebar) SetChats(chats []store.Chat) {
 	}
 
 	if len(chats) == 0 {
-		empty := gtk.NewLabel("No chats yet.\nStart one to see it here.")
+		empty := gtk.NewLabel("No chats yet.")
 		empty.SetXAlign(0)
 		empty.AddCSSClass("sidebar-empty")
 		empty.SetWrap(true)
@@ -716,9 +716,9 @@ func sectionFor(t time.Time) string {
 	case !t.Before(startOfToday.AddDate(0, 0, -1)):
 		return "Yesterday"
 	case !t.Before(startOfToday.AddDate(0, 0, -7)):
-		return "Previous 7 days"
+		return "Previous 7 Days"
 	case !t.Before(startOfToday.AddDate(0, 0, -30)):
-		return "Previous 30 days"
+		return "Previous 30 Days"
 	default:
 		return "Earlier"
 	}

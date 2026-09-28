@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
@@ -30,9 +31,7 @@ func (a *App) showLoreFromText(w world.World, onDone func()) {
 	page := settingsPage()
 	outer, card := groupCard("")
 
-	hint := wrappingLabel("Paste anything you have written about this world: notes, a " +
-		"wiki page, a document. The model reads it and writes one entry per subject, " +
-		"with the words a conversation would have to mention for each to be sent.")
+	hint := wrappingLabel("Paste notes about this world and the model writes an entry per subject.")
 	hint.AddCSSClass("settings-hint")
 	card.Append(hint)
 
@@ -84,14 +83,19 @@ func (a *App) showLoreFromText(w world.World, onDone func()) {
 					status.SetText(err.Error())
 					return false
 				}
-				kept, held := 0, 0
+				kept, held, failed := 0, 0, 0
 				for _, e := range entries {
 					e.WorldID = w.ID
 					if _, err := a.store.SaveLoreEntry(e); err != nil {
 						// A hand-written entry refusing an automatic update is
-						// the intended behaviour, not a failure.
-						if err != store.ErrWouldOverwriteManual {
+						// the intended behaviour, not a failure. The two were
+						// counted the wrong way round: the message about
+						// entries you wrote yourself counted real failures,
+						// and the refusals went uncounted.
+						if errors.Is(err, store.ErrWouldOverwriteManual) {
 							held++
+						} else {
+							failed++
 						}
 						continue
 					}
@@ -99,8 +103,10 @@ func (a *App) showLoreFromText(w world.World, onDone func()) {
 				}
 				d.Close()
 				switch {
+				case failed > 0:
+					a.toast(fmt.Sprintf("Added %d entries to %s, but %d could not be saved.", kept, w.Name, failed))
 				case held > 0:
-					a.toast(fmt.Sprintf("Added %d entries to %s. %d were left alone because you had written them yourself.",
+					a.toast(fmt.Sprintf("Added %d entries to %s, and left %d you wrote yourself alone.",
 						kept, w.Name, held))
 				default:
 					a.toast(fmt.Sprintf("Added %d entries to %s.", kept, w.Name))

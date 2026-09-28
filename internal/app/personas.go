@@ -170,8 +170,7 @@ func (a *App) showPersonas() {
 	page.SetMarginBottom(14)
 	page.SetMarginStart(14)
 	page.SetMarginEnd(14)
-	about := wrappingLabel("The people you play as. New chats are played as the one in use, and each " +
-		"chat remembers who it was started as; the button beside the model in a scene changes it.")
+	about := wrappingLabel("The people you play as in your chats.")
 	about.AddCSSClass("settings-hint")
 	page.Append(about)
 
@@ -301,14 +300,12 @@ func (a *App) editPersona(p chars.Profile) {
 	page.SetMarginBottom(14)
 	page.SetMarginStart(14)
 	page.SetMarginEnd(14)
-	hint := wrappingLabel("Who you are in a scene: what the characters see and know about you. " +
-		"They never speak for you, so nothing here needs a voice. Leave out anything you would rather " +
-		"not pin down.")
+	hint := wrappingLabel("What the characters see and know about you.")
 	hint.AddCSSClass("settings-hint")
 	page.Append(hint)
 
 	page.Append(labelledField("Name", "Characters call you this, and it replaces {{user}} in their cards.", name))
-	page.Append(a.imageField("Picture", "Shown beside your messages and under your name in the sidebar. A face works best.",
+	page.Append(a.imageField("Picture", "Shown beside your messages and in the sidebar.",
 		"persona",
 		func() string { return p.AvatarPath },
 		func(path string) { p.AvatarPath = path }))
@@ -337,8 +334,8 @@ func (a *App) editPersona(p chars.Profile) {
 		del := gtk.NewButtonWithLabel("Delete")
 		del.AddCSSClass("destructive-action")
 		del.ConnectClicked(func() {
-			a.confirm("Delete "+p.DisplayName()+"?",
-				"Chats played as "+p.DisplayName()+" are kept, and are played as the persona in use from then on.",
+			a.confirm("Delete "+p.DisplayName(),
+				"Chats played as "+p.DisplayName()+" are kept.",
 				"Delete", func() {
 					if err := a.store.DeletePersona(p.ID); err != nil {
 						a.toast("Could not delete: " + err.Error())
@@ -376,7 +373,7 @@ func (a *App) showPersonaPicker() {
 		return
 	}
 	if len(all) == 0 {
-		a.toast("You have no personas yet. Make one in Personas, from the menu under your name.")
+		a.toast("You have no personas yet.")
 		a.showPersonas()
 		return
 	}
@@ -384,7 +381,7 @@ func (a *App) showPersonaPicker() {
 	if current == 0 {
 		current = a.cfg.ActivePersona
 	}
-	d := adw.NewAlertDialog("Who Are You in This Chat?", "The characters see and address whoever you choose from the next turn.")
+	d := adw.NewAlertDialog("Choose Your Persona", "Characters see your choice from the next turn.")
 	list := gtk.NewBox(gtk.OrientationVertical, 4)
 	var group *gtk.CheckButton
 	picked := current

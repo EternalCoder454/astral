@@ -203,8 +203,7 @@ func (a *App) sceneRow(ch store.Chat, parent *adw.Dialog) *gtk.Button {
 func (a *App) relationsCard(c chars.Character, parent *adw.Dialog) *gtk.Box {
 	outer, card := groupCard("Relationships")
 
-	hint := wrappingLabel("One line per pair, sent only in a scene where both of them are. " +
-		"Write it about the two of them rather than from one side.")
+	hint := wrappingLabel("One line per pair, used only when both are in a scene.")
 	hint.AddCSSClass("settings-hint")
 	card.Append(hint)
 
@@ -295,7 +294,7 @@ func (a *App) relationRow(c, other chars.Character, note string) *gtk.Box {
 // pickRelation chooses somebody to record a relation with.
 func (a *App) pickRelation(c chars.Character, everyone []chars.Character, existing map[int64]string, done func()) {
 	d := adw.NewDialog()
-	d.SetTitle("Who Does " + c.Name + " Know?")
+	d.SetTitle("Add a Relationship")
 	d.SetContentWidth(460)
 
 	list := gtk.NewBox(gtk.OrientationVertical, 6)
