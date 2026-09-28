@@ -140,6 +140,8 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("POST /api/chats/{id}/regenerate", s.guard(s.handleRegenerate))
 	mux.Handle("POST /api/chats/{id}/stop", s.guard(s.handleStop))
 	mux.Handle("DELETE /api/chats/{id}/messages/{mid}", s.guard(s.handleDeleteMessage))
+	mux.Handle("POST /api/chats/{id}/messages/{mid}/version", s.guard(s.handleVersion))
+	mux.Handle("POST /api/chats/{id}/persona", s.guard(s.handleChatPersona))
 	mux.Handle("DELETE /api/chats/{id}", s.guard(s.handleDeleteChat))
 	mux.Handle("DELETE /api/characters/{id}", s.guard(s.handleDeleteCharacter))
 	mux.Handle("DELETE /api/worlds/{id}", s.guard(s.handleDeleteWorld))
@@ -292,6 +294,10 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, d store.Devi
 		// always did.
 		Who    string `json:"who,omitempty"`
 		Accent int    `json:"accent,omitempty"`
+		// Versions is how many replies were written for this turn, when more
+		// than one was, and Version which of them is showing.
+		Versions int `json:"versions,omitempty"`
+		Version  int `json:"version,omitempty"`
 	}
 	out := struct {
 		ID       int64     `json:"id"`
@@ -308,8 +314,20 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, d store.Devi
 		// sets behind the conversation; the picture itself is at
 		// /api/chats/{id}/portrait.
 		Portrait bool `json:"portrait,omitempty"`
+		// PersonaID and Persona are who you play as in this chat: its own
+		// persona, or the one in use by default.
+		PersonaID int64  `json:"persona_id,omitempty"`
+		Persona   string `json:"persona,omitempty"`
 	}{ID: ch.ID, Title: ch.Title, Who: ch.CharacterName, Accent: ch.Accent, Kind: ch.Kind,
 		Writing: s.busy.writing(id), Portrait: s.portraitOf(ch) != ""}
+	if pid := ch.PersonaID; pid != 0 || s.config().ActivePersona != 0 {
+		if pid == 0 {
+			pid = s.config().ActivePersona
+		}
+		if p, err := s.store.Persona(pid); err == nil {
+			out.PersonaID, out.Persona = p.ID, p.DisplayName()
+		}
+	}
 	cast := s.castFor(ch)
 	tint := make(map[int64]int, len(cast))
 	for _, member := range cast {
@@ -321,6 +339,9 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, d store.Devi
 		// A file sent from the PC with a message shows as its name, as it
 		// does there.
 		o := msgOut{ID: m.ID, Role: m.Role, Content: chars.HideAttachedFiles(m.Content)}
+		if len(m.Versions) > 1 {
+			o.Versions, o.Version = len(m.Versions), m.Version
+		}
 		if nameOf != nil && m.Role == ollama.RoleAssistant {
 			id := m.CharacterID
 			if id == 0 && len(cast) > 0 {
@@ -631,4 +652,72 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request, d store.De
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// handleVersion shows another of the replies written for a turn, as the
+// window's arrows under a reply do. Refused while a reply is being written
+// into the chat, since the turn may be the one being replaced.
+func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request, d store.Device) {
+	chatID, err1 := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	msgID, err2 := strconv.ParseInt(r.PathValue("mid"), 10, 64)
+	var body struct {
+		At int `json:"at"`
+	}
+	err3 := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&body)
+	if err1 != nil || err2 != nil || err3 != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unreadable request"})
+		return
+	}
+	if s.busy.writing(chatID) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "a reply is being written"})
+		return
+	}
+	msgs, err := s.store.Messages(chatID)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such chat"})
+		return
+	}
+	count := 0
+	for _, m := range msgs {
+		if m.ID == msgID {
+			count = len(m.Versions)
+		}
+	}
+	if count < 2 {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "that reply has one version"})
+		return
+	}
+	v, err := s.store.SetMessageVersion(msgID, body.At)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"content": chars.HideAttachedFiles(v.Content), "version": body.At, "versions": count})
+}
+
+// handleChatPersona sets who you play as in one chat, as the chip beside the
+// window's model button does.
+func (s *Server) handleChatPersona(w http.ResponseWriter, r *http.Request, d store.Device) {
+	chatID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var body struct {
+		PersonaID int64 `json:"persona_id"`
+	}
+	if err != nil || json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&body) != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unreadable request"})
+		return
+	}
+	p, err := s.store.Persona(body.PersonaID)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such persona"})
+		return
+	}
+	if _, err := s.store.Chat(chatID); err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such chat"})
+		return
+	}
+	if err := s.store.SetChatPersona(chatID, p.ID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"persona_id": p.ID, "persona": p.DisplayName()})
 }

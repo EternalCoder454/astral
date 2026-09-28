@@ -86,6 +86,11 @@ They open the character's section of the prompt, one labelled line each, the
 Character Designer fills them in when it builds a card, and a revision keeps
 them. Cards exported from Astral carry them in the card's Astral extension.
 
+**Group scenes.** Each turn, the characters you speak to by name answer, or
+when you name nobody, whoever has been quiet longest, with room for one other to
+react; the rest are there and silent. Told only that not everyone speaks, a
+model gave every character a line in most replies.
+
 **Personas.** The people you play as, as many as you like, from the menu under
 your name. Each has a name, an age, a gender, a race, an appearance, a
 personality, a background and anything else in a field of its own, which is how
@@ -225,7 +230,9 @@ its screen or drops off the Wi-Fi mid-reply does not lose it: the PC finishes
 and stores it, and the phone picks it up when you come back. Send turns into
 Stop while a reply is written, and Back closes a chat rather than the app. A
 character with a portrait is shown behind their scene, with the messages
-tinted over it so they still read.
+tinted over it so they still read. A reply written again keeps the old one, with
+arrows under it to go between them, and a scene's top bar says who you are in it
+and switches persona for that chat.
 
 Any phone browser works. The
 [Android app](https://github.com/EternalCoder454/astral/releases) is the same
@@ -517,8 +524,9 @@ button, so a long scene opens as quickly as a short one.
 The database is the data. It holds your transcripts, and nothing can rebuild it
 from elsewhere. If it is ever found damaged it is moved aside rather than
 deleted, and Astral says so. A copy of it is also made once a day and the last
-seven are kept, so a scene deleted by mistake can be had back: quit Astral and
-copy one of them over `astral.db`. **Settings, About** opens the folder.
+seven are kept, so a scene deleted by mistake can be had back: Settings, Restore
+a Backup, choose the day. Astral closes to put it back, keeps the library it
+replaces beside it with the time in its name, and says so when it next opens.
 
 Your library stays on this machine. Everything to do with a model goes to Ollama
 at `localhost:11434`, and Astral reaches anywhere else in three cases only:

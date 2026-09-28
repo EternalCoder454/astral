@@ -867,7 +867,7 @@ function showChat(chat) {
 	// the scene and on a phone is the wait between tapping it and reading.
 	const msgs = chat.messages || [];
 	const from = Math.max(0, msgs.length - SHOWN_AT_ONCE);
-	for (const m of msgs.slice(from)) t.append(bubble(m.role, m.content, m.who, m.accent, m.id));
+	for (const m of msgs.slice(from)) t.append(bubble(m.role, m.content, m.who, m.accent, m.id, m.versions, m.version));
 	if (from > 0) t.prepend(earlierButton(msgs, from));
 	if (!t.children.length) {
 		// An empty chat said nothing at all, which on a phone reads as one
@@ -880,6 +880,7 @@ function showChat(chat) {
 		t.append(hint);
 	}
 	showPortrait(chat);
+	showChatPersona(chat);
 	show("chat");
 	scrollDown(false);
 	setComposerBusy(streamingIn.has(chat.id));
@@ -902,12 +903,56 @@ function earlierButton(msgs, end) {
 		const kept = t.scrollHeight - t.scrollTop;
 		const batch = document.createDocumentFragment();
 		if (from > 0) batch.append(earlierButton(msgs, from));
-		for (const m of msgs.slice(from, end)) batch.append(bubble(m.role, m.content, m.who, m.accent, m.id));
+		for (const m of msgs.slice(from, end)) batch.append(bubble(m.role, m.content, m.who, m.accent, m.id, m.versions, m.version));
 		b.replaceWith(batch);
 		t.scrollTop = t.scrollHeight - kept;
 	});
 	return b;
 }
+
+// showChatPersona puts who you are in this chat in the top bar, in a scene,
+// when there is more than one of you to choose from.
+function showChatPersona(chat) {
+	const chip = $("chat-persona");
+	chip.hidden = true;
+	if (!SCENE_KINDS.has(chat.kind ?? "")) return;
+	api("/api/settings").then((r) => r.json()).then((s) => {
+		if (current?.id !== chat.id || (s.personas || []).length < 2) return;
+		chip.textContent = "as " + (chat.persona || "You");
+		chip.hidden = false;
+		chip.onclick = () => pickChatPersona(chat, s.personas);
+	}).catch(() => {});
+}
+
+// pickChatPersona lists your personas to play this chat as.
+function pickChatPersona(chat, personas) {
+	const list = $("persona-list");
+	list.replaceChildren();
+	for (const p of personas) {
+		list.append(row({
+			title: p.name + (p.id === chat.persona_id ? "  ✓" : ""),
+			note: p.facts || "",
+			initial: initialOf(p.name),
+			onClick: async () => {
+				try {
+					const res = await api("/api/chats/" + chat.id + "/persona", {
+						method: "POST", body: JSON.stringify({ persona_id: p.id }),
+					});
+					const out = await res.json();
+					chat.persona_id = out.persona_id;
+					chat.persona = out.persona;
+					$("chat-persona").textContent = "as " + out.persona;
+					toast("You are " + out.persona + " in this chat from the next turn.");
+				} catch (e) {
+					toast(e.message);
+				}
+				$("persona-sheet").hidden = true;
+			},
+		}));
+	}
+	$("persona-sheet").hidden = false;
+}
+$("persona-cancel").addEventListener("click", () => { $("persona-sheet").hidden = true; });
 
 // portraits holds each chat's portrait as a local URL once fetched. The
 // picture needs the pairing token to fetch, which a CSS url() cannot send, so
@@ -995,7 +1040,7 @@ async function waitForReply(chatId) {
 // bubble is one turn. speaker names it when a scene has several characters in
 // it, so a group reads as people talking rather than as one long reply; without
 // one it falls back to the scene's single character, as it always did.
-function bubble(role, content, speaker, accent, id) {
+function bubble(role, content, speaker, accent, id, versions, version) {
 	const wrap = document.createElement("div");
 	wrap.className = "msg" + (role === "user" ? " from-user" : "");
 	if (id) wrap.dataset.id = id;
@@ -1025,7 +1070,51 @@ function bubble(role, content, speaker, accent, id) {
 		toggleActions(wrap);
 	});
 	wrap.append(b);
+	if (versions > 1) addPager(wrap, versions, version || 0);
 	return wrap;
+}
+
+// addPager puts the arrows under a reply that was written more than once,
+// to go between the versions as the window's arrows do.
+function addPager(wrap, versions, version) {
+	wrap.querySelector(".pager")?.remove();
+	const pager = document.createElement("div");
+	pager.className = "pager";
+	const prev = document.createElement("button");
+	prev.textContent = "‹";
+	prev.setAttribute("aria-label", "Previous version");
+	const label = document.createElement("span");
+	const next = document.createElement("button");
+	next.textContent = "›";
+	next.setAttribute("aria-label", "Next version");
+	let at = version;
+	const show = () => {
+		label.textContent = (at + 1) + " / " + versions;
+		prev.disabled = at === 0;
+		next.disabled = at === versions - 1;
+	};
+	const go = async (to) => {
+		if (busyHere() || to < 0 || to >= versions) return;
+		try {
+			const res = await api("/api/chats/" + current.id + "/messages/" + wrap.dataset.id + "/version", {
+				method: "POST", body: JSON.stringify({ at: to }),
+			});
+			const v = await res.json();
+			if (!res.ok) throw new Error(v.error || "That version could not be shown.");
+			at = v.version;
+			wrap.querySelector(".bubble").innerHTML = render(v.content, "assistant");
+			const m = (current.messages || []).find((x) => String(x.id) === wrap.dataset.id);
+			if (m) { m.content = v.content; m.version = at; }
+			show();
+		} catch (e) {
+			toast(e.message);
+		}
+	};
+	prev.addEventListener("click", (e) => { e.stopPropagation(); go(at - 1); });
+	next.addEventListener("click", (e) => { e.stopPropagation(); go(at + 1); });
+	pager.append(prev, label, next);
+	show();
+	wrap.append(pager);
 }
 
 // toggleActions shows or hides the action row under one turn, and closes any
@@ -1236,6 +1325,7 @@ async function stream(path, requestBody, mine) {
 
 	let reply = "";
 	let beats = null;
+	let versionsNow = 0, versionNow = 0;
 	let finished = false;
 	let stopped = false;
 	// Plain text while it streams: half an asterisk is not markup.
@@ -1324,6 +1414,8 @@ async function stream(path, requestBody, mine) {
 					// The stored id, so this turn can be copied, deleted or
 					// written again without reopening the scene first.
 					if (payload.id) live.dataset.id = payload.id;
+					versionsNow = payload.versions || 0;
+					versionNow = payload.version || 0;
 					if (payload.title && here()) $("chat-title").textContent = payload.title;
 				} else if (event === "searching") {
 					// A search takes seconds with nothing arriving, so the row
@@ -1388,6 +1480,7 @@ async function stream(path, requestBody, mine) {
 			}
 		} else {
 			body.innerHTML = render(reply, "assistant");
+			if (versionsNow > 1) addPager(live, versionsNow, versionNow);
 		}
 		scrollDown();
 	}

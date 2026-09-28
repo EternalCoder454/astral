@@ -202,6 +202,24 @@ func (a *App) runDevView() {
 		case "load":
 			n, _ := strconv.Atoi(arg)
 			a.devLoad(n)
+		case "restoretest":
+			// A backup from yesterday, a chat made after it, then the restore
+			// and close that Settings offers.
+			chats, _ := a.store.Chats()
+			log.Printf("astral: restore: %d chats before the backup", len(chats))
+			path, err := a.store.BackupDaily(store.BackupDir(), time.Now().AddDate(0, 0, -1))
+			if err != nil || path == "" {
+				log.Printf("astral: restore: no backup made: %v", err)
+				return false
+			}
+			a.store.NewChat(0, "Made after the backup", a.cfg.Model, store.KindAssistant)
+			chats, _ = a.store.Chats()
+			log.Printf("astral: restore: %d chats after adding one; restoring and closing", len(chats))
+			a.pendingRestore = path
+			a.adw.Quit()
+		case "chatcount":
+			chats, _ := a.store.Chats()
+			log.Printf("astral: restore: %d chats on reopening", len(chats))
 		case "open":
 			// Opening a long chat and nothing else, to time its first frame.
 			n, _ := strconv.Atoi(arg)

@@ -220,7 +220,18 @@ func GroupAnchor(cast []Character, sc Scene, userName string) string {
 	b.WriteString("WHO SPEAKS. Start every beat with the speaker's name and a colon, like \"")
 	b.WriteString(names[0])
 	b.WriteString(": \". ")
-	if sc.RollCall {
+	if len(sc.Speakers) > 0 {
+		// Named, because told in general terms a model gave everyone a line
+		// anyway; see ChooseSpeakers.
+		b.WriteString("THIS TURN: ")
+		b.WriteString(strings.Join(sc.Speakers, " and "))
+		if len(sc.Speakers) == 1 {
+			b.WriteString(" answers")
+		} else {
+			b.WriteString(" answer")
+		}
+		b.WriteString(". One other may react in a word or a gesture if something would truly make them, and everyone else is present but silent: no line and no action from them this turn. ")
+	} else if sc.RollCall {
 		// Only when it is already happening. Said every turn it is noise, and
 		// a model told not to do a thing it was not doing sometimes starts.
 		b.WriteString("Your recent replies have given every character exactly one line each, which reads as a list rather than a scene. Correct that now: choose the ")
@@ -416,4 +427,75 @@ func RollCall(replies []string, names []string) bool {
 		checked++
 	}
 	return checked == 2
+}
+
+// ChooseSpeakers decides who answers the user's turn in a group scene.
+//
+// Told in general terms that not everyone speaks, a model gave every
+// character a line anyway: measured on SOMPOA, in 14 to 16 replies of 24,
+// whether or not the closing block said "one or two of them". Named
+// speakers are an instruction it can follow, so they are chosen here: the
+// characters the user's message speaks to by name, at most two, or when it
+// names nobody, the one who has gone longest without speaking, so a quiet
+// character is drawn in rather than left out for good. Two characters are left
+// alone: both talking every turn is a conversation, not a roll call.
+//
+// replies are the recent assistant turns, oldest first, with their labels.
+func ChooseSpeakers(names []string, lastUser string, replies []string) []string {
+	if len(names) < 3 {
+		return nil
+	}
+	said := strings.ToLower(lastUser)
+	var addressed []string
+	for _, n := range names {
+		first := strings.ToLower(strings.Fields(n)[0])
+		if containsWord(said, first) {
+			addressed = append(addressed, n)
+		}
+	}
+	if len(addressed) > 0 {
+		if len(addressed) > 2 {
+			addressed = addressed[:2]
+		}
+		return addressed
+	}
+	last := make(map[string]int, len(names))
+	for _, n := range names {
+		last[n] = -1
+	}
+	for i, r := range replies {
+		for _, b := range SplitBeats(r, names) {
+			if b.Name != "" {
+				last[b.Name] = i
+			}
+		}
+	}
+	quietest := names[0]
+	for _, n := range names[1:] {
+		if last[n] < last[quietest] {
+			quietest = n
+		}
+	}
+	return []string{quietest}
+}
+
+// containsWord reports whether s has w as a whole word.
+func containsWord(s, w string) bool {
+	for i := 0; ; {
+		j := strings.Index(s[i:], w)
+		if j < 0 {
+			return false
+		}
+		start, end := i+j, i+j+len(w)
+		before := start == 0 || !isWordByte(s[start-1])
+		after := end == len(s) || !isWordByte(s[end])
+		if before && after {
+			return true
+		}
+		i = start + 1
+	}
+}
+
+func isWordByte(b byte) bool {
+	return b >= 'a' && b <= 'z' || b >= '0' && b <= '9' || b >= 0x80
 }

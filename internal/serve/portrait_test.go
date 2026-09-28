@@ -91,3 +91,41 @@ func TestAvatarAndSearchForThePhone(t *testing.T) {
 		t.Errorf("search did not find the chat by what was said in it:\n%s", found)
 	}
 }
+
+// A turn written more than once can be flipped between from the phone, and a
+// chat can be played as another persona.
+func TestPhoneVersionsAndChatPersona(t *testing.T) {
+	s, st := testServer(t)
+	tok := paired(t, s)
+	ch, _ := st.NewChat(0, "Two tries", "m", store.KindRoleplay)
+	mid, _ := st.AddMessage(store.Message{ChatID: ch.ID, Role: "assistant", Content: "second",
+		Versions: []store.Version{{Content: "first"}, {Content: "second"}}, Version: 1})
+	body := do(t, s, "GET", "/api/chats/"+strconv.FormatInt(ch.ID, 10), tok, "").Body.String()
+	if !strings.Contains(body, `"versions":2`) || !strings.Contains(body, `"version":1`) {
+		t.Errorf("the chat does not say the turn has two versions:\n%s", body)
+	}
+	path := "/api/chats/" + strconv.FormatInt(ch.ID, 10) + "/messages/" + strconv.FormatInt(mid, 10) + "/version"
+	w := do(t, s, "POST", path, tok, `{"at":0}`)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"content":"first"`) {
+		t.Errorf("flipping to the first version = %d %s", w.Code, w.Body.String())
+	}
+	msgs, _ := st.Messages(ch.ID)
+	if msgs[0].Content != "first" {
+		t.Errorf("the stored turn is %q after flipping", msgs[0].Content)
+	}
+
+	a, _ := st.SavePersona(chars.Profile{Name: "Wren"})
+	b, _ := st.SavePersona(chars.Profile{Name: "Brand"})
+	_ = a
+	w = do(t, s, "POST", "/api/chats/"+strconv.FormatInt(ch.ID, 10)+"/persona", tok, `{"persona_id":`+strconv.FormatInt(b, 10)+`}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("choosing a persona = %d %s", w.Code, w.Body.String())
+	}
+	got, _ := st.Chat(ch.ID)
+	if got.PersonaID != b {
+		t.Errorf("the chat is played as %d, want %d", got.PersonaID, b)
+	}
+	if body := do(t, s, "GET", "/api/chats/"+strconv.FormatInt(ch.ID, 10), tok, "").Body.String(); !strings.Contains(body, `"persona":"Brand"`) {
+		t.Errorf("the chat does not say who you are in it:\n%s", body)
+	}
+}

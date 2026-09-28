@@ -413,7 +413,8 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat,
 			return
 		}
 		saved = true
-		send("done", map[string]any{"id": msgID, "content": content, "title": ch.Title, "stopped": stopped()})
+		send("done", map[string]any{"id": msgID, "content": content, "title": ch.Title, "stopped": stopped(),
+			"versions": len(m.Versions), "version": m.Version})
 	}
 
 	// The housekeeping the window does in the background. Without it a scene

@@ -275,17 +275,21 @@ func (a *App) buildAboutPage(f *settingsForm) *gtk.Box {
 	page.Append(upOuter)
 
 	backOuter, backCard := groupCard("Backups")
-	backHint := wrappingLabel("Daily copies of your library; to restore, quit and copy one over astral.db.")
+	backHint := wrappingLabel("A copy of your library is kept for each of the last seven days.")
 	backHint.AddCSSClass("settings-hint")
 	backCard.Append(backHint)
+	backButtons := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	restore := gtk.NewButtonWithLabel("Restore a Backup…")
+	restore.ConnectClicked(a.showRestoreBackup)
+	backButtons.Append(restore)
 	open := gtk.NewButtonWithLabel("Open Backups Folder")
-	open.SetHAlign(gtk.AlignStart)
 	open.ConnectClicked(func() {
 		dir := store.BackupDir()
 		_ = os.MkdirAll(dir, 0o755)
 		gtk.NewFileLauncher(gio.NewFileForPath(dir)).Launch(context.Background(), &a.win.Window, nil)
 	})
-	backCard.Append(open)
+	backButtons.Append(open)
+	backCard.Append(backButtons)
 	page.Append(backOuter)
 	return page
 }

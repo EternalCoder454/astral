@@ -168,6 +168,14 @@ html, body {
 	text-overflow: ellipsis;
 }
 
+.chip-button {
+	flex: 0 0 auto;
+	background: none;
+	font: inherit;
+	font-size: 0.75rem;
+	min-height: 32px;
+}
+
 .scroll {
 	flex: 1;
 	overflow-y: auto;
@@ -703,6 +711,30 @@ a.row { text-decoration: none; }
 }
 
 .empty-list { text-align: center; margin-top: 24px; }
+
+/* Between the versions of a reply that was written more than once. */
+.pager {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin: 4px 0 0 4px;
+	color: var(--muted);
+	font-size: 0.8rem;
+	font-feature-settings: "tnum" 1;
+}
+
+.pager button {
+	min-width: 40px;
+	min-height: 36px;
+	border: none;
+	border-radius: 999px;
+	background: none;
+	color: var(--text);
+	font: inherit;
+	font-size: 1.2rem;
+}
+
+.pager button:disabled { opacity: 0.3; }
 
 .earlier {
 	align-self: center;

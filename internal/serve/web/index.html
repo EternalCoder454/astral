@@ -139,6 +139,7 @@
   <header class="topbar">
     <button id="chat-back" class="icon" aria-label="Back"><i class="tab-icon" data-icon="back"></i></button>
     <h1 id="chat-title">Chat</h1>
+    <button id="chat-persona" class="chip chip-button" hidden aria-label="Who you are in this chat"></button>
   </header>
   <div id="transcript" class="transcript"></div>
   <form id="composer" class="composer">
@@ -157,6 +158,17 @@
 </nav>
 
 <div id="toast" class="toast" role="status" hidden></div>
+
+<!-- Who you are in the open chat. -->
+<div id="persona-sheet" class="sheet-backdrop" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="persona-heading">
+    <h2 id="persona-heading" class="sheet-kicker">Playing As</h2>
+    <div id="persona-list" class="rows"></div>
+    <div class="sheet-buttons">
+      <button id="persona-cancel" class="sheet-button">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <!-- A new version of the app, offered the way the window offers a new Astral. -->
 <div id="update-sheet" class="sheet-backdrop" hidden>

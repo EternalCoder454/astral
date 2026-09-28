@@ -81,6 +81,10 @@ type App struct {
 	// deleting is chats taken off the list whose toast still offers to put
 	// them back; see deletechats.go.
 	deleting map[int64]bool
+
+	// pendingRestore is a backup to put back once the library is closed, on
+	// the way out; see restore.go.
+	pendingRestore string
 }
 
 // New constructs the application without starting the main loop.
@@ -151,6 +155,7 @@ func (a *App) activate() {
 	a.applyFontRendering() // again, now that the window's own display is known
 	a.watchScaleChanges()
 
+	a.announceRestore()
 	if a.dbRecovered {
 		a.toast("Your database was unreadable, so it was replaced and the damaged copy kept.")
 	}
@@ -207,6 +212,7 @@ func (a *App) shutdown() {
 			log.Printf("astral: close database: %v", err)
 		}
 	}
+	a.finishRestore()
 }
 
 // rememberLayout stores the window geometry so the next launch opens the way

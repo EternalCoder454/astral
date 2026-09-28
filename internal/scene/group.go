@@ -59,6 +59,7 @@ func BuildFor(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Cha
 		// from 0.87 to 0.78 and from 0.93 to 0.68.
 		Overused: chars.Overused(hist),
 		RollCall: chars.RollCall(assistantTurns(hist), chars.CastNames(cast)),
+		Speakers: chars.ChooseSpeakers(chars.CastNames(cast), lastUserTurn(hist), assistantTurns(hist)),
 	}
 	sc.Lore = GroupLore(st, cast, hist, sc.Budget.Lore)
 	byID := make(map[int64]string, len(cast))
@@ -191,4 +192,14 @@ func assistantTurns(hist []ollama.Message) []string {
 		out = out[len(out)-4:]
 	}
 	return out
+}
+
+// lastUserTurn is the user's newest message, which a group turn answers.
+func lastUserTurn(hist []ollama.Message) string {
+	for i := len(hist) - 1; i >= 0; i-- {
+		if hist[i].Role == ollama.RoleUser {
+			return hist[i].Content
+		}
+	}
+	return ""
 }

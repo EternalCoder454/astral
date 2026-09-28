@@ -87,3 +87,83 @@ func pruneBackups(dir string, keep int) {
 		names = names[1:]
 	}
 }
+
+// Backup is one of the daily copies.
+type Backup struct {
+	Path string
+	Day  time.Time
+	Size int64
+}
+
+// Backups lists the daily copies in dir, newest first.
+func Backups(dir string) []Backup {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	var out []Backup
+	for _, e := range entries {
+		if e.IsDir() || !backupName.MatchString(e.Name()) {
+			continue
+		}
+		day, err := time.ParseInLocation("2006-01-02", e.Name()[len("astral-"):len("astral-")+10], time.Local)
+		if err != nil {
+			continue
+		}
+		var size int64
+		if info, err := e.Info(); err == nil {
+			size = info.Size()
+		}
+		out = append(out, Backup{Path: filepath.Join(dir, e.Name()), Day: day, Size: size})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Day.After(out[j].Day) })
+	return out
+}
+
+// RestoreBackup puts a daily copy back as the library at dbPath. It must run
+// with the library closed. The library being replaced is not deleted: it is
+// moved aside with the time in its name, next to where it was, so a restore
+// chosen by mistake can itself be undone. The copy is checked before anything
+// is moved, so a damaged one leaves the library as it was.
+func RestoreBackup(dbPath, backupPath string, now time.Time) (keptAs string, err error) {
+	check, err := sql.Open("sqlite", dsnFor(backupPath)+"&mode=ro")
+	if err != nil {
+		return "", err
+	}
+	var verdict string
+	err = check.QueryRow(`PRAGMA quick_check`).Scan(&verdict)
+	check.Close()
+	if err != nil {
+		return "", fmt.Errorf("the backup could not be read: %w", err)
+	}
+	if verdict != "ok" {
+		return "", fmt.Errorf("the backup is damaged: %s", verdict)
+	}
+	data, err := os.ReadFile(backupPath)
+	if err != nil {
+		return "", err
+	}
+	keptAs = dbPath + ".before-restore-" + now.Format("2006-01-02-150405")
+	if _, err := os.Stat(dbPath); err == nil {
+		if err := os.Rename(dbPath, keptAs); err != nil {
+			return "", err
+		}
+		// The write-ahead log and its index belong to the library just moved
+		// aside, and left in place they would be read into the restored one.
+		for _, suffix := range []string{"-wal", "-shm"} {
+			if _, err := os.Stat(dbPath + suffix); err == nil {
+				_ = os.Rename(dbPath+suffix, keptAs+suffix)
+			}
+		}
+	} else {
+		keptAs = ""
+	}
+	tmp := dbPath + ".restoring"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return keptAs, err
+	}
+	if err := os.Rename(tmp, dbPath); err != nil {
+		return keptAs, err
+	}
+	return keptAs, nil
+}

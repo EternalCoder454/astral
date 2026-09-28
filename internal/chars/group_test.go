@@ -255,3 +255,23 @@ func TestCompactPromptIsUnchangedForOneCharacter(t *testing.T) {
 		t.Errorf("a two-hander's reply lost its name in the record:\n%s", got)
 	}
 }
+
+func TestChooseSpeakers(t *testing.T) {
+	names := []string{"Suvi", "Ottavio Bruni", "Maren"}
+	if got := ChooseSpeakers(names, `"Suvi, can you get through the vault door or not?"`, nil); len(got) != 1 || got[0] != "Suvi" {
+		t.Errorf("speaking to Suvi chose %v", got)
+	}
+	if got := ChooseSpeakers(names, `"Ottavio, you're sweating."`, nil); len(got) != 1 || got[0] != "Ottavio Bruni" {
+		t.Errorf("speaking to Ottavio chose %v", got)
+	}
+	replies := []string{"Suvi: \"Yes.\"\n\nOttavio Bruni: \"No.\"", "Suvi: \"Again.\""}
+	if got := ChooseSpeakers(names, "*I wait.*", replies); len(got) != 1 || got[0] != "Maren" {
+		t.Errorf("with nobody named, chose %v, want the one who has not spoken", got)
+	}
+	if got := ChooseSpeakers(names[:2], "Suvi?", nil); got != nil {
+		t.Errorf("two characters were given speakers: %v", got)
+	}
+	if got := ChooseSpeakers(names, "Suvival is key.", replies); len(got) != 1 || got[0] != "Maren" {
+		t.Errorf("a word that starts with a name counted as the name: %v", got)
+	}
+}

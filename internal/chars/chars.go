@@ -490,6 +490,10 @@ type Scene struct {
 	// cast degenerates into. The anchor argues against it only when it is
 	// happening.
 	RollCall bool
+	// Speakers are who answers this turn in a group scene, chosen by
+	// ChooseSpeakers: whoever the user spoke to, or else whoever has been
+	// quiet longest. Empty for two characters, who can both talk every turn.
+	Speakers []string
 	// Memory is moments from earlier in the scene that the conversation has
 	// just touched, recalled from the part of the transcript the model can no
 	// longer see, rendered by the caller. Empty in a scene that has not grown
