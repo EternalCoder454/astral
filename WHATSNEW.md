@@ -3,6 +3,16 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.0
+- Knowledge: notes, saved pages and studied topics that General Chat and the designers draw on
+- Web search is on, reads whole pages, and works without SearXNG by using DuckDuckGo
+- Long scenes recall the details their recap dropped, and stop repeating the same phrases
+- Characters talk to you as you, and swearing stays varied instead of turning into insults
+- Adwaita Sans throughout, softer bubbles, tidier character cards, and a phone that matches
+- Select and copy any part of a reply, and paste or drop an image into a design chat
+- On your phone: copy, delete or write a reply again, and italics that stay right
+- One model in video memory at a time, so Astral cannot freeze the desktop by stacking them
+
 ## 0.4.9
 - A quoted word inside *narration* no longer breaks the italics around it
 - Your own **bold** shows as bold on your phone

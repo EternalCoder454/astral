@@ -472,19 +472,23 @@ Environment variables for development:
 
 Views available to `ASTRAL_DEV_VIEW`: `welcome`, `newchat`, `designer`,
 `styledesigner`, `assistant`, `characters`, `styles`, `settings`, `shortcuts`,
-`about`, `model`, `rowmenu`, `demo`, `icons`, `measure`, `load=N`, and
-`image=PATH`.
+`about`, `model`, `rowmenu`, `demo`, `drop`, `knowledge`, `study`, `icons`,
+`measure`, `load=N`, and `image=PATH`.
 
 Any of these also makes the process non unique, so it will not hand off to a
 copy you already have open. Point `XDG_DATA_HOME` at a temporary directory to
 run against a throwaway database.
 
-`go test ./...` includes several tests that talk to a real model. They skip
-themselves when no Ollama server is reachable. `ASTRAL_TEST_MODEL` chooses which
-model they use.
+`go test -short ./...` never talks to a model. Without `-short`, the live tests
+run too, and they are strict about it, because on Linux with an AMD card a model
+that does not fit in video memory freezes the desktop: they never choose a model
+themselves (`ASTRAL_TEST_MODEL` has to name one), refuse anything over 8 GB
+unless `ASTRAL_TEST_ALLOW_LARGE` is set, and refuse anything that would not fit
+beside what is already loaded. See `internal/livetest`.
 
 Icons are Material Symbols, shared with two sibling projects so the three look
-alike. Sources live in `assets/icons-src/`, and `scripts/import-icons.sh`
+alike, apart from the Knowledge book, which is drawn for Astral in the same
+coordinate system. Sources live in `assets/icons-src/`, and `scripts/import-icons.sh`
 produces the files the binary embeds. See `NOTICE` for licensing.
 
 ## Licence
