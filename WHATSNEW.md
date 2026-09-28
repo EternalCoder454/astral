@@ -3,6 +3,15 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.21
+- Suggest Replies offers three things you could say next, in your own voice, to send or change
+- Scene Memory has Where and When, a line sent every turn that the model can suggest from the scene
+- Scene Memory shows how full the model's memory is, and what with
+- Hide a message from the model and keep it in the chat, for an aside or a turn that went wrong
+- Star your favorite characters to list them first, on the desktop and the phone
+- Import a character from a Chub page, or a link to any card's .png or .json
+- A reply's rarer actions, Branch, Hide and Save to Knowledge, sit under More on the desktop
+
 ## 0.5.20
 - Phone: Read Aloud in a reply's More, in your phone's own voice, once the app has updated
 - Phone: Settings can read every reply as it arrives, and read only what the characters say aloud
