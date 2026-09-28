@@ -50,6 +50,58 @@ func imageFilters() *gio.ListStore {
 	return filters
 }
 
+// textSuffixes are the text files the attach button offers. Anything else can
+// still be chosen under All Files, and is read as text if it is text.
+var textSuffixes = []string{
+	"md", "markdown", "txt", "text", "json", "yaml", "yml", "toml", "csv", "tsv",
+	"xml", "html", "htm", "org", "rst", "adoc", "tex", "log", "ini", "conf", "srt", "vtt",
+}
+
+// pickAttachment opens a file chooser for the attach button: text files for
+// the model to read, and pictures when the chat's model can see.
+func (a *App) pickAttachment() {
+	text := gtk.NewFileFilter()
+	text.SetName("Text Files")
+	text.AddMIMEType("text/*")
+	for _, ext := range textSuffixes {
+		text.AddSuffix(ext)
+	}
+	filters := gio.NewListStore(gtk.GTypeFileFilter)
+	if a.chat.CanAttachImages() {
+		both := gtk.NewFileFilter()
+		both.SetName("Text Files and Images")
+		both.AddMIMEType("text/*")
+		for _, ext := range textSuffixes {
+			both.AddSuffix(ext)
+		}
+		for _, ext := range ui.ImageSuffixes() {
+			both.AddSuffix(ext)
+		}
+		both.AddPixbufFormats()
+		filters.Append(both.Object)
+	}
+	filters.Append(text.Object)
+	if a.chat.CanAttachImages() {
+		images := imageFilters()
+		filters.Append(images.Item(0))
+	}
+	all := gtk.NewFileFilter()
+	all.SetName("All Files")
+	all.AddPattern("*")
+	filters.Append(all.Object)
+
+	dialog := gtk.NewFileDialog()
+	dialog.SetTitle("Attach a File")
+	dialog.SetFilters(filters)
+	dialog.Open(context.Background(), &a.win.Window, func(res gio.AsyncResulter) {
+		file, err := dialog.OpenFinish(res)
+		if err != nil || file == nil {
+			return // cancelled
+		}
+		a.chat.AttachPicked(file)
+	})
+}
+
 // pickImage opens a file chooser, copies the chosen image into Astral's own
 // data directory, and hands back the new path.
 //

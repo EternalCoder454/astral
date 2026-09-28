@@ -10,6 +10,7 @@ import (
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
@@ -205,6 +206,19 @@ func (a *App) runDevView() {
 		case "sidebar":
 			n, _ := strconv.Atoi(arg)
 			a.devSidebar(n)
+		case "attachfile":
+			// A designer with a text file queued, as a drop or the attach
+			// button leaves it.
+			a.newDesignerChat()
+			for _, p := range strings.Split(arg, ",") {
+				a.chat.AttachPicked(gio.NewFileForPath(p))
+			}
+			if os.Getenv("ASTRAL_DEV_SEND") != "" {
+				coreglib.TimeoutAdd(1500, func() bool {
+					a.chat.DevSend(os.Getenv("ASTRAL_DEV_SEND"))
+					return false
+				})
+			}
 		case "toggle":
 			n, _ := strconv.Atoi(arg)
 			a.devToggle(n)

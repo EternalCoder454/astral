@@ -131,7 +131,11 @@ type ChatView struct {
 	dropHint     *gtk.Label
 	root         *gtk.Overlay
 	attachChip   *gtk.Box
-	attachName   *gtk.Label
+	// files is text files waiting to go with the next message, and
+	// fileChips shows them; see attachfiles.go.
+	files      []attachedText
+	fileChips  *gtk.Box
+	attachName *gtk.Label
 	// lastImage is the most recent image sent in this chat, offered as the
 	// character's portrait when the card is built.
 	lastImage string
@@ -336,6 +340,11 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 	c.attachChip.Append(drop)
 	wrap.Append(c.attachChip)
 
+	c.fileChips = gtk.NewBox(gtk.OrientationHorizontal, 6)
+	c.fileChips.SetHAlign(gtk.AlignCenter)
+	c.fileChips.SetVisible(false)
+	wrap.Append(c.fileChips)
+
 	c.actionBar = gtk.NewBox(gtk.OrientationHorizontal, 6)
 	c.actionBar.AddCSSClass("chat-actions")
 	c.actionBar.SetHAlign(gtk.AlignCenter)
@@ -380,7 +389,7 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 
 	c.attachBtn = gtk.NewButtonFromIconName(IconFolder)
 	c.attachBtn.AddCSSClass("composer-model")
-	c.attachBtn.SetTooltipText("Attach a reference image for the model to look at")
+	c.attachBtn.SetTooltipText("Attach a file for the model to read, or a picture for it to look at")
 	c.attachBtn.SetVisible(false)
 	c.attachBtn.ConnectClicked(func() {
 		if c.OnAttachImage != nil {
@@ -1233,12 +1242,19 @@ func (c *ChatView) LastImage() string { return c.lastImage }
 func (c *ChatView) SetCanAttachImages(can bool) {
 	c.canAttach = can
 	if c.attachBtn != nil {
-		c.attachBtn.SetVisible(can)
+		c.attachBtn.SetVisible(can || c.acceptsFiles())
 	}
 	if !can {
 		c.AttachImage("")
 	}
+	if !c.acceptsFiles() {
+		c.clearFiles()
+	}
 }
+
+// CanAttachImages reports whether a picture would be taken, for the app's
+// file chooser.
+func (c *ChatView) CanAttachImages() bool { return c.canAttach }
 
 // loadLore reads the character's world and its lorebook.
 func (c *ChatView) loadLore(ca chars.Character) {

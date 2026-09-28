@@ -312,7 +312,9 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, d store.Devi
 	}
 	nameOf := castNames(cast)
 	for _, m := range msgs {
-		o := msgOut{ID: m.ID, Role: m.Role, Content: m.Content}
+		// A file sent from the PC with a message shows as its name, as it
+		// does there.
+		o := msgOut{ID: m.ID, Role: m.Role, Content: chars.HideAttachedFiles(m.Content)}
 		if nameOf != nil && m.Role == ollama.RoleAssistant {
 			id := m.CharacterID
 			if id == 0 && len(cast) > 0 {

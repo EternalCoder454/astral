@@ -9,6 +9,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 
+	"astral/internal/chars"
 	"astral/internal/ollama"
 	"astral/internal/store"
 )
@@ -540,7 +541,9 @@ func (m *MessageRow) Render() {
 		m.body.SetText("")
 		return
 	}
-	m.body.SetMarkup(Markup(m.raw, m.mode))
+	// A file sent with a message is folded to its name on screen; the model
+	// still reads all of it, from the message as stored.
+	m.body.SetMarkup(Markup(chars.HideAttachedFiles(m.raw), m.mode))
 }
 
 // SetMarkdown sets the body and renders it in one step.

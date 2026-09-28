@@ -91,7 +91,7 @@ func (c *ChatView) showDrop(on bool, why string) {
 		// The title says what will happen, so it cannot keep offering to take
 		// an image while the line under it explains that nothing will be taken.
 		if why == "" {
-			c.dropTitle.SetText("Drop an Image Here")
+			c.dropTitle.SetText(c.dropOffer())
 		} else {
 			c.dropTitle.SetText("Not Here")
 		}
@@ -106,21 +106,44 @@ func (c *ChatView) showDrop(on bool, why string) {
 // is the same question the attach button answers by being visible or not.
 func (c *ChatView) acceptsImages() bool { return c.canAttach }
 
-// dropRefusal is why an image is not being taken, phrased for the person
-// holding one over the window. Empty when it would be accepted.
+// dropRefusal is why nothing dropped here would be taken, phrased for the
+// person holding it over the window. Empty when something would be.
 //
 // Worth saying rather than silently refusing: "nothing happened when I dropped
 // it" is indistinguishable from a bug.
 func (c *ChatView) dropRefusal() string {
+	if c.acceptsImages() || c.acceptsFiles() {
+		return ""
+	}
+	return "Files and images go to a designer or a plain chat. A scene reads only what is said in it."
+}
+
+// imageRefusal is why an image in particular is not being taken.
+func (c *ChatView) imageRefusal() string {
 	if c.acceptsImages() {
 		return ""
 	}
 	switch c.Chat().Kind {
 	case store.KindDesigner, store.KindAssistant:
 	default:
+		if c.acceptsFiles() {
+			return "This chat reads text files, not images."
+		}
 		return "Images go to a design chat or a plain chat. A scene has no way to show one."
 	}
 	return "None of your models can see images. Pull one that can, such as gemma3 or qwen2.5vl, then choose Check Again in Settings."
+}
+
+// dropOffer is what the drop indicator offers to take.
+func (c *ChatView) dropOffer() string {
+	switch {
+	case c.acceptsImages() && c.acceptsFiles():
+		return "Drop Files or Images Here"
+	case c.acceptsImages():
+		return "Drop an Image Here"
+	default:
+		return "Drop Files Here"
+	}
 }
 
 // installImageDrop lets an image file or an image itself be dropped anywhere
@@ -135,7 +158,7 @@ func (c *ChatView) installImageDrop(overlay *gtk.Overlay) {
 
 	target.ConnectEnter(func(x, y float64) gdk.DragAction {
 		c.showDrop(true, c.dropRefusal())
-		if !c.acceptsImages() {
+		if c.dropRefusal() != "" {
 			// Shown, so the reason is readable, but refused, so the pointer
 			// says no and the file goes back where it came from.
 			return 0
@@ -145,7 +168,7 @@ func (c *ChatView) installImageDrop(overlay *gtk.Overlay) {
 	target.ConnectLeave(func() { c.showDrop(false, "") })
 	target.ConnectDrop(func(value *coreglib.Value, x, y float64) bool {
 		c.showDrop(false, "")
-		if !c.acceptsImages() {
+		if c.dropRefusal() != "" {
 			return false
 		}
 		return c.takeDropped(value)
@@ -171,38 +194,56 @@ func (c *ChatView) takeDropped(value *coreglib.Value) bool {
 		return false
 	}
 	if tex, ok := obj.Cast().(gdk.Texturer); ok {
+		if !c.acceptsImages() {
+			c.fail(c.imageRefusal())
+			return false
+		}
 		return c.attachTexture(tex)
 	}
 	return false
 }
 
-// attachFiles takes the picture out of a list of dropped files.
+// attachFiles sorts dropped or pasted files into the picture and the text
+// files that go with the next message.
 //
-// One goes with each message, so from several the first picture is taken and
-// the rest are named as left behind rather than silently dropped. A single file
-// is always tried, whatever it is called: an image saved without an extension
-// is still an image, and the importer is the one that can tell.
+// One picture goes with each message, so from several the first is taken and
+// the rest are named as left behind rather than silently dropped. Text files
+// go up to maxFiles at a time. Anything that is not named like a picture is
+// read as text, and when it turns out not to be text it is tried as a picture:
+// an image saved without an extension is still an image, and the importer is
+// the one that can tell.
 func (c *ChatView) attachFiles(files []*gio.File) bool {
 	if len(files) == 0 {
 		return false
 	}
-	if len(files) == 1 {
-		return c.attachFile(files[0])
-	}
-	var images []*gio.File
+	var images, others []*gio.File
 	for _, f := range files {
 		if looksLikeImage(f.Basename()) {
 			images = append(images, f)
+		} else {
+			others = append(others, f)
 		}
 	}
-	if len(images) == 0 {
-		c.fail("None of those are images Astral can read.")
-		return false
+	took := false
+	if len(images) > 0 {
+		if why := c.imageRefusal(); why != "" {
+			c.fail(why)
+		} else {
+			if len(images) > 1 {
+				c.fail(fmt.Sprintf("Attached the first of %d images. One goes with each message.", len(images)))
+			}
+			took = c.attachFile(images[0])
+		}
 	}
-	if len(images) > 1 {
-		c.fail(fmt.Sprintf("Attached the first of %d images. One goes with each message.", len(images)))
+	for _, f := range others {
+		if !c.acceptsFiles() && !c.acceptsImages() {
+			c.fail(c.dropRefusal())
+			break
+		}
+		c.attachText(f)
+		took = true
 	}
-	return c.attachFile(images[0])
+	return took
 }
 
 // attachFile queues a file as an image.
@@ -281,11 +322,17 @@ func (c *ChatView) pasteImageIntoComposer() {
 		hasList := formats.ContainGType(gdk.GTypeFileList)
 		hasFile := hasList || formats.ContainGType(gio.GTypeFile)
 		if !hasImage && !hasFile {
+			if c.acceptsFiles() && formats.ContainGType(coreglib.TypeString) {
+				// Text, which may be long enough to go as a file; see
+				// pasteLongText.
+				c.pasteLongText(clip)
+				return true
+			}
 			return false // ordinary text paste, left alone
 		}
 		if hasImage {
 			if !c.acceptsImages() {
-				c.fail(c.dropRefusal())
+				c.fail(c.imageRefusal())
 				return true
 			}
 			clip.ReadTextureAsync(context.Background(), func(res gio.AsyncResulter) {
@@ -314,21 +361,19 @@ func (c *ChatView) pasteImageIntoComposer() {
 				return
 			}
 			files := clipboardFiles(value)
-			var image *gio.File
-			for _, f := range files {
-				if looksLikeImage(f.Basename()) {
-					image = f
-					break
+			// A copied file goes with the message when this chat takes files
+			// of its kind, and is pasted as its name, as it always was, when
+			// it does not.
+			if c.acceptsFiles() || (c.acceptsImages() && anyImage(files)) {
+				if c.attachFiles(files) {
+					return
 				}
 			}
-			switch {
-			case image == nil:
-				c.pasteText(clip)
-			case !c.acceptsImages():
-				c.fail(c.dropRefusal())
-			default:
-				c.attachFile(image)
+			if anyImage(files) && !c.acceptsImages() {
+				c.fail(c.imageRefusal())
+				return
 			}
+			c.pasteText(clip)
 		})
 		return true
 	})
@@ -375,4 +420,13 @@ func (c *ChatView) pasteText(clip *gdk.Clipboard) {
 func (c *ChatView) DevShowDrop(refused bool) {
 	c.canAttach = !refused
 	c.showDrop(true, c.dropRefusal())
+}
+
+func anyImage(files []*gio.File) bool {
+	for _, f := range files {
+		if looksLikeImage(f.Basename()) {
+			return true
+		}
+	}
+	return false
 }

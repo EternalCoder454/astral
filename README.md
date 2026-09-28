@@ -43,6 +43,14 @@ reads, turned the right way up (a phone stores a portrait on its side), and
 brought down to 1536 pixels on its longest side, which is more than a vision
 model reads at and a fraction of the time to send.
 
+Text files go the same way, to the designers, the Prompt Optimizer and plain
+chats: notes in a .md file, a character sheet from somewhere else, a world
+bible. Drop them on the chat, paste a file copied in your file manager, or use
+the attach button; up to five go with one message. A long paste becomes a file
+too, rather than filling the message box. The model reads all of it, on every
+turn after, and the chat shows each as one line with its name. About forty
+thousand characters of a file are sent, which leaves the conversation room.
+
 **Scenes.** Pick a character and start playing. Astral keeps the transcript,
 remembers which model a scene was started with, and reopens where you left off.
 

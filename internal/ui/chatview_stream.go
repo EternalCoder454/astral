@@ -35,8 +35,9 @@ func (c *ChatView) onSendClicked() {
 // Send commits the composer's contents as a user turn and asks for a reply.
 func (c *ChatView) Send() {
 	text := strings.TrimSpace(c.composerText())
-	// An image on its own is a complete message: "look at this" needs no words.
-	if (text == "" && c.attachPath == "") || c.busy {
+	// An image or a file on its own is a complete message: "look at this"
+	// needs no words.
+	if (text == "" && c.attachPath == "" && len(c.files) == 0) || c.busy {
 		return
 	}
 	if c.activeModel() == "" {
@@ -74,6 +75,15 @@ func (c *ChatView) Send() {
 			}
 		}
 		c.AttachImage("")
+	}
+
+	// Files go after the words, each in the block the model reads it from;
+	// the transcript folds each to a line naming it.
+	if files := c.takeFiles(); files != "" {
+		if text != "" {
+			text += "\n\n"
+		}
+		text += files
 	}
 
 	row := c.appendRow(ollama.RoleUser, text, "", 0, time.Now())

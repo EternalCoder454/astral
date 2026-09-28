@@ -229,11 +229,7 @@ func (a *App) buildCenter() {
 			a.toast(fmt.Sprintf("Learned %d things about this world.", applied))
 		}
 	}
-	a.chat.OnAttachImage = func() {
-		a.pickImage("Attach a Reference Image", "reference", func(path string) {
-			a.chat.AttachImage(path)
-		})
-	}
+	a.chat.OnAttachImage = a.pickAttachment
 	// Dropped on the chat, or pasted into it. Both go through the same importer
 	// the file chooser uses, so a dropped HEIC is converted and a truncated one
 	// is refused here rather than three steps later.
