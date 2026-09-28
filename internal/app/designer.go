@@ -254,11 +254,21 @@ func (a *App) buildCharacterFromChat() {
 		NumCtx:        a.cfg.NumCtx,
 	}
 
+	// A revision's build is shown the card as it stands, so what the
+	// conversation did not touch is kept rather than written fresh; see
+	// chars.ReviseFromConversation.
+	existing, revising := a.revising()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), buildTimeout)
 		defer cancel()
 		opts := fitBuild(ctx, client, model, store.KindDesigner, opts, history)
-		c, err := chars.BuildFromConversation(ctx, client, model, history, opts)
+		build := chars.BuildFromConversation
+		if revising {
+			build = func(ctx context.Context, client *ollama.Client, model string, history []ollama.Message, opts ollama.Options) (chars.Character, error) {
+				return chars.ReviseFromConversation(ctx, client, model, existing, history, opts)
+			}
+		}
+		c, err := build(ctx, client, model, history, opts)
 
 		coreglib.IdleAdd(func() bool {
 			a.chat.SetBuilding(false)

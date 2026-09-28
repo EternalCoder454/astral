@@ -132,13 +132,18 @@ type Draft struct {
 
 // BuildFromConversation turns a design conversation into a world.
 func BuildFromConversation(ctx context.Context, client *ollama.Client, model string, history []ollama.Message, opts ollama.Options) (Draft, error) {
+	return build(ctx, client, model, history, prompts.Text(promptBuild), opts)
+}
+
+// build asks for the world, with instruction as the last turn.
+func build(ctx context.Context, client *ollama.Client, model string, history []ollama.Message, instruction string, opts ollama.Options) (Draft, error) {
 	if len(history) == 0 {
 		return Draft{}, fmt.Errorf("there is nothing here to build a world from yet")
 	}
 	msgs := make([]ollama.Message, 0, len(history)+2)
 	msgs = append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: DesignerPrompt()})
 	msgs = append(msgs, history...)
-	msgs = append(msgs, ollama.Message{Role: ollama.RoleUser, Content: prompts.Text(promptBuild)})
+	msgs = append(msgs, ollama.Message{Role: ollama.RoleUser, Content: instruction})
 
 	opts.Temperature = 0.3 // transcription, not invention
 	opts.NumPredict = 0

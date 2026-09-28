@@ -167,6 +167,14 @@ func Substitute(s, charName, userName string) string {
 // never changes. How the prose should actually *sound* is a separate block,
 // supplied by the active writing style, because that is the part worth having
 // opinions about and swapping between scenes.
+//
+// The example of writing to the person playing is about a coat, and it used to
+// be about a sister. A relative is also something a character can call
+// somebody: measured on a dockside bar scene over forty replies, ten had the
+// barkeep calling the person playing "sister", out of nowhere and in place of
+// the "love" her card gave her, and none did with the coat. The scenes the
+// sister was chosen for, where the person playing is somebody's brother or
+// sister, stayed in the second person either way.
 const framingStructure = `You are roleplaying as {{char}}. Stay in character at all times.
 
 WHAT TO WRITE
@@ -176,7 +184,7 @@ If {{char}} swears, or is described as crude or vulgar, that is how they talk: i
 Give new people names that fit the setting, not stock names like Elara, Seraphina, Kael, Lyra or Vance.
 
 WHO IS WHO
-Write to {{user}}, not about them: call them you, never by name and never he or she. Write *as you came in*, never *as {{user}} came in*, and your sister rather than her sister.
+Write to {{user}}, not about them: call them you, never by name and never he or she. Write *as you came in*, never *as {{user}} came in*, and your coat rather than her coat.
 Match them instead if they write their own turns in the third person.
 
 FORMATTING. Every sentence you write is one of exactly two things, and there is no third kind:

@@ -137,6 +137,8 @@ func TestLiveArms(t *testing.T) {
 		arms = behaviourArms()
 	case "confirm":
 		arms = confirmArms()
+	case "sister":
+		arms = sisterArms()
 	default:
 		t.Fatalf("no such experiment %q", which)
 	}
@@ -410,5 +412,25 @@ func confirmArms() []arm {
 		{name: "production+oldWho", overused: true, system: func(s string) string {
 			return strings.Replace(s, sub(newWho), sub(oldWho), 1)
 		}, opts: base},
+	}
+}
+
+// sisterArms test the example of writing to the person playing. It named a
+// relative, "your sister rather than her sister", and a relative is also
+// something a character can call somebody: measured on a dockside bar scene,
+// ten replies in forty had the barkeep calling the person playing "sister",
+// against none with the example about a coat, which production now uses. This
+// scene is the one the old example was written for, where the person playing
+// is somebody's brother, so it checks the coat still keeps them "you": on
+// SOMPOA over three runs, no third-person references and no names either way.
+func sisterArms() []arm {
+	base := func(o ollama.Options) ollama.Options { return o }
+	sister := func(s string) string {
+		s = strings.ReplaceAll(s, "your coat rather than her coat", "your sister rather than her sister")
+		return strings.ReplaceAll(s, "your coat, not her coat", "your sister, not her sister")
+	}
+	return []arm{
+		{name: "production", overused: true, opts: base},
+		{name: "sister", overused: true, system: sister, anchor: sister, opts: base},
 	}
 }

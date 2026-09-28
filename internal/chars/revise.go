@@ -1,9 +1,11 @@
 package chars
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
+	"astral/internal/ollama"
 	"astral/internal/prompts"
 )
 
@@ -68,12 +70,19 @@ func ReviseSystem(c Character, p Persona) string {
 // a field that does not exist, and the one thing a revision should notice is that
 // this character has no example dialogue and would be better with some.
 func describeCard(c Character, userName string) string {
+	return describeCardWith(c, func(s string) string { return Substitute(s, c.Name, userName) })
+}
+
+// describeCardWith is describeCard with each value passed through sub, so the
+// card can be laid out with its placeholders filled in for the interview, or
+// left as they are for the build, which has to write them back.
+func describeCardWith(c Character, sub func(string) string) string {
 	var b strings.Builder
 	field := func(label, value string) {
 		b.WriteString(label)
 		b.WriteString(": ")
 		if v := strings.TrimSpace(value); v != "" {
-			b.WriteString(Substitute(v, c.Name, userName))
+			b.WriteString(sub(v))
 		} else {
 			b.WriteString("(empty)")
 		}
@@ -115,6 +124,33 @@ func ReviseOpening(c Character) string {
 Tell me what is not working, or ask me what I think is weakest about the card as it stands. "The description is all adjectives", "she sounds like everyone else", "I want her colder" are all enough to start from.
 
 Nothing changes until you press Save Character, and anything we do not discuss stays as it is.`, name)
+}
+
+// reviseBuildNote follows the Character Builder's instruction when the
+// conversation was a revision, with the card as it stands after it.
+//
+// The build used to be handed the conversation alone, and a revision
+// conversation is about what should change: the card itself is in the
+// interview's system prompt and nowhere else. So everything nobody mentioned was
+// written fresh. Measured on SOMPOA with "I just want her meaner, nothing else
+// changes", the saved card kept 9% of her appearance's words and 22% of her
+// voice's, and moved her from a dockside bar to a private office. Shown the
+// card, over three runs of four revisions (two characters, a style, a world),
+// what was saved kept 96% of the words nobody asked to change against 14%,
+// kept the name in twelve of twelve against seven, and made the change that was
+// asked for in all twelve either way.
+const reviseBuildNote = `This conversation was about changing a character who already exists. The card as it stands is below. Write the whole card again starting from it. Make every change we agreed on, in every field it affects. A field the conversation did not change keeps its current text word for word, and a field it did change keeps everything the conversation did not touch. Only a field marked (empty) is written fresh, from what we discussed. Keep the name unless we changed it. Every field holds the character, never a message to me about them.`
+
+// ReviseFromConversation is BuildFromConversation for a design chat that was
+// revising a character who already exists: the build is shown the card as it
+// stands, so what the conversation did not touch survives. What it returns is
+// the rewritten card, to be merged onto the existing one with Revise as before.
+// Whatever builds a revision, the window or the phone, should call this in
+// place of BuildFromConversation.
+func ReviseFromConversation(ctx context.Context, client *ollama.Client, model string, existing Character, history []ollama.Message, opts ollama.Options) (Character, error) {
+	instruction := prompts.Text(promptBuild) + "\n\n" + reviseBuildNote + "\n\n" +
+		describeCardWith(existing, func(s string) string { return s })
+	return buildCard(ctx, client, model, history, instruction, opts)
 }
 
 // Revise merges a freshly written card onto the character it came from.

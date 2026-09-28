@@ -106,6 +106,16 @@ var OpenTool = ollama.Tool{
 // The last of those is the one worth the tokens. A model that has searched and
 // found nothing will otherwise answer as though it had found something, and an
 // answer that looks sourced and is not is worse than no search at all.
+//
+// Its last line is there because the prompts it follows win otherwise. General
+// Chat's own rules come first and say to lead with the answer and start with
+// the substance, and SOMPOA (Gemma 4 26B) read that as "answer now": asked for
+// the newest Go or Python, or the newest Go with search failing, it searched in
+// none of nine tries and gave a version from its training. With the line it
+// searched in all nine, named the source, said so when the search failed, and
+// still did not search for arithmetic, a haiku or explaining a closure. The
+// designers were unchanged by it. Who is prime minister it answers from memory
+// either way.
 const Guidance = `WEB SEARCH
 
 You can search the web with the ` + ToolName + ` tool.
@@ -141,7 +151,8 @@ ANSWERING
 Name the source for anything you took from a search, so it can be checked.
 Say plainly when a search found nothing, failed, or did not settle the question, and then answer from what you know while saying that is what you are doing.
 Never present a guess as something you looked up.
-Do not narrate your searching. Answer the question.`
+Do not narrate your searching. Answer the question.
+Before you answer a question about anything current, such as the newest version of something, call ` + ToolName + `, and write the answer only once the results are in.`
 
 // SaveGuidance is added to the system prompt wherever the knowledge base can be
 // saved to, which is every conversation that is not a scene.

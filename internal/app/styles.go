@@ -291,11 +291,28 @@ func (a *App) buildStyleFromChat() {
 	client := a.client
 	opts := ollama.Options{TopP: a.cfg.TopP, RepeatPenalty: a.cfg.RepeatPenalty, NumCtx: a.cfg.NumCtx}
 
+	// A revision's build is shown the style as it stands; see
+	// chars.ReviseStyleFromConversation.
+	var existing chars.WritingStyle
+	revising := false
+	if was := strings.TrimSpace(a.chat.Chat().Note); was != "" {
+		for _, s := range a.cfg.Styles() {
+			if s.Name == was {
+				existing, revising = s, true
+			}
+		}
+	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), buildTimeout)
 		defer cancel()
 		opts := fitBuild(ctx, client, model, store.KindStyleDesigner, opts, history)
-		st, err := chars.BuildStyleFromConversation(ctx, client, model, history, opts)
+		var st chars.WritingStyle
+		var err error
+		if revising {
+			st, err = chars.ReviseStyleFromConversation(ctx, client, model, existing, history, opts)
+		} else {
+			st, err = chars.BuildStyleFromConversation(ctx, client, model, history, opts)
+		}
 
 		coreglib.IdleAdd(func() bool {
 			a.chat.SetBuilding(false)

@@ -14,6 +14,7 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"time"
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
@@ -234,11 +235,23 @@ func loreNames(st *store.Store, worldID int64) []string {
 // tools are not offered there, and telling a character they can search the web
 // when they cannot is how a scene ends up with someone claiming they looked
 // something up.
+//
+// Saving comes first and searching last, so the search guidance's last line,
+// search before answering anything current, is the last thing in the prompt.
+// See websearch.Guidance for why that line is there. Measured on SOMPOA it
+// searched as often wherever the line went, but at the very end it cost
+// General Chat nothing in formatting, where just above the saving guidance it
+// brought back a third more bolded lead-ins (about forty in forty-two replies
+// against thirty).
 func withTools(cfg store.Config, system string) string {
+	// The date, which a model cannot know: asked about 1 March 2026, SOMPOA
+	// called it "in the future". Only here, in the chats that are not scenes,
+	// since a scene keeps its own time.
+	system = "Today is " + time.Now().Format("Monday, 2 January 2006") + ".\n\n" + system
 	if !Searchable(cfg) {
 		return system
 	}
-	return system + "\n\n" + websearch.GuidanceText() + "\n\n" + prompts.Text(promptSaveGuidance)
+	return system + "\n\n" + prompts.Text(promptSaveGuidance) + "\n\n" + websearch.GuidanceText()
 }
 
 // Searchable reports whether search is switched on. It needs no address any

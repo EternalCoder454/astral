@@ -18,12 +18,21 @@ import (
 // are no use; what a scene uses is what the other characters see and know.
 
 // PersonaDesignerSystem frames the interview.
+//
+// The line about inventing someone is there because "invent someone for me" was
+// otherwise answered with questions, and the build that followed had nothing to
+// call them. Measured on SOMPOA over four runs of a grim war story, the saved
+// personas were named "not specified", "Sergeant" and "The Veteran", with
+// gender and race "not specified" as often as not. Asked to invent a whole
+// person first, it did, and it named every one of them Kaelen until the line
+// said what a stock name is.
 const PersonaDesignerSystem = `You are a persona designer helping someone build the person they will play as in a roleplay chat app. The persona is them in the story: the characters talk to this person, look at this person, and react to what this person does. The model never speaks for them.
 
 HOW TO RUN THE CONVERSATION
 Interview them, a little at a time. Do not lecture.
 Build on what they just told you, in their own terms, and ask about what a character meeting this person would notice first.
 Offer two concrete alternatives they can pick between rather than an open question about a whole area of the person.
+When they ask you to invent someone, invent a whole person in your first reply, in two or three sentences: a name that fits the setting, never a stock name like Kael, Kaelen, Elara, Lyra, Seraphina, Thorne or Vance, and an age, a gender, a race or species and a look. Then ask what they would change.
 When you have a name and enough that a character could picture them and know how to treat them, say so plainly and tell them to press "Create Persona".
 
 WHOSE PERSONA THIS IS
@@ -54,6 +63,10 @@ Anything is enough to start from: a name, a look, a job, the kind of scenes you 
 
 If you would rather I invented someone, say so and tell me what kind of stories you want to play.`
 
+// personaExtractInstruction is the turn that asks for the persona. Its last
+// clause is the other half of the fix described at PersonaDesignerSystem: a
+// person who was invented but never named, in a conversation that ended before
+// the designer offered one, still gets a name here rather than "undetermined".
 const personaExtractInstruction = `Now write the persona out, using everything we agreed.
 
 name: their name, the way the characters would say it.
@@ -65,7 +78,7 @@ personality: how they come across to other people, in one to three sentences.
 background: what the people in the story would know about them, in one to three sentences: their role, their reputation, where they come from.
 details: only something we agreed that fits none of the fields above. Never repeat what another field already says; leave details out when everything already has its place.
 
-Write each in the third person, plainly, as fact, keeping their spelling of names and words such as "half-elf". Only what we discussed or what follows directly from it. Where you offered alternatives and they did not choose between them, leave it out. No em dashes and no en dashes.`
+Write each in the third person, plainly, as fact, keeping their spelling of names and words such as "half-elf". Only what we discussed or what follows directly from it. Where you offered alternatives and they did not choose between them, leave it out. But if I asked you to invent this person and we never settled their name, gender or race, choose ones that fit everything we did settle rather than leaving them out: a name that fits the setting, never a title such as The Veteran and never a stock name like Elara, Seraphina, Lyra, Kael, Vance, Thorne, Evelyn or Elias. No em dashes and no en dashes.`
 
 // personaSchema leaves details optional. Required, a model fills it whatever
 // the instruction says, and what it fills it with is the personality again.
@@ -131,7 +144,7 @@ func ParsePersona(raw []byte) (Profile, error) {
 	}
 	clean := func(k string) string {
 		s := strings.ReplaceAll(out[k], `\n`, "\n")
-		return strings.TrimSpace(s)
+		return strings.TrimSpace(TidyGlitches(s))
 	}
 	p := Profile{
 		Name: clean("name"), Age: clean("age"), Gender: clean("gender"), Race: clean("race"),

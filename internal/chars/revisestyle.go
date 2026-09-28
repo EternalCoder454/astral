@@ -1,9 +1,11 @@
 package chars
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
+	"astral/internal/ollama"
 	"astral/internal/prompts"
 )
 
@@ -70,4 +72,25 @@ func ReviseStyleOpening(st WritingStyle) string {
 Tell me what is not working, or ask me what I think is weakest about it. "Everything comes out the same length", "the dialogue reads like narration", "I want it colder" are all enough to start from.
 
 Nothing changes until you press Save Style, and anything we do not discuss stays as it is.`, name)
+}
+
+// reviseStyleBuildNote follows the Style Builder's instruction when the
+// conversation was a revision, with the style as it stands after it, for the
+// reason reviseBuildNote gives for characters.
+const reviseStyleBuildNote = `This conversation was about changing a writing style that already exists. The style as it stands is below. Write every field again starting from it. Make every change we agreed on, in every field it affects. A field the conversation did not change keeps its current text word for word, and a field it did change keeps everything the conversation did not touch. Keep the name unless we changed it. Every field holds a rule, never a message to me about it.`
+
+// ReviseStyleFromConversation is BuildStyleFromConversation for a design chat
+// that was revising a style that already exists: the build is shown the style
+// as it stands, so the rules nobody mentioned survive. Whatever builds a
+// revision should call this in place of BuildStyleFromConversation.
+func ReviseStyleFromConversation(ctx context.Context, client *ollama.Client, model string, existing WritingStyle, history []ollama.Message, opts ollama.Options) (WritingStyle, error) {
+	var b strings.Builder
+	b.WriteString(prompts.Text(promptStyleBuild))
+	b.WriteString("\n\n")
+	b.WriteString(reviseStyleBuildNote)
+	b.WriteString("\n\nName: ")
+	b.WriteString(strings.TrimSpace(existing.Name))
+	b.WriteString("\n")
+	b.WriteString(strings.TrimSpace(existing.Resolved()))
+	return buildStyle(ctx, client, model, history, b.String(), opts)
 }

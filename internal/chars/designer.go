@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"astral/internal/ollama"
@@ -106,6 +107,14 @@ EVERY MESSAGE, WITHOUT EXCEPTION
 // the rest: against the one sentence this replaced, em dashes went from three to
 // none, buzzwords from one to none, and bulleted lines from seventeen to three
 // over six questions.
+//
+// The last line under ANSWERING used to offer a way out: "Name an obvious next
+// step in one line, or stop." SOMPOA (Gemma 4 26B) took the way out every time.
+// Thirty-five replies in forty-two ended on a line tacked on after the answer,
+// "Check the rhythm of the action beats." under a fight scene, "Check your
+// recent sleep patterns." to someone feeling flat, "Tell me if you need another
+// calculation." after a thank you. Told to stop when the answer is complete,
+// none did, with bullets, length and offers of help unchanged.
 const AssistantSystem = `You are a helpful assistant running locally on this person's own machine.
 
 ANSWERING
@@ -113,7 +122,7 @@ ANSWERING
 - Match the length to the question. A question with a one line answer gets one line.
 - Do not restate the question before answering it.
 - Do not open with a compliment or with what you are about to do. Start with the substance.
-- Do not close by offering more help. Name an obvious next step in one line, or stop.
+- Stop when the answer is complete. Do not close by offering more help, by suggesting something to check or try, or by asking what they want next.
 
 WHEN YOU DO NOT KNOW
 - Say so plainly, give the best answer you have, and say what would settle it.
@@ -194,13 +203,18 @@ Base it on what we discussed, do not invent a different character. Where you off
 
 // BuildFromConversation turns a design conversation into a character.
 func BuildFromConversation(ctx context.Context, client *ollama.Client, model string, history []ollama.Message, opts ollama.Options) (Character, error) {
+	return buildCard(ctx, client, model, history, prompts.Text(promptBuild), opts)
+}
+
+// buildCard asks for the card, with instruction as the last turn.
+func buildCard(ctx context.Context, client *ollama.Client, model string, history []ollama.Message, instruction string, opts ollama.Options) (Character, error) {
 	if len(history) == 0 {
 		return Character{}, fmt.Errorf("there is nothing here to build a character from yet")
 	}
 	msgs := make([]ollama.Message, 0, len(history)+2)
 	msgs = append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: DesignerPrompt()})
 	msgs = append(msgs, history...)
-	msgs = append(msgs, ollama.Message{Role: ollama.RoleUser, Content: prompts.Text(promptBuild)})
+	msgs = append(msgs, ollama.Message{Role: ollama.RoleUser, Content: instruction})
 
 	// Low temperature: this step is transcription, not invention. The creative
 	// work already happened in the conversation, and a high temperature here
@@ -224,9 +238,34 @@ func BuildFromConversation(ctx context.Context, client *ollama.Client, model str
 		*f = strings.ReplaceAll(*f, `\n`, "\n")
 		// And sometimes doubles an apostrophe, as SQL would escape one.
 		*f = strings.ReplaceAll(*f, "''", "'")
+		*f = TidyGlitches(*f)
 	}
 	c.FirstMes = markBareNarration(c.FirstMes)
 	return c, nil
+}
+
+// glitchRun is a run of three or more spaces or tabs inside a line.
+var glitchRun = regexp.MustCompile(`[ \t]{3,}`)
+
+// TidyGlitches takes out what decoding sometimes leaves in a built field and
+// no writer meant: a run of spaces or tabs in the middle of a line. Measured on
+// SOMPOA, one character build had about three thousand spaces after "doesn'",
+// which the card then showed as a gap the height of the editor. Indentation at
+// the start of a line is left alone, and a few spaces between words become one.
+func TidyGlitches(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		lead := len(l) - len(strings.TrimLeft(l, " \t"))
+		lines[i] = l[:lead] + glitchRun.ReplaceAllStringFunc(l[lead:], func(run string) string {
+			// A long run fell in the middle of a word, where it was
+			// written, and closing it up puts the word back together.
+			if len(run) >= 20 {
+				return ""
+			}
+			return " "
+		})
+	}
+	return strings.Join(lines, "\n")
 }
 
 // markBareNarration puts asterisks round any paragraph of an opening message
@@ -346,13 +385,18 @@ var styleFields = []struct{ key, label string }{
 
 // BuildStyleFromConversation turns a design conversation into a writing style.
 func BuildStyleFromConversation(ctx context.Context, client *ollama.Client, model string, history []ollama.Message, opts ollama.Options) (WritingStyle, error) {
+	return buildStyle(ctx, client, model, history, prompts.Text(promptStyleBuild), opts)
+}
+
+// buildStyle asks for the style, with instruction as the last turn.
+func buildStyle(ctx context.Context, client *ollama.Client, model string, history []ollama.Message, instruction string, opts ollama.Options) (WritingStyle, error) {
 	if len(history) == 0 {
 		return WritingStyle{}, fmt.Errorf("there is nothing here to build a style from yet")
 	}
 	msgs := make([]ollama.Message, 0, len(history)+2)
 	msgs = append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: StyleDesignerPrompt()})
 	msgs = append(msgs, history...)
-	msgs = append(msgs, ollama.Message{Role: ollama.RoleUser, Content: prompts.Text(promptStyleBuild)})
+	msgs = append(msgs, ollama.Message{Role: ollama.RoleUser, Content: instruction})
 
 	opts.Temperature = 0.3 // transcription, not invention
 	opts.NumPredict = 0

@@ -40,7 +40,7 @@ They talk to each other, not only to %[3]s. Let them disagree, interrupt, answer
 
 WHAT TO WRITE
 Write only the words and actions of the characters listed below. Never write, decide, or narrate %[3]s's words, thoughts, or actions, wait for them.
-You are writing to %[3]s, not about them. Call them you: write *as you came in*, never *as %[3]s came in*, and your sister rather than her sister.
+You are writing to %[3]s, not about them. Call them you: write *as you came in*, never *as %[3]s came in*, and your coat rather than her coat.
 Do not summarize the scene, do not skip ahead in time, and do not end the scene on your own.
 If any of them swears, or is described as crude or vulgar, that is how they talk: it lands on frustration, surprise and emphasis, not on the person they are talking to unless they mean to insult them. Vary the words rather than leaning on one.
 Give new people names that fit the setting, not stock names like Elara, Seraphina, Kael, Lyra or Vance.

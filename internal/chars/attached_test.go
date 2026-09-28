@@ -51,3 +51,11 @@ func TestAttachedTextIsCompacted(t *testing.T) {
 		t.Errorf("got %q, %v", text, err)
 	}
 }
+
+func TestTidyGlitches(t *testing.T) {
+	in := "She doesn'" + strings.Repeat(" ", 3000) + "t care.\n    an indented line\twith a tab"
+	want := "She doesn't care.\n    an indented line\twith a tab"
+	if got := TidyGlitches(in); got != want {
+		t.Errorf("TidyGlitches = %q", got)
+	}
+}

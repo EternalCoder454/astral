@@ -74,11 +74,20 @@ func (a *App) buildWorldFromChat() {
 	client := a.client
 	opts := ollama.Options{TopP: a.cfg.TopP, RepeatPenalty: a.cfg.RepeatPenalty, NumCtx: a.cfg.NumCtx}
 
+	// A revision's build is shown the world as it stands; see
+	// world.ReviseFromConversation.
+	existingWorld, revising := a.revisingWorld()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), buildTimeout)
 		defer cancel()
 		opts := fitBuild(ctx, client, model, store.KindWorldDesigner, opts, history)
-		draft, err := world.BuildFromConversation(ctx, client, model, history, opts)
+		var draft world.Draft
+		var err error
+		if revising {
+			draft, err = world.ReviseFromConversation(ctx, client, model, existingWorld, history, opts)
+		} else {
+			draft, err = world.BuildFromConversation(ctx, client, model, history, opts)
+		}
 
 		coreglib.IdleAdd(func() bool {
 			a.chat.SetBuilding(false)

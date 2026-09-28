@@ -61,9 +61,10 @@ func Anchor(c Character, sc Scene, userName string) string {
 	// The closing block is where an instruction is obeyed, and this is the one
 	// that decays first in a long scene: the recap above names everyone,
 	// including the user, and by turn thirty the model has read it forty times.
+	// A coat and not a sister, for the reason given at framingStructure.
 	b.WriteString("Write to ")
 	b.WriteString(userName)
-	b.WriteString(" as you, never by name: your sister, not her sister.\n\n")
+	b.WriteString(" as you, never by name: your coat, not her coat.\n\n")
 
 	if sc.NarrationDrifted {
 		b.WriteString(prompts.Text(promptFormatFirm))

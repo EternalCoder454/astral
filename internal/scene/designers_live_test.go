@@ -78,6 +78,16 @@ var designScripts = []designScript{
 		"The guild is corrupt and sells high tides to flood rivals' districts. Ordinary people live on the rooftops.",
 		"Technology is roughly 1800s, with a little strange magic in the bells. That's enough, build it.",
 	}},
+	{"adult club owner", store.KindDesigner, []string{
+		"An adult character for explicit scenes: the owner of an underground club, a dominant woman in her forties.",
+		"She's cruel in a controlled way and enjoys humiliating the people who come to her asking for it. Explicit is the point.",
+		"Good, build her.",
+	}},
+	{"persona: invent", store.KindPersonaDesigner, []string{
+		"Invent someone for me to play. A grim fantasy war story.",
+		"Sounds good. Make them older, and more tired of it.",
+		"Done, build it.",
+	}},
 	{"memory currency", store.KindWorldDesigner, []string{
 		"A cyberpunk megacity where memories are traded as currency.",
 		"The poor sell their childhoods to pay rent. The rich collect other people's first loves.",
@@ -135,6 +145,13 @@ func turn(ctx context.Context, t *testing.T, client *ollama.Client, model string
 	msgs := Build(st, cfg, ch, chars.Character{}, hist)
 	think := false
 	r := Runner(client, cfg, st, ch.Kind, model, OptionsFor(cfg, ch.Kind), &think)
+	if r != nil && r.Provider != nil {
+		// Search switched on, as it is by default, with the guidance in the
+		// prompt as it is sent; the searches themselves are answered here, so
+		// nothing leaves the machine.
+		r.Provider = &fakeSearch{}
+		r.Fetcher = nil
+	}
 	msg, _, rounds, err := r.Run(ctx, msgs, nil)
 	if err != nil {
 		t.Fatalf("the model failed: %v", err)
@@ -157,6 +174,21 @@ var hedgeWords = []string{
 
 func words(s string) int { return len(strings.Fields(s)) }
 
+// praiseOpening is a first sentence spent on approving of what was just said.
+var praiseOpening = regexp.MustCompile(`(?i)\b(great|perfect|excellent|striking|powerful|love|fantastic|wonderful|classic choice|brilliant|compelling|fascinating|evocative|delicious|beautiful|lovely|intriguing|incredible|amazing|superb|terrific|good choice|nice)\b`)
+
+// spaceRun is what a structured answer looks like when decoding ran away into
+// whitespace partway through a field.
+var spaceRun = regexp.MustCompile(` {20,}`)
+
+func firstSentence(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.IndexAny(s, ".!?"); i >= 0 {
+		return s[:i+1]
+	}
+	return s
+}
+
 func dashes(s string) int { return strings.Count(s, "\u2014") + strings.Count(s, "\u2013") }
 
 func TestLiveDesignersHeavy(t *testing.T) {
@@ -167,12 +199,19 @@ func TestLiveDesignersHeavy(t *testing.T) {
 	}
 	defer st.Close()
 	cfg := store.DefaultConfig()
-	cfg.WebSearch = false
+	// Off unless asked for. On is how the window sends a designer by default,
+	// with the search and saving guidance after the designer's own rules.
+	cfg.WebSearch = os.Getenv("ASTRAL_TEST_SEARCH") != ""
 	rep := newReport(t, "designers.txt")
 	only := os.Getenv("ASTRAL_TEST_ONLY")
 	controlPrompts(t)
 
-	type tally struct{ replies, long, manyQ, json, hedges, button, dashes, repeats int }
+	type tally struct {
+		replies, long, manyQ, json, hedges, button, dashes, repeats int
+		paragraphs, praise, tools, spaceRuns                        int
+		// unset counts built personas' name, gender or race left undecided.
+		unset int
+	}
 	byKind := map[string]*tally{}
 
 	runs := 1
@@ -233,6 +272,18 @@ func TestLiveDesignersHeavy(t *testing.T) {
 				tl.dashes += n
 				flags = append(flags, fmt.Sprintf("%d DASHES", n))
 			}
+			// Every designer asks for one paragraph, and none of them for a
+			// compliment, which is what a reply that opens on one spends its
+			// first sentence on.
+			if n := paragraphs(reply); n > 1 {
+				tl.paragraphs++
+				flags = append(flags, fmt.Sprintf("%d PARAGRAPHS", n))
+			}
+			if praiseOpening.MatchString(firstSentence(reply)) {
+				tl.praise++
+				flags = append(flags, "PRAISE OPENING")
+			}
+			tl.tools += len(notes)
 			if i == len(sc.turns)-1 {
 				if strings.Contains(low, "create character") || strings.Contains(low, "create style") ||
 					strings.Contains(low, "create world") || strings.Contains(low, "create persona") {
@@ -268,6 +319,13 @@ func TestLiveDesignersHeavy(t *testing.T) {
 			if !strings.Contains(c.MesExample, "{{user}}") || !strings.Contains(c.MesExample, "{{char}}") {
 				miss = append(miss, "mes_example speakers")
 			}
+			if spaceRun.MatchString(c.FirstMes + c.MesExample + c.Description + c.Appearance + c.Speech) {
+				tl.spaceRuns++
+				miss = append(miss, "a run of spaces")
+			}
+			if stockName.MatchString(c.Name) {
+				miss = append(miss, "stock name")
+			}
 			rep.printf("build problems: %v\n", miss)
 		case store.KindStyleDesigner:
 			s, err := chars.BuildStyleFromConversation(ctx, client, model, hist, opts)
@@ -301,6 +359,15 @@ func TestLiveDesignersHeavy(t *testing.T) {
 			if dashes(p.Description()) > 0 {
 				miss = append(miss, "dashes")
 			}
+			// An invented persona still needs a name to be called by, and the
+			// basics every character sees.
+			unset := regexp.MustCompile(`(?i)^\W*(undetermined|unknown|unspecified|unnamed|none|n/a|not specified|the [a-z]+)\W*$`)
+			for f, v := range map[string]string{"name": p.Name, "gender": p.Gender, "race": p.Race} {
+				if unset.MatchString(strings.TrimSpace(v)) {
+					miss = append(miss, f+" not decided")
+					tl.unset++
+				}
+			}
 			rep.printf("build problems: %v\n", miss)
 		case store.KindWorldDesigner:
 			d, err := world.BuildFromConversation(ctx, client, model, hist, opts)
@@ -324,8 +391,8 @@ func TestLiveDesignersHeavy(t *testing.T) {
 		cancel()
 	}
 	for kind, tl := range byKind {
-		msg := fmt.Sprintf("%s: %d replies, %d long, %d with >2 questions, %d repeated themselves, %d wrote JSON, %d hedges, %d dashes, button named %d times",
-			kind, tl.replies, tl.long, tl.manyQ, tl.repeats, tl.json, tl.hedges, tl.dashes, tl.button)
+		msg := fmt.Sprintf("%s: %d replies, %d long, %d with >2 questions, %d repeated themselves, %d wrote JSON, %d hedges, %d dashes, button named %d times, %d over one paragraph, %d praise openings, %d tool uses, %d builds with a run of spaces, %d persona basics left undecided",
+			kind, tl.replies, tl.long, tl.manyQ, tl.repeats, tl.json, tl.hedges, tl.dashes, tl.button, tl.paragraphs, tl.praise, tl.tools, tl.spaceRuns, tl.unset)
 		rep.printf("\n%s", msg)
 		t.Log(msg)
 	}

@@ -1,9 +1,11 @@
 package world
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
+	"astral/internal/ollama"
 	"astral/internal/prompts"
 )
 
@@ -87,6 +89,34 @@ func Revise(existing, written World) World {
 		out.Rules = v
 	}
 	return out
+}
+
+// reviseBuildNote follows the World Builder's instruction when the
+// conversation was a revision, with the world as it stands after it.
+//
+// The build used to be handed the conversation alone, which is about what
+// should change, and the world itself was in the interview's system prompt and
+// nowhere else. Measured on SOMPOA, a conversation that only made the rules
+// harsher saved a description that kept 8% of its words, unless the designer
+// happened to recite the whole world back in its last message. Shown the world,
+// over ten runs the untouched description and rules kept 99% of their words
+// against 23%, and the harsher rule landed in all ten.
+const reviseBuildNote = `This conversation was about changing a world that already exists. The world as it stands is below. Write the name, description and rules again starting from it. Make every change we agreed on, wherever it applies. Whatever the conversation did not change keeps its current text word for word, and whatever it did change keeps everything the conversation did not touch. Keep the name unless we changed it. Every field holds the world itself, never a message to me about it. Leave entries empty: the lorebook is not being rewritten.`
+
+// ReviseFromConversation is BuildFromConversation for a design chat that was
+// revising a world that already exists: the build is shown the world as it
+// stands, so what the conversation did not touch survives. Only the draft's
+// World is meant to be used, merged onto the existing one with Revise as before.
+// Whatever builds a revision should call this in place of BuildFromConversation.
+func ReviseFromConversation(ctx context.Context, client *ollama.Client, model string, existing World, history []ollama.Message, opts ollama.Options) (Draft, error) {
+	// Laid out under the schema's own field names, so which text belongs in
+	// which field is not left to be worked out: labelled "Name" and
+	// "Description", the name was once written into the description.
+	instruction := prompts.Text(promptBuild) + "\n\n" + reviseBuildNote +
+		"\n\nname: " + nameOr(existing.Name, "(unnamed)") +
+		"\n\ndescription: " + nameOr(existing.Description, "(empty)") +
+		"\n\nrules:\n" + nameOr(existing.Rules, "(empty)")
+	return build(ctx, client, model, history, instruction, opts)
 }
 
 func nameOr(s, fallback string) string {
