@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"astral/internal/ollama"
+	"astral/internal/prompts"
 )
 
 // A scene with several characters in it is one conversation, not several.
@@ -92,7 +93,7 @@ func renderRelations(rels []Relation) string {
 func BuildGroupSystem(cast []Character, p Persona, rels []Relation) string {
 	cast = trimCast(cast)
 	if len(cast) == 0 {
-		return AssistantSystem
+		return AssistantPrompt()
 	}
 	if len(cast) == 1 {
 		return BuildSystem(cast[0], p)
@@ -114,7 +115,7 @@ func BuildGroupSystem(cast []Character, p Persona, rels []Relation) string {
 		"%[1]s", names[0],
 		"%[2]s", names[1],
 		"%[3]s", userName,
-	).Replace(groupStructure)
+	).Replace(prompts.Text(promptGroup))
 	b.WriteString(strings.TrimSpace(head))
 
 	b.WriteString("\n\nWHO IS HERE\n")
@@ -126,7 +127,7 @@ func BuildGroupSystem(cast []Character, p Persona, rels []Relation) string {
 	b.WriteString("\n\nHOW TO WRITE IT\n")
 	b.WriteString(sub(p.Style.Resolved()))
 	b.WriteString("\n\n")
-	b.WriteString(framingClose)
+	b.WriteString(prompts.Text(promptFramingClose))
 
 	for _, c := range cast {
 		// Substituted per character inside their own block, so a card that says
@@ -229,9 +230,9 @@ func GroupAnchor(cast []Character, sc Scene, userName string) string {
 	b.WriteString(".\n\n")
 
 	if sc.NarrationDrifted {
-		b.WriteString(anchorFormatFirm)
+		b.WriteString(prompts.Text(promptFormatFirm))
 	} else {
-		b.WriteString(anchorFormat)
+		b.WriteString(prompts.Text(promptFormat))
 	}
 	b.WriteString("\n\n")
 

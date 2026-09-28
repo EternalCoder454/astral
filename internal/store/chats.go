@@ -23,6 +23,10 @@ const (
 	// KindWorldDesigner is the same again, and its product is a setting with a
 	// first lorebook in it.
 	KindWorldDesigner = "world"
+	// KindPromptOptimizer is the same again, and its product is a better
+	// prompt. Its note holds the id of the prompt it is about, or nothing when
+	// the prompt was brought in the conversation itself.
+	KindPromptOptimizer = "prompt"
 )
 
 // Chat is one conversation.

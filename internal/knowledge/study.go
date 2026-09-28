@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"astral/internal/ollama"
+	"astral/internal/prompts"
 	"astral/internal/store"
 	"astral/internal/websearch"
 )
@@ -152,7 +153,7 @@ func NotesPrompt(topic string, pages []websearch.Page) []ollama.Message {
 		fmt.Fprintf(&b, "\n[%d] %s\n%s\n%s\n", i+1, oneLine(p.Title), p.URL, strings.TrimSpace(text))
 	}
 	return []ollama.Message{
-		{Role: ollama.RoleSystem, Content: notesSystem},
+		{Role: ollama.RoleSystem, Content: prompts.Text(promptNotes)},
 		{Role: ollama.RoleUser, Content: b.String()},
 	}
 }

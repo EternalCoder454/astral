@@ -224,6 +224,8 @@ type ChatView struct {
 	OnBuildStyle func()
 	// OnBuildWorld is the same for a world design chat.
 	OnBuildWorld func()
+	// OnSavePrompt is the same for the Prompt Optimizer.
+	OnSavePrompt func()
 	// OnAttachImage asks the app to choose an image. The app calls
 	// AttachImage with the result.
 	OnAttachImage func()
@@ -489,6 +491,10 @@ func (c *ChatView) refreshPlaceholder() {
 		text = "Describe who you want, in as much or as little detail as you like"
 	case c.chat.Kind == store.KindStyleDesigner:
 		text = "Describe how you want the writing to read"
+	case c.chat.Kind == store.KindPromptOptimizer && strings.TrimSpace(c.chat.Note) == "":
+		text = "Paste the prompt, and say what it is for"
+	case c.chat.Kind == store.KindPromptOptimizer:
+		text = "Say what you want changed, or just say go"
 	case c.chat.Kind == store.KindAssistant:
 		text = "Ask anything"
 	default:
@@ -621,7 +627,8 @@ func (c *ChatView) LoadScene(ch store.Chat, cast []chars.Character, msgs []store
 	c.loadLore(c.loreHost())
 	c.mode = Roleplay
 	switch ch.Kind {
-	case store.KindDesigner, store.KindAssistant, store.KindStyleDesigner, store.KindWorldDesigner:
+	case store.KindDesigner, store.KindAssistant, store.KindStyleDesigner, store.KindWorldDesigner,
+		store.KindPromptOptimizer:
 		c.mode = Plain
 	}
 	c.refreshModelChip()
@@ -680,6 +687,8 @@ func (c *ChatView) speakerFor(role string, speaker int64) (string, string, int) 
 			return "Style Designer", "✦", 3
 		case store.KindWorldDesigner:
 			return "World Designer", "✦", 2
+		case store.KindPromptOptimizer:
+			return "Prompt Optimizer", "✦", 4
 		}
 	}
 	if role == ollama.RoleUser {
@@ -1026,6 +1035,16 @@ func (c *ChatView) refreshActions() {
 		fire = func() {
 			if c.OnBuildStyle != nil {
 				c.OnBuildStyle()
+			}
+		}
+	case store.KindPromptOptimizer:
+		label, tip = "Save Prompt", "Use the prompt from the last reply in place of the one Astral sends now"
+		if strings.TrimSpace(c.chat.Note) == "" {
+			label, tip = "Copy Prompt", "Copy the prompt from the last reply"
+		}
+		fire = func() {
+			if c.OnSavePrompt != nil {
+				c.OnSavePrompt()
 			}
 		}
 	case store.KindWorldDesigner:

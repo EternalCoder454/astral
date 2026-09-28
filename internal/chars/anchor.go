@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"astral/internal/ollama"
+	"astral/internal/prompts"
 )
 
 // A model weights the end of its context above the middle, and by turn thirty
@@ -65,9 +66,9 @@ func Anchor(c Character, sc Scene, userName string) string {
 	b.WriteString(" as you, never by name: your sister, not her sister.\n\n")
 
 	if sc.NarrationDrifted {
-		b.WriteString(anchorFormatFirm)
+		b.WriteString(prompts.Text(promptFormatFirm))
 	} else {
-		b.WriteString(anchorFormat)
+		b.WriteString(prompts.Text(promptFormat))
 	}
 	b.WriteString("\n\n")
 

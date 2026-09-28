@@ -331,6 +331,25 @@ embedding model (`ollama pull embeddinggemma` is small) and it searches by
 meaning as well, blending the two. Scenes never use it: a note about a library
 has no business in a tavern.
 
+## Prompts
+
+Everything Astral asks of a model is a prompt, and **Prompts** in the sidebar
+lists every one of them: how a scene is framed, the reminder at the end of each
+turn, the three designers, the recap, the lorebook, reading pictures, study
+notes and the rest. Open one to read it as it is sent, change it by hand, or
+press **Optimize** to work on it with the Prompt Optimizer.
+
+The optimizer is a design chat whose product is a better prompt. It has the
+prompt in front of it along with a list of every other one, and reads any of them
+when it needs to, including the last request of each kind exactly as it went out,
+with the character's card, the recap and the reminders in it. It says where the
+prompt is likely to fail with a small local model and writes a better version;
+**Save Prompt** puts that version to work everywhere the prompt is sent. The
+original can be put back from the same page at any time. The **+** at the top
+takes a prompt of your own instead, and **Copy Prompt** gives you the result.
+
+Your versions are kept in the database, so they are in the daily backups too.
+
 ## Web search
 
 On by default for General Chat and the designers, never in a scene. The model

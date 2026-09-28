@@ -17,6 +17,7 @@ import (
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
+	"astral/internal/promptopt"
 	"astral/internal/store"
 	"astral/internal/websearch"
 	"astral/internal/world"
@@ -118,7 +119,7 @@ func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character,
 		if ca.Name != "" {
 			return system(withSearch(cfg, chars.ReviseSystem(ca, Persona(cfg))))
 		}
-		return system(withSearch(cfg, chars.DesignerSystem))
+		return system(withSearch(cfg, chars.DesignerPrompt()))
 	case store.KindStyleDesigner:
 		// A style design chat whose note names a style is revising that style.
 		// The note is the only field a chat has that can carry it, and it is
@@ -130,7 +131,7 @@ func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character,
 				}
 			}
 		}
-		return system(withSearch(cfg, chars.StyleDesignerSystem))
+		return system(withSearch(cfg, chars.StyleDesignerPrompt()))
 	case store.KindWorldDesigner:
 		// A world design chat that names a world is revising that world.
 		if ch.WorldID != 0 && st != nil {
@@ -138,7 +139,11 @@ func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character,
 				return system(withSearch(cfg, world.ReviseSystem(w, loreNames(st, w.ID))))
 			}
 		}
-		return system(withSearch(cfg, world.DesignerSystem))
+		return system(withSearch(cfg, world.DesignerPrompt()))
+	case store.KindPromptOptimizer:
+		// No search and no knowledge: its subject is Astral's own prompts, and
+		// every one of them is already in front of it or a tool call away.
+		return system(promptopt.System(ch.Note))
 	case store.KindAssistant:
 		return Plain(cfg, ch, hist)
 	}
@@ -227,7 +232,7 @@ func withSearch(cfg store.Config, system string) string {
 	if !Searchable(cfg) {
 		return system
 	}
-	return system + "\n\n" + websearch.Guidance
+	return system + "\n\n" + websearch.GuidanceText()
 }
 
 // Searchable reports whether search is switched on. It needs no address any

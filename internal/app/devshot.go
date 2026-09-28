@@ -172,6 +172,12 @@ func (a *App) runDevView() {
 		case "drop":
 			a.devDemoScene()
 			a.chat.DevShowDrop(arg == "refused")
+		case "prompts":
+			a.showPrompts()
+		case "prompt":
+			a.editPrompt(arg)
+		case "optimizer":
+			a.startPromptOptimizer(arg)
 		case "search":
 			// The sidebar searching the seeded scene, so results and their
 			// snippets can be looked at.

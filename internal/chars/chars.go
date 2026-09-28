@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"astral/internal/ollama"
+	"astral/internal/prompts"
 )
 
 // Character is a roleplay persona. The field names follow the character-card
@@ -236,7 +237,7 @@ func BuildSystem(c Character, p Persona) string {
 	// marker, so the one meant for the user took the character's name and the
 	// framing read "write Vesper's words only, never narrate Vesper's words":
 	// the instruction that matters most, saying the opposite of itself.
-	b.WriteString(strings.TrimSpace(Substitute(framingStructure, charOr(c.Name), userName)))
+	b.WriteString(strings.TrimSpace(Substitute(prompts.Text(promptFraming), charOr(c.Name), userName)))
 	b.WriteString("\n\nHOW TO WRITE IT\n")
 	// Substituted like everything else. A style is written once and applied to
 	// every character, so "{{char}} never uses contractions" is exactly the
@@ -244,7 +245,7 @@ func BuildSystem(c Character, p Persona) string {
 	// literal text "{{char}}" until this was fixed.
 	b.WriteString(sub(p.Style.Resolved()))
 	b.WriteString("\n\n")
-	b.WriteString(framingClose)
+	b.WriteString(prompts.Text(promptFramingClose))
 
 	section := func(heading, body string) {
 		if strings.TrimSpace(body) == "" {

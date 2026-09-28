@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"astral/internal/ollama"
+	"astral/internal/prompts"
 )
 
 // Lore is only worth having if it keeps up with the story. Written by hand it
@@ -128,7 +129,7 @@ func Learn(ctx context.Context, client *ollama.Client, model string, w World, ex
 	b.WriteString("List what this established that is permanently true about the world. Return an empty list if that is nothing.")
 
 	msgs := []ollama.Message{
-		{Role: ollama.RoleSystem, Content: learnSystem},
+		{Role: ollama.RoleSystem, Content: prompts.Text(promptLearn)},
 		{Role: ollama.RoleUser, Content: b.String()},
 	}
 	// Low temperature: this is transcription of what was said, and an invented

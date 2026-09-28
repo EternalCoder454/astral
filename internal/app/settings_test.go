@@ -3,6 +3,8 @@ package app
 import (
 	"strings"
 	"testing"
+
+	"astral/internal/ollama"
 )
 
 // The bug this guards: indexOf answers 0 for a miss, which is the right
@@ -42,5 +44,31 @@ func TestNotificationPreview(t *testing.T) {
 	}
 	if got := notificationPreview("Short."); got != "Short." {
 		t.Errorf("a short reply became %q", got)
+	}
+}
+
+// A rewrite that drops a name Astral fills in is caught before it is saved.
+func TestMissingPlaceholders(t *testing.T) {
+	orig := "You are {{char}}. Never write {{user}}'s actions. %[1]s: and %[3]s"
+	if got := missingPlaceholders(orig, "You are {{char}}. Keep to %[1]s and %[3]s."); len(got) != 1 || got[0] != "{{user}}" {
+		t.Errorf("got %v", got)
+	}
+	if got := missingPlaceholders(orig, orig); len(got) != 0 {
+		t.Errorf("the original itself is missing %v", got)
+	}
+}
+
+// Save Prompt takes the newest reply that has a finished prompt, skipping a
+// later reply that is only talk.
+func TestLatestProposal(t *testing.T) {
+	hist := []ollama.Message{
+		{Role: ollama.RoleAssistant, Content: "```prompt\nold\n```"},
+		{Role: ollama.RoleUser, Content: "shorter"},
+		{Role: ollama.RoleAssistant, Content: "```prompt\nnew\n```"},
+		{Role: ollama.RoleUser, Content: "thanks"},
+		{Role: ollama.RoleAssistant, Content: "Glad it helps."},
+	}
+	if got, ok := latestProposal(hist); !ok || got != "new" {
+		t.Errorf("got %q %v", got, ok)
 	}
 }

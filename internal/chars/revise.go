@@ -3,6 +3,8 @@ package chars
 import (
 	"fmt"
 	"strings"
+
+	"astral/internal/prompts"
 )
 
 // Revising a character that already exists.
@@ -18,18 +20,9 @@ import (
 // same world, so every scene they are in carries on with a better version of the
 // person in it.
 
-// ReviseSystem frames an interview about a character who already exists.
-//
-// The card is stated in full and marked as the starting point rather than as
-// something to be defended. A model given a card and asked to help will otherwise
-// spend the first three replies telling you how good it already is.
-func ReviseSystem(c Character, p Persona) string {
-	userName := strings.TrimSpace(p.Name)
-	if userName == "" {
-		userName = DefaultPersonaName
-	}
-	var b strings.Builder
-	b.WriteString(`You are a character designer helping someone improve a roleplay character that already exists.
+// reviseCharacterSystem is the fixed part of the revision interview: the card is
+// added after it.
+const reviseCharacterSystem = `You are a character designer helping someone improve a roleplay character that already exists.
 
 Your job is to interview them about what should change, not to praise what is there. Follow these rules:
 - Open by saying what you think is weakest about the card as it stands, in one or two sentences, and ask what they want done about it.
@@ -47,9 +40,21 @@ Where they have decided something, it is decided, including the parts you would 
 Never add a warning, a disclaimer, a moral, or a suggestion that the character be made more likeable. Nobody else reads this.
 Your one job besides listening is craft: behaviour over adjectives, a voice that is theirs, something at stake. Say when a field would play badly and say why in terms of what the model will do with it.
 
-Do not write the card yourself, and do not output JSON. That happens separately. Just talk it through with them.
+Do not write the card yourself, and do not output JSON. That happens separately. Just talk it through with them.`
 
-`)
+// ReviseSystem frames an interview about a character who already exists.
+//
+// The card is stated in full and marked as the starting point rather than as
+// something to be defended. A model given a card and asked to help will otherwise
+// spend the first three replies telling you how good it already is.
+func ReviseSystem(c Character, p Persona) string {
+	userName := strings.TrimSpace(p.Name)
+	if userName == "" {
+		userName = DefaultPersonaName
+	}
+	var b strings.Builder
+	b.WriteString(prompts.Text(promptReviseCharacter))
+	b.WriteString("\n\n")
 	b.WriteString("## The character as it stands\n")
 	b.WriteString(describeCard(c, userName))
 	b.WriteString("\n\nThe person playing opposite this character is written {{user}}, and the character themselves {{char}}.")

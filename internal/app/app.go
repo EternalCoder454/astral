@@ -119,6 +119,9 @@ func (a *App) activate() {
 	}
 	a.store = st
 	a.dbRecovered = recovered
+	// Before anything is built or sent: every prompt is read through the
+	// prompts package, which has to know your versions first.
+	a.loadPromptOverrides()
 
 	a.client = ollama.NewClient(cfg.BaseURL)
 	a.client.KeepAlive = cfg.KeepAlive

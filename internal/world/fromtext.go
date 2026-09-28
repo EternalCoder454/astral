@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"astral/internal/ollama"
+	"astral/internal/prompts"
 )
 
 // Turning a document into lorebook entries.
@@ -90,7 +91,7 @@ func EntriesFromText(ctx context.Context, client *ollama.Client, model, text str
 	opts.NumPredict = 0
 
 	raw, _, err := client.Structured(ctx, model, []ollama.Message{
-		{Role: ollama.RoleSystem, Content: fromTextSystem},
+		{Role: ollama.RoleSystem, Content: prompts.Text(promptFromText)},
 		{Role: ollama.RoleUser, Content: b.String()},
 	}, opts, fromTextSchema)
 	if err != nil {

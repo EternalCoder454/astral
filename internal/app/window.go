@@ -156,6 +156,7 @@ func (a *App) buildSidebar() {
 	a.sidebar.OnCharacters = a.showCharacters
 	a.sidebar.OnWorlds = a.showWorlds
 	a.sidebar.OnKnowledge = a.showKnowledge
+	a.sidebar.OnPrompts = a.showPrompts
 	a.sidebar.OnSettings = a.showSettings
 	a.sidebar.OnPersona = func() { a.showSettingsPage("persona") }
 	a.sidebar.OnStyles = a.showStyles
@@ -213,6 +214,7 @@ func (a *App) buildCenter() {
 	a.chat.OnEditDirection = a.editDirection
 	a.chat.OnBuildStyle = a.buildStyleFromChat
 	a.chat.OnBuildWorld = a.buildWorldFromChat
+	a.chat.OnSavePrompt = a.savePromptFromChat
 	a.chat.OnSaveToKnowledge = a.saveReplyToKnowledge
 	a.chat.OnLoreLearned = func(applied, held int) {
 		// Worth saying, because the lorebook changed without being asked and

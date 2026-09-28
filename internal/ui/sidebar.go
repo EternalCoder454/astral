@@ -54,7 +54,9 @@ type Sidebar struct {
 	OnWorlds func()
 	// OnKnowledge opens the knowledge base.
 	OnKnowledge func()
-	OnSettings  func()
+	// OnPrompts opens the list of prompts and the Prompt Optimizer.
+	OnPrompts  func()
+	OnSettings func()
 	// OnPersona opens the persona editor from the profile menu.
 	OnPersona func()
 	// OnAbout opens the about dialog from the profile menu.
@@ -116,6 +118,13 @@ func NewSidebar() *Sidebar {
 	knowledgeBtn.SetTooltipText("Notes, saved pages and studied topics that General Chat and the designers draw on")
 	knowledgeBtn.ConnectClicked(func() { fire(s.OnKnowledge) })
 	nav.Append(knowledgeBtn)
+
+	promptsBtn := gtk.NewButton()
+	promptsBtn.AddCSSClass("sidebar-item")
+	promptsBtn.SetChild(navContent(IconDesigner, "Prompts"))
+	promptsBtn.SetTooltipText("Every prompt Astral sends, and the Prompt Optimizer that improves them")
+	promptsBtn.ConnectClicked(func() { fire(s.OnPrompts) })
+	nav.Append(promptsBtn)
 	s.widget.Append(nav)
 
 	// Finding a chat by what was said in it. Above the list rather than in

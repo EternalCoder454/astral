@@ -1,6 +1,10 @@
 package chars
 
-import "strings"
+import (
+	"strings"
+
+	"astral/internal/prompts"
+)
 
 // Reading a picture for a model that cannot see it.
 //
@@ -56,9 +60,9 @@ const seeingForChat = `You are describing an image for someone who cannot see it
 // another model's behalf. design says the chat is building a character.
 func SeeingPrompt(design bool) string {
 	if design {
-		return seeingForDesign
+		return prompts.Text(promptSeeingDesign)
 	}
-	return seeingForChat
+	return prompts.Text(promptSeeingChat)
 }
 
 // SeeingRequest is the message the picture is attached to. What the person

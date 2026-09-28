@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"astral/internal/ollama"
+	"astral/internal/prompts"
 )
 
 // A long scene outgrows the context window. What happened before was simply
@@ -88,7 +89,7 @@ func CompactFor(ctx context.Context, client *ollama.Client, model, previous stri
 	// the recap is bounded afterwards anyway.
 	opts.NumPredict = recapReplyTokens
 
-	out, err := askForRecord(ctx, client, model, compactSystem, prompt, opts)
+	out, err := askForRecord(ctx, client, model, prompts.Text(promptRecord), prompt, opts)
 	if err != nil {
 		return previous, err
 	}
@@ -101,7 +102,7 @@ func CompactFor(ctx context.Context, client *ollama.Client, model, previous stri
 	// sentence differs. Whether this particular answer is any good can be
 	// decided. It costs a second call about one run in five.
 	if len(out)*2 >= totalChars(aged) {
-		again, err := askForRecord(ctx, client, model, compactSystem+"\n"+recordAgain, prompt, opts)
+		again, err := askForRecord(ctx, client, model, prompts.Text(promptRecord)+"\n"+prompts.Text(promptRecordAgain), prompt, opts)
 		if err == nil && len(again) > 0 && len(again) < len(out) {
 			out = again
 		}

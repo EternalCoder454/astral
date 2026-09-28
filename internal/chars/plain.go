@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"astral/internal/ollama"
+	"astral/internal/prompts"
 )
 
 // A plain conversation is not a degenerate roleplay, and treating it as one
@@ -28,7 +29,7 @@ import (
 // dialogue, what to avoid, and a plain answer is not prose.
 func AssistantSystemFor(p Persona) string {
 	var b strings.Builder
-	b.WriteString(AssistantSystem)
+	b.WriteString(AssistantPrompt())
 
 	name := strings.TrimSpace(p.Name)
 	desc := strings.TrimSpace(p.Description)
@@ -95,12 +96,12 @@ func CompactPlain(ctx context.Context, client *ollama.Client, model, previous st
 	opts.Temperature = 0.2
 	opts.NumPredict = recapReplyTokens
 
-	out, err := askForRecord(ctx, client, model, compactPlainSystem, prompt, opts)
+	out, err := askForRecord(ctx, client, model, prompts.Text(promptRecordPlain), prompt, opts)
 	if err != nil {
 		return previous, err
 	}
 	if len(out)*2 >= totalChars(aged) {
-		again, err := askForRecord(ctx, client, model, compactPlainSystem+"\n"+recordAgain, prompt, opts)
+		again, err := askForRecord(ctx, client, model, prompts.Text(promptRecordPlain)+"\n"+prompts.Text(promptRecordAgain), prompt, opts)
 		if err == nil && len(again) > 0 && len(again) < len(out) {
 			out = again
 		}

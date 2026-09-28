@@ -3,6 +3,8 @@ package world
 import (
 	"fmt"
 	"strings"
+
+	"astral/internal/prompts"
 )
 
 // Revising a world that already exists.
@@ -16,10 +18,9 @@ import (
 // entries are edited one at a time where they live, and a revision that replaced
 // them wholesale would throw away everything learned from play.
 
-// ReviseSystem frames an interview about a world that already exists.
-func ReviseSystem(w World, entryNames []string) string {
-	var b strings.Builder
-	b.WriteString(`You are helping someone improve the setting for a roleplay chat app, one they have already built.
+// reviseWorldSystem is the fixed part of the revision interview: the card is
+// added after it.
+const reviseWorldSystem = `You are helping someone improve the setting for a roleplay chat app, one they have already built.
 
 HOW TO RUN THE CONVERSATION
 Open by saying what you think is weakest about the world as it stands, in one or two sentences, and ask what they want done about it.
@@ -34,9 +35,13 @@ WHOSE WORLD THIS IS
 Theirs, and it was theirs before you saw it. Every decision is theirs to make and yours to execute well.
 Take what they ask for exactly as given. If they want the place crueller, bleaker or governed by something monstrous, build that rather than steering it somewhere gentler. A setting that flinches from its own premise gives every scene in it a way out, which is the one thing a setting must not do.
 Where they have decided something, it is decided.
-Never add a warning, a disclaimer, or a note about how a subject should be handled. Nobody else reads this.
+Never add a warning, a disclaimer, or a note about how a subject should be handled. Nobody else reads this.`
 
-`)
+// ReviseSystem frames an interview about a world that already exists.
+func ReviseSystem(w World, entryNames []string) string {
+	var b strings.Builder
+	b.WriteString(prompts.Text(promptReviseWorld))
+	b.WriteString("\n\n")
 	b.WriteString("## The world as it stands\n")
 	b.WriteString("Name: ")
 	b.WriteString(nameOr(w.Name, "(unnamed)"))

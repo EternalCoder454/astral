@@ -247,3 +247,15 @@ func TestDescribingMovesNothingThatFits(t *testing.T) {
 		t.Error("the model that looked was left loaded")
 	}
 }
+
+func TestRenderRequest(t *testing.T) {
+	msgs := []ollama.Message{{Role: ollama.RoleSystem, Content: "SYSTEM"}}
+	for i := 0; i < 6; i++ {
+		msgs = append(msgs, ollama.Message{Role: ollama.RoleUser, Content: strings.Repeat("x", i+1)})
+	}
+	got := RenderRequest(msgs)
+	if !strings.HasPrefix(got, "[system]\nSYSTEM") || !strings.Contains(got, "[3 earlier messages") ||
+		!strings.HasSuffix(got, "[user]\nxxxxxx") || strings.Contains(got, "\nxxx\n") {
+		t.Errorf("rendered:\n%s", got)
+	}
+}

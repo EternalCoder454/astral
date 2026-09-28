@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"astral/internal/ollama"
+	"astral/internal/prompts"
 )
 
 // The designer is a conversation whose product is a character.
@@ -193,9 +194,9 @@ func BuildFromConversation(ctx context.Context, client *ollama.Client, model str
 		return Character{}, fmt.Errorf("there is nothing here to build a character from yet")
 	}
 	msgs := make([]ollama.Message, 0, len(history)+2)
-	msgs = append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: DesignerSystem})
+	msgs = append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: DesignerPrompt()})
 	msgs = append(msgs, history...)
-	msgs = append(msgs, ollama.Message{Role: ollama.RoleUser, Content: extractInstruction})
+	msgs = append(msgs, ollama.Message{Role: ollama.RoleUser, Content: prompts.Text(promptBuild)})
 
 	// Low temperature: this step is transcription, not invention. The creative
 	// work already happened in the conversation, and a high temperature here
@@ -312,9 +313,9 @@ func BuildStyleFromConversation(ctx context.Context, client *ollama.Client, mode
 		return WritingStyle{}, fmt.Errorf("there is nothing here to build a style from yet")
 	}
 	msgs := make([]ollama.Message, 0, len(history)+2)
-	msgs = append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: StyleDesignerSystem})
+	msgs = append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: StyleDesignerPrompt()})
 	msgs = append(msgs, history...)
-	msgs = append(msgs, ollama.Message{Role: ollama.RoleUser, Content: styleExtractInstruction})
+	msgs = append(msgs, ollama.Message{Role: ollama.RoleUser, Content: prompts.Text(promptStyleBuild)})
 
 	opts.Temperature = 0.3 // transcription, not invention
 	opts.NumPredict = 0

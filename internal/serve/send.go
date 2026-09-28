@@ -277,6 +277,7 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat,
 	// And the same knowledge, found the same way, so a question asked from the
 	// phone draws on what the window saved.
 	msgs = scene.WithKnowledge(ctx, s.store, s.client(), cfg, ch.Kind, msgs, hist)
+	scene.RecordSent(ch, len(cast) > 1, msgs)
 
 	var reply ollama.Message
 	var stats ollama.Stats

@@ -31,7 +31,7 @@ func BuildFor(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Cha
 		return Build(st, cfg, ch, one, hist)
 	}
 	switch ch.Kind {
-	case store.KindDesigner, store.KindStyleDesigner, store.KindAssistant:
+	case store.KindDesigner, store.KindStyleDesigner, store.KindAssistant, store.KindPromptOptimizer:
 		// These have no cast by construction. Answered here rather than left to
 		// fall through, so a stray cast row on one of them cannot turn the
 		// character designer into a roleplay.

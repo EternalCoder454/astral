@@ -3,6 +3,8 @@ package chars
 import (
 	"fmt"
 	"strings"
+
+	"astral/internal/prompts"
 )
 
 // Revising a writing style that already exists.
@@ -12,14 +14,9 @@ import (
 // nothing; the editor next door lets you change the words but not argue about
 // them, and arguing is what the designer is for.
 
-// ReviseStyleSystem frames an interview about a style that already exists.
-//
-// The rules are stated in full and marked as the starting point rather than as
-// something to defend, for the reason the character version is: a model handed
-// something and asked to help spends its first replies approving of it.
-func ReviseStyleSystem(st WritingStyle) string {
-	var b strings.Builder
-	b.WriteString(`You are helping someone improve a writing style that already exists for a roleplay chat app. A style controls how the prose sounds: sentence rhythm, how much description, how dialogue is written, what a scene dwells on. It is applied to every character, so it must never describe a person.
+// reviseStyleSystem is the fixed part of the revision interview: the card is
+// added after it.
+const reviseStyleSystem = `You are helping someone improve a writing style that already exists for a roleplay chat app. A style controls how the prose sounds: sentence rhythm, how much description, how dialogue is written, what a scene dwells on. It is applied to every character, so it must never describe a person.
 
 HOW TO RUN THE CONVERSATION
 Open by saying what you think is weakest about the style as it stands, in one or two sentences, and ask what they want done about it.
@@ -34,9 +31,17 @@ WHOSE STYLE THIS IS
 Theirs, and it was theirs before you saw it. Every decision is theirs to make and yours to execute well.
 Take what they ask for exactly as given. If they want the prose colder, harder, more explicit or more relentless, write rules that deliver it rather than rules that hedge towards it. A style that softens what it was asked for does nothing, because the model was already going to write the safe version by itself.
 Where they have decided something, it is decided, including the parts you would have written differently.
-Never add a warning, a disclaimer, or a rule about what the prose should avoid on grounds other than craft. Nobody else reads this.
+Never add a warning, a disclaimer, or a rule about what the prose should avoid on grounds other than craft. Nobody else reads this.`
 
-`)
+// ReviseStyleSystem frames an interview about a style that already exists.
+//
+// The rules are stated in full and marked as the starting point rather than as
+// something to defend, for the reason the character version is: a model handed
+// something and asked to help spends its first replies approving of it.
+func ReviseStyleSystem(st WritingStyle) string {
+	var b strings.Builder
+	b.WriteString(prompts.Text(promptReviseStyle))
+	b.WriteString("\n\n")
 	b.WriteString("## The style as it stands\n")
 	b.WriteString("Name: ")
 	if n := strings.TrimSpace(st.Name); n != "" {

@@ -15,6 +15,7 @@ import (
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
+	"astral/internal/promptopt"
 	"astral/internal/scene"
 	"astral/internal/store"
 	"astral/internal/websearch"
@@ -128,9 +129,19 @@ func (c *ChatView) ensureChat(firstMessage string) error {
 			c.fail("Could not save who is in this scene: " + err.Error())
 		}
 	}
-	kind := c.chat.Kind
+	kind, note := c.chat.Kind, c.chat.Note
 	c.chat = ch
 	c.chat.Kind = kind
+	// The note says what a revision or an optimizer chat is about, and it
+	// was set before there was a row to keep it in. Replaced along with the
+	// rest, it was lost at the first message: a style being revised turned
+	// into a new one from the second reply on.
+	if note != "" {
+		c.chat.Note = note
+		if err := c.store.SetChatNote(ch.ID, note); err != nil {
+			c.fail("Could not save what this chat is about: " + err.Error())
+		}
+	}
 
 	// The greeting was shown as soon as the character was chosen, but there
 	// was no chat to write it into until now. Persist it before your first
@@ -362,6 +373,7 @@ func (c *ChatView) startStream() {
 
 	client := c.client
 	st, cfg, kind, hist := c.store, c.cfg, c.chat.Kind, c.history()
+	chatNow, group := c.chat, c.isGroup()
 	go func() {
 		defer cancel()
 		if picture.image != "" {
@@ -374,6 +386,8 @@ func (c *ChatView) startStream() {
 		// than on the UI thread because finding it may mean asking the
 		// embedding model for a vector.
 		msgs := scene.WithKnowledge(ctx, st, client, cfg, kind, msgs, hist)
+		// A copy for the Prompt Optimizer, as it goes out.
+		scene.RecordSent(chatNow, group, msgs)
 		if searcher != nil {
 			searcher.KeepPage = func(r websearch.Round) { scene.KeepPage(st, cfg, r) }
 		}
@@ -389,12 +403,24 @@ func (c *ChatView) startStream() {
 		var stats ollama.Stats
 		var err error
 		var rounds []websearch.Round
-		if searcher != nil {
+		switch {
+		case kind == store.KindPromptOptimizer:
+			// The optimizer reads other prompts as it needs them, and says
+			// which while it does, as a search says what it is looking up.
+			msg, stats, err = promptopt.Run(ctx, client, model, msgs, opts, &think, onDelta,
+				func(name string) { c.setStatus("Reading the " + name + " prompt…") },
+				func() {
+					c.pendMu.Lock()
+					c.pendText.Reset()
+					c.pendDiscard = true
+					c.pendMu.Unlock()
+				})
+		case searcher != nil:
 			// The model decides whether to search, and the searches it makes are
 			// shown above the reply rather than folded away silently: a reply that
 			// went to the internet is one you cannot judge without knowing that.
 			msg, stats, rounds, err = searcher.Run(ctx, msgs, onDelta)
-		} else {
+		default:
 			msg, stats, err = c.client.Chat(ctx, model, msgs, opts, &think, onDelta)
 		}
 

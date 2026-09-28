@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"astral/internal/ollama"
+	"astral/internal/prompts"
 )
 
 // The world designer is a conversation whose product is a setting.
@@ -132,9 +133,9 @@ func BuildFromConversation(ctx context.Context, client *ollama.Client, model str
 		return Draft{}, fmt.Errorf("there is nothing here to build a world from yet")
 	}
 	msgs := make([]ollama.Message, 0, len(history)+2)
-	msgs = append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: DesignerSystem})
+	msgs = append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: DesignerPrompt()})
 	msgs = append(msgs, history...)
-	msgs = append(msgs, ollama.Message{Role: ollama.RoleUser, Content: extractInstruction})
+	msgs = append(msgs, ollama.Message{Role: ollama.RoleUser, Content: prompts.Text(promptBuild)})
 
 	opts.Temperature = 0.3 // transcription, not invention
 	opts.NumPredict = 0
