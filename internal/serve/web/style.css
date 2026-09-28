@@ -480,6 +480,12 @@ html, body {
 .draft:active { transform: scale(0.92); }
 .draft:disabled { opacity: 0.45; }
 
+/* The reply being read aloud, so it is plain which one the voice is on. */
+.msg.reading .bubble {
+	outline: 2px solid color-mix(in srgb, var(--md-primary) 70%, transparent);
+	outline-offset: 2px;
+}
+
 /* A pinned turn carries a pin on its corner, so what the scene will never
    forget can be found by scrolling. */
 .msg.pinned .bubble { position: relative; }

@@ -215,3 +215,32 @@ func TestRecentTextTakesTheTail(t *testing.T) {
 		t.Error("the oldest turn was included")
 	}
 }
+
+func TestMatchFollowsWhatAnEntryMentions(t *testing.T) {
+	entries := []Entry{
+		{ID: 1, Name: "Harbourmaster", Keys: []string{"harbourmaster"}, Content: "Answers to the Tide Guild.", Enabled: true},
+		{ID: 2, Name: "Tide Guild", Keys: []string{"tide guild"}, Content: "Run from the Salt Hall.", Enabled: true},
+		{ID: 3, Name: "Salt Hall", Keys: []string{"salt hall"}, Content: "Mentions the lighthouse.", Enabled: true},
+		{ID: 4, Name: "Lighthouse", Keys: []string{"lighthouse"}, Content: "Three levels away.", Enabled: true},
+		{ID: 5, Name: "Unrelated", Keys: []string{"orchard"}, Content: "Never mentioned.", Enabled: true},
+	}
+	got := Match(entries, "I ask for the harbourmaster.", 10000)
+	var names []string
+	for _, e := range got {
+		names = append(names, e.Name)
+	}
+	if strings.Join(names, ",") != "Harbourmaster,Tide Guild,Salt Hall" {
+		t.Fatalf("matched %v, want the harbourmaster and the two it leads to", names)
+	}
+	// When room is short, what was mentioned in the scene outlasts what an
+	// entry mentioned.
+	got = Match(entries, "I ask for the harbourmaster and the salt hall.", 60)
+	if len(got) == 0 || got[0].Name != "Harbourmaster" {
+		t.Fatalf("a direct match did not come first: %v", got)
+	}
+	for _, e := range got {
+		if e.Name == "Tide Guild" && len(got) < 3 {
+			t.Fatalf("a mentioned entry beat a direct one to the budget: %v", got)
+		}
+	}
+}

@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.text.InputType
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
@@ -37,6 +39,14 @@ import androidx.core.view.WindowInsetsCompat
 class MainActivity : AppCompatActivity() {
 
     private lateinit var web: WebView
+
+    /**
+     * The phone's own voice, for Read Aloud. Started the first time a reply
+     * is read rather than at launch, since most sessions never ask for it.
+     */
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private var pendingSpeech: Pair<String, String>? = null
 
     /** Where the PC is. Kept here because it is the one thing this app knows. */
     private val prefs by lazy { getSharedPreferences("astral", Context.MODE_PRIVATE) }
@@ -138,10 +148,22 @@ class MainActivity : AppCompatActivity() {
     private fun home(): String = prefs.getString(KEY_ADDRESS, "") ?: ""
 
     /**
-     * What the page can ask the app to do. Three things, all about updating,
-     * because that is the only thing a browser cannot do for itself.
+     * What the page can ask the app to do: update it, which a browser cannot
+     * do for itself, and read a reply aloud, which a WebView cannot either.
      */
     private inner class Bridge {
+        /** Reads text aloud; the page is called back with id when it ends. */
+        @JavascriptInterface
+        fun speak(text: String, id: String) {
+            runOnUiThread { say(text, id) }
+        }
+
+        /** Stops reading. */
+        @JavascriptInterface
+        fun stopSpeaking() {
+            runOnUiThread { tts?.stop() }
+        }
+
         /** Tells the page it is running inside the app rather than a browser. */
         @JavascriptInterface
         fun version(): String =
@@ -170,6 +192,54 @@ class MainActivity : AppCompatActivity() {
                 onError = { msg -> toPage("astralUpdateFailed", quote(msg)) },
             )
         }
+    }
+
+    /** Speaks text in the phone's voice, telling the page when it is done. */
+    private fun say(text: String, id: String) {
+        val engine = tts
+        if (engine != null && ttsReady) {
+            engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, id)
+            return
+        }
+        pendingSpeech = text to id
+        if (engine != null) return // still starting; it speaks when ready
+        tts = TextToSpeech(this, TextToSpeech.OnInitListener { status -> started(status, id) })
+    }
+
+    /** The voice has started, or failed to; whatever was waiting is spoken. */
+    private fun started(status: Int, id: String) {
+        ttsReady = status == TextToSpeech.SUCCESS
+        if (!ttsReady) {
+            // Let go of it, so the next reply read tries again rather than
+            // waiting forever on a voice that never started.
+            tts?.shutdown()
+            tts = null
+            pendingSpeech = null
+            toPage("astralSpoke", quote(id))
+            return
+        }
+        tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {}
+            override fun onDone(utteranceId: String?) {
+                toPage("astralSpoke", quote(utteranceId ?: ""))
+            }
+            @Deprecated("Deprecated in Java")
+            override fun onError(utteranceId: String?) {
+                toPage("astralSpoke", quote(utteranceId ?: ""))
+            }
+            override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                toPage("astralSpoke", quote(utteranceId ?: ""))
+            }
+        })
+        val waiting = pendingSpeech
+        pendingSpeech = null
+        if (waiting != null) tts?.speak(waiting.first, TextToSpeech.QUEUE_FLUSH, null, waiting.second)
+    }
+
+    override fun onDestroy() {
+        tts?.shutdown()
+        tts = null
+        super.onDestroy()
     }
 
     /** Calls a function on the page, if it has one. */

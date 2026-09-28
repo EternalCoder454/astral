@@ -255,7 +255,7 @@ func (a *App) editLore(e world.Entry, w world.World) {
 	keysEntry.SetText(strings.Join(e.Keys, ", "))
 	keysEntry.SetPlaceholderText("Kestrel Bay, the Bay, the ferry")
 	card.Append(labelledField("Triggers",
-		"Specific, comma-separated words that send this entry when mentioned.",
+		"Words that send this entry when the scene, or another sent entry, mentions them.",
 		keysEntry))
 
 	frame, view := multilineField(e.Content, 7)

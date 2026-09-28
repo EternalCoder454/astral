@@ -997,6 +997,7 @@ async function showPortrait(chat) {
 // leaveChat goes back to the lists, fetched again so what was said here, and
 // anything started on the PC meanwhile, is in them.
 function leaveChat() {
+	stopSpeaking();
 	const left = current;
 	current = null;
 	show("home");
@@ -1265,6 +1266,7 @@ function scrollDown(smooth = true) {
 
 async function send(text) {
 	if (!current || busyHere()) return;
+	stopSpeaking();
 	document.querySelector("#transcript .empty-chat")?.remove();
 	const mine = bubble("user", text);
 	$("transcript").append(mine);
@@ -1505,12 +1507,17 @@ async function stream(path, requestBody, mine) {
 			}
 			body.innerHTML = render(beats[0].content, "assistant");
 			if (beats[0].id) live.dataset.id = beats[0].id;
+			const rest = [];
 			for (const b of beats.slice(1)) {
-				$("transcript").append(bubble("assistant", b.content, b.who, b.accent, b.id));
+				const el = bubble("assistant", b.content, b.who, b.accent, b.id);
+				rest.push(el);
+				$("transcript").append(el);
 			}
+			if (outcome === "done" && !stopped) readIfWanted(live, rest);
 		} else {
 			body.innerHTML = render(reply, "assistant");
 			if (versionsNow > 1) addPager(live, versionsNow, versionNow);
+			if (outcome === "done" && !stopped) readIfWanted(live);
 		}
 		scrollDown();
 	}
@@ -1560,6 +1567,7 @@ for (const tab of document.querySelectorAll(".tab")) {
 		current = null;
 		show(tab.dataset.screen);
 		if (tab.dataset.screen === "settings") {
+			showVoiceSettings();
 			loadSettings().then(() => checkForAppUpdate()).catch((e) => toast(e.message));
 		} else {
 			// The lists as the PC has them now. They used to be fetched once,
@@ -1589,6 +1597,8 @@ document.addEventListener("visibilitychange", () => {
 // back up to keep it, and one that was not saved looked saved.
 let settingsTimer = 0;
 for (const el of document.querySelectorAll("#settings input, #settings select, #settings textarea")) {
+	// This phone's own preferences stay on this phone.
+	if (el.dataset.local !== undefined) continue;
 	el.addEventListener("change", () => {
 		clearTimeout(settingsTimer);
 		settingsTimer = setTimeout(saveSettings, 300);
@@ -1703,6 +1713,15 @@ function storedBubble(m) {
 function moreFor(wrap, isLastReply) {
 	const items = [];
 	const id = Number(wrap.dataset.id || 0);
+	if (wrap.dataset.role === "assistant" && canSpeak()) {
+		const reading = speaking === wrap;
+		items.push({
+			title: reading ? "Stop Reading" : "Read Aloud",
+			note: reading ? "Stop the voice." : "Hear this reply in your phone's voice.",
+			icon: reading ? "stop" : "speaker",
+			onClick: () => (reading ? stopSpeaking() : speakReply(wrap)),
+		});
+	}
 	if (isLastReply) {
 		items.push({ title: "Rewrite with a Note", note: "Say what this reply should do differently.",
 			icon: "draft", onClick: () => askNote() });
@@ -1745,6 +1764,93 @@ $("menu-cancel").addEventListener("click", () => { $("menu-sheet").hidden = true
 // own sheets do.
 for (const id of ["menu-sheet", "note-sheet", "memory-sheet", "persona-sheet"]) {
 	$(id).addEventListener("click", (e) => { if (e.target === $(id)) $(id).hidden = true; });
+}
+
+// ---- Read Aloud ----
+
+// READ_KEY and READ_WHAT_KEY are this phone's own choices: whether every reply
+// is read as it finishes, and whether narration is read or only speech.
+const READ_KEY = "astral.read";
+const READ_WHAT_KEY = "astral.readWhat";
+function pref(key, fallback) {
+	try { return localStorage.getItem(key) || fallback; } catch (_) { return fallback; }
+}
+function setPref(key, value) {
+	try { localStorage.setItem(key, value); } catch (_) {}
+}
+
+// speaking is the message being read, and speechId tells a finished reading
+// from one that was replaced by the next.
+let speaking = null;
+let speechId = 0;
+
+// canSpeak reports whether this phone can read aloud: the app, from the
+// version that has a voice, or a browser that has one of its own.
+function canSpeak() {
+	if (inApp()) return typeof window.AstralApp.speak === "function";
+	return "speechSynthesis" in window;
+}
+
+// spokenText is what is read of a reply: all of it, or only what is said
+// aloud in quotation marks, as rendered, so no markup is read out.
+function spokenText(wrap, more = []) {
+	if (more.length) return [wrap, ...more].map((w) => spokenText(w)).filter(Boolean).join("\n\n");
+	const body = wrap.querySelector(".bubble");
+	if (!body) return "";
+	if (pref(READ_WHAT_KEY, "all") === "speech") {
+		const said = [...body.querySelectorAll(".speech")].map((e) => e.innerText.trim()).filter(Boolean);
+		if (said.length) return said.join(" ");
+	}
+	return body.innerText.replace(/[*_]/g, "").trim();
+}
+
+function speakReply(wrap, more = []) {
+	const text = spokenText(wrap, more);
+	if (!text) return;
+	stopSpeaking();
+	speaking = wrap;
+	wrap.classList.add("reading");
+	const id = String(++speechId);
+	if (inApp()) {
+		window.AstralApp.speak(text, id);
+		return;
+	}
+	const u = new SpeechSynthesisUtterance(text);
+	u.onend = u.onerror = () => window.astralSpoke(id);
+	speechSynthesis.speak(u);
+}
+
+function stopSpeaking() {
+	if (!speaking) return;
+	speaking.classList.remove("reading");
+	speaking = null;
+	speechId++;
+	if (inApp()) window.AstralApp.stopSpeaking();
+	else if ("speechSynthesis" in window) speechSynthesis.cancel();
+}
+
+// astralSpoke is called when a reading ends, by the app or the browser.
+window.astralSpoke = (id) => {
+	if (String(speechId) !== String(id) || !speaking) return;
+	speaking.classList.remove("reading");
+	speaking = null;
+};
+
+// readIfWanted reads a finished reply when this phone reads every reply.
+function readIfWanted(wrap, more = []) {
+	if (wrap && canSpeak() && pref(READ_KEY, "ask") === "every") speakReply(wrap, more);
+}
+
+$("set-read").addEventListener("change", () => setPref(READ_KEY, $("set-read").value));
+$("set-read-what").addEventListener("change", () => setPref(READ_WHAT_KEY, $("set-read-what").value));
+
+// showVoiceSettings shows the Read Aloud choices where there is a voice.
+function showVoiceSettings() {
+	const on = canSpeak();
+	$("set-voice").hidden = !on;
+	$("set-voice-heading").hidden = !on;
+	$("set-read").value = pref(READ_KEY, "ask");
+	$("set-read-what").value = pref(READ_WHAT_KEY, "all");
 }
 
 // REWRITE_NOTES are the notes asked for most, one tap each.

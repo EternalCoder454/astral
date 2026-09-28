@@ -36,13 +36,14 @@ Astral, because the vendored set had no equivalent:
 They are drawn on the same 960-unit grid at the same optical weight so they sit
 with the rest, and are covered by Astral's own licence.
 
-Three more are Google's Material Icons (Filled), also under the Apache License
+Four more are Google's Material Icons (Filled), also under the Apache License
 2.0, written into place by hand rather than imported, with the same filename,
 size and fill changes as above:
 
   * astral-pin-symbolic.svg (push_pin)
   * astral-branch-symbolic.svg (call_split)
   * astral-draft-symbolic.svg (edit_note)
+  * astral-speaker-symbolic.svg (volume_up)
 
 --------------------------------------------------------------------------------
 Colour palette

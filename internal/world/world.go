@@ -96,23 +96,46 @@ func Match(entries []Entry, recent string, budget int) []Entry {
 	haystack := strings.ToLower(recent)
 
 	var hits []Entry
-	for _, e := range entries {
+	in := make(map[int]bool, len(entries))
+	for i, e := range entries {
 		if !e.Enabled || strings.TrimSpace(e.Content) == "" {
 			continue
 		}
 		if e.Constant || matches(haystack, e.Keys) {
 			hits = append(hits, e)
+			in[i] = true
 		}
 	}
+	byPriority(hits)
 
-	// Highest priority first, then oldest, so the order a turn sees is stable
-	// between messages rather than shuffling with map iteration.
-	sort.SliceStable(hits, func(i, j int) bool {
-		if hits[i].Priority != hits[j].Priority {
-			return hits[i].Priority > hits[j].Priority
+	// Entries the matched ones mention, and the ones those mention: a
+	// harbourmaster's entry that names the guild she answers to brings the
+	// guild's entry with it, so the model is not told about somebody's
+	// allegiance and left to invent what it is allegiance to. Two levels, and
+	// after every direct match, so when the budget runs out it is these that
+	// go first.
+	from := hits
+	for level := 0; level < cascadeLevels && len(from) > 0; level++ {
+		var text strings.Builder
+		for _, e := range from {
+			text.WriteString(strings.ToLower(e.Content))
+			text.WriteByte('\n')
 		}
-		return hits[i].ID < hits[j].ID
-	})
+		mentioned := text.String()
+		var next []Entry
+		for i, e := range entries {
+			if in[i] || !e.Enabled || e.Constant || strings.TrimSpace(e.Content) == "" {
+				continue
+			}
+			if matches(mentioned, e.Keys) {
+				next = append(next, e)
+				in[i] = true
+			}
+		}
+		byPriority(next)
+		hits = append(hits, next...)
+		from = next
+	}
 
 	out := make([]Entry, 0, len(hits))
 	used := 0
@@ -125,6 +148,22 @@ func Match(entries []Entry, recent string, budget int) []Entry {
 		out = append(out, e)
 	}
 	return out
+}
+
+// cascadeLevels is how far a mention is followed: an entry matched by the
+// scene can bring in the entries it names, and they the entries they name,
+// and no further. Past two the chain is rarely about the scene any more.
+const cascadeLevels = 2
+
+// byPriority orders entries highest priority first, then oldest, so the order
+// a turn sees is stable between messages rather than shuffling.
+func byPriority(es []Entry) {
+	sort.SliceStable(es, func(i, j int) bool {
+		if es[i].Priority != es[j].Priority {
+			return es[i].Priority > es[j].Priority
+		}
+		return es[i].ID < es[j].ID
+	})
 }
 
 // matches reports whether any key appears in the already-lowercased haystack.
