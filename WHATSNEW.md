@@ -3,6 +3,13 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.13
+- Revising a character, style or world keeps everything you did not ask to change
+- General Chat searches the web for anything current, and every chat but a scene knows today's date
+- Invented personas always get a real name, gender and race
+- General Chat ends with the answer, without a stray suggestion tacked on
+- Characters no longer call you "sister" out of nowhere
+
 ## 0.5.12
 - Phone: message buttons say Copy, Rewrite and Delete, and settings save themselves as you change them
 - Phone: search your chats, and a chat you open and leave without a word is not kept
