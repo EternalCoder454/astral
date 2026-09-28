@@ -3,6 +3,14 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.5
+- Select chats with Ctrl or Shift and a click, then delete them all at once
+- Deleting a chat no longer asks first: Undo puts it back
+- Each chat in the list has a menu button when you point at it
+- Dragging the sidebar wider keeps up with the pointer, where it lagged at half speed
+- Rows and cards no longer blur for a moment when clicked
+- On your phone: a character's portrait sits behind their scene, under see-through messages
+
 ## 0.5.4
 - Optimize All: the Prompt Optimizer goes through every prompt with one model, and you review each rewrite
 - The optimizer keeps every rule and measured phrase, and Save warns about slots, markers and dashes
