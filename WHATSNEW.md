@@ -3,6 +3,13 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.26
+- Long sessions stay light: chats and dialogs you leave are now freed instead of piling up in memory
+- Chats open about twice as fast, and scrolling back brings in earlier messages a few at a time, smoothly
+- The sidebar shows each chat's character picture instead of a colored dot
+- New characters and personas get their age, gender, race, occupation and appearance filled in reliably
+- The profile at the bottom of the sidebar shows only your persona's name again
+
 ## 0.5.25
 - The first reply after a break starts in under a second: typing gets the model and the scene ready first
 - Stock phrase checking holds back fewer words, so replies start showing a little sooner
