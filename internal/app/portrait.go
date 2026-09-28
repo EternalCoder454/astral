@@ -74,11 +74,14 @@ func (a *App) refreshPortrait(c chars.Character) bool {
 // worse than no toggle.
 func (a *App) showPortraitFor(c chars.Character) {
 	has := a.refreshPortrait(c)
+	a.portraitHas = has
 	if a.portraitBtn != nil {
 		a.portraitBtn.SetVisible(has)
 	}
 	if a.portraitSplit != nil {
-		open := has && a.cfg.PortraitOpen
+		// Not over a narrow window: it waits until there is room beside the
+		// chat, when the split view's own notify opens it.
+		open := has && a.cfg.PortraitOpen && !a.portraitSplit.Collapsed()
 		a.portraitSplit.SetShowSidebar(open)
 		if a.portraitBtn != nil {
 			a.portraitBtn.SetActive(open)

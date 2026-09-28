@@ -57,9 +57,12 @@ type App struct {
 
 	// The character portrait, on the far side of the chat.
 	portraitSplit *adw.OverlaySplitView
-	portraitBox   *gtk.Box
-	portraitBtn   *gtk.ToggleButton
-	offlineBtn    *gtk.Button
+	// portraitHas says the open chat has somebody to show in the portrait
+	// panel, so widening a narrow window knows whether to open it.
+	portraitHas bool
+	portraitBox *gtk.Box
+	portraitBtn *gtk.ToggleButton
+	offlineBtn  *gtk.Button
 
 	sidebar    *ui.Sidebar
 	chat       *ui.ChatView
@@ -232,7 +235,9 @@ func (a *App) rememberLayout() {
 			a.cfg.WindowWidth, a.cfg.WindowHeight = w, h
 		}
 	}
-	if a.split != nil {
+	// Only what you chose with room to choose it: closing the window while
+	// it is narrow, with the sidebar folded away, must not close it for good.
+	if a.split != nil && !a.split.Collapsed() {
 		a.cfg.SidebarOpen = a.split.ShowSidebar()
 	}
 }

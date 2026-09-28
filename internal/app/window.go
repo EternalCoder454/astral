@@ -97,9 +97,38 @@ func (a *App) buildWindow() {
 	a.toasts.SetChild(a.split)
 	a.win.SetContent(a.toasts)
 
-	// Keep the toggle honest when the split view collapses itself.
+	// Folding for width, done here rather than by the split views.
+	//
+	// Left to themselves they hide their side panel when the window narrows
+	// and show it again, whatever it holds, when it widens. For the portrait
+	// that meant an empty dark column down the right of every chat without
+	// one, and of Home, the moment a narrowed window was widened again; for
+	// the sidebar it meant one you had closed coming back. Pinned, they only
+	// show what they are told to.
+	a.split.SetPINSidebar(true)
+	a.portraitSplit.SetPINSidebar(true)
+	a.split.NotifyProperty("collapsed", func() {
+		if a.split.Collapsed() {
+			a.split.SetShowSidebar(false)
+		} else {
+			a.split.SetShowSidebar(a.cfg.SidebarOpen)
+		}
+	})
+	a.portraitSplit.NotifyProperty("collapsed", func() {
+		if a.portraitSplit.Collapsed() {
+			a.portraitSplit.SetShowSidebar(false)
+		} else {
+			a.portraitSplit.SetShowSidebar(a.portraitHas && a.cfg.PortraitOpen)
+		}
+	})
+
+	// Keep the toggles honest when a split view is shown or hidden by
+	// anything but them.
 	a.split.NotifyProperty("show-sidebar", func() {
 		a.sideBtn.SetActive(a.split.ShowSidebar())
+	})
+	a.portraitSplit.NotifyProperty("show-sidebar", func() {
+		a.portraitBtn.SetActive(a.portraitSplit.ShowSidebar())
 	})
 }
 
@@ -125,7 +154,15 @@ func (a *App) buildContent() *adw.ToolbarView {
 	a.sideBtn.SetActive(a.cfg.SidebarOpen)
 	a.sideBtn.SetTooltipText("Show or hide the sidebar (F9)")
 	a.sideBtn.AddCSSClass("flat")
-	a.sideBtn.ConnectToggled(func() { a.split.SetShowSidebar(a.sideBtn.Active()) })
+	a.sideBtn.ConnectToggled(func() {
+		a.split.SetShowSidebar(a.sideBtn.Active())
+		// Your choice is kept only when the sidebar sits beside the chat.
+		// Opening it over a narrow window, or its folding away there, says
+		// nothing about whether you want it on a wide one.
+		if !a.split.Collapsed() {
+			a.cfg.SidebarOpen = a.sideBtn.Active()
+		}
+	})
 	header.PackStart(a.sideBtn)
 
 	newBtn := gtk.NewButtonFromIconName(ui.IconEdit)
@@ -156,7 +193,9 @@ func (a *App) buildContent() *adw.ToolbarView {
 	a.portraitBtn.ConnectToggled(func() {
 		open := a.portraitBtn.Active()
 		a.portraitSplit.SetShowSidebar(open)
-		a.cfg.PortraitOpen = open
+		if !a.portraitSplit.Collapsed() {
+			a.cfg.PortraitOpen = open
+		}
 	})
 	header.PackEnd(a.portraitBtn)
 
