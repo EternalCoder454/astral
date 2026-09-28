@@ -3,6 +3,16 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.19
+- Write for Me drafts your next message in your own voice and length, and never sends it for you
+- Type something first and the same button rewrites it better; on your last message, Rewrite re-answers it too
+- Rewrite with a Note writes a reply again toward Shorter, More Dialogue, "she refuses" or anything you type
+- Characters stay in the moment you left them in, instead of walking you home and on into the bedroom
+- Pin a message and the scene keeps it in mind for good; Memory shows the scene's record to correct
+- Branch from Here starts a new chat from any message and leaves the original as it was
+- Group scenes: choose who answers next, or Let Them Talk and they carry on without you
+- All of it works on the phone, from a message's More and the new menu at the top of a chat
+
 ## 0.5.18
 - Group scenes: the characters you speak to answer, not everyone at once every turn
 - Restore a daily backup from Settings; your current library is kept beside it
