@@ -31,6 +31,7 @@ func TestDevServe(t *testing.T) {
 		Rules:       "Nobody sails east of the Sever."})
 	caID, _ := st.SaveCharacter(chars.Character{Name: "Vesper Quill",
 		Description: "A cartographer, impatient and precise.", WorldID: wid,
+		FirstMes: `*She does not look up from the chart.* "You're late, {{user}}."`,
 		// A portrait, to see the scene set in front of it.
 		PortraitPath: os.Getenv("ASTRAL_DEV_SERVE_PORTRAIT")})
 	ch, _ := st.NewChatIn(caID, 0, "The tide came in early", "m", store.KindRoleplay)
@@ -57,6 +58,16 @@ func TestDevServe(t *testing.T) {
 			st.SaveCharacter(chars.Character{Name: n, Description: "Someone from the harbour with a long description that runs on for a while so the list has to cut it somewhere sensible."})
 		}
 		st.NewChatIn(0, 0, "Creating a Persona", "", store.KindPersonaDesigner)
+		if os.Getenv("ASTRAL_DEV_SERVE_EPIC") != "" {
+			// A scene played for weeks, to time opening it on a phone.
+			epic, _ := st.NewChatIn(caID, 0, "The epic", "", store.KindRoleplay)
+			for i := 0; i < 150; i++ {
+				st.AddMessage(store.Message{ChatID: epic.ID, Role: ollama.RoleUser,
+					Content: fmt.Sprintf(`*I lean closer, turn %d.* "And then what happened?"`, i)})
+				st.AddMessage(store.Message{ChatID: epic.ID, Role: ollama.RoleAssistant,
+					Content: strings.Repeat(`*She traces the coastline with one finger, slowly, as if the ink might still be wet.* "The tide took the lower town first, and nobody rang the bell." `, 5)})
+			}
+		}
 		st.SavePersona(chars.Profile{Name: "Wren", Age: "27", Race: "half-elf"})
 		st.SavePersona(chars.Profile{Name: "Brand", Age: "41"})
 	}

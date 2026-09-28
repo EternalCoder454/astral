@@ -467,7 +467,7 @@ async function saveSettings() {
 	try {
 		const res = await api("/api/settings", { method: "POST", body: JSON.stringify(body) });
 		settings = await res.json();
-		toast("Saved, and your PC uses these too.");
+		toast("Saved.");
 		loadState();
 	} catch (e) {
 		toast(e.message);
@@ -481,7 +481,21 @@ function numberOrNull(v) {
 	return Number.isFinite(n) ? n : null;
 }
 
+// forgetArmed is the first tap on Unpair. A second makes it happen: unpairing
+// needs a new code from the PC to undo, and the button sat just under Save.
+let forgetArmed = false;
+
 async function forgetDevice() {
+	if (!forgetArmed) {
+		forgetArmed = true;
+		$("set-forget").querySelector(".row-title").textContent = "Tap Again to Unpair";
+		setTimeout(() => {
+			forgetArmed = false;
+			$("set-forget").querySelector(".row-title").textContent = "Unpair This Device";
+		}, 4000);
+		return;
+	}
+	forgetArmed = false;
 	try {
 		await api("/api/forget", { method: "POST", body: "{}" });
 	} catch (_) {
@@ -570,7 +584,7 @@ async function loadState() {
 	if (state.worlds?.length) {
 		start.append(row({
 			title: "Play in a World", note: "the model plays the place and whoever you meet",
-			onClick: () => show("cast"),
+			onClick: () => { show("cast"); $("cast-worlds").previousElementSibling?.scrollIntoView({ block: "start" }); },
 		}));
 	}
 	start.append(row({ title: "General Chat", note: "answers, with the web and your knowledge to draw on", onClick: () => newChat({}) }));
@@ -588,7 +602,12 @@ async function loadState() {
 
 	const all = $("chats-list");
 	all.replaceChildren();
-	for (const c of chats) all.append(deletableChat(c));
+	for (const c of chats) {
+		const r = deletableChat(c);
+		r.dataset.find = [c.title, c.who].filter(Boolean).join(" ").toLowerCase();
+		all.append(r);
+	}
+	filterChats();
 
 	const cs = $("cast-characters");
 	cs.replaceChildren();
@@ -775,10 +794,16 @@ function chatRow(c) {
 
 // ---- A conversation ----
 
+// startedHere is chats this page made. One left without a word from you is
+// deleted on the way out: tapping a character to look was making a scene
+// every time, and the list filled with greetings nobody answered.
+const startedHere = new Set();
+
 async function newChat(body) {
 	try {
 		const res = await api("/api/chats", { method: "POST", body: JSON.stringify(body) });
 		const { id } = await res.json();
+		startedHere.add(id);
 		await openChat(id);
 		loadState();
 	} catch (e) {
@@ -807,7 +832,13 @@ function showChat(chat) {
 	$("chat-title").textContent = chat.title || chat.who || "Chat";
 	const t = $("transcript");
 	t.replaceChildren();
-	for (const m of chat.messages || []) t.append(bubble(m.role, m.content, m.who, m.accent, m.id));
+	// The latest messages only, and the rest on request: a scene played for
+	// weeks drew every message it had before showing any, which grows with
+	// the scene and on a phone is the wait between tapping it and reading.
+	const msgs = chat.messages || [];
+	const from = Math.max(0, msgs.length - SHOWN_AT_ONCE);
+	for (const m of msgs.slice(from)) t.append(bubble(m.role, m.content, m.who, m.accent, m.id));
+	if (from > 0) t.prepend(earlierButton(msgs, from));
 	if (!t.children.length) {
 		// An empty chat said nothing at all, which on a phone reads as one
 		// that failed to load.
@@ -823,6 +854,29 @@ function showChat(chat) {
 	scrollDown(false);
 	setComposerBusy(streamingIn.has(chat.id));
 	if (chat.writing && !streamingIn.has(chat.id)) waitForReply(chat.id);
+}
+
+// SHOWN_AT_ONCE is how many messages a chat opens with, and how many more
+// each press of Show Earlier Messages adds.
+const SHOWN_AT_ONCE = 80;
+
+// earlierButton draws the messages before end when pressed, keeping the one
+// you were looking at where it was on screen.
+function earlierButton(msgs, end) {
+	const b = document.createElement("button");
+	b.className = "earlier";
+	b.textContent = "Show Earlier Messages";
+	b.addEventListener("click", () => {
+		const t = $("transcript");
+		const from = Math.max(0, end - SHOWN_AT_ONCE);
+		const kept = t.scrollHeight - t.scrollTop;
+		const batch = document.createDocumentFragment();
+		if (from > 0) batch.append(earlierButton(msgs, from));
+		for (const m of msgs.slice(from, end)) batch.append(bubble(m.role, m.content, m.who, m.accent, m.id));
+		b.replaceWith(batch);
+		t.scrollTop = t.scrollHeight - kept;
+	});
+	return b;
 }
 
 // portraits holds each chat's portrait as a local URL once fetched. The
@@ -858,8 +912,17 @@ async function showPortrait(chat) {
 // leaveChat goes back to the lists, fetched again so what was said here, and
 // anything started on the PC meanwhile, is in them.
 function leaveChat() {
+	const left = current;
 	current = null;
 	show("home");
+	if (left && startedHere.has(left.id) && !streamingIn.has(left.id) &&
+		!document.querySelector("#transcript .from-user")) {
+		startedHere.delete(left.id);
+		api("/api/chats/" + left.id, { method: "DELETE" })
+			.catch(() => {})
+			.finally(() => loadState().catch(() => {}));
+		return;
+	}
 	loadState().catch(() => {});
 }
 
@@ -945,10 +1008,13 @@ function toggleActions(wrap) {
 	const row = document.createElement("div");
 	row.className = "msg-actions";
 
-	const add = (label, icon, danger, onClick) => {
+	const add = (label, icon, danger, onClick, word) => {
 		const b = document.createElement("button");
 		b.className = "msg-action" + (danger ? " danger" : "");
 		b.innerHTML = '<i class="tab-icon" data-icon="' + icon + '"></i>';
+		const w = document.createElement("span");
+		w.textContent = word;
+		b.append(w);
 		b.setAttribute("aria-label", label);
 		b.title = label;
 		b.addEventListener("click", (e) => { e.stopPropagation(); onClick(); });
@@ -964,7 +1030,7 @@ function toggleActions(wrap) {
 			toast("This browser cannot copy, so hold the text to select it.");
 		}
 		row.remove();
-	});
+	}, "Copy");
 
 	// Only the last reply, and only a reply. Writing a turn again throws away
 	// everything after it, which on a phone is one mis-tap away from losing a
@@ -974,7 +1040,7 @@ function toggleActions(wrap) {
 		add("Write this reply again", "regenerate", false, () => {
 			row.remove();
 			regenerate();
-		});
+		}, "Rewrite");
 	}
 
 	// Two taps, as a swiped row asks: a turn deleted by a thumb that missed
@@ -991,7 +1057,7 @@ function toggleActions(wrap) {
 		}
 		row.remove();
 		deleteMessage(wrap);
-	});
+	}, "Delete");
 
 	wrap.append(row);
 	paintIcons(row);
@@ -1351,7 +1417,30 @@ document.addEventListener("visibilitychange", () => {
 	}
 });
 
-$("set-save").addEventListener("click", saveSettings);
+// Settings save themselves as they change. The Save button sat between the
+// fields and the device's own rows, so a change at the bottom meant scrolling
+// back up to keep it, and one that was not saved looked saved.
+let settingsTimer = 0;
+for (const el of document.querySelectorAll("#settings input, #settings select, #settings textarea")) {
+	el.addEventListener("change", () => {
+		clearTimeout(settingsTimer);
+		settingsTimer = setTimeout(saveSettings, 300);
+	});
+}
+
+// filterChats hides the chats the search box does not match: their title or
+// who they are with.
+function filterChats() {
+	const q = $("chats-search").value.trim().toLowerCase();
+	let shown = 0;
+	for (const r of $("chats-list").children) {
+		const hit = !q || (r.dataset.find || "").includes(q);
+		r.hidden = !hit;
+		if (hit) shown++;
+	}
+	$("chats-none").hidden = shown > 0 || !q;
+}
+$("chats-search").addEventListener("input", filterChats);
 $("update-go").addEventListener("click", () => {
 	try { localStorage.removeItem(LATER_KEY); } catch (_) {}
 	$("update-status").textContent = "Starting…";

@@ -6,6 +6,9 @@
 <meta name="theme-color" content="#03050d">
 <title>Astral</title>
 <link rel="stylesheet" href="style.css">
+<!-- No icon for a browser tab to fetch: asking for one that is not there cost
+     a request and a 404 on every load. -->
+<link rel="icon" href="data:,">
 </head>
 <body>
 
@@ -39,7 +42,11 @@
 <!-- The list of every conversation -->
 <section id="chats" class="screen" hidden>
   <header class="topbar"><h1>Chats</h1></header>
-  <div class="scroll"><div id="chats-list" class="rows"></div></div>
+  <div class="scroll">
+    <input id="chats-search" class="search" type="search" placeholder="Search Chats" aria-label="Search chats" autocomplete="off">
+    <div id="chats-list" class="rows"></div>
+    <p id="chats-none" class="muted empty-list" hidden>No chat matches that.</p>
+  </div>
 </section>
 
 <!-- The cast and the worlds -->
@@ -96,12 +103,6 @@
         <span>Writing Style</span>
         <select id="set-style"></select>
       </label>
-    </div>
-
-    <div class="rows" style="margin-top:14px">
-      <button id="set-save" class="row row-primary">
-        <span class="row-text"><span class="row-title">Save</span></span>
-      </button>
     </div>
 
     <h2 class="heading">This Device</h2>

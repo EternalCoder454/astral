@@ -149,14 +149,14 @@ func (s *Server) routes() http.Handler {
 
 	// The same icon set the window draws with, served so the phone can use it
 	// as a CSS mask and recolour it. One set, two clients.
-	mux.Handle("GET /icons/", http.StripPrefix("/icons/", http.FileServer(http.FS(icons.FS()))))
+	mux.Handle("GET /icons/", http.StripPrefix("/icons/", newStatic(icons.FS())))
 
 	sub, err := fs.Sub(webFiles, "web")
 	if err != nil {
 		log.Printf("astral: the phone interface is missing from this build: %v", err)
 		return mux
 	}
-	mux.Handle("GET /", http.FileServer(http.FS(sub)))
+	mux.Handle("GET /", newStatic(sub))
 	return mux
 }
 
