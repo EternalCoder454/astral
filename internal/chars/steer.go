@@ -99,18 +99,122 @@ func PaceBlock(charName, userName string) string {
 // SettingChars bounds a scene's setting line, which is sent every turn.
 const SettingChars = 200
 
-// SettingBlock is the closing block's line saying where and when the scene
-// is, empty without one.
-func SettingBlock(setting, charName, userName string) string {
-	setting = strings.TrimSpace(setting)
-	if setting == "" {
-		return ""
+// SceneState is how a scene stands beyond where and when it is: what the
+// people in it are wearing and holding, how things stand between them, and
+// what is still unresolved. Sent every turn with the setting, and kept up to
+// date after each reply the same way. See scene.TrackState.
+//
+// It is the most asked for kind of SillyTavern extension (Tracker, Doom's
+// Enhancement Suite), for the drift it answers: a mid-size model forty turns
+// on has her coat back on, the key in the wrong hand, and last hour's quarrel
+// forgotten, because the turns that settled them have scrolled out of what it
+// reads. A few short lines it reads every turn keep them.
+type SceneState struct {
+	Wearing    string `json:"wearing,omitempty"`
+	Holding    string `json:"holding,omitempty"`
+	Between    string `json:"between,omitempty"`
+	Unresolved string `json:"unresolved,omitempty"`
+}
+
+// StateChars bounds each part of a scene's state, which is sent every turn.
+const StateChars = 160
+
+// StateField is one part of a scene's state, as the model and the person see
+// it: the key it has in JSON, and its label in the closing block and in
+// Scene Memory.
+type StateField struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Hint  string `json:"hint"`
+}
+
+// stateParts is how many StateFields there are, as a constant, for the
+// budget. TestStatePartsCountsTheFields holds the two together.
+const stateParts = 4
+
+// StateFields are the parts of a scene's state, in the order they are shown.
+var StateFields = []StateField{
+	{"wearing", "Wearing", "What each person in the scene has on, briefly."},
+	{"holding", "Holding", "What anyone has in hand or with them that matters."},
+	{"between", "Between You", "How things stand between the characters and you right now."},
+	{"unresolved", "Unresolved", "What has been started or promised and not yet settled."},
+}
+
+// Get is a part of the state by its key.
+func (s SceneState) Get(key string) string {
+	switch key {
+	case "wearing":
+		return s.Wearing
+	case "holding":
+		return s.Holding
+	case "between":
+		return s.Between
+	case "unresolved":
+		return s.Unresolved
 	}
+	return ""
+}
+
+// Set changes a part of the state by its key, bounded.
+func (s *SceneState) Set(key, value string) {
+	value = strings.TrimSpace(value)
+	if r := []rune(value); len(r) > StateChars {
+		value = string(r[:StateChars])
+	}
+	switch key {
+	case "wearing":
+		s.Wearing = value
+	case "holding":
+		s.Holding = value
+	case "between":
+		s.Between = value
+	case "unresolved":
+		s.Unresolved = value
+	}
+}
+
+// Empty reports whether nothing is recorded.
+func (s SceneState) Empty() bool {
+	return s == SceneState{}
+}
+
+// stateLabel is how a part of the state is labelled for the model, which is
+// plainer than the label a person sees.
+var stateLabel = map[string]string{
+	"wearing":    "Wearing",
+	"holding":    "Holding",
+	"between":    "Between {{char}} and {{user}}",
+	"unresolved": "Unresolved",
+}
+
+// SettingBlock is the closing block's part saying where and when the scene
+// is, and how it stands.
+//
+// Framed as a record to keep to rather than material to use: a model told
+// what everyone is wearing will otherwise describe it in every reply.
+func SettingBlock(setting string, state SceneState, charName, userName string) string {
+	setting = strings.TrimSpace(setting)
 	if r := []rune(setting); len(r) > SettingChars {
 		setting = string(r[:SettingChars])
 	}
-	return "\n\nNOW. Where and when the scene is, and what matters about it at this moment. Keep to it unless the scene itself moves on: " +
-		Substitute(setting, charName, userName)
+	if setting == "" && state.Empty() {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n\nNOW. How the scene stands at this moment, for continuity. Keep to it unless the scene itself moves on. It is a record, not a list of things to mention.")
+	if setting != "" {
+		b.WriteString("\nWhere and when: ")
+		b.WriteString(setting)
+	}
+	for _, f := range StateFields {
+		if v := strings.TrimSpace(state.Get(f.Key)); v != "" {
+			b.WriteString("\n")
+			b.WriteString(stateLabel[f.Key])
+			b.WriteString(": ")
+			b.WriteString(v)
+		}
+	}
+	return Substitute(b.String(), charName, userName)
 }
 
 // rewriteNote introduces a note on a reply being written again.
@@ -243,8 +347,26 @@ const suggestAnchor = `[This time you are not writing {{char}}. Suggest three di
 
 Each is a complete message written as {{user}}, exactly as they would type it themselves: their person, so if they write *I lean in* you write I and never you, their tense, their way of marking speech and action, and about their usual length. Make the three truly different: one that answers what was just said or done, one that takes the scene somewhere new, and one bolder than the other two. Only what {{user}} says and does; never a line or an action for {{char}}.]`
 
-// settingAnchor replaces the closing block to ask where the scene is now.
-const settingAnchor = `[This time you are not writing {{char}}. Say where and when this scene is right now, as a single line of at most twenty five words: the place, the time of day, and whatever about the moment matters, such as what they are wearing or who else is there. Only the line: no label, and nothing about what should happen next.]`
+// stateAnchor replaces the closing block to keep the record of how the scene
+// stands. {{record}} is the record as it is, and {{ask}} either asks for what
+// the latest exchange changed, after a reply, or for everything, when you
+// ask for a suggestion.
+const stateAnchor = `[This time you are not writing {{char}}. You are keeping the record of how this scene stands, for continuity. The record as it is:
+{{record}}
+
+{{ask}}
+- where: where and when the scene is: the place, and the time of day.
+- wearing: what each person in the scene has on, by name.
+- holding: what anyone has in hand or with them that matters, by name.
+- between: how things stand between {{char}} and {{user}} right now.
+- unresolved: what has been started or promised and not yet settled.
+Each part is plain facts in at most twenty words, as things are now, with nothing about what should happen next.]`
+
+// stateAskChanged and stateAskAll are the two things stateAnchor asks.
+const (
+	stateAskChanged = "Write only the parts the latest exchange changed, and any that are empty and that the scene has now shown, each rewritten whole. Leave out every part that is still right."
+	stateAskAll     = "Write every part, as the scene stands now."
+)
 
 var (
 	promptSuggest = prompts.Register(prompts.Prompt{
@@ -255,12 +377,16 @@ var (
 		Default: suggestAnchor,
 		Anchors: []string{"you are not writing {{char}}", "never a line or an action for {{char}}"},
 	})
-	promptSetting = prompts.Register(prompts.Prompt{
-		ID: "scene.setting", Name: "Suggest the Setting", Group: "Scenes",
-		About:   "Sent in place of the closing block when Scene Memory suggests where and when the scene is now.",
-		Keep:    "{{char}} becomes the character's name, or the whole cast's, and {{user}} yours.",
-		Default: settingAnchor,
-		Anchors: []string{"you are not writing {{char}}"},
+	promptState = prompts.Register(prompts.Prompt{
+		ID: "scene.state", Name: "Scene State", Group: "Scenes",
+		About: "Sent in place of the closing block after each reply, to keep where and when the scene is, " +
+			"what everyone is wearing and holding, how things stand and what is unresolved, and when " +
+			"Scene Memory suggests them.",
+		Keep: "{{record}} and {{ask}} are filled in by Astral. The part names (where, wearing, holding, " +
+			"between, unresolved) are the answer's and must stay. {{char}} becomes the character's name, " +
+			"or the whole cast's, and {{user}} yours.",
+		Default: stateAnchor,
+		Anchors: []string{"you are not writing {{char}}", "{{record}}", "{{ask}}"},
 	})
 )
 
@@ -307,9 +433,83 @@ func ParseSuggestions(raw []byte, userName string) []string {
 	return list
 }
 
-// SettingMessages turns a scene's request into one asking where it is now.
-func SettingMessages(msgs []ollama.Message, charName, userName string) []ollama.Message {
-	return swapClosing(msgs, Substitute(prompts.Text(promptSetting), charName, userName))
+// StateMessages turns a scene's request into one keeping the record of how
+// it stands: every part when all is set, and otherwise only what the latest
+// exchange changed.
+func StateMessages(msgs []ollama.Message, setting string, state SceneState, charName, userName string, all bool) []ollama.Message {
+	var record strings.Builder
+	line := func(key, value string) {
+		if strings.TrimSpace(value) == "" {
+			value = "(empty)"
+		}
+		record.WriteString(key + ": " + value + "\n")
+	}
+	line("where", setting)
+	for _, f := range StateFields {
+		line(f.Key, state.Get(f.Key))
+	}
+	ask := stateAskChanged
+	if all {
+		ask = stateAskAll
+	}
+	text := strings.NewReplacer("{{record}}", strings.TrimSpace(record.String()), "{{ask}}", ask).
+		Replace(prompts.Text(promptState))
+	return swapClosing(msgs, Substitute(text, charName, userName))
+}
+
+// StateSchema is the answer to StateMessages: any of the parts, or, when all
+// is set, every one.
+func StateSchema(all bool) json.RawMessage {
+	keys := []string{"where"}
+	for _, f := range StateFields {
+		keys = append(keys, f.Key)
+	}
+	props := make([]string, len(keys))
+	for i, k := range keys {
+		props[i] = `"` + k + `":{"type":"string"}`
+	}
+	schema := `{"type":"object","properties":{` + strings.Join(props, ",") + `}`
+	if all {
+		schema += `,"required":["` + strings.Join(keys, `","`) + `"]`
+	}
+	return json.RawMessage(schema + "}")
+}
+
+// ApplyState reads an answer to StateMessages onto a setting and state, and
+// reports whether it changed either. A part left out, or left blank, stays
+// as it was.
+func ApplyState(raw []byte, setting string, state SceneState) (string, SceneState, bool) {
+	var got map[string]string
+	if json.Unmarshal(raw, &got) != nil {
+		return setting, state, false
+	}
+	changed := false
+	if v := CleanSetting(got["where"]); v != "" && v != strings.TrimSpace(setting) {
+		setting, changed = v, true
+	}
+	for _, f := range StateFields {
+		v := cleanStatePart(got[f.Key])
+		if v != "" && v != strings.TrimSpace(state.Get(f.Key)) {
+			state.Set(f.Key, v)
+			changed = true
+		}
+	}
+	return setting, state, changed
+}
+
+// cleanStatePart tidies one part of an answer: one line, no label, and none
+// of the stand-ins a model writes for nothing.
+func cleanStatePart(s string) string {
+	s = strings.Join(strings.Fields(strings.ReplaceAll(s, "\n", "; ")), " ")
+	s = strings.Trim(s, `"* `)
+	switch strings.ToLower(strings.TrimSuffix(s, ".")) {
+	case "", "(empty)", "empty", "none", "unchanged", "n/a", "nothing":
+		return ""
+	}
+	if r := []rune(s); len(r) > StateChars {
+		s = string(r[:StateChars])
+	}
+	return s
 }
 
 // CleanSetting tidies a suggested setting line: one line, no label, bounded.

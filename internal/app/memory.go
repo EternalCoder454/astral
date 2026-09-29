@@ -43,54 +43,81 @@ func (a *App) editMemory() {
 	page.SetMarginStart(16)
 	page.SetMarginEnd(16)
 
-	// Where and when the scene is now, in a line sent every turn.
-	nowOuter, nowCard := groupCard("")
-	oldSetting, oldAuto := a.chat.Setting()
+	// How the scene stands now: where and when, and what everyone is wearing
+	// and holding, how things are between you, and what is unresolved, sent
+	// every turn. See chars.SceneState.
+	nowOuter, nowCard := groupCard("Scene State")
+	oldSetting, oldState, oldAuto := a.chat.Setting()
 	setting := gtk.NewEntry()
 	setting.SetText(oldSetting)
 	setting.SetPlaceholderText("Her flat, two in the morning, rain on the windows")
 	setting.SetMaxLength(chars.SettingChars)
 	setting.SetHExpand(true)
 	suggest := gtk.NewButtonWithLabel("Suggest")
-	suggest.SetTooltipText("Have the model say where and when the scene is now")
+	suggest.SetTooltipText("Have the model say how the scene stands now")
 	// Kept up to date by Astral after each reply until you write your own,
 	// and then left alone unless this is switched back on.
 	auto := gtk.NewSwitch()
 	auto.SetActive(oldAuto)
 	auto.SetVAlign(gtk.AlignCenter)
 	suggesting := false
-	setting.ConnectChanged(func() {
+	manual := func() {
 		if !suggesting {
 			auto.SetActive(false)
 		}
-	})
+	}
+	setting.ConnectChanged(manual)
+	parts := make(map[string]*gtk.Entry, len(chars.StateFields))
+	placeholders := map[string]string{
+		"wearing":    "Vesper: oilskin coat, ink-stained gloves. You: soaked jacket",
+		"holding":    "You have the brass key; her dividers are on the table",
+		"between":    "Wary, softening; she owes you for the ferry",
+		"unresolved": "The ferry leaves at dawn; who paid the harbourmaster?",
+	}
+	for _, f := range chars.StateFields {
+		e := gtk.NewEntry()
+		e.SetText(oldState.Get(f.Key))
+		e.SetPlaceholderText(placeholders[f.Key])
+		e.SetMaxLength(chars.StateChars)
+		e.SetHExpand(true)
+		e.ConnectChanged(manual)
+		parts[f.Key] = e
+	}
 	suggest.ConnectClicked(func() {
 		suggest.SetSensitive(false)
 		suggest.SetLabel("Thinking…")
-		a.chat.SuggestSetting(func(line string, err error) {
+		a.chat.SuggestSetting(func(line string, state chars.SceneState, err error) {
 			suggest.SetSensitive(true)
 			suggest.SetLabel("Suggest")
 			if err != nil {
 				a.toast("Could not suggest one: " + err.Error())
 				return
 			}
+			suggesting = true
 			if line != "" {
-				suggesting = true
 				setting.SetText(line)
-				suggesting = false
 			}
+			for key, e := range parts {
+				if v := state.Get(key); v != "" {
+					e.SetText(v)
+				}
+			}
+			suggesting = false
 		})
 	})
 	nowRow := gtk.NewBox(gtk.OrientationHorizontal, 6)
 	nowRow.Append(setting)
 	nowRow.Append(suggest)
 	nowCard.Append(labelledField("Where and When",
-		"Sent every turn, so the scene keeps track of the room it is in.", nowRow))
+		"Sent every turn with the rest of this, so the scene keeps track of how it stands.", nowRow))
+	for _, f := range chars.StateFields {
+		nowCard.Append(labelledField(f.Label, f.Hint, parts[f.Key]))
+	}
 	autoRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	autoLabel := gtk.NewLabel("Update as the Scene Moves")
 	autoLabel.SetXAlign(0)
 	autoLabel.SetHExpand(true)
-	autoLabel.SetTooltipText("Astral rewrites this line after each reply; writing your own turns it off")
+	autoLabel.SetTooltipText("Astral updates these after each reply; writing your own turns it off")
 	autoRow.Append(autoLabel)
 	autoRow.Append(auto)
 	nowCard.Append(autoRow)
@@ -153,9 +180,13 @@ func (a *App) editMemory() {
 			}
 			changed = true
 		}
-		if now := strings.TrimSpace(setting.Text()); now != oldSetting || auto.Active() != oldAuto {
-			if err := a.chat.SetSetting(now, auto.Active()); err != nil {
-				a.toast("Could not save where and when: " + err.Error())
+		var state chars.SceneState
+		for key, e := range parts {
+			state.Set(key, e.Text())
+		}
+		if now := strings.TrimSpace(setting.Text()); now != oldSetting || state != oldState || auto.Active() != oldAuto {
+			if err := a.chat.SetSetting(now, state, auto.Active()); err != nil {
+				a.toast("Could not save the scene state: " + err.Error())
 				return
 			}
 			changed = true

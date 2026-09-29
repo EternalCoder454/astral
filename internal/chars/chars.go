@@ -518,8 +518,10 @@ type Scene struct {
 	// Onward says nobody spoke this turn: the cast carry the scene on among
 	// themselves. Only a group scene has anyone to carry it.
 	Onward bool
-	// Setting is where and when the scene is now, in a line.
+	// Setting is where and when the scene is now, in a line, and State the
+	// rest of how the scene stands. See SceneState.
 	Setting string
+	State   SceneState
 }
 
 // BuildMessages assembles the full request.

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/json"
 	"strings"
 
 	"astral/internal/chars"
@@ -20,6 +21,9 @@ func (s *Store) migrateExtras() {
 	// A chat put away: out of the main list, kept, and back in it the next
 	// time you write in it.
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`)
+	// How the scene stands besides where it is: see chars.SceneState. JSON,
+	// so a part can be added without another column.
+	s.db.Exec(`ALTER TABLE chats ADD COLUMN state TEXT NOT NULL DEFAULT ''`)
 }
 
 func boolInt(b bool) int {
@@ -55,6 +59,36 @@ func (s *Store) SetChatArchived(id int64, archived bool) error {
 	defer s.writeMu.Unlock()
 	_, err := s.db.Exec(`UPDATE chats SET archived = ? WHERE id = ?`, boolInt(archived), id)
 	return err
+}
+
+// SetChatState records how a scene stands besides where it is.
+func (s *Store) SetChatState(id int64, state chars.SceneState) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err := s.db.Exec(`UPDATE chats SET state = ? WHERE id = ?`, encodeState(state), id)
+	return err
+}
+
+// encodeState is a scene's state as stored: empty for none, so a scene
+// without one costs nothing and reads the same as before there was one.
+func encodeState(st chars.SceneState) string {
+	if st.Empty() {
+		return ""
+	}
+	b, err := json.Marshal(st)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+// decodeState reads a stored state; anything unreadable is no state.
+func decodeState(s string) chars.SceneState {
+	var st chars.SceneState
+	if strings.TrimSpace(s) != "" {
+		_ = json.Unmarshal([]byte(s), &st)
+	}
+	return st
 }
 
 // SetChatSettingAuto says whether Astral keeps a scene's setting up to date.

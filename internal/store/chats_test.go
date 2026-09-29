@@ -1,6 +1,10 @@
 package store
 
-import "testing"
+import (
+	"testing"
+
+	"astral/internal/chars"
+)
 
 // The per-scene direction and the style it was written under both survive a
 // round trip. Both are read back on every turn to decide what the prompt says,
@@ -141,5 +145,29 @@ func TestChatArchive(t *testing.T) {
 	}
 	if l, o := archived(); l || o {
 		t.Errorf("after unarchiving: list %v, chat %v, want both false", l, o)
+	}
+}
+
+// A scene's state is kept, read back, and goes with it when it is branched.
+func TestChatStateIsKeptAndCopied(t *testing.T) {
+	s := openTest(t)
+	ch, err := s.NewChat(0, "scene", "m", KindRoleplay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := chars.SceneState{Wearing: "She: oilskin coat", Unresolved: "The ferry at dawn"}
+	if err := s.SetChatState(ch.ID, want); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Chat(ch.ID); got.State != want {
+		t.Errorf("read back %+v, want %+v", got.State, want)
+	}
+	mid, _ := s.AddMessage(Message{ChatID: ch.ID, Role: "user", Content: "hello"})
+	b, err := s.BranchChat(ch.ID, mid, "branch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.State != want {
+		t.Errorf("the branch has %+v", b.State)
 	}
 }

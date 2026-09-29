@@ -137,11 +137,11 @@ func TestLiveTurnCost(t *testing.T) {
 				hist = History(stored, nil)
 				ts := time.Now()
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-				noThink := false
-				_, sst, err := client.Chat(ctx, model, SuggestSetting(st, cfg, ch, []chars.Character{c}, hist), DraftOptions(cfg, ch.Kind), &noThink, nil)
+				_, sst, err := client.Structured(ctx, model, StateMessages(st, cfg, ch, []chars.Character{c}, hist, false),
+					StateOptions(cfg, ch.Kind), chars.StateSchema(false))
 				cancel()
 				if err == nil {
-					t.Logf("%s   setting: prompt read %d tok in %v, total %v", arm, sst.PromptTokens,
+					t.Logf("%s   state: prompt read %d tok in %v, total %v", arm, sst.PromptTokens,
 						sst.PromptElapsed.Round(time.Millisecond), time.Since(ts).Round(time.Millisecond))
 				}
 			}

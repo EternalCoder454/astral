@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"astral/internal/chars"
 )
 
 // What a conversation is for. A chat without a character is not a degenerate
@@ -72,6 +74,9 @@ type Chat struct {
 	// SettingAuto says Astral keeps Setting up to date after each reply,
 	// which it does until you write your own.
 	SettingAuto bool
+	// State is how the scene stands besides where it is; see
+	// chars.SceneState. Kept up to date with Setting, under SettingAuto.
+	State chars.SceneState
 	// Archived chats are kept but listed apart from the rest. Writing a
 	// message of your own in one brings it back; see AddMessage.
 	Archived  bool
@@ -175,15 +180,16 @@ func (s *Store) Chats() ([]Chat, error) {
 func (s *Store) Chat(id int64) (Chat, error) {
 	var c Chat
 	var created, updated int64
+	var state string
 	err := s.db.QueryRow(`
 		SELECT c.id, c.character_id, c.world_id, c.title, c.model, c.kind, c.summary, c.summary_upto,
-		       c.lore_upto, c.style_name, c.note, c.persona_id, c.setting, c.setting_auto, c.archived, c.created_at, c.updated_at,
+		       c.lore_upto, c.style_name, c.note, c.persona_id, c.setting, c.setting_auto, c.state, c.archived, c.created_at, c.updated_at,
 		       COALESCE(ch.name, ''), COALESCE(ch.accent, 0)
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
 		WHERE c.id = ?`, id).
 		Scan(&c.ID, &c.CharacterID, &c.WorldID, &c.Title, &c.Model, &c.Kind, &c.Summary, &c.SummaryUpto,
-			&c.LoreUpto, &c.StyleName, &c.Note, &c.PersonaID, &c.Setting, &c.SettingAuto, &c.Archived, &created, &updated, &c.CharacterName, &c.Accent)
+			&c.LoreUpto, &c.StyleName, &c.Note, &c.PersonaID, &c.Setting, &c.SettingAuto, &state, &c.Archived, &created, &updated, &c.CharacterName, &c.Accent)
 	if err == sql.ErrNoRows {
 		return c, fmt.Errorf("no chat with id %d", id)
 	}
@@ -191,6 +197,7 @@ func (s *Store) Chat(id int64) (Chat, error) {
 		return c, err
 	}
 	c.CreatedAt, c.UpdatedAt = fromUnix(created), fromUnix(updated)
+	c.State = decodeState(state)
 	return c, nil
 }
 

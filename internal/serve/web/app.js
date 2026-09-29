@@ -2308,6 +2308,7 @@ async function openMemory() {
 	$("memory-setting").dataset.was = mem.setting || "";
 	$("memory-auto").checked = !!mem.setting_auto;
 	$("memory-auto").dataset.was = mem.setting_auto ? "1" : "";
+	showState(mem.fields || [], mem.state || {});
 	const u = mem.usage;
 	if (u) {
 		const used = u.used + u.reply;
@@ -2360,6 +2361,37 @@ async function openMemory() {
 $("memory-cancel").addEventListener("click", () => { $("memory-sheet").hidden = true; });
 // Writing your own line stops Astral rewriting it.
 $("memory-setting").addEventListener("input", () => { $("memory-auto").checked = false; });
+// showState builds a field for each part of the scene's state, labelled as
+// the desktop labels it. See chars.SceneState.
+function showState(fields, state) {
+	const box = $("memory-state");
+	box.replaceChildren();
+	for (const f of fields) {
+		const label = document.createElement("label");
+		label.className = "sheet-label";
+		label.textContent = f.label;
+		const input = document.createElement("input");
+		input.className = "sheet-field";
+		input.type = "text";
+		input.maxLength = 160;
+		input.autocomplete = "off";
+		input.placeholder = f.hint;
+		input.dataset.key = f.key;
+		input.value = state[f.key] || "";
+		input.dataset.was = input.value;
+		// Writing your own stops Astral rewriting them, as for the line above.
+		input.addEventListener("input", () => { $("memory-auto").checked = false; });
+		input.id = "memory-state-" + f.key;
+		label.htmlFor = input.id;
+		box.append(label, input);
+	}
+}
+
+// stateFields are the state's inputs, by their part's key.
+function stateFields() {
+	return [...$("memory-state").querySelectorAll("input[data-key]")];
+}
+
 $("memory-suggest").addEventListener("click", async () => {
 	if (!current) return;
 	const b = $("memory-suggest");
@@ -2369,7 +2401,10 @@ $("memory-suggest").addEventListener("click", async () => {
 		const res = await api("/api/chats/" + current.id + "/setting/suggest", { method: "POST", body: "{}" });
 		const out = await res.json();
 		if (out.setting) $("memory-setting").value = out.setting;
-		// A suggested line is still Astral's, so keeping it up to date stays on.
+		for (const input of stateFields()) {
+			if (out.state && out.state[input.dataset.key]) input.value = out.state[input.dataset.key];
+		}
+		// A suggestion is still Astral's, so keeping it up to date stays on.
 	} catch (e) {
 		toast(e.message);
 	} finally {
@@ -2383,6 +2418,10 @@ $("memory-save").addEventListener("click", async () => {
 	if (!$("memory-recap").disabled) body.recap = $("memory-recap").value;
 	if ($("memory-setting").value.trim() !== ($("memory-setting").dataset.was || "")) body.setting = $("memory-setting").value;
 	if ($("memory-auto").checked !== !!$("memory-auto").dataset.was) body.setting_auto = $("memory-auto").checked;
+	const inputs = stateFields();
+	if (inputs.some((i) => i.value.trim() !== (i.dataset.was || ""))) {
+		body.state = Object.fromEntries(inputs.map((i) => [i.dataset.key, i.value.trim()]));
+	}
 	try {
 		await api("/api/chats/" + current.id + "/memory", {
 			method: "POST", body: JSON.stringify(body),

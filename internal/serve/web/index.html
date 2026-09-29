@@ -220,11 +220,13 @@
 <div id="memory-sheet" class="sheet-backdrop" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="memory-heading">
     <h2 id="memory-heading" class="sheet-kicker">Scene Memory</h2>
+    <h3 class="sheet-label">Scene State</h3>
     <label class="sheet-label" for="memory-setting">Where and When</label>
     <div class="sheet-inline">
       <input id="memory-setting" class="sheet-field" type="text" maxlength="200" placeholder="Her flat, two in the morning, rain" autocomplete="off">
       <button id="memory-suggest" class="chip chip-button" type="button">Suggest</button>
     </div>
+    <div id="memory-state"></div>
     <label class="sheet-check"><input id="memory-auto" type="checkbox"> Update as the Scene Moves</label>
     <label class="sheet-label" for="memory-recap">Record of the Scene So Far</label>
     <textarea id="memory-recap" class="sheet-field" rows="6"></textarea>

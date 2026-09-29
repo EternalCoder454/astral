@@ -146,15 +146,12 @@ func (s *Server) handleSuggestSetting(w http.ResponseWriter, r *http.Request, d 
 	ctx, cancel := context.WithTimeout(r.Context(), sendTimeout)
 	defer cancel()
 	s.client().UseForReplies(ctx, model)
-	noThink := false
-	opts := scene.DraftOptions(cfg, ch.Kind)
-	msg, _, err := s.client().Chat(ctx, model, scene.SuggestSetting(s.store, cfg, ch, cast, hist), opts, &noThink, nil)
+	setting, state, err := scene.SuggestState(ctx, s.client(), s.store, cfg, ch, cast, hist, model)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 		return
 	}
-	_, text := ollama.SplitThinking(msg.Content)
-	writeJSON(w, http.StatusOK, map[string]string{"setting": chars.CleanSetting(text)})
+	writeJSON(w, http.StatusOK, map[string]any{"setting": setting, "state": state})
 }
 
 // handleImportLink imports a character from a Chub page or a card's own

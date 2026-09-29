@@ -501,27 +501,33 @@ func (c *ChatView) turnChip() *gtk.MenuButton {
 	return btn
 }
 
-// Setting is where and when this scene is now, in a line, and whether Astral
-// keeps it up to date.
-func (c *ChatView) Setting() (string, bool) { return c.chat.Setting, c.chat.SettingAuto }
+// Setting is where and when this scene is now, in a line, how it stands, and
+// whether Astral keeps both up to date.
+func (c *ChatView) Setting() (string, chars.SceneState, bool) {
+	return c.chat.Setting, c.chat.State, c.chat.SettingAuto
+}
 
-// SetSetting stores where and when the scene is now, and whether Astral keeps
-// it up to date from here. It is sent from the next turn on.
-func (c *ChatView) SetSetting(setting string, auto bool) error {
+// SetSetting stores where and when the scene is now and how it stands, and
+// whether Astral keeps them up to date from here. They are sent from the next
+// turn on.
+func (c *ChatView) SetSetting(setting string, state chars.SceneState, auto bool) error {
 	setting = strings.TrimSpace(setting)
-	c.chat.Setting, c.chat.SettingAuto = setting, auto
+	c.chat.Setting, c.chat.State, c.chat.SettingAuto = setting, state, auto
 	if c.chat.ID == 0 {
 		return nil
 	}
 	if err := c.store.SetChatSettingAuto(c.chat.ID, auto); err != nil {
 		return err
 	}
+	if err := c.store.SetChatState(c.chat.ID, state); err != nil {
+		return err
+	}
 	return c.store.SetChatSetting(c.chat.ID, setting)
 }
 
-// maybeTrackSetting brings the scene's setting line up to date after a
-// reply, in the background lane, when Astral is keeping it. See
-// scene.TrackSetting.
+// maybeTrackSetting brings where and when the scene is and how it stands up
+// to date after a reply, in the background lane, when Astral is keeping them.
+// See scene.TrackState.
 func (c *ChatView) maybeTrackSetting() {
 	if c.bg.running || c.chat.ID == 0 || !c.chat.SettingAuto || !c.canDraft() {
 		return
@@ -534,18 +540,18 @@ func (c *ChatView) maybeTrackSetting() {
 	client, model := c.client, c.activeModel()
 	st, cfg, ch, cast, hist := c.store, c.cfg, c.chat, c.sceneCast(), c.history()
 	go func() {
-		line := scene.TrackSetting(ctx, client, st, cfg, ch, cast, hist, model)
+		setting, state, changed := scene.TrackState(ctx, client, st, cfg, ch, cast, hist, model)
 		coreglib.IdleAdd(func() bool {
 			c.bg.done()
 			// Only onto the chat it was worked out for, and only if nobody
 			// wrote their own in the meantime.
-			if line == "" || c.chat.ID != chatID || !c.chat.SettingAuto {
+			if !changed || c.chat.ID != chatID || !c.chat.SettingAuto {
 				return false
 			}
-			if err := c.store.SetChatSetting(chatID, line); err != nil {
+			if c.store.SetChatSetting(chatID, setting) != nil || c.store.SetChatState(chatID, state) != nil {
 				return false
 			}
-			c.chat.Setting = line
+			c.chat.Setting, c.chat.State = setting, state
 			return false
 		})
 	}()
@@ -565,34 +571,31 @@ func (c *ChatView) Seen() scene.Seen {
 	return scene.WhatItSees(c.store, c.cfg, c.chat, c.sceneCast(), c.history())
 }
 
-// SuggestSetting asks the model where and when the scene is now, and hands
-// the line to done on the UI thread. Nothing is stored.
-func (c *ChatView) SuggestSetting(done func(string, error)) {
+// SuggestSetting asks the model where and when the scene is now and how it
+// stands, and hands them to done on the UI thread. Nothing is stored.
+func (c *ChatView) SuggestSetting(done func(string, chars.SceneState, error)) {
 	if c.busy || c.drafting {
-		done("", fmt.Errorf("wait for the reply to finish"))
+		done("", chars.SceneState{}, fmt.Errorf("wait for the reply to finish"))
 		return
 	}
 	model := c.activeModel()
 	if model == "" {
-		done("", fmt.Errorf("choose a model first"))
+		done("", chars.SceneState{}, fmt.Errorf("choose a model first"))
 		return
 	}
-	msgs := scene.SuggestSetting(c.store, c.cfg, c.chat, c.sceneCast(), c.history())
-	opts := scene.DraftOptions(c.cfg, c.chat.Kind)
 	client := c.client
+	st, cfg, ch, cast, hist := c.store, c.cfg, c.chat, c.sceneCast(), c.history()
 	c.drafting = true
 	c.refreshDraftButton()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer cancel()
 		client.UseForReplies(ctx, model)
-		noThink := false
-		msg, _, err := client.Chat(ctx, model, msgs, opts, &noThink, nil)
-		_, text := ollama.SplitThinking(msg.Content)
+		setting, state, err := scene.SuggestState(ctx, client, st, cfg, ch, cast, hist, model)
 		coreglib.IdleAdd(func() {
 			c.drafting = false
 			c.refreshDraftButton()
-			done(chars.CleanSetting(text), err)
+			done(setting, state, err)
 		})
 	}()
 }

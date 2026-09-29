@@ -518,13 +518,14 @@ func (s *Server) housekeep(chatID int64, cast []chars.Character) {
 	}
 	hist, ids := scene.HistoryWithIDs(stored, nameOf)
 
-	// Where and when the scene is now, first, with the scene's own model
-	// while its prefix is still cached. A reply asked for meanwhile waits
-	// about a second behind it.
+	// Where and when the scene is now and how it stands, first, with the
+	// scene's own model while its prefix is still cached. A reply asked for
+	// meanwhile waits behind it.
 	if ch.SettingAuto {
-		if line := scene.TrackSetting(ctx, s.client(), s.store, cfg, ch, castFor(s.castFor(ch), ca), hist, sceneModel); line != "" {
+		if setting, state, changed := scene.TrackState(ctx, s.client(), s.store, cfg, ch, castFor(s.castFor(ch), ca), hist, sceneModel); changed {
 			if fresh, err := s.store.Chat(chatID); err == nil && fresh.SettingAuto {
-				s.store.SetChatSetting(chatID, line)
+				s.store.SetChatSetting(chatID, setting)
+				s.store.SetChatState(chatID, state)
 			}
 		}
 	}

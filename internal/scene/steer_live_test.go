@@ -172,9 +172,14 @@ func TestLiveSteering(t *testing.T) {
 		t.Logf(line, n, three, total/max(3*n, 1), her, first, you, long, samey)
 
 		for r := 0; r < runs*3; r++ {
-			reply := chars.CleanSetting(ask(SuggestSetting(st, cfg, ch, one, hist), DraftOptions(cfg, ch.Kind)))
-			rep.printf("\n--- setting\n%s\n", reply)
-			t.Logf("Setting: %d words: %s", words(reply), reply)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			setting, state, err := SuggestState(ctx, client, st, cfg, ch, one, hist, model)
+			cancel()
+			if err != nil {
+				t.Fatalf("suggesting the state: %v", err)
+			}
+			rep.printf("\n--- state\nwhere: %s\n%+v\n", setting, state)
+			t.Logf("State: %d words where: %s | %+v", words(setting), setting, state)
 		}
 	}
 

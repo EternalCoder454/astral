@@ -88,33 +88,57 @@ func SuggestOptions(cfg store.Config, kind string) ollama.Options {
 	return opts
 }
 
-// SuggestSetting is the request for where and when the scene is now.
-func SuggestSetting(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Character, hist []ollama.Message) []ollama.Message {
+// StateMessages is a scene's request turned into one keeping the record of
+// how it stands: every part when all is set, as Suggest in Scene Memory asks,
+// and otherwise only what the latest exchange changed.
+func StateMessages(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Character, hist []ollama.Message, all bool) []ollama.Message {
 	msgs := BuildFor(st, cfg, ch, cast, hist)
-	return chars.SettingMessages(msgs, strings.Join(chars.CastNames(cast), ", "), userNameOf(cfg))
+	return chars.StateMessages(msgs, ch.Setting, ch.State, strings.Join(chars.CastNames(cast), ", "), userNameOf(cfg), all)
 }
 
-// TrackSetting asks where and when the scene is now, after a reply, for a
-// chat whose setting Astral keeps up to date. It answers the new line, or ""
-// when there is nothing to change.
+// StateOptions are for keeping the record: short, and plain.
+func StateOptions(cfg store.Config, kind string) ollama.Options {
+	opts := DraftOptions(cfg, kind)
+	opts.Temperature = 0.2
+	opts.NumPredict = stateTokens
+	return opts
+}
+
+// stateTokens bounds an answer about the scene's state: five parts of twenty
+// words, and their names.
+const stateTokens = 320
+
+// TrackState brings where and when a scene is, and how it stands, up to date
+// after a reply, for a chat whose record Astral keeps. It answers the setting
+// and state, and whether either changed.
 //
 // The scene's own model and prompt, with the closing block swapped, so the
-// prefix the reply just computed is used again and this costs about a second
-// rather than another read of the whole scene.
-func TrackSetting(ctx context.Context, client *ollama.Client, st *store.Store, cfg store.Config, ch store.Chat,
-	cast []chars.Character, hist []ollama.Message, model string) string {
+// prefix the reply just computed is used again and this costs about as long
+// as the answer takes to write, which is short when little changed.
+func TrackState(ctx context.Context, client *ollama.Client, st *store.Store, cfg store.Config, ch store.Chat,
+	cast []chars.Character, hist []ollama.Message, model string) (string, chars.SceneState, bool) {
 	if !ch.SettingAuto || !CanDraft(ch, cast) || len(hist) < 2 {
-		return ""
+		return ch.Setting, ch.State, false
 	}
-	noThink := false
-	msg, _, err := client.Chat(ctx, model, SuggestSetting(st, cfg, ch, cast, hist), DraftOptions(cfg, ch.Kind), &noThink, nil)
+	raw, _, err := client.Structured(ctx, model, StateMessages(st, cfg, ch, cast, hist, false),
+		StateOptions(cfg, ch.Kind), chars.StateSchema(false))
 	if err != nil {
-		return ""
+		return ch.Setting, ch.State, false
 	}
-	_, text := ollama.SplitThinking(msg.Content)
-	line := chars.CleanSetting(text)
-	if line == "" || line == strings.TrimSpace(ch.Setting) {
-		return ""
+	return chars.ApplyState(raw, ch.Setting, ch.State)
+}
+
+// SuggestState asks how the scene stands now, every part of it, for Scene
+// Memory's Suggest. Nothing is stored.
+func SuggestState(ctx context.Context, client *ollama.Client, st *store.Store, cfg store.Config, ch store.Chat,
+	cast []chars.Character, hist []ollama.Message, model string) (string, chars.SceneState, error) {
+	raw, _, err := client.Structured(ctx, model, StateMessages(st, cfg, ch, cast, hist, true),
+		StateOptions(cfg, ch.Kind), chars.StateSchema(true))
+	if err != nil {
+		return ch.Setting, ch.State, err
 	}
-	return line
+	// Onto an empty record rather than the one there is, so a part the model
+	// has nothing for comes back empty instead of as it was.
+	setting, state, _ := chars.ApplyState(raw, "", chars.SceneState{})
+	return setting, state, nil
 }

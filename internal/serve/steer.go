@@ -297,13 +297,19 @@ func (s *Server) handleMemory(w http.ResponseWriter, r *http.Request, d store.De
 		Covers  bool     `json:"covers"`
 		Pins    []pinOut `json:"pins"`
 		Setting string   `json:"setting"`
+		// State is how the scene stands besides where it is, and Fields
+		// what its parts are called, so the phone labels them as the
+		// desktop does.
+		State  chars.SceneState   `json:"state"`
+		Fields []chars.StateField `json:"fields"`
 		// SettingAuto says Astral keeps the setting up to date.
 		SettingAuto bool `json:"setting_auto"`
 		// Usage is how full the model's memory is on the next turn, and
 		// Seen what goes with it besides the conversation.
 		Usage *scene.Usage `json:"usage,omitempty"`
 		Seen  *scene.Seen  `json:"seen,omitempty"`
-	}{Recap: ch.Summary, Covers: ch.SummaryUpto != 0, Pins: []pinOut{}, Setting: ch.Setting, SettingAuto: ch.SettingAuto}
+	}{Recap: ch.Summary, Covers: ch.SummaryUpto != 0, Pins: []pinOut{}, Setting: ch.Setting, SettingAuto: ch.SettingAuto,
+		State: ch.State, Fields: chars.StateFields}
 	if hist, err := s.history(ch, castNames(cast)); err == nil {
 		u := scene.MeasureUsage(s.store, cfg, ch, castFor(cast, ca), hist)
 		out.Usage = &u
@@ -334,9 +340,10 @@ func (s *Server) handleSaveMemory(w http.ResponseWriter, r *http.Request, d stor
 	}
 	// Either or both: a scene too young for a record still has a setting.
 	var body struct {
-		Recap       *string `json:"recap"`
-		Setting     *string `json:"setting"`
-		SettingAuto *bool   `json:"setting_auto"`
+		Recap       *string           `json:"recap"`
+		Setting     *string           `json:"setting"`
+		State       *chars.SceneState `json:"state"`
+		SettingAuto *bool             `json:"setting_auto"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 256<<10)).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unreadable request"})
@@ -363,6 +370,16 @@ func (s *Server) handleSaveMemory(w http.ResponseWriter, r *http.Request, d stor
 	}
 	if body.Setting != nil {
 		if err := s.store.SetChatSetting(id, *body.Setting); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+	}
+	if body.State != nil {
+		var state chars.SceneState
+		for _, f := range chars.StateFields {
+			state.Set(f.Key, body.State.Get(f.Key)) // bounded, as the desktop's are
+		}
+		if err := s.store.SetChatState(id, state); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}

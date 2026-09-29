@@ -218,10 +218,10 @@ func copyChatRow(tx *sql.Tx, src Chat, title string) (int64, error) {
 	now := time.Now()
 	res, err := tx.Exec(`
 		INSERT INTO chats (character_id, world_id, title, model, kind, style_name, note, persona_id,
-		                   setting, setting_auto, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+		                   setting, setting_auto, state, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		src.CharacterID, src.WorldID, title, src.Model, src.Kind, src.StyleName, src.Note, src.PersonaID,
-		src.Setting, boolInt(src.SettingAuto), unix(now), unix(now))
+		src.Setting, boolInt(src.SettingAuto), encodeState(src.State), unix(now), unix(now))
 	if err != nil {
 		return 0, err
 	}
