@@ -3,6 +3,14 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.28
+- Scene Memory shows what the model sees: which lorebook entries go with your next message, and why
+- Scene State keeps what everyone wears and holds, how things stand and what is unresolved, every turn
+- Continue in a New Chat starts a long scene fresh, with its story so far, the pins and the last messages
+- Archive chats you are done with, and group the sidebar by character with the button beside the search
+- Phone: all of these too, from a chat's menu and its Scene Memory
+- A chat with no character shows a small tile in the sidebar instead of a stretched bar
+
 ## 0.5.27
 - Reading far back through a long scene no longer leaves it heavy: what you scrolled past is let go at the end
 - In a group scene, earlier messages loaded by scrolling up show each speaker's name again
