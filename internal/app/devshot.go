@@ -462,7 +462,7 @@ func (a *App) devOpenLong(n int) {
 			return false
 		})
 		// And again later, after whatever scrolling a driver has done.
-		for _, at := range []uint{5000, 9000, 13000, 17000} {
+		for at := uint(5000); at <= 62000; at += 3000 {
 			coreglib.TimeoutAdd(at, func() bool {
 				built, pending := a.chat.DevRowCount()
 				v, upper, page := a.chat.DevScroll()
@@ -784,6 +784,9 @@ func (a *App) devTimeFrames() {
 			return
 		}
 		d := time.Since(start)
+		// A frame that paints without updating has no start of its own: it
+		// is measured from nothing rather than from the last one's.
+		start = time.Time{}
 		frames++
 		total += d
 		if d > worst {

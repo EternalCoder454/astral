@@ -69,6 +69,10 @@ const earlierBatch = 6
 // you reach it.
 const earlierAhead = 1200
 
+// keepBuilt is how many rows may be built before, once you are back at the
+// newest message, the ones scrolled past are let go again. See trimBehind.
+const keepBuilt = 3 * renderWindow
+
 // learnTimeout bounds the background lorebook pass. Like compaction it is not
 // blocking anything, so it can afford to be patient.
 const learnTimeout = 5 * time.Minute
@@ -228,6 +232,9 @@ type ChatView struct {
 	earlierBtn *gtk.Button
 	// loadingEarlier is set while a batch scrolled into is being built.
 	loadingEarlier bool
+	// trimQueued is set while dropping the rows scrolled past is waiting to
+	// run. See trimBehind.
+	trimQueued bool
 
 	pendMu   sync.Mutex
 	pendText strings.Builder
@@ -1132,6 +1139,7 @@ func (c *ChatView) watchForEarlier() {
 		})
 	}
 	adj.ConnectValueChanged(load)
+	adj.ConnectValueChanged(c.maybeTrim)
 	// A tail too short to scroll gives no scrolling to wait for, in a tall
 	// window or a scene of short lines, so the next batch is built straight
 	// away, until the window is full or there is nothing older.
@@ -1141,6 +1149,90 @@ func (c *ChatView) watchForEarlier() {
 		}
 	})
 }
+
+// maybeTrim lets go of the rows scrolled past, once you are back at the
+// newest message with many more built than a chat opens with.
+func (c *ChatView) maybeTrim() {
+	if c.trimQueued || len(c.rows) <= keepBuilt || !c.trimmable() {
+		return
+	}
+	// Later, not inside the scroll: this can be called while the transcript
+	// is being laid out, and rows cannot be taken away in the middle of that.
+	c.trimQueued = true
+	coreglib.IdleAdd(func() bool {
+		c.trimQueued = false
+		c.trimBehind()
+		return false
+	})
+}
+
+// trimmable reports whether the rows scrolled past can go now: at the very
+// bottom, with nothing being written or built.
+func (c *ChatView) trimmable() bool {
+	if c.live != nil || c.busy || c.loadingEarlier || c.chat.ID == 0 {
+		return false
+	}
+	adj := c.scroll.VAdjustment()
+	return adj.PageSize() > 0 && adj.Value() >= adj.Upper()-adj.PageSize()-2
+}
+
+// trimBehind puts every row but the newest renderWindow back behind the
+// scroll, the way the chat opened, to be built again only if you scroll up to
+// them.
+//
+// Every row scrolled back through stayed built, so a long read back through
+// a scene left hundreds of rows on the window for as long as the chat was
+// open. Each is laid out again whenever the window changes width, and each
+// holds its share of memory. They are read back from the database rather than
+// from the rows, so what is built again is what is stored, pins and edits
+// included.
+//
+// A few at a time, a frame apart: 144 rows taken away at once held the
+// window for about 100ms just as you arrived at the bottom.
+func (c *ChatView) trimBehind() {
+	if len(c.rows) <= renderWindow || !c.trimmable() {
+		return
+	}
+	cut := min(len(c.rows)-renderWindow, trimStep)
+	for _, r := range c.rows[:cut] {
+		if r.ID == 0 {
+			return // not stored, so it could not be built again
+		}
+	}
+	msgs, err := c.store.Messages(c.chat.ID)
+	if err != nil {
+		return
+	}
+	first := c.rows[cut].ID
+	at := -1
+	for i, m := range msgs {
+		if m.ID == first {
+			at = i
+			break
+		}
+	}
+	if at < 0 {
+		return
+	}
+	for _, r := range c.rows[:cut] {
+		c.column.Remove(r.Widget())
+		r.Release()
+	}
+	c.rows = append([]*MessageRow(nil), c.rows[cut:]...)
+	c.older = msgs[:at]
+	c.refreshEarlierButton()
+	if len(c.rows) > renderWindow {
+		c.trimQueued = true
+		coreglib.IdleAdd(func() bool {
+			c.trimQueued = false
+			c.trimBehind()
+			return false
+		})
+	}
+}
+
+// trimStep is how many rows trimBehind takes away in one frame.
+const trimStep = 24
 
 // lastRole is who spoke in the row currently at the bottom of the transcript.
 func (c *ChatView) lastRole() string {
