@@ -3,6 +3,9 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.27
+- Reading far back through a long scene no longer leaves it heavy: what you scrolled past is let go at the end
+
 ## 0.5.26
 - Long sessions stay light: chats and dialogs you leave are now freed instead of piling up in memory
 - Chats open about twice as fast, and scrolling back brings in earlier messages a few at a time, smoothly
