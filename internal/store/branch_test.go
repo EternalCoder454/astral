@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"astral/internal/chars"
 )
 
 func TestBranchChat(t *testing.T) {
@@ -130,5 +132,48 @@ func TestContinueChat(t *testing.T) {
 		if got := ContinueTitle(in); got != want {
 			t.Errorf("ContinueTitle(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// A continuation's record survives being branched, though its bookmark sits
+// on no turn of its own; and a branch from before the end starts without the
+// end's setting and state.
+func TestBranchCarriesTheRecordAndNotTheEnd(t *testing.T) {
+	s := openTest(t)
+	ch, _ := s.NewChat(0, "Harbour", "m", KindRoleplay)
+	var ids []int64
+	for i := 1; i <= 8; i++ {
+		id, _ := s.AddMessage(Message{ChatID: ch.ID, Role: "user", Content: fmt.Sprintf("line %d", i)})
+		ids = append(ids, id)
+	}
+	next, err := s.ContinueChat(ch.ID, ids[5], "The story so far.", "Harbour, Part 2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	carried, _ := s.Messages(next.ID)
+	b, err := s.BranchChat(next.ID, carried[0].ID, "branch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Summary != "The story so far." {
+		t.Errorf("the branch of a continuation lost its record: %q", b.Summary)
+	}
+	if shown, _ := s.MessagesAfter(b.ID, b.SummaryUpto); len(shown) != 1 {
+		t.Errorf("the branch shows %d turns after its record, want 1", len(shown))
+	}
+
+	if err := s.SetChatSetting(ch.ID, "The ferry at dawn"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetChatState(ch.ID, chars.SceneState{Holding: "the brass key"}); err != nil {
+		t.Fatal(err)
+	}
+	early, _ := s.BranchChat(ch.ID, ids[2], "early")
+	if early.Setting != "" || !early.State.Empty() {
+		t.Errorf("a branch from before the end took the end's setting %q and state %+v", early.Setting, early.State)
+	}
+	late, _ := s.BranchChat(ch.ID, ids[7], "late")
+	if late.Setting != "The ferry at dawn" || late.State.Holding != "the brass key" {
+		t.Errorf("a branch from the end lost its setting %q and state %+v", late.Setting, late.State)
 	}
 }

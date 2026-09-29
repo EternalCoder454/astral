@@ -68,16 +68,10 @@ func (a *App) editMemory() {
 	}
 	setting.ConnectChanged(manual)
 	parts := make(map[string]*gtk.Entry, len(chars.StateFields))
-	placeholders := map[string]string{
-		"wearing":    "Vesper: oilskin coat, ink-stained gloves. You: soaked jacket",
-		"holding":    "You have the brass key; her dividers are on the table",
-		"between":    "Wary, softening; she owes you for the ferry",
-		"unresolved": "The ferry leaves at dawn; who paid the harbourmaster?",
-	}
 	for _, f := range chars.StateFields {
 		e := gtk.NewEntry()
 		e.SetText(oldState.Get(f.Key))
-		e.SetPlaceholderText(placeholders[f.Key])
+		e.SetPlaceholderText(f.Example)
 		e.SetMaxLength(chars.StateChars)
 		e.SetHExpand(true)
 		e.ConnectChanged(manual)
@@ -134,6 +128,33 @@ func (a *App) editMemory() {
 	view.SetEditable(upto != 0)
 	page.Append(outer)
 
+	// saveMemory keeps what was changed here, and says whether anything was
+	// and whether it all went. Save uses it, and so does Continue in a New
+	// Chat, which carries on from what is stored and would otherwise drop
+	// what was typed here.
+	saveMemory := func() (changed, ok bool) {
+		text := strings.TrimSpace(textOf(view))
+		if upto != 0 && text != strings.TrimSpace(recap) {
+			if err := a.chat.SetRecap(text); err != nil {
+				a.toast("Could not save the record: " + err.Error())
+				return changed, false
+			}
+			changed = true
+		}
+		var state chars.SceneState
+		for key, e := range parts {
+			state.Set(key, e.Text())
+		}
+		if now := strings.TrimSpace(setting.Text()); now != oldSetting || state != oldState || auto.Active() != oldAuto {
+			if err := a.chat.SetSetting(now, state, auto.Active()); err != nil {
+				a.toast("Could not save the scene state: " + err.Error())
+				return changed, false
+			}
+			changed = true
+		}
+		return changed, true
+	}
+
 	pinsOuter, pinsCard := groupCard("Pinned")
 	pins := a.chat.Pins()
 	if len(pins) == 0 {
@@ -155,6 +176,9 @@ func (a *App) editMemory() {
 		cont.SetHAlign(gtk.AlignStart)
 		id := ch.ID
 		cont.ConnectClicked(func() {
+			if _, ok := saveMemory(); !ok {
+				return
+			}
 			d.Close()
 			a.continueChat(id)
 		})
@@ -171,29 +195,11 @@ func (a *App) editMemory() {
 	save := gtk.NewButtonWithLabel("Save")
 	save.AddCSSClass("suggested-action")
 	save.ConnectClicked(func() {
-		text := strings.TrimSpace(textOf(view))
-		changed := false
-		if upto != 0 && text != strings.TrimSpace(recap) {
-			if err := a.chat.SetRecap(text); err != nil {
-				a.toast("Could not save the record: " + err.Error())
-				return
+		if changed, ok := saveMemory(); ok {
+			d.Close()
+			if changed {
+				a.toast("Saved, from your next message on.")
 			}
-			changed = true
-		}
-		var state chars.SceneState
-		for key, e := range parts {
-			state.Set(key, e.Text())
-		}
-		if now := strings.TrimSpace(setting.Text()); now != oldSetting || state != oldState || auto.Active() != oldAuto {
-			if err := a.chat.SetSetting(now, state, auto.Active()); err != nil {
-				a.toast("Could not save the scene state: " + err.Error())
-				return
-			}
-			changed = true
-		}
-		d.Close()
-		if changed {
-			a.toast("Saved, from your next message on.")
 		}
 	})
 	header.PackEnd(save)
@@ -358,16 +364,6 @@ func (a *App) continueChat(chatID int64) {
 	if a.continuing {
 		return
 	}
-	cast, err := a.store.Cast(chatID)
-	if err != nil {
-		a.toast("Could not continue it: " + err.Error())
-		return
-	}
-	if len(cast) == 0 && src.CharacterID != 0 {
-		if c, err := a.store.Character(src.CharacterID); err == nil {
-			cast = []chars.Character{c}
-		}
-	}
 	a.continuing = true
 	a.toast("Writing the story so far for the new chat…")
 	client, cfg := a.client, a.cfg
@@ -379,7 +375,7 @@ func (a *App) continueChat(chatID int64) {
 		ctx, cancel := context.WithTimeout(context.Background(), continueTimeout)
 		defer cancel()
 		model := scene.FitHousekeeping(ctx, client, cfg.HousekeepingModel, sceneModel)
-		next, err := scene.ContinueChat(ctx, client, model, a.store, cfg, src, cast)
+		next, err := scene.ContinueChat(ctx, client, model, a.store, cfg, src)
 		scene.NoteUsed(model, "")
 		coreglib.IdleAdd(func() bool {
 			a.continuing = false
@@ -388,11 +384,21 @@ func (a *App) continueChat(chatID int64) {
 				return false
 			}
 			a.refreshSidebar()
-			if err := a.openChat(next.ID); err != nil {
-				a.toast("Continued, but could not open it: " + err.Error())
+			open := func() {
+				if err := a.openChat(next.ID); err != nil {
+					a.toast("Continued, but could not open it: " + err.Error())
+					return
+				}
+				a.toast("Continued in a new chat. The original is unchanged in your chats.")
+			}
+			// Opened for you only if you are still where you asked for it
+			// and nothing is being written: this can take minutes, and
+			// switching chats under a reply would throw that reply away.
+			if a.chat != nil && a.chat.Chat().ID == chatID && !a.chat.Busy() {
+				open()
 				return false
 			}
-			a.toast("Continued in a new chat. The original is unchanged in your chats.")
+			a.toastAction("“"+next.Title+"” is ready.", "Open", open)
 			return false
 		})
 	}()

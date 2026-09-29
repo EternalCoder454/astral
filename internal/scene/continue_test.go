@@ -32,7 +32,6 @@ func TestContinueChatCarriesTheStory(t *testing.T) {
 
 	st := memoryStore(t)
 	id, _ := st.SaveCharacter(chars.Character{Name: "Vesper", Description: "A cartographer."})
-	ca, _ := st.Character(id)
 	ch, _ := st.NewChat(id, "Harbour", "m", store.KindRoleplay)
 	for i := 1; i <= 10; i++ {
 		role := ollama.RoleUser
@@ -44,7 +43,7 @@ func TestContinueChatCarriesTheStory(t *testing.T) {
 		}
 	}
 	ch, _ = st.Chat(ch.ID)
-	next, err := ContinueChat(context.Background(), client, "m", st, store.Config{}, ch, []chars.Character{ca})
+	next, err := ContinueChat(context.Background(), client, "m", st, store.Config{}, ch)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,12 +59,12 @@ func TestContinueChatCarriesTheStory(t *testing.T) {
 	short, _ := st.NewChat(id, "Short", "m", store.KindRoleplay)
 	st.AddMessage(store.Message{ChatID: short.ID, Role: ollama.RoleUser, Content: "hello"})
 	short, _ = st.Chat(short.ID)
-	if _, err := ContinueChat(context.Background(), client, "", st, store.Config{}, short, []chars.Character{ca}); err != nil || calls != 0 {
+	if _, err := ContinueChat(context.Background(), client, "", st, store.Config{}, short); err != nil || calls != 0 {
 		t.Errorf("a short chat: %v, %d model calls", err, calls)
 	}
 
 	design, _ := st.NewChat(0, "Design", "m", store.KindDesigner)
-	if _, err := ContinueChat(context.Background(), client, "m", st, store.Config{}, design, nil); err == nil {
+	if _, err := ContinueChat(context.Background(), client, "m", st, store.Config{}, design); err == nil {
 		t.Error("a design chat was continued")
 	}
 }

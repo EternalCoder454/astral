@@ -909,6 +909,15 @@ a.row { text-decoration: none; }
 	font-weight: 600;
 }
 
+/* A label under a field needs the room one under a heading gets. */
+.sheet-field + .sheet-label { margin-top: 10px; }
+
+/* A sheet taller than the screen scrolls; it must not squash what is in it.
+   As a flex column it shrank its children to fit instead, which flattened the
+   record to one line and the memory bar to nothing once Scene State made the
+   sheet long enough. */
+.sheet > *, #memory-state > * { flex-shrink: 0; }
+
 .sheet-hint { margin: 0; font-size: 0.85rem; }
 
 /* An action's icon where a row would show a face. */
@@ -927,7 +936,7 @@ a.row { text-decoration: none; }
 .sheet-inline {
 	display: flex;
 	gap: 8px;
-	align-items: center;
+	align-items: stretch;
 }
 
 .sheet-inline .sheet-field { flex: 1 1 auto; min-width: 0; }

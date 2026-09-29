@@ -33,7 +33,7 @@ func TestSettingBlockCarriesTheState(t *testing.T) {
 // changed anything; stand-ins for nothing change nothing.
 func TestApplyStateTakesOnlyWhatChanged(t *testing.T) {
 	was := SceneState{Wearing: "She: oilskin coat", Holding: "You: the brass key"}
-	raw := []byte(`{"where":"The ferry cabin, near dawn","wearing":"She: shirtsleeves, coat on the hook","holding":"none","unresolved":"  \"Meet at the bell at dawn\"  "}`)
+	raw := []byte(`{"where":"The ferry cabin, near dawn","wearing":"She: shirtsleeves, coat on the hook","holding":"same","unresolved":"  \"Meet at the bell at dawn\"  "}`)
 	setting, state, changed := ApplyState(raw, "The dock", was)
 	if !changed || setting != "The ferry cabin, near dawn" {
 		t.Errorf("setting %q, changed %v", setting, changed)
@@ -50,12 +50,28 @@ func TestApplyStateTakesOnlyWhatChanged(t *testing.T) {
 	}
 }
 
-// Asking for every part requires every part; after a reply, none.
+// Every part is required and bounded, and "same" changes nothing.
 func TestStateSchema(t *testing.T) {
-	if s := string(StateSchema(true)); !strings.Contains(s, `"required":["where","wearing","holding","between","unresolved"]`) {
-		t.Errorf("all: %s", s)
+	s := string(StateSchema(false))
+	if !strings.Contains(s, `"required":["where","wearing","holding","relationship","unresolved"]`) ||
+		!strings.Contains(s, `"maxLength":160`) {
+		t.Errorf("schema: %s", s)
 	}
-	if s := string(StateSchema(false)); strings.Contains(s, "required") {
-		t.Errorf("changed only requires parts: %s", s)
+	if _, _, changed := ApplyState([]byte(`{"where":"same","wearing":"Same.","holding":"same","relationship":"same","unresolved":"same"}`),
+		"The dock", SceneState{Wearing: "a coat"}); changed {
+		t.Error("an answer of all same changed the state")
+	}
+}
+
+// "none" clears a part that no longer holds; "same" and silence keep it; and
+// where the scene is is never cleared.
+func TestApplyStateClearsWhatNoLongerHolds(t *testing.T) {
+	was := SceneState{Holding: "You: the brass key", Unresolved: "The quarrel"}
+	setting, state, changed := ApplyState([]byte(`{"where":"none","holding":"none","unresolved":"same"}`), "The dock", was)
+	if !changed || state.Holding != "" || state.Unresolved != "The quarrel" || setting != "The dock" {
+		t.Errorf("changed %v, setting %q, state %+v", changed, setting, state)
+	}
+	if _, _, changed := ApplyState([]byte(`{"wearing":"none"}`), "The dock", SceneState{}); changed {
+		t.Error("clearing an empty part counted as a change")
 	}
 }

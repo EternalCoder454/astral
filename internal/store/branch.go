@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"astral/internal/chars"
 )
 
 // Pinning and branching: two things every other roleplay app lets you do with
@@ -89,6 +91,7 @@ func (s *Store) BranchChat(chatID, uptoID int64, title string) (Chat, error) {
 	if cut < 0 {
 		return Chat{}, fmt.Errorf("message %d is not in chat %d", uptoID, chatID)
 	}
+	all := msgs
 	msgs = msgs[:cut+1]
 
 	pinned := map[int64]bool{}
@@ -106,7 +109,15 @@ func (s *Store) BranchChat(chatID, uptoID int64, title string) (Chat, error) {
 	}
 	defer tx.Rollback()
 
-	id, err := copyChatRow(tx, src, title)
+	// Where and when the scene is and how it stands describe its end. A
+	// branch from earlier in it starts without them rather than with a
+	// moment it has not reached; Astral fills them in again as it goes.
+	atEnd := cut == len(all)-1
+	row := src
+	if !atEnd {
+		row.Setting, row.State = "", chars.SceneState{}
+	}
+	id, err := copyChatRow(tx, row, title)
 	if err != nil {
 		return Chat{}, err
 	}
@@ -115,11 +126,19 @@ func (s *Store) BranchChat(chatID, uptoID int64, title string) (Chat, error) {
 		return Chat{}, err
 	}
 
-	// The recap's bookmark is the last turn it covers. Carried over only when
-	// that turn is one of the ones copied.
-	if n, ok := newID[src.SummaryUpto]; ok && strings.TrimSpace(src.Summary) != "" {
+	// The recap covers everything up to its bookmark, so it goes with a branch
+	// taken at or after that point. The bookmark is carried by position: the
+	// last copied turn at or before it, or just before the first one, which
+	// is where a continuation's bookmark sits, on no turn of its own.
+	if strings.TrimSpace(src.Summary) != "" && src.SummaryUpto > 0 && src.SummaryUpto <= uptoID && len(msgs) > 0 {
+		upto := newID[msgs[0].ID] - 1
+		for _, m := range msgs {
+			if m.ID <= src.SummaryUpto && newID[m.ID] > upto {
+				upto = newID[m.ID]
+			}
+		}
 		if _, err := tx.Exec(`UPDATE chats SET summary = ?, summary_upto = ? WHERE id = ?`,
-			src.Summary, n, id); err != nil {
+			src.Summary, upto, id); err != nil {
 			return Chat{}, err
 		}
 	}

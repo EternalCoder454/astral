@@ -2375,7 +2375,8 @@ function showState(fields, state) {
 		input.type = "text";
 		input.maxLength = 160;
 		input.autocomplete = "off";
-		input.placeholder = f.hint;
+		input.placeholder = f.example || "";
+		input.title = f.hint;
 		input.dataset.key = f.key;
 		input.value = state[f.key] || "";
 		input.dataset.was = input.value;

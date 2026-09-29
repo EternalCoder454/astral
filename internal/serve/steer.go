@@ -236,17 +236,19 @@ func (s *Server) handleContinue(w http.ResponseWriter, r *http.Request, d store.
 		return
 	}
 	defer release()
-	ctx, cancel := context.WithTimeout(r.Context(), continueTimeout)
+	// Not the request's context: a phone that sleeps or drops off the Wi-Fi
+	// while the story is written would otherwise throw the work away. The
+	// new chat is there when it next looks.
+	ctx, cancel := context.WithTimeout(context.Background(), continueTimeout)
 	defer cancel()
 	s.busy.onStop(ch.ID, cancel)
-	cast := castFor(s.castFor(ch), s.characterFor(ch))
-	cfg := s.playedAs(s.config(), ch)
+	cfg := s.config()
 	sceneModel := ch.Model
 	if sceneModel == "" {
 		sceneModel = cfg.Model
 	}
 	model := scene.FitHousekeeping(ctx, s.client(), cfg.HousekeepingModel, sceneModel)
-	next, err := scene.ContinueChat(ctx, s.client(), model, s.store, cfg, ch, cast)
+	next, err := scene.ContinueChat(ctx, s.client(), model, s.store, cfg, ch)
 	scene.NoteUsed(model, "")
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})

@@ -28,11 +28,17 @@ func CanContinue(ch store.Chat) bool {
 // to the last ContinueTail messages, with model, and starts the continuation
 // from it. See store.ContinueChat. The original is left as it was, record
 // included: the record written here belongs to the new chat.
+//
+// The cast, and who you played the chat as, are read from the chat itself,
+// so the window and the phone write the same record: a world scene's cast is
+// its narrator, and your lines are labelled with the persona of this chat.
 func ContinueChat(ctx context.Context, client *ollama.Client, model string, st *store.Store, cfg store.Config,
-	ch store.Chat, cast []chars.Character) (store.Chat, error) {
+	ch store.Chat) (store.Chat, error) {
 	if !CanContinue(ch) {
 		return store.Chat{}, fmt.Errorf("only a scene or a general chat can be continued")
 	}
+	cast := castOf(st, ch)
+	cfg = playedAs(st, cfg, ch)
 	stored, err := st.MessagesAfter(ch.ID, ch.SummaryUpto)
 	if err != nil {
 		return store.Chat{}, err
@@ -74,4 +80,33 @@ func ContinueChat(ctx context.Context, client *ollama.Client, model string, st *
 		}
 	}
 	return st.ContinueChat(ch.ID, from, recap, store.ContinueTitle(ch.Title))
+}
+
+// castOf is who is in a chat: its cast when it has more than one, else its
+// character, or a world scene's narrator.
+func castOf(st *store.Store, ch store.Chat) []chars.Character {
+	if cast, err := st.Cast(ch.ID); err == nil && len(cast) > 1 {
+		return cast
+	}
+	switch {
+	case ch.CharacterID != 0:
+		if c, err := st.Character(ch.CharacterID); err == nil {
+			return []chars.Character{c}
+		}
+	case ch.WorldID != 0:
+		if w, err := st.World(ch.WorldID); err == nil {
+			return []chars.Character{Narrator(w)}
+		}
+	}
+	return nil
+}
+
+// playedAs is cfg with the persona a chat is played as, when it has its own.
+func playedAs(st *store.Store, cfg store.Config, ch store.Chat) store.Config {
+	if ch.PersonaID != 0 {
+		if p, err := st.Persona(ch.PersonaID); err == nil {
+			cfg.PersonaName, cfg.PersonaDescription = p.Name, p.Description()
+		}
+	}
+	return cfg
 }

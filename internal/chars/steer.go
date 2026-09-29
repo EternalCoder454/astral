@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"astral/internal/ollama"
 	"astral/internal/prompts"
@@ -112,7 +113,7 @@ const SettingChars = 200
 type SceneState struct {
 	Wearing    string `json:"wearing,omitempty"`
 	Holding    string `json:"holding,omitempty"`
-	Between    string `json:"between,omitempty"`
+	Between    string `json:"relationship,omitempty"`
 	Unresolved string `json:"unresolved,omitempty"`
 }
 
@@ -126,6 +127,8 @@ type StateField struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`
 	Hint  string `json:"hint"`
+	// Example is shown in an empty field, short enough for a phone's.
+	Example string `json:"example"`
 }
 
 // stateParts is how many StateFields there are, as a constant, for the
@@ -134,10 +137,10 @@ const stateParts = 4
 
 // StateFields are the parts of a scene's state, in the order they are shown.
 var StateFields = []StateField{
-	{"wearing", "Wearing", "What each person in the scene has on, briefly."},
-	{"holding", "Holding", "What anyone has in hand or with them that matters."},
-	{"between", "Between You", "How things stand between the characters and you right now."},
-	{"unresolved", "Unresolved", "What has been started or promised and not yet settled."},
+	{"wearing", "Wearing", "What each person in the scene has on, briefly.", "Her oilskin coat; your wet jacket"},
+	{"holding", "Holding", "What anyone has in hand or with them that matters.", "You have the brass key"},
+	{"relationship", "Between You", "How things stand between the characters and you right now.", "Wary, but softening"},
+	{"unresolved", "Unresolved", "What has been started or promised and not yet settled.", "The ferry leaves at dawn"},
 }
 
 // Get is a part of the state by its key.
@@ -147,7 +150,7 @@ func (s SceneState) Get(key string) string {
 		return s.Wearing
 	case "holding":
 		return s.Holding
-	case "between":
+	case "relationship":
 		return s.Between
 	case "unresolved":
 		return s.Unresolved
@@ -166,7 +169,7 @@ func (s *SceneState) Set(key, value string) {
 		s.Wearing = value
 	case "holding":
 		s.Holding = value
-	case "between":
+	case "relationship":
 		s.Between = value
 	case "unresolved":
 		s.Unresolved = value
@@ -181,10 +184,10 @@ func (s SceneState) Empty() bool {
 // stateLabel is how a part of the state is labelled for the model, which is
 // plainer than the label a person sees.
 var stateLabel = map[string]string{
-	"wearing":    "Wearing",
-	"holding":    "Holding",
-	"between":    "Between {{char}} and {{user}}",
-	"unresolved": "Unresolved",
+	"wearing":      "Wearing",
+	"holding":      "Holding",
+	"relationship": "Between {{char}} and {{user}}",
+	"unresolved":   "Unresolved",
 }
 
 // SettingBlock is the closing block's part saying where and when the scene
@@ -351,21 +354,23 @@ Each is a complete message written as {{user}}, exactly as they would type it th
 // stands. {{record}} is the record as it is, and {{ask}} either asks for what
 // the latest exchange changed, after a reply, or for everything, when you
 // ask for a suggestion.
-const stateAnchor = `[This time you are not writing {{char}}. You are keeping the record of how this scene stands, for continuity. The record as it is:
+const stateAnchor = `[This time you are not writing {{char}}. You are keeping the record of how this scene stands, for continuity. The record as it was before the latest exchange:
 {{record}}
 
-{{ask}}
+The latest exchange:
+{{latest}}
+
+{{ask}} Keep each part short: a few plain facts, as things are now, and nothing about what should happen next.
 - where: where and when the scene is: the place, and the time of day.
 - wearing: what each person in the scene has on, by name.
 - holding: what anyone has in hand or with them that matters, by name.
-- between: how things stand between {{char}} and {{user}} right now.
-- unresolved: what has been started or promised and not yet settled.
-Each part is plain facts in at most twenty words, as things are now, with nothing about what should happen next.]`
+- relationship: how {{char}} and {{user}} stand with each other right now, feelings and all, and nothing about where they are.
+- unresolved: what has been started or promised and not yet settled.]`
 
 // stateAskChanged and stateAskAll are the two things stateAnchor asks.
 const (
-	stateAskChanged = "Write only the parts the latest exchange changed, and any that are empty and that the scene has now shown, each rewritten whole. Leave out every part that is still right."
-	stateAskAll     = "Write every part, as the scene stands now."
+	stateAskChanged = "Write the record as it stands after the latest exchange. Go through it for anything that changes a part: clothes put on or taken off, something picked up, handed over or put away, a move somewhere else, a change in how {{char}} and {{user}} stand with each other, something promised or settled. Write every part whole, as it is now, and none for a part that no longer holds."
+	stateAskAll     = "Write every part, as the scene stands now, and none for a part the scene has not shown."
 )
 
 var (
@@ -382,11 +387,11 @@ var (
 		About: "Sent in place of the closing block after each reply, to keep where and when the scene is, " +
 			"what everyone is wearing and holding, how things stand and what is unresolved, and when " +
 			"Scene Memory suggests them.",
-		Keep: "{{record}} and {{ask}} are filled in by Astral. The part names (where, wearing, holding, " +
+		Keep: "{{record}}, {{latest}} and {{ask}} are filled in by Astral. The part names (where, wearing, holding, " +
 			"between, unresolved) are the answer's and must stay. {{char}} becomes the character's name, " +
 			"or the whole cast's, and {{user}} yours.",
 		Default: stateAnchor,
-		Anchors: []string{"you are not writing {{char}}", "{{record}}", "{{ask}}"},
+		Anchors: []string{"you are not writing {{char}}", "{{record}}", "{{latest}}", "{{ask}}"},
 	})
 )
 
@@ -452,43 +457,100 @@ func StateMessages(msgs []ollama.Message, setting string, state SceneState, char
 	if all {
 		ask = stateAskAll
 	}
-	text := strings.NewReplacer("{{record}}", strings.TrimSpace(record.String()), "{{ask}}", ask).
-		Replace(prompts.Text(promptState))
+	text := strings.NewReplacer("{{record}}", strings.TrimSpace(record.String()), "{{ask}}", ask,
+		"{{latest}}", latestExchange(msgs)).Replace(prompts.Text(promptState))
 	return swapClosing(msgs, Substitute(text, charName, userName))
 }
 
-// StateSchema is the answer to StateMessages: any of the parts, or, when all
-// is set, every one.
+// latestExchange is the last thing said by each side, quoted, so the record
+// is brought up to date against it. Asked without it, the model copied the
+// record it was shown: measured on SOMPOA, "you wear a wet coat" stayed in
+// the record the turn after the coat was hung by the door, in three runs of
+// three.
+func latestExchange(msgs []ollama.Message) string {
+	var user, reply string
+	for i := len(msgs) - 1; i >= 0 && (user == "" || reply == ""); i-- {
+		switch {
+		case msgs[i].Role == ollama.RoleAssistant && reply == "" && user == "":
+			reply = msgs[i].Content
+		case msgs[i].Role == ollama.RoleUser && user == "":
+			user = msgs[i].Content
+		}
+	}
+	var b strings.Builder
+	if user != "" {
+		b.WriteString("{{user}}: " + excerptEnd(user, 800) + "\n")
+	}
+	if reply != "" {
+		b.WriteString("{{char}}: " + excerptEnd(reply, 1600))
+	}
+	if b.Len() == 0 {
+		return "(none yet)"
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// excerptEnd keeps the end of s when it is long: what a message ends on is
+// where the scene now is.
+func excerptEnd(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	cut := len(s) - n
+	for cut < len(s) && !utf8.RuneStart(s[cut]) {
+		cut++
+	}
+	return "…" + s[cut:]
+}
+
+// StateSchema is the answer to StateMessages: every part, each bounded.
+//
+// Every part is required, as "same" when it has not changed. Measured on
+// SOMPOA with the parts optional and asked for only when changed, the model
+// wrote the first part and nothing else, and kept writing inside it until
+// the reply limit cut it off unparsed, in nine answers out of ten. The bound
+// on each part is the decoder's, so a part ends however the model runs on.
 func StateSchema(all bool) json.RawMessage {
 	keys := []string{"where"}
+	limits := []int{SettingChars}
 	for _, f := range StateFields {
 		keys = append(keys, f.Key)
+		limits = append(limits, StateChars)
 	}
 	props := make([]string, len(keys))
 	for i, k := range keys {
-		props[i] = `"` + k + `":{"type":"string"}`
+		props[i] = fmt.Sprintf(`"%s":{"type":"string","maxLength":%d}`, k, limits[i])
 	}
-	schema := `{"type":"object","properties":{` + strings.Join(props, ",") + `}`
-	if all {
-		schema += `,"required":["` + strings.Join(keys, `","`) + `"]`
-	}
-	return json.RawMessage(schema + "}")
+	_ = all // the same shape either way; what is asked differs
+	return json.RawMessage(`{"type":"object","properties":{` + strings.Join(props, ",") +
+		`},"required":["` + strings.Join(keys, `","`) + `"]}`)
 }
 
 // ApplyState reads an answer to StateMessages onto a setting and state, and
-// reports whether it changed either. A part left out, or left blank, stays
-// as it was.
+// reports whether it changed either. A part left out, left blank or answered
+// "same" stays as it was; one answered "none" is cleared, so something
+// settled or put down stops being sent. Where and when is never cleared: a
+// scene is always somewhere.
 func ApplyState(raw []byte, setting string, state SceneState) (string, SceneState, bool) {
 	var got map[string]string
 	if json.Unmarshal(raw, &got) != nil {
 		return setting, state, false
 	}
 	changed := false
-	if v := CleanSetting(got["where"]); v != "" && v != strings.TrimSpace(setting) {
+	if v := CleanSetting(got["where"]); !standsForNothing(v) && !meansCleared(v) && v != strings.TrimSpace(setting) {
 		setting, changed = v, true
 	}
 	for _, f := range StateFields {
-		v := cleanStatePart(got[f.Key])
+		raw := got[f.Key]
+		if meansCleared(raw) {
+			if state.Get(f.Key) != "" {
+				state.Set(f.Key, "")
+				changed = true
+			}
+			continue
+		}
+		v := cleanStatePart(raw)
 		if v != "" && v != strings.TrimSpace(state.Get(f.Key)) {
 			state.Set(f.Key, v)
 			changed = true
@@ -497,13 +559,32 @@ func ApplyState(raw []byte, setting string, state SceneState) (string, SceneStat
 	return setting, state, changed
 }
 
+// meansCleared reports whether a part of an answer says the part no longer
+// holds, as opposed to not having changed.
+func meansCleared(s string) bool {
+	switch strings.ToLower(strings.Trim(strings.TrimSuffix(strings.TrimSpace(s), "."), `"*() `)) {
+	case "none", "nothing", "empty", "n/a", "nobody", "no one":
+		return true
+	}
+	return false
+}
+
+// standsForNothing reports whether a part of an answer is one of the words a
+// model writes for no change or nothing known.
+func standsForNothing(s string) bool {
+	switch strings.ToLower(strings.TrimSuffix(strings.TrimSpace(s), ".")) {
+	case "", "(empty)", "empty", "none", "unchanged", "same", "n/a", "nothing", "no change":
+		return true
+	}
+	return false
+}
+
 // cleanStatePart tidies one part of an answer: one line, no label, and none
 // of the stand-ins a model writes for nothing.
 func cleanStatePart(s string) string {
 	s = strings.Join(strings.Fields(strings.ReplaceAll(s, "\n", "; ")), " ")
 	s = strings.Trim(s, `"* `)
-	switch strings.ToLower(strings.TrimSuffix(s, ".")) {
-	case "", "(empty)", "empty", "none", "unchanged", "n/a", "nothing":
+	if standsForNothing(s) {
 		return ""
 	}
 	if r := []rune(s); len(r) > StateChars {
