@@ -2056,6 +2056,11 @@ function chatMenu() {
 		items.push({ title: "Continue in a New Chat", note: "The story so far, the pins and the last few messages, fresh.",
 			icon: "branch", onClick: () => continueChat(current.id) });
 	}
+	if (current.can_draft) {
+		const names = { "": "As the Style Says", short: "Short", medium: "Medium", long: "Long" };
+		items.push({ title: "Reply Length", note: names[current.reply_length || ""] + ".",
+			icon: "draft", onClick: chooseLength });
+	}
 	// One character's scene: a group's is named after its first member, and
 	// starring them from there would star somebody at random.
 	if (current.character && (current.cast || []).length < 2) {
@@ -2092,6 +2097,32 @@ function chatMenu() {
 	openMenu(current.title || "This Chat", items);
 }
 $("chat-more").addEventListener("click", chatMenu);
+
+// chooseLength offers the reply lengths a scene can ask for.
+function chooseLength() {
+	if (!current) return;
+	const id = current.id;
+	const options = [
+		["", "As the Style Says", "Whatever length the writing style asks for."],
+		["short", "Short", "One or two short paragraphs."],
+		["medium", "Medium", "Two or three paragraphs."],
+		["long", "Long", "Four to six full paragraphs."],
+	];
+	openMenu("Reply Length", options.map(([key, title, note]) => ({
+		title: (current.reply_length || "") === key ? title + " (Now)" : title,
+		note, icon: "draft",
+		onClick: async () => {
+			try {
+				const res = await api("/api/chats/" + id + "/length", { method: "POST", body: JSON.stringify({ length: key }) });
+				if (!res.ok) throw new Error((await res.json()).error || "That could not be done.");
+				if (current && current.id === id) current.reply_length = key;
+				toast("Replies are " + title.toLowerCase() + " from the next one on.");
+			} catch (e) {
+				toast(e.message);
+			}
+		},
+	})));
+}
 
 // continueChat carries a chat on in a new one and opens it. The PC writes the
 // story so far first, which for a long scene takes as long as the model needs

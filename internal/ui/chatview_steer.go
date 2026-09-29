@@ -14,6 +14,8 @@ import (
 	"astral/internal/store"
 
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 )
@@ -454,6 +456,62 @@ func chipLabel(text string, maxChars int) *gtk.Label {
 	l.SetEllipsize(pango.EllipsizeEnd)
 	l.SetMaxWidthChars(maxChars)
 	return l
+}
+
+// chatActions are the chat's own actions, for its chips' menus. A menu built
+// from actions holds no handler of its own, so a chip rebuilt with every chat
+// leaves nothing behind; see MessageRow.Release for why that matters.
+func (c *ChatView) chatActions() *gio.SimpleActionGroup {
+	group := gio.NewSimpleActionGroup()
+	length := gio.NewSimpleAction("reply-length", glib.NewVariantType("s"))
+	length.ConnectActivate(func(p *glib.Variant) {
+		if p == nil {
+			return
+		}
+		if err := c.SetReplyLength(p.String()); err != nil {
+			c.fail("Could not change the reply length: " + err.Error())
+		}
+	})
+	group.AddAction(length)
+	return group
+}
+
+// SetReplyLength asks this scene's replies to be of a length, from the next
+// one on: one of chars.Lengths, "" for whatever the style says.
+func (c *ChatView) SetReplyLength(length string) error {
+	if c.chat.ID != 0 {
+		if err := c.store.SetChatReplyLength(c.chat.ID, length); err != nil {
+			return err
+		}
+	}
+	c.chat.ReplyLength = length
+	c.refreshActions()
+	return nil
+}
+
+// lengthChip chooses how long the scene's replies are.
+func (c *ChatView) lengthChip() *gtk.MenuButton {
+	btn := gtk.NewMenuButton()
+	label := "Reply Length"
+	for _, l := range chars.Lengths {
+		if l.Key != "" && l.Key == c.chat.ReplyLength {
+			label = "Length: " + l.Label
+		}
+	}
+	btn.SetChild(chipLabel(label, 16))
+	btn.AddCSSClass("chat-action-chip")
+	if c.chat.ReplyLength != "" {
+		btn.AddCSSClass("direction-set")
+	}
+	btn.SetTooltipText("Choose how long the replies in this scene are")
+	menu := gio.NewMenu()
+	for _, l := range chars.Lengths {
+		item := gio.NewMenuItem(l.Label, "")
+		item.SetActionAndTargetValue("chat.reply-length", glib.NewVariantString(l.Key))
+		menu.AppendItem(item)
+	}
+	btn.SetMenuModel(menu)
+	return btn
 }
 
 // memoryChip opens the scene's memory: its record and what is pinned.

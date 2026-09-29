@@ -81,6 +81,7 @@ func BuildTurn(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Ch
 		Onward:   t.Onward,
 		Setting:  ch.Setting,
 		State:    ch.State,
+		Length:   ch.ReplyLength,
 	}
 	sc.Lore = GroupLore(st, cast, hist, sc.Budget.Lore)
 	byID := make(map[int64]string, len(cast))

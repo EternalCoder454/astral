@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"astral/internal/chars"
@@ -24,6 +25,8 @@ func (s *Store) migrateExtras() {
 	// How the scene stands besides where it is: see chars.SceneState. JSON,
 	// so a part can be added without another column.
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN state TEXT NOT NULL DEFAULT ''`)
+	// How long a reply the scene asks for; see chars.LengthBlock.
+	s.db.Exec(`ALTER TABLE chats ADD COLUMN reply_length TEXT NOT NULL DEFAULT ''`)
 }
 
 func boolInt(b bool) int {
@@ -58,6 +61,19 @@ func (s *Store) SetChatArchived(id int64, archived bool) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	_, err := s.db.Exec(`UPDATE chats SET archived = ? WHERE id = ?`, boolInt(archived), id)
+	return err
+}
+
+// SetChatReplyLength records how long a reply the scene asks for.
+func (s *Store) SetChatReplyLength(id int64, length string) error {
+	switch length {
+	case "", chars.LengthShort, chars.LengthMedium, chars.LengthLong:
+	default:
+		return fmt.Errorf("no reply length called %q", length)
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err := s.db.Exec(`UPDATE chats SET reply_length = ? WHERE id = ?`, length, id)
 	return err
 }
 

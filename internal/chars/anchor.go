@@ -93,6 +93,7 @@ func Anchor(c Character, sc Scene, userName string) string {
 	b.WriteString(freshWording(sc.Overused, c.Name, userName))
 	b.WriteString(SettingBlock(sc.Setting, sc.State, c.Name, userName))
 	b.WriteString(PaceBlock(c.Name, userName))
+	b.WriteString(LengthBlock(sc.Length))
 
 	// Last of all, and so weighted most. A direction is about where the scene
 	// is going rather than how it is written, which is why it sits apart from

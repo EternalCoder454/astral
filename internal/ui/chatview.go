@@ -332,6 +332,7 @@ func NewChatView(client *ollama.Client, st *store.Store, cfg store.Config) *Chat
 	c.widget = gtk.NewBox(gtk.OrientationVertical, 0)
 	c.widget.AddCSSClass("chat-view")
 	c.widget.SetVExpand(true)
+	c.widget.InsertActionGroup("chat", c.chatActions())
 
 	// Transcript. The column is centred and width-capped so long prose keeps a
 	// readable measure on a wide window.
@@ -1432,6 +1433,7 @@ func (c *ChatView) refreshActions() {
 			if c.isGroup() {
 				c.actionBar.Append(c.turnChip())
 			}
+			c.actionBar.Append(c.lengthChip())
 			c.actionBar.Append(c.memoryChip())
 			c.actionBar.SetVisible(true)
 			c.refreshDraftButton()

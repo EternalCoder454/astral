@@ -220,6 +220,43 @@ func SettingBlock(setting string, state SceneState, charName, userName string) s
 	return Substitute(b.String(), charName, userName)
 }
 
+// Reply lengths a scene can ask for. The empty one leaves the length to the
+// style, as every scene did before there was a choice.
+const (
+	LengthShort  = "short"
+	LengthMedium = "medium"
+	LengthLong   = "long"
+)
+
+// Lengths are the choices, in the order they are offered, with their names.
+var Lengths = []struct{ Key, Label string }{
+	{"", "As the Style Says"},
+	{LengthShort, "Short"},
+	{LengthMedium, "Medium"},
+	{LengthLong, "Long"},
+}
+
+// LengthBlock is the closing block's line asking for a reply of a length, or
+// nothing when the scene leaves it to the style.
+//
+// In numbers of words and paragraphs, because a model shown "short" matches
+// the length of the replies above it, and it outranks the style, which often
+// asks for a length of its own.
+func LengthBlock(length string) string {
+	var ask string
+	switch length {
+	case LengthShort:
+		ask = "Keep this reply short: one or two short paragraphs, about 40 to 80 words in all."
+	case LengthMedium:
+		ask = "Make this reply of medium length: two or three paragraphs, about 120 to 200 words in all."
+	case LengthLong:
+		ask = "Make this reply long: four to six full paragraphs, about 300 to 450 words in all, taking the moment slowly."
+	default:
+		return ""
+	}
+	return "\n\nLENGTH. " + ask + " This outranks any length the style asks for, and the length of the replies above."
+}
+
 // rewriteNote introduces a note on a reply being written again.
 //
 // Last in the closing block, after the direction, so it is the final thing

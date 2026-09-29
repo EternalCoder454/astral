@@ -257,6 +257,28 @@ func (s *Server) handleContinue(w http.ResponseWriter, r *http.Request, d store.
 	writeJSON(w, http.StatusOK, map[string]any{"id": next.ID, "title": next.Title})
 }
 
+// handleReplyLength sets how long a reply the scene asks for, as the
+// desktop's Reply Length chip does.
+func (s *Server) handleReplyLength(w http.ResponseWriter, r *http.Request, d store.Device) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var body struct {
+		Length string `json:"length"`
+	}
+	if err != nil || json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&body) != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unreadable request"})
+		return
+	}
+	if _, err := s.store.Chat(id); err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such chat"})
+		return
+	}
+	if err := s.store.SetChatReplyLength(id, body.Length); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"length": body.Length})
+}
+
 // continueTimeout bounds writing the story so far for a continuation.
 const continueTimeout = 5 * time.Minute
 

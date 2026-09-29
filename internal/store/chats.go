@@ -77,6 +77,9 @@ type Chat struct {
 	// State is how the scene stands besides where it is; see
 	// chars.SceneState. Kept up to date with Setting, under SettingAuto.
 	State chars.SceneState
+	// ReplyLength is how long a reply the scene asks for, "" for whatever
+	// the style says; see chars.LengthBlock.
+	ReplyLength string
 	// Archived chats are kept but listed apart from the rest. Writing a
 	// message of your own in one brings it back; see AddMessage.
 	Archived  bool
@@ -183,13 +186,13 @@ func (s *Store) Chat(id int64) (Chat, error) {
 	var state string
 	err := s.db.QueryRow(`
 		SELECT c.id, c.character_id, c.world_id, c.title, c.model, c.kind, c.summary, c.summary_upto,
-		       c.lore_upto, c.style_name, c.note, c.persona_id, c.setting, c.setting_auto, c.state, c.archived, c.created_at, c.updated_at,
+		       c.lore_upto, c.style_name, c.note, c.persona_id, c.setting, c.setting_auto, c.state, c.reply_length, c.archived, c.created_at, c.updated_at,
 		       COALESCE(ch.name, ''), COALESCE(ch.accent, 0)
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
 		WHERE c.id = ?`, id).
 		Scan(&c.ID, &c.CharacterID, &c.WorldID, &c.Title, &c.Model, &c.Kind, &c.Summary, &c.SummaryUpto,
-			&c.LoreUpto, &c.StyleName, &c.Note, &c.PersonaID, &c.Setting, &c.SettingAuto, &state, &c.Archived, &created, &updated, &c.CharacterName, &c.Accent)
+			&c.LoreUpto, &c.StyleName, &c.Note, &c.PersonaID, &c.Setting, &c.SettingAuto, &state, &c.ReplyLength, &c.Archived, &created, &updated, &c.CharacterName, &c.Accent)
 	if err == sql.ErrNoRows {
 		return c, fmt.Errorf("no chat with id %d", id)
 	}

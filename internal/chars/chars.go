@@ -522,6 +522,8 @@ type Scene struct {
 	// rest of how the scene stands. See SceneState.
 	Setting string
 	State   SceneState
+	// Length is how long a reply the scene asks for; see LengthBlock.
+	Length string
 }
 
 // BuildMessages assembles the full request.
