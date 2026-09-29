@@ -252,7 +252,7 @@ func TestExplainSaysWhyEachEntryWasSent(t *testing.T) {
 		{ID: 3, Name: "The Guild", Keys: []string{"Guild"}, Content: "Cartographers who expel their own.", Enabled: true},
 		{ID: 4, Name: "Old Maps", Keys: []string{"old maps"}, Content: strings.Repeat("Too long to fit. ", 40), Enabled: true},
 	}
-	hits := Explain(entries, "We took the ferry across Kestrel Bay with the old maps.", 200)
+	hits := Explain(entries, "We took the ferry across Kestrel Bay with the old maps.", 200, UnknownLength)
 	why := map[string]Hit{}
 	for _, h := range hits {
 		why[h.Entry.Name] = h

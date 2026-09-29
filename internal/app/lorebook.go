@@ -277,6 +277,39 @@ func (a *App) editLore(e world.Entry, w world.World) {
 	card.Append(enabled)
 	page.Append(outer)
 
+	// When a triggered entry is sent, apart from being triggered. The chance
+	// and the wait do nothing to an entry that is always sent, which the
+	// tooltips say rather than switching them off: a handler on the checkbox
+	// that reached for these two would keep the dialog's widgets alive after it
+	// closed.
+	whenOuter, whenCard := groupCard("When It Is Sent")
+	chance := gtk.NewSpinButtonWithRange(1, 100, 1)
+	chance.SetNumeric(true)
+	chance.SetValue(float64(e.Odds()))
+	chance.SetHAlign(gtk.AlignStart)
+	chance.SetTooltipText("Ignored when the entry is always sent")
+	whenCard.Append(labelledField("Chance in Percent",
+		"How often it is sent when triggered, 100 being every time.",
+		chance))
+
+	wait := gtk.NewSpinButtonWithRange(0, 10000, 1)
+	wait.SetNumeric(true)
+	wait.SetValue(float64(max(e.Wait, 0)))
+	wait.SetHAlign(gtk.AlignStart)
+	wait.SetTooltipText("Ignored when the entry is always sent")
+	whenCard.Append(labelledField("Wait for Messages",
+		"It is not sent until the scene has this many messages, 0 being from the start.",
+		wait))
+
+	groupEntry := gtk.NewEntry()
+	groupEntry.SetText(e.Group)
+	groupEntry.SetMaxLength(world.MaxGroupChars)
+	groupEntry.SetPlaceholderText("Rumours")
+	whenCard.Append(labelledField("Group",
+		"Of the triggered entries sharing a group, only the highest priority one is sent.",
+		groupEntry))
+	page.Append(whenOuter)
+
 	header := saveHeader(d, "", func() bool {
 		name := strings.TrimSpace(nameEntry.Text())
 		if name == "" {
@@ -293,6 +326,13 @@ func (a *App) editLore(e world.Entry, w world.World) {
 		e.Content = textOf(view)
 		e.Constant = constant.Active()
 		e.Enabled = enabled.Active()
+		// What was typed in a spin button is not its value until it is read
+		// back, and Save can be pressed before the field has lost focus.
+		chance.Update()
+		wait.Update()
+		e.Chance = chance.ValueAsInt()
+		e.Wait = wait.ValueAsInt()
+		e.Group = world.CleanGroup(groupEntry.Text())
 		// Editing it by hand makes it yours, so no later automatic pass
 		// overwrites the decision just made.
 		e.Auto = false

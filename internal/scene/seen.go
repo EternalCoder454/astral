@@ -39,6 +39,10 @@ type SeenLore struct {
 	Why string `json:"why"`
 	// Left is an entry triggered but left out, for lack of room.
 	Left bool `json:"left,omitempty"`
+	// Skipped is an entry triggered but left out for a reason of its own, as a
+	// sentence: it waits for the scene to grow, it lost its roll this turn, or
+	// another entry in its group went instead. Empty for an entry that was not.
+	Skipped string `json:"skipped,omitempty"`
 }
 
 // SeenMoment is an earlier moment the next turn is reminded of.
@@ -60,10 +64,10 @@ func WhatItSees(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.C
 	if len(cast) > 1 {
 		host, budget = groupHost(cast), GroupBudget(cfg, cast, p, Relations(st, cast))
 	}
-	if w, hits, ok := loreHits(st, host, hist, budget.Lore); ok {
+	if w, hits, ok := loreHits(st, ch, host, hist, budget.Lore); ok {
 		seen.World = w.Name
 		for _, h := range hits {
-			seen.Lore = append(seen.Lore, SeenLore{Name: h.Entry.Name, Why: whyLore(h), Left: h.Dropped})
+			seen.Lore = append(seen.Lore, SeenLore{Name: h.Entry.Name, Why: whyLore(h), Left: h.Dropped, Skipped: h.Skipped})
 		}
 	}
 	byID := make(map[int64]string, len(cast))

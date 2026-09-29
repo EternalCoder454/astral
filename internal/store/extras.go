@@ -27,6 +27,13 @@ func (s *Store) migrateExtras() {
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN state TEXT NOT NULL DEFAULT ''`)
 	// How long a reply the scene asks for; see chars.LengthBlock.
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN reply_length TEXT NOT NULL DEFAULT ''`)
+	// When a lore entry is sent besides being mentioned: how often, how far
+	// into the scene, and which entries it takes turns with. See world.Entry.
+	// The defaults are an entry that is sent whenever it is triggered, so every
+	// entry from before these existed behaves as it did.
+	s.db.Exec(`ALTER TABLE lore_entries ADD COLUMN chance INTEGER NOT NULL DEFAULT 100`)
+	s.db.Exec(`ALTER TABLE lore_entries ADD COLUMN wait INTEGER NOT NULL DEFAULT 0`)
+	s.db.Exec(`ALTER TABLE lore_entries ADD COLUMN group_name TEXT NOT NULL DEFAULT ''`)
 }
 
 func boolInt(b bool) int {

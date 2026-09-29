@@ -242,6 +242,12 @@ func (a *App) seenCard() *gtk.Box {
 			line("No entries right now. They come in when the scene mentions them.", true)
 		}
 		for _, l := range s.Lore {
+			// The reason stands in for what brought it in: an entry that is
+			// sent "always" and was left out for its group would read as both.
+			if l.Skipped != "" {
+				line(l.Name+": left out. "+l.Skipped, true)
+				continue
+			}
 			if l.Left {
 				line(l.Name+": left out, no room. "+l.Why, true)
 				continue

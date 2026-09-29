@@ -69,24 +69,46 @@ func Narrator(w world.World) chars.Character {
 
 // Lore is the world block for this turn: the setting, plus whichever entries
 // the conversation is currently touching.
-func Lore(st *store.Store, ca chars.Character, hist []ollama.Message, budget int) string {
-	w, hits, ok := loreHits(st, ca, hist, budget)
+func Lore(st *store.Store, ch store.Chat, ca chars.Character, hist []ollama.Message, budget int) string {
+	w, hits, ok := loreHits(st, ch, ca, hist, budget)
 	if !ok {
 		return ""
 	}
 	var sent []world.Entry
 	for _, h := range hits {
-		if !h.Dropped {
+		if h.Sent() {
 			sent = append(sent, h.Entry)
 		}
 	}
 	return world.Render(w, sent)
 }
 
+// sceneLength is how many messages the turn being built has, which is what a
+// lore entry's Wait and Chance are worked out against: the chat's stored
+// messages, or the transcript itself for a chat that is not stored yet.
+//
+// A turn is an answer to the person's message. When the transcript does not end
+// with one, because it is being looked at before they write it or the turn
+// carries on without them, that message is counted as if it were there, so the
+// preview, the meter and the reply all decide an entry the same way. Once the
+// message is stored the count is the stored one and comes to the same number.
+func sceneLength(st *store.Store, ch store.Chat, hist []ollama.Message) int {
+	n := len(hist)
+	if st != nil && ch.ID != 0 {
+		if stored, err := st.CountChatMessages(ch.ID); err == nil {
+			n = stored
+		}
+	}
+	if len(hist) == 0 || hist[len(hist)-1].Role != ollama.RoleUser {
+		n++
+	}
+	return n
+}
+
 // loreHits is what Lore chooses from, and why: the character's world, and
 // every entry the scene triggered. ok is false when there is no world to
 // send.
-func loreHits(st *store.Store, ca chars.Character, hist []ollama.Message, budget int) (world.World, []world.Hit, bool) {
+func loreHits(st *store.Store, ch store.Chat, ca chars.Character, hist []ollama.Message, budget int) (world.World, []world.Hit, bool) {
 	if st == nil || ca.WorldID == 0 || budget <= 0 {
 		return world.World{}, nil, false
 	}
@@ -114,7 +136,13 @@ func loreHits(st *store.Store, ca chars.Character, hist []ollama.Message, budget
 	for _, m := range hist {
 		turns = append(turns, m.Content)
 	}
-	return w, world.Explain(entries, world.RecentText(turns), budget), true
+	// Counted only when an entry looks at it: this is a query, and it is made
+	// on every turn and every time the memory meter is drawn.
+	length := 0
+	if world.UsesCount(entries) {
+		length = sceneLength(st, ch, hist)
+	}
+	return w, world.Explain(entries, world.RecentText(turns), budget, length), true
 }
 
 // Build assembles the messages for one turn.
@@ -222,7 +250,7 @@ func buildOne(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Charact
 		State:    ch.State,
 		Length:   ch.ReplyLength,
 	}
-	sc.Lore = Lore(st, ca, hist, sc.Budget.Lore)
+	sc.Lore = Lore(st, ch, ca, hist, sc.Budget.Lore)
 	sc.Memory = Memory(st, ch, hist, nil, ca.Name, userNameOf(cfg), sc.Budget.Memory)
 	return chars.BuildMessages(ca, sc)
 }

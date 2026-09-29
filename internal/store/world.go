@@ -143,7 +143,7 @@ func (s *Store) LoreEntries(worldID int64) ([]world.Entry, error) {
 	}
 	rows, err := s.db.Query(`
 		SELECT id, world_id, name, "keys", content, enabled, constant, auto, priority,
-		       confidence, created_at, updated_at
+		       confidence, chance, wait, group_name, created_at, updated_at
 		FROM lore_entries WHERE world_id = ? ORDER BY priority DESC, id`, worldID)
 	if err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func (s *Store) LoreEntries(worldID int64) ([]world.Entry, error) {
 		var created, updated int64
 		if err := rows.Scan(&e.ID, &e.WorldID, &e.Name, &keysJSON, &e.Content,
 			&e.Enabled, &e.Constant, &e.Auto, &e.Priority, &e.Confidence,
-			&created, &updated); err != nil {
+			&e.Chance, &e.Wait, &e.Group, &created, &updated); err != nil {
 			return nil, err
 		}
 		e.Keys = decodeList(keysJSON)
@@ -193,6 +193,9 @@ func (s *Store) SaveLoreEntry(e world.Entry) (int64, error) {
 	defer s.writeMu.Unlock()
 
 	now := time.Now()
+	// Kept as the editor and the world file keep them: a chance of 1 to 100,
+	// a wait that is not negative, and a group name on one line.
+	chance, wait, group := e.Odds(), max(e.Wait, 0), world.CleanGroup(e.Group)
 	var existingID int64
 	var existingAuto bool
 	err := s.db.QueryRow(`SELECT id, auto FROM lore_entries WHERE world_id = ? AND name = ?`,
@@ -201,10 +204,10 @@ func (s *Store) SaveLoreEntry(e world.Entry) (int64, error) {
 	case err == sql.ErrNoRows:
 		res, err := s.db.Exec(`
 			INSERT INTO lore_entries (world_id, name, "keys", content, enabled, constant, auto,
-				priority, confidence, created_at, updated_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+				priority, confidence, chance, wait, group_name, created_at, updated_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			e.WorldID, name, encodeList(e.Keys), e.Content, e.Enabled, e.Constant, e.Auto,
-			e.Priority, e.Confidence, unix(now), unix(now))
+			e.Priority, e.Confidence, chance, wait, group, unix(now), unix(now))
 		if err != nil {
 			return 0, err
 		}
@@ -216,11 +219,22 @@ func (s *Store) SaveLoreEntry(e world.Entry) (int64, error) {
 	if e.Auto && !existingAuto {
 		return existingID, ErrWouldOverwriteManual
 	}
+	if e.Auto {
+		// The model has no say in when an entry is sent and does not know what
+		// it was set to, so what it learns is written over the entry and the
+		// three settings are left as they were.
+		_, err = s.db.Exec(`
+			UPDATE lore_entries SET "keys"=?, content=?, enabled=?, constant=?, auto=?,
+				priority=?, confidence=?, updated_at=? WHERE id=?`,
+			encodeList(e.Keys), e.Content, e.Enabled, e.Constant, e.Auto, e.Priority,
+			e.Confidence, unix(now), existingID)
+		return existingID, err
+	}
 	_, err = s.db.Exec(`
 		UPDATE lore_entries SET "keys"=?, content=?, enabled=?, constant=?, auto=?,
-			priority=?, confidence=?, updated_at=? WHERE id=?`,
+			priority=?, confidence=?, chance=?, wait=?, group_name=?, updated_at=? WHERE id=?`,
 		encodeList(e.Keys), e.Content, e.Enabled, e.Constant, e.Auto, e.Priority,
-		e.Confidence, unix(now), existingID)
+		e.Confidence, chance, wait, group, unix(now), existingID)
 	return existingID, err
 }
 
@@ -241,6 +255,15 @@ func (s *Store) DeleteLoreEntry(id int64) error {
 func (s *Store) CountLore(worldID int64) (int, error) {
 	var n int
 	err := s.db.QueryRow(`SELECT COUNT(*) FROM lore_entries WHERE world_id = ?`, worldID).Scan(&n)
+	return n, err
+}
+
+// CountChatMessages is how many messages a chat has stored, hidden ones and
+// those a recap covers included. It is how far into a scene a turn is, which
+// is what a lore entry's Wait and its Chance are worked out against.
+func (s *Store) CountChatMessages(chatID int64) (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM messages WHERE chat_id = ?`, chatID).Scan(&n)
 	return n, err
 }
 

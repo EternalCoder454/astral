@@ -83,7 +83,7 @@ func BuildTurn(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Ch
 		State:    ch.State,
 		Length:   ch.ReplyLength,
 	}
-	sc.Lore = GroupLore(st, cast, hist, sc.Budget.Lore)
+	sc.Lore = GroupLore(st, ch, cast, hist, sc.Budget.Lore)
 	byID := make(map[int64]string, len(cast))
 	for _, c := range cast {
 		byID[c.ID] = c.Name
@@ -157,8 +157,8 @@ func Relations(st *store.Store, cast []chars.Character) []chars.Relation {
 // worlds is a scene that has to happen in one of them, and the alternative,
 // concatenating two lorebooks, spends the budget twice to describe a place that
 // does not exist.
-func GroupLore(st *store.Store, cast []chars.Character, hist []ollama.Message, budget int) string {
-	return Lore(st, groupHost(cast), hist, budget)
+func GroupLore(st *store.Store, ch store.Chat, cast []chars.Character, hist []ollama.Message, budget int) string {
+	return Lore(st, ch, groupHost(cast), hist, budget)
 }
 
 // groupHost is the member whose world a group scene is set in, standing for

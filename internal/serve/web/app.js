@@ -2303,7 +2303,10 @@ function showSeen(seen) {
 		heading("From the Lorebook of " + seen.world);
 		if (!seen.lore.length) line("No entries right now. They come in when the scene mentions them.", true);
 		for (const l of seen.lore) {
-			if (l.left) line(l.name + ": left out, no room. " + l.why, true);
+			// The reason stands in for what brought it in: an entry that is sent
+			// "always" and was left out for its group would read as both.
+			if (l.skipped) line(l.name + ": left out. " + l.skipped, true);
+			else if (l.left) line(l.name + ": left out, no room. " + l.why, true);
 			else line(l.name + ": " + l.why, false);
 		}
 	}

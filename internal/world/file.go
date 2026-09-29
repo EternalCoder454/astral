@@ -52,6 +52,13 @@ type FileEntry struct {
 	Enabled  bool     `json:"enabled"`
 	Constant bool     `json:"constant,omitempty"`
 	Priority int      `json:"priority,omitempty"`
+	// Chance, Wait and Group say when the entry is sent; see Entry. Each is
+	// left out of the file at its default, so a world that does not use them
+	// reads the same as it did before they existed, and an older Astral that
+	// meets them loses only the rule and not the entry.
+	Chance int    `json:"chance,omitempty"`
+	Wait   int    `json:"wait,omitempty"`
+	Group  string `json:"group,omitempty"`
 	// Auto records that the model wrote this rather than a person, which is worth
 	// carrying: it tells whoever receives the file which parts were observed from
 	// play and which were written deliberately.
@@ -75,15 +82,21 @@ func Encode(w World, entries []Entry, astralVersion string) ([]byte, error) {
 		if strings.TrimSpace(e.Name) == "" || strings.TrimSpace(e.Content) == "" {
 			continue
 		}
-		f.Entries = append(f.Entries, FileEntry{
+		fe := FileEntry{
 			Name:     strings.TrimSpace(e.Name),
 			Keys:     e.Keys,
 			Content:  strings.TrimSpace(e.Content),
 			Enabled:  e.Enabled,
 			Constant: e.Constant,
 			Priority: e.Priority,
+			Wait:     max(e.Wait, 0),
+			Group:    CleanGroup(e.Group),
 			Auto:     e.Auto,
-		})
+		}
+		if c := e.Odds(); c < 100 {
+			fe.Chance = c
+		}
+		f.Entries = append(f.Entries, fe)
 	}
 	// Indented, because a person will open this in a text editor sooner or later
 	// and a world is worth being able to read and hand-edit.
@@ -134,15 +147,21 @@ func Decode(data []byte) (Draft, error) {
 		if len(keys) == 0 {
 			continue
 		}
-		d.Entries = append(d.Entries, Entry{
+		entry := Entry{
 			Name:     n,
 			Keys:     keys,
 			Content:  content,
 			Enabled:  e.Enabled || e.Constant,
 			Constant: e.Constant,
 			Priority: e.Priority,
+			Chance:   e.Chance,
+			Wait:     max(e.Wait, 0),
+			Group:    CleanGroup(e.Group),
 			Auto:     e.Auto,
-		})
+		}
+		// A chance that is missing or out of range is the default, not zero.
+		entry.Chance = entry.Odds()
+		d.Entries = append(d.Entries, entry)
 	}
 	return d, nil
 }
