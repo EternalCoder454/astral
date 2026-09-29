@@ -1144,3 +1144,15 @@ a.row { text-decoration: none; }
 	width: 18px;
 	height: 18px;
 }
+
+/* What the Model Sees, in Scene Memory: a short list, one entry a line. */
+.seen-heading {
+	margin: 10px 0 2px;
+	font-size: 0.9em;
+	font-weight: 600;
+}
+
+.seen-line {
+	margin: 2px 0;
+	overflow-wrap: anywhere;
+}

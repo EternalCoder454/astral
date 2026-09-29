@@ -252,12 +252,16 @@ func (s *Server) handleMemory(w http.ResponseWriter, r *http.Request, d store.De
 		Setting string   `json:"setting"`
 		// SettingAuto says Astral keeps the setting up to date.
 		SettingAuto bool `json:"setting_auto"`
-		// Usage is how full the model's memory is on the next turn.
+		// Usage is how full the model's memory is on the next turn, and
+		// Seen what goes with it besides the conversation.
 		Usage *scene.Usage `json:"usage,omitempty"`
+		Seen  *scene.Seen  `json:"seen,omitempty"`
 	}{Recap: ch.Summary, Covers: ch.SummaryUpto != 0, Pins: []pinOut{}, Setting: ch.Setting, SettingAuto: ch.SettingAuto}
 	if hist, err := s.history(ch, castNames(cast)); err == nil {
 		u := scene.MeasureUsage(s.store, cfg, ch, castFor(cast, ca), hist)
 		out.Usage = &u
+		seen := scene.WhatItSees(s.store, cfg, ch, castFor(cast, ca), hist)
+		out.Seen = &seen
 	}
 	for _, p := range pins {
 		who := you

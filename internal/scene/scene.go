@@ -70,24 +70,41 @@ func Narrator(w world.World) chars.Character {
 // Lore is the world block for this turn: the setting, plus whichever entries
 // the conversation is currently touching.
 func Lore(st *store.Store, ca chars.Character, hist []ollama.Message, budget int) string {
-	if st == nil || ca.WorldID == 0 || budget <= 0 {
+	w, hits, ok := loreHits(st, ca, hist, budget)
+	if !ok {
 		return ""
+	}
+	var sent []world.Entry
+	for _, h := range hits {
+		if !h.Dropped {
+			sent = append(sent, h.Entry)
+		}
+	}
+	return world.Render(w, sent)
+}
+
+// loreHits is what Lore chooses from, and why: the character's world, and
+// every entry the scene triggered. ok is false when there is no world to
+// send.
+func loreHits(st *store.Store, ca chars.Character, hist []ollama.Message, budget int) (world.World, []world.Hit, bool) {
+	if st == nil || ca.WorldID == 0 || budget <= 0 {
+		return world.World{}, nil, false
 	}
 	w, err := st.World(ca.WorldID)
 	if err != nil {
 		// A world deleted out from under a character is not an error worth
 		// failing a turn for: the scene simply has no setting any more.
-		return ""
+		return world.World{}, nil, false
 	}
 	entries, err := st.LoreEntries(ca.WorldID)
 	if err != nil {
 		log.Printf("astral: reading lore for world %d: %v", ca.WorldID, err)
-		return ""
+		return world.World{}, nil, false
 	}
 	if len(entries) == 0 {
 		// A world with no lore yet is still a setting: it has a name, a
 		// description and its rules, and those are worth sending.
-		return world.Render(w, nil)
+		return w, nil, true
 	}
 	turns := make([]string, 0, len(hist)+1)
 	// The character's own description is scanned too. A scene that has only
@@ -97,7 +114,7 @@ func Lore(st *store.Store, ca chars.Character, hist []ollama.Message, budget int
 	for _, m := range hist {
 		turns = append(turns, m.Content)
 	}
-	return world.Render(w, world.Match(entries, world.RecentText(turns), budget))
+	return w, world.Explain(entries, world.RecentText(turns), budget), true
 }
 
 // Build assembles the messages for one turn.

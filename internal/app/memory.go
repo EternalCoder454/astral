@@ -113,9 +113,10 @@ func (a *App) editMemory() {
 		pinsCard.Append(empty)
 	}
 	for _, p := range pins {
-		pinsCard.Append(a.pinRow(p, pinsCard))
+		pinsCard.Append(a.pinRow(p))
 	}
 	page.Append(pinsOuter)
+	page.Append(a.seenCard())
 	page.Append(a.usageCard())
 
 	header := adw.NewHeaderBar()
@@ -154,6 +155,65 @@ func (a *App) editMemory() {
 	tv.SetContent(scrolledToFit(page))
 	d.SetChild(tv)
 	d.Present(a.win)
+}
+
+// seenCard lists what the next turn sends besides the conversation: the
+// lorebook entries and what brought each in, and the earlier moments it is
+// reminded of. The meter below says how much room they take; this says what
+// they are, so a character who forgets something, or brings up a part of the
+// world that has nothing to do with the scene, can be seen to have been told.
+func (a *App) seenCard() *gtk.Box {
+	s := a.chat.Seen()
+	outer, card := groupCard("What the Model Sees")
+	line := func(text string, hint bool) {
+		l := gtk.NewLabel(text)
+		l.SetXAlign(0)
+		l.SetWrap(true)
+		l.SetWrapMode(pango.WrapWordChar)
+		if hint {
+			l.AddCSSClass("settings-hint")
+		}
+		card.Append(l)
+	}
+	heading := func(text string) {
+		l := gtk.NewLabel(text)
+		l.SetXAlign(0)
+		l.AddCSSClass("heading")
+		card.Append(l)
+	}
+	line("Sent with your next message, besides the conversation itself.", true)
+	if s.World != "" {
+		heading("From the Lorebook of " + s.World)
+		if len(s.Lore) == 0 {
+			line("No entries right now. They come in when the scene mentions them.", true)
+		}
+		for _, l := range s.Lore {
+			if l.Left {
+				line(l.Name+": left out, no room. "+l.Why, true)
+				continue
+			}
+			line(l.Name+": "+l.Why, false)
+		}
+	}
+	if s.Record == 0 {
+		heading("Earlier Moments")
+		line("None needed yet: the whole scene still fits in the model's memory.", true)
+		return outer
+	}
+	if len(s.Pinned) > 0 {
+		heading("Pinned")
+		for _, m := range s.Pinned {
+			line(m.Who+": "+ui.Snippet(m.Text, 160), false)
+		}
+	}
+	heading("Recalled From Earlier")
+	if len(s.Recalled) == 0 {
+		line("Nothing from before the record matches what is happening now.", true)
+	}
+	for _, m := range s.Recalled {
+		line(m.Who+": "+ui.Snippet(m.Text, 160), false)
+	}
+	return outer
 }
 
 // usageCard shows how full the model's memory is on the next turn, and what
@@ -201,7 +261,7 @@ func thousands(n int) string {
 }
 
 // pinRow is one pinned message: who said it, the start of it, and Unpin.
-func (a *App) pinRow(p store.Moment, list *gtk.Box) *gtk.Box {
+func (a *App) pinRow(p store.Moment) *gtk.Box {
 	row := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	text := gtk.NewLabel(a.chat.SpeakerName(p.Role, p.CharacterID) + ": " + ui.Snippet(p.Content, 180))
 	text.SetXAlign(0)
@@ -214,12 +274,17 @@ func (a *App) pinRow(p store.Moment, list *gtk.Box) *gtk.Box {
 	unpin := gtk.NewButtonWithLabel("Unpin")
 	unpin.AddCSSClass("flat")
 	unpin.SetVAlign(gtk.AlignCenter)
+	// The row is found from the button when it is pressed rather than held
+	// by the handler: a handler that holds the widgets around its own would
+	// keep the dialog alive after it closes.
 	unpin.ConnectClicked(func() {
 		if err := a.chat.Unpin(p.ID); err != nil {
 			a.toast("Could not unpin it: " + err.Error())
 			return
 		}
-		list.Remove(row)
+		if row := unpin.Parent(); row != nil {
+			gtk.BaseWidget(row).SetVisible(false)
+		}
 	})
 	row.Append(unpin)
 	return row

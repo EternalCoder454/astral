@@ -202,6 +202,12 @@ func (a *App) runDevView() {
 			a.devRowMenu()
 		case "measure":
 			a.devMeasure()
+		case "memory":
+			// Scene Memory over the seeded scene.
+			if chats, err := a.store.Chats(); err == nil && len(chats) > 0 {
+				_ = a.openChat(chats[0].ID)
+				a.editMemory()
+			}
 		case "leaks":
 			a.devLeaks(arg)
 		case "cycle":

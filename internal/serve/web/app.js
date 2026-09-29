@@ -2162,6 +2162,49 @@ async function groupTurn(speaker) {
 }
 
 // openMemory shows the scene's record, to read and correct, and its pins.
+
+// showSeen lists what the next turn sends besides the conversation: the
+// lorebook entries and what brought each in, and the earlier moments. The
+// desktop's Scene Memory shows the same; see scene.WhatItSees.
+function showSeen(seen) {
+	const box = $("memory-seen");
+	box.replaceChildren();
+	const line = (text, muted) => {
+		const p = document.createElement("p");
+		p.className = muted ? "muted sheet-hint seen-line" : "seen-line";
+		p.textContent = text;
+		box.append(p);
+	};
+	const heading = (text) => {
+		const h = document.createElement("h4");
+		h.className = "seen-heading";
+		h.textContent = text;
+		box.append(h);
+	};
+	if (!seen) return;
+	line("Sent with your next message, besides the conversation itself.", true);
+	if (seen.world) {
+		heading("From the Lorebook of " + seen.world);
+		if (!seen.lore.length) line("No entries right now. They come in when the scene mentions them.", true);
+		for (const l of seen.lore) {
+			if (l.left) line(l.name + ": left out, no room. " + l.why, true);
+			else line(l.name + ": " + l.why, false);
+		}
+	}
+	if (!seen.record) {
+		heading("Earlier Moments");
+		line("None needed yet: the whole scene still fits in the model's memory.", true);
+		return;
+	}
+	const snip = (t) => (t.length > 160 ? t.slice(0, 157).trimEnd() + "…" : t);
+	if (seen.pinned.length) {
+		heading("Pinned");
+		for (const m of seen.pinned) line(m.who + ": " + snip(m.text), false);
+	}
+	heading("Recalled From Earlier");
+	if (!seen.recalled.length) line("Nothing from before the record matches what is happening now.", true);
+	for (const m of seen.recalled) line(m.who + ": " + snip(m.text), false);
+}
 async function openMemory() {
 	if (!current) return;
 	const chatId = current.id;
@@ -2191,6 +2234,7 @@ async function openMemory() {
 			(u.folds_at ? " The conversation folds into the record at " + u.folds_at.toLocaleString() +
 				" tokens; it is at " + u.conversation.toLocaleString() + "." : "");
 	}
+	showSeen(mem.seen);
 	$("memory-hint").textContent = mem.covers
 		? "What the model is told about the part of the scene it can no longer see."
 		: "Written once the scene outgrows the model's memory. Until then it reads every turn.";

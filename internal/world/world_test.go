@@ -244,3 +244,32 @@ func TestMatchFollowsWhatAnEntryMentions(t *testing.T) {
 		}
 	}
 }
+
+func TestExplainSaysWhyEachEntryWasSent(t *testing.T) {
+	entries := []Entry{
+		{ID: 1, Name: "The Sever", Keys: []string{"Sever"}, Content: "A river nobody charts.", Enabled: true, Constant: true},
+		{ID: 2, Name: "Kestrel Bay", Keys: []string{"Kestrel Bay", "the bay"}, Content: "Ferries run late. The Guild runs the docks.", Enabled: true},
+		{ID: 3, Name: "The Guild", Keys: []string{"Guild"}, Content: "Cartographers who expel their own.", Enabled: true},
+		{ID: 4, Name: "Old Maps", Keys: []string{"old maps"}, Content: strings.Repeat("Too long to fit. ", 40), Enabled: true},
+	}
+	hits := Explain(entries, "We took the ferry across Kestrel Bay with the old maps.", 200)
+	why := map[string]Hit{}
+	for _, h := range hits {
+		why[h.Entry.Name] = h
+	}
+	if h := why["The Sever"]; h.Key != "" || h.Via != "" || h.Dropped {
+		t.Errorf("a constant entry should be sent always: %+v", h)
+	}
+	if h := why["Kestrel Bay"]; h.Key != "Kestrel Bay" || h.Dropped {
+		t.Errorf("Kestrel Bay should be sent for its key: %+v", h)
+	}
+	if h := why["The Guild"]; h.Via != "Kestrel Bay" || h.Key != "Guild" {
+		t.Errorf("The Guild should be brought in by Kestrel Bay: %+v", h)
+	}
+	if h, ok := why["Old Maps"]; !ok || !h.Dropped {
+		t.Errorf("Old Maps should be triggered and left out for room: %+v", h)
+	}
+	if got := len(Match(entries, "We took the ferry across Kestrel Bay with the old maps.", 200)); got != 3 {
+		t.Errorf("Match sent %d entries, want the 3 that fit", got)
+	}
+}

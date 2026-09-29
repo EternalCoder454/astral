@@ -556,6 +556,12 @@ func (c *ChatView) Usage() scene.Usage {
 	return scene.MeasureUsage(c.store, c.cfg, c.chat, c.sceneCast(), c.history())
 }
 
+// Seen is what the next turn sends besides the conversation: the lorebook
+// entries and why, and the earlier moments. See scene.WhatItSees.
+func (c *ChatView) Seen() scene.Seen {
+	return scene.WhatItSees(c.store, c.cfg, c.chat, c.sceneCast(), c.history())
+}
+
 // SuggestSetting asks the model where and when the scene is now, and hands
 // the line to done on the UI thread. Nothing is stored.
 func (c *ChatView) SuggestSetting(done func(string, error)) {

@@ -156,6 +156,13 @@ func Relations(st *store.Store, cast []chars.Character) []chars.Relation {
 // concatenating two lorebooks, spends the budget twice to describe a place that
 // does not exist.
 func GroupLore(st *store.Store, cast []chars.Character, hist []ollama.Message, budget int) string {
+	return Lore(st, groupHost(cast), hist, budget)
+}
+
+// groupHost is the member whose world a group scene is set in, standing for
+// the whole cast: every member's own text goes in, so the lorebook is
+// scanned against all of them. Zero when nobody has a world.
+func groupHost(cast []chars.Character) chars.Character {
 	var host chars.Character
 	for _, c := range cast {
 		if c.WorldID != 0 {
@@ -164,7 +171,7 @@ func GroupLore(st *store.Store, cast []chars.Character, hist []ollama.Message, b
 		}
 	}
 	if host.WorldID == 0 {
-		return ""
+		return chars.Character{}
 	}
 	// Every member's own text is scanned for keywords, not just the host's: a
 	// scene that has only just opened has almost no transcript, and the people
@@ -177,7 +184,7 @@ func GroupLore(st *store.Store, cast []chars.Character, hist []ollama.Message, b
 		b.WriteByte(' ')
 	}
 	host.Description, host.Scenario = b.String(), ""
-	return Lore(st, host, hist, budget)
+	return host
 }
 
 // History turns stored turns into the conversation the model sees, putting each

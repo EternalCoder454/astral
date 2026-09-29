@@ -87,6 +87,32 @@ const (
 // budget, highest priority first, so a world larger than the window degrades
 // by dropping its least important lore rather than by failing.
 func Match(entries []Entry, recent string, budget int) []Entry {
+	var out []Entry
+	for _, h := range Explain(entries, recent, budget) {
+		if !h.Dropped {
+			out = append(out, h.Entry)
+		}
+	}
+	return out
+}
+
+// Hit is an entry a conversation triggered, and why, for showing what the
+// model was sent and what brought each entry in.
+type Hit struct {
+	Entry Entry
+	// Key is the word in the scene that brought the entry in. Empty for an
+	// entry sent always, and for one brought in by another.
+	Key string
+	// Via is the entry whose text named this one, when that is what brought
+	// it in, and Key is then the word in that entry.
+	Via string
+	// Dropped is an entry that was triggered but did not fit the budget.
+	Dropped bool
+}
+
+// Explain is Match, saying why: every entry the conversation triggered, in
+// the order they would go, with what brought each in and whether it fitted.
+func Explain(entries []Entry, recent string, budget int) []Hit {
 	if budget <= 0 {
 		budget = BudgetChars
 	}
@@ -95,14 +121,17 @@ func Match(entries []Entry, recent string, budget int) []Entry {
 	}
 	haystack := strings.ToLower(recent)
 
-	var hits []Entry
+	var hits []Hit
 	in := make(map[int]bool, len(entries))
 	for i, e := range entries {
 		if !e.Enabled || strings.TrimSpace(e.Content) == "" {
 			continue
 		}
-		if e.Constant || matches(haystack, e.Keys) {
-			hits = append(hits, e)
+		if e.Constant {
+			hits = append(hits, Hit{Entry: e})
+			in[i] = true
+		} else if k := matchKey(haystack, e.Keys); k != "" {
+			hits = append(hits, Hit{Entry: e, Key: k})
 			in[i] = true
 		}
 	}
@@ -116,20 +145,21 @@ func Match(entries []Entry, recent string, budget int) []Entry {
 	// go first.
 	from := hits
 	for level := 0; level < cascadeLevels && len(from) > 0; level++ {
-		var text strings.Builder
-		for _, e := range from {
-			text.WriteString(strings.ToLower(e.Content))
-			text.WriteByte('\n')
+		mentions := make([]string, len(from))
+		for j, h := range from {
+			mentions[j] = strings.ToLower(h.Entry.Content)
 		}
-		mentioned := text.String()
-		var next []Entry
+		var next []Hit
 		for i, e := range entries {
 			if in[i] || !e.Enabled || e.Constant || strings.TrimSpace(e.Content) == "" {
 				continue
 			}
-			if matches(mentioned, e.Keys) {
-				next = append(next, e)
-				in[i] = true
+			for j, text := range mentions {
+				if k := matchKey(text, e.Keys); k != "" {
+					next = append(next, Hit{Entry: e, Key: k, Via: from[j].Entry.Name})
+					in[i] = true
+					break
+				}
 			}
 		}
 		byPriority(next)
@@ -137,17 +167,16 @@ func Match(entries []Entry, recent string, budget int) []Entry {
 		from = next
 	}
 
-	out := make([]Entry, 0, len(hits))
 	used := 0
-	for _, e := range hits {
-		cost := len(e.Name) + len(e.Content) + 4
+	for i := range hits {
+		cost := len(hits[i].Entry.Name) + len(hits[i].Entry.Content) + 4
 		if used+cost > budget {
-			continue // skip this one, but a later cheaper entry may still fit
+			hits[i].Dropped = true // skip this one, but a later cheaper entry may still fit
+			continue
 		}
 		used += cost
-		out = append(out, e)
 	}
-	return out
+	return hits
 }
 
 // cascadeLevels is how far a mention is followed: an entry matched by the
@@ -157,27 +186,29 @@ const cascadeLevels = 2
 
 // byPriority orders entries highest priority first, then oldest, so the order
 // a turn sees is stable between messages rather than shuffling.
-func byPriority(es []Entry) {
-	sort.SliceStable(es, func(i, j int) bool {
-		if es[i].Priority != es[j].Priority {
-			return es[i].Priority > es[j].Priority
+func byPriority(hs []Hit) {
+	sort.SliceStable(hs, func(i, j int) bool {
+		a, b := hs[i].Entry, hs[j].Entry
+		if a.Priority != b.Priority {
+			return a.Priority > b.Priority
 		}
-		return es[i].ID < es[j].ID
+		return a.ID < b.ID
 	})
 }
 
-// matches reports whether any key appears in the already-lowercased haystack.
-func matches(haystack string, keys []string) bool {
+// matchKey is the first key that appears in the already-lowercased haystack,
+// as it was written, or "" when none does.
+func matchKey(haystack string, keys []string) string {
 	for _, k := range keys {
-		k = strings.ToLower(strings.TrimSpace(k))
-		if k == "" {
+		low := strings.ToLower(strings.TrimSpace(k))
+		if low == "" {
 			continue
 		}
-		if containsWord(haystack, k) {
-			return true
+		if containsWord(haystack, low) {
+			return strings.TrimSpace(k)
 		}
 	}
-	return false
+	return ""
 }
 
 // containsWord looks for key at a word boundary.
