@@ -1,6 +1,10 @@
 package store
 
-import "testing"
+import (
+	"fmt"
+	"strings"
+	"testing"
+)
 
 func TestBranchChat(t *testing.T) {
 	s := openTest(t)
@@ -63,5 +67,68 @@ func TestBranchChat(t *testing.T) {
 	}
 	if _, err := s.BranchChat(ch.ID, 999999, "x"); err == nil {
 		t.Fatal("branching at a message that is not there should fail")
+	}
+}
+
+// A continuation carries the pinned moments and the last messages, with the
+// record standing for the rest, and its transcript starts at the carried
+// messages.
+func TestContinueChat(t *testing.T) {
+	s := openTest(t)
+	ch, err := s.NewChat(0, "The tide came in early", "m", KindRoleplay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []int64
+	for i := 1; i <= 10; i++ {
+		role := "user"
+		if i%2 == 0 {
+			role = "assistant"
+		}
+		id, err := s.AddMessage(Message{ChatID: ch.ID, Role: role, Content: fmt.Sprintf("line %d", i)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	for _, i := range []int{1, 8} { // line 2, before the carried part, and line 9, inside it
+		if err := s.SetMessagePinned(ids[i], true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	next, err := s.ContinueChat(ch.ID, ids[6], "The story so far.", ContinueTitle(ch.Title))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.Title != "The tide came in early, Part 2" || next.Summary != "The story so far." {
+		t.Errorf("title %q, record %q", next.Title, next.Summary)
+	}
+	shown, err := s.MessagesAfter(next.ID, next.SummaryUpto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, m := range shown {
+		got = append(got, m.Content)
+	}
+	if strings.Join(got, ",") != "line 7,line 8,line 9,line 10" {
+		t.Errorf("the transcript starts with %v, want lines 7 to 10", got)
+	}
+	pins, err := s.Pinned(next.ID, next.SummaryUpto)
+	if err != nil || len(pins) != 1 || pins[0].Content != "line 2" {
+		t.Errorf("recalled pins %v, %v; want line 2", pins, err)
+	}
+	all, _ := s.Messages(next.ID)
+	if len(all) != 5 || !all[3].Pinned {
+		t.Errorf("copied %d messages, want 5, with line 9 still pinned", len(all))
+	}
+	// The original is untouched.
+	if old, _ := s.Messages(ch.ID); len(old) != 10 {
+		t.Errorf("the original has %d messages", len(old))
+	}
+	for in, want := range map[string]string{"": "Part 2", "Night, Part 2": "Night, Part 3", "Night": "Night, Part 2"} {
+		if got := ContinueTitle(in); got != want {
+			t.Errorf("ContinueTitle(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

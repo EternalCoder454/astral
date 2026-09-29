@@ -55,6 +55,8 @@ func TestEverythingNeedsAToken(t *testing.T) {
 		{"GET", "/api/chats/1"},
 		{"POST", "/api/chats"},
 		{"POST", "/api/chats/1/send"},
+		{"POST", "/api/chats/1/continue"},
+		{"POST", "/api/chats/1/archive"},
 		{"DELETE", "/api/chats/1"},
 		{"DELETE", "/api/characters/1"},
 		{"DELETE", "/api/worlds/1"},

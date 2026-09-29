@@ -1,16 +1,20 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"astral/internal/chars"
+	"astral/internal/scene"
 
 	"astral/internal/store"
 	"astral/internal/ui"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 )
@@ -118,6 +122,19 @@ func (a *App) editMemory() {
 	page.Append(pinsOuter)
 	page.Append(a.seenCard())
 	page.Append(a.usageCard())
+	if ch := a.chat.Chat(); scene.CanContinue(ch) {
+		contOuter, contCard := groupCard("")
+		cont := gtk.NewButtonWithLabel("Continue in a New Chat")
+		cont.SetHAlign(gtk.AlignStart)
+		id := ch.ID
+		cont.ConnectClicked(func() {
+			d.Close()
+			a.continueChat(id)
+		})
+		contCard.Append(labelledField("Start Fresh, Keep the Story",
+			"A new chat with this record, the pins and the last few messages, and the model's memory nearly empty.", cont))
+		page.Append(contOuter)
+	}
 
 	header := adw.NewHeaderBar()
 	header.SetShowEndTitleButtons(false)
@@ -289,6 +306,70 @@ func (a *App) pinRow(p store.Moment) *gtk.Box {
 	row.Append(unpin)
 	return row
 }
+
+// continueChat carries a chat on in a new one, and opens it: the story so
+// far written into its record, the pins, and the last few messages word for
+// word. See scene.ContinueChat.
+func (a *App) continueChat(chatID int64) {
+	src, err := a.store.Chat(chatID)
+	if err != nil {
+		a.toast("Could not continue it: " + err.Error())
+		return
+	}
+	if !scene.CanContinue(src) {
+		a.toast("Only a scene or a general chat can be continued.")
+		return
+	}
+	if a.chat != nil && a.chat.Chat().ID == chatID && a.chat.Busy() {
+		a.toast("Wait for the reply to finish, then continue.")
+		return
+	}
+	if a.continuing {
+		return
+	}
+	cast, err := a.store.Cast(chatID)
+	if err != nil {
+		a.toast("Could not continue it: " + err.Error())
+		return
+	}
+	if len(cast) == 0 && src.CharacterID != 0 {
+		if c, err := a.store.Character(src.CharacterID); err == nil {
+			cast = []chars.Character{c}
+		}
+	}
+	a.continuing = true
+	a.toast("Writing the story so far for the new chat…")
+	client, cfg := a.client, a.cfg
+	sceneModel := src.Model
+	if sceneModel == "" {
+		sceneModel = cfg.Model
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), continueTimeout)
+		defer cancel()
+		model := scene.FitHousekeeping(ctx, client, cfg.HousekeepingModel, sceneModel)
+		next, err := scene.ContinueChat(ctx, client, model, a.store, cfg, src, cast)
+		scene.NoteUsed(model, "")
+		coreglib.IdleAdd(func() bool {
+			a.continuing = false
+			if err != nil {
+				a.toast("Could not continue it: " + friendlyBuildError(err))
+				return false
+			}
+			a.refreshSidebar()
+			if err := a.openChat(next.ID); err != nil {
+				a.toast("Continued, but could not open it: " + err.Error())
+				return false
+			}
+			a.toast("Continued in a new chat. The original is unchanged in your chats.")
+			return false
+		})
+	}()
+}
+
+// continueTimeout bounds writing the story so far for a continuation: a
+// whole window's worth of scene, read by a large model.
+const continueTimeout = 5 * time.Minute
 
 // branchChat copies a chat up to a message into a new one, and opens it.
 func (a *App) branchChat(chatID, messageID int64) {

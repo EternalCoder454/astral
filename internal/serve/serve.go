@@ -142,6 +142,7 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("POST /api/chats/{id}/regenerate", s.guard(s.handleRegenerate))
 	mux.Handle("POST /api/chats/{id}/stop", s.guard(s.handleStop))
 	mux.Handle("POST /api/chats/{id}/archive", s.guard(s.handleArchiveChat))
+	mux.Handle("POST /api/chats/{id}/continue", s.guard(s.handleContinue))
 	mux.Handle("DELETE /api/chats/{id}/messages/{mid}", s.guard(s.handleDeleteMessage))
 	mux.Handle("POST /api/chats/{id}/messages/{mid}/version", s.guard(s.handleVersion))
 	mux.Handle("POST /api/chats/{id}/persona", s.guard(s.handleChatPersona))

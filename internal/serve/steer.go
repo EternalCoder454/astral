@@ -211,6 +211,53 @@ func (s *Server) handleBranch(w http.ResponseWriter, r *http.Request, d store.De
 	writeJSON(w, http.StatusOK, map[string]any{"id": b.ID, "title": b.Title})
 }
 
+// handleContinue carries a chat on in a new one, as the desktop's Continue in
+// a New Chat does: the story so far written into its record, the pins, and
+// the last few messages word for word. It answers once the new chat exists,
+// which for a long scene is as long as the model takes to read it.
+func (s *Server) handleContinue(w http.ResponseWriter, r *http.Request, d store.Device) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "not a chat id"})
+		return
+	}
+	ch, err := s.store.Chat(id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such chat"})
+		return
+	}
+	if !scene.CanContinue(ch) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "only a scene or a general chat can be continued"})
+		return
+	}
+	release, free := s.busy.claim(ch.ID)
+	if !free {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "wait for the reply to finish"})
+		return
+	}
+	defer release()
+	ctx, cancel := context.WithTimeout(r.Context(), continueTimeout)
+	defer cancel()
+	s.busy.onStop(ch.ID, cancel)
+	cast := castFor(s.castFor(ch), s.characterFor(ch))
+	cfg := s.playedAs(s.config(), ch)
+	sceneModel := ch.Model
+	if sceneModel == "" {
+		sceneModel = cfg.Model
+	}
+	model := scene.FitHousekeeping(ctx, s.client(), cfg.HousekeepingModel, sceneModel)
+	next, err := scene.ContinueChat(ctx, s.client(), model, s.store, cfg, ch, cast)
+	scene.NoteUsed(model, "")
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": next.ID, "title": next.Title})
+}
+
+// continueTimeout bounds writing the story so far for a continuation.
+const continueTimeout = 5 * time.Minute
+
 // pinOut is one pinned message, as the phone lists it.
 type pinOut struct {
 	ID   int64  `json:"id"`

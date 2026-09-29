@@ -556,6 +556,9 @@ func (c *ChatView) Usage() scene.Usage {
 	return scene.MeasureUsage(c.store, c.cfg, c.chat, c.sceneCast(), c.history())
 }
 
+// Busy reports whether a reply or a draft is being written in this chat.
+func (c *ChatView) Busy() bool { return c.busy || c.drafting }
+
 // Seen is what the next turn sends besides the conversation: the lorebook
 // entries and why, and the earlier moments. See scene.WhatItSees.
 func (c *ChatView) Seen() scene.Seen {

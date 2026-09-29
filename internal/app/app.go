@@ -87,6 +87,10 @@ type App struct {
 	// deleting is chats taken off the list whose toast still offers to put
 	// them back; see deletechats.go.
 	deleting map[int64]bool
+	// continuing is set while a chat's story is being written for its
+	// continuation, so a second press does not start another. See
+	// continueChat.
+	continuing bool
 
 	// pendingRestore is a backup to put back once the library is closed, on
 	// the way out; see restore.go.

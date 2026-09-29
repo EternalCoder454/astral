@@ -485,6 +485,7 @@ func (a *App) registerActions() {
 	addInt("export-chat", a.actionExportChat)
 	addInt("delete-chat", a.actionDeleteChat)
 	addInt("select-chat", func(id int64) { a.sidebar.Mark(id) })
+	addInt("continue-chat", a.continueChat)
 	addInt("archive-chat", func(id int64) { a.archiveChats([]int64{id}, true) })
 	addInt("unarchive-chat", func(id int64) { a.archiveChats([]int64{id}, false) })
 

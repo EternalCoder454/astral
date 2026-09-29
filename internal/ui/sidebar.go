@@ -13,6 +13,7 @@ import (
 	"github.com/diamondburned/gotk4/pkg/pango"
 
 	"astral/internal/chars"
+	"astral/internal/scene"
 	"astral/internal/store"
 )
 
@@ -680,14 +681,15 @@ func (s *Sidebar) chatRowWith(ch store.Chat, snippet string) *gtk.Button {
 			s.OnOpenChat(id)
 		}
 	})
-	s.attachRowMenu(btn, id, ch.Archived)
+	s.attachRowMenu(btn, ch)
 	s.rows[id] = &chatRow{btn: btn, box: box, dot: dot, archived: ch.Archived}
 	s.order = append(s.order, id)
 	return btn
 }
 
 // attachRowMenu wires the right-click menu on a conversation row.
-func (s *Sidebar) attachRowMenu(btn *gtk.Button, id int64, archived bool) {
+func (s *Sidebar) attachRowMenu(btn *gtk.Button, ch store.Chat) {
+	id := ch.ID
 	// Built on the first right-click rather than with the row. A popover menu
 	// registers itself with the window's actions as it is made, and doing
 	// that for every chat was nearly half of what drawing the list cost:
@@ -696,7 +698,7 @@ func (s *Sidebar) attachRowMenu(btn *gtk.Button, id int64, archived bool) {
 	var pop *gtk.PopoverMenu
 	show := func(x, y float64) {
 		if pop == nil {
-			pop = rowPopover(btn, id, archived)
+			pop = rowPopover(btn, ch)
 		}
 		// The menu opens at the pointer. The rectangle must be built with
 		// gdk.NewRectangle: a &gdk.Rectangle{} is a Go struct with no native
@@ -722,7 +724,7 @@ func (s *Sidebar) attachRowMenu(btn *gtk.Button, id int64, archived bool) {
 }
 
 // rowPopover builds a chat row's context menu.
-func rowPopover(btn *gtk.Button, id int64, archived bool) *gtk.PopoverMenu {
+func rowPopover(btn *gtk.Button, ch store.Chat) *gtk.PopoverMenu {
 	// The target is attached as a real GVariant rather than encoded into a
 	// detailed action string. "win.rename-chat(7)" looks right but parses its
 	// target as an int32, while the action is declared to take an int64, the
@@ -730,21 +732,22 @@ func rowPopover(btn *gtk.Button, id int64, archived bool) *gtk.PopoverMenu {
 	// menu entry does nothing at all when clicked.
 	menu := gio.NewMenu()
 	archive, archiveAction := "Archive", "win.archive-chat"
-	if archived {
+	if ch.Archived {
 		archive, archiveAction = "Unarchive", "win.unarchive-chat"
 	}
-	for _, it := range []struct {
+	type entry struct {
 		label  string
 		action string
-	}{
-		{"Rename…", "win.rename-chat"},
-		{"Export…", "win.export-chat"},
-		{archive, archiveAction},
-		{"Select", "win.select-chat"},
-		{"Delete", "win.delete-chat"},
-	} {
+	}
+	items := []entry{{"Rename…", "win.rename-chat"}, {"Export…", "win.export-chat"}}
+	if scene.CanContinue(ch) {
+		items = append(items, entry{"Continue in a New Chat", "win.continue-chat"})
+	}
+	items = append(items, entry{archive, archiveAction}, entry{"Select", "win.select-chat"},
+		entry{"Delete", "win.delete-chat"})
+	for _, it := range items {
 		item := gio.NewMenuItem(it.label, "")
-		item.SetActionAndTargetValue(it.action, glib.NewVariantInt64(id))
+		item.SetActionAndTargetValue(it.action, glib.NewVariantInt64(ch.ID))
 		menu.AppendItem(item)
 	}
 	pop := gtk.NewPopoverMenuFromModel(menu)

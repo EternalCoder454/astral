@@ -2053,6 +2053,8 @@ function chatMenu() {
 	if (current.remembers) {
 		items.push({ title: "Scene Memory", note: "See and correct what this scene remembers.",
 			icon: "history", onClick: openMemory });
+		items.push({ title: "Continue in a New Chat", note: "The story so far, the pins and the last few messages, fresh.",
+			icon: "branch", onClick: () => continueChat(current.id) });
 	}
 	// One character's scene: a group's is named after its first member, and
 	// starring them from there would star somebody at random.
@@ -2090,6 +2092,28 @@ function chatMenu() {
 	openMenu(current.title || "This Chat", items);
 }
 $("chat-more").addEventListener("click", chatMenu);
+
+// continueChat carries a chat on in a new one and opens it. The PC writes the
+// story so far first, which for a long scene takes as long as the model needs
+// to read it, so the wait is said out loud.
+let continuing = false;
+async function continueChat(id) {
+	if (continuing) return;
+	continuing = true;
+	toast("Writing the story so far for the new chat…");
+	try {
+		const res = await api("/api/chats/" + id + "/continue", { method: "POST" });
+		const out = await res.json();
+		if (!res.ok) throw new Error(out.error || "That could not be done.");
+		await loadState().catch(() => {});
+		await openChat(out.id);
+		toast("Continued in a new chat. The original is unchanged.");
+	} catch (e) {
+		toast("Could not continue it: " + e.message);
+	} finally {
+		continuing = false;
+	}
+}
 
 // archiveChat puts a chat away, or brings it back.
 async function archiveChat(id, archived) {

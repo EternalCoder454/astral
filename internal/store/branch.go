@@ -1,7 +1,9 @@
 package store
 
 import (
+	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -104,47 +106,13 @@ func (s *Store) BranchChat(chatID, uptoID int64, title string) (Chat, error) {
 	}
 	defer tx.Rollback()
 
-	now := time.Now()
-	res, err := tx.Exec(`
-		INSERT INTO chats (character_id, world_id, title, model, kind, style_name, note, persona_id,
-		                   setting, setting_auto, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-		src.CharacterID, src.WorldID, title, src.Model, src.Kind, src.StyleName, src.Note, src.PersonaID,
-		src.Setting, boolInt(src.SettingAuto), unix(now), unix(now))
+	id, err := copyChatRow(tx, src, title)
 	if err != nil {
 		return Chat{}, err
 	}
-	id, err := res.LastInsertId()
+	newID, err := copyMessages(tx, id, msgs, pinned)
 	if err != nil {
 		return Chat{}, err
-	}
-	if _, err := tx.Exec(`
-		INSERT INTO chat_cast (chat_id, character_id, position)
-		SELECT ?, character_id, position FROM chat_cast WHERE chat_id = ?`, id, chatID); err != nil {
-		return Chat{}, err
-	}
-
-	// Old ids to new, for the recap's and the lorebook's bookmarks.
-	newID := make(map[int64]int64, len(msgs))
-	for _, m := range msgs {
-		pin := 0
-		if pinned[m.ID] {
-			pin = 1
-		}
-		r, err := tx.Exec(`
-			INSERT INTO messages (chat_id, role, content, thinking, character_id, eval_count, tok_per_sec,
-			                      created_at, versions, version, pinned, hidden)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-			id, m.Role, m.Content, m.Thinking, m.CharacterID, m.EvalCount, m.TokPerSec,
-			unix(m.CreatedAt), encodeVersions(m.Versions), m.Version, pin, boolInt(m.Hidden))
-		if err != nil {
-			return Chat{}, err
-		}
-		nid, err := r.LastInsertId()
-		if err != nil {
-			return Chat{}, err
-		}
-		newID[m.ID] = nid
 	}
 
 	// The recap's bookmark is the last turn it covers. Carried over only when
@@ -155,24 +123,158 @@ func (s *Store) BranchChat(chatID, uptoID int64, title string) (Chat, error) {
 			return Chat{}, err
 		}
 	}
-	// What the lorebook has already learned from is learned either way; the
-	// branch carries on from the same point, or from its end if that is
-	// earlier.
-	if src.LoreUpto > 0 {
-		upto := int64(0)
-		for old, n := range newID {
-			if old <= src.LoreUpto && n > upto {
-				upto = n
-			}
-		}
-		if _, err := tx.Exec(`UPDATE chats SET lore_upto = ? WHERE id = ?`, upto, id); err != nil {
-			return Chat{}, err
-		}
+	if err := carryLoreMark(tx, src, id, newID); err != nil {
+		return Chat{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		return Chat{}, err
 	}
 	return s.Chat(id)
+}
+
+// ContinueChat starts a new chat that carries a scene on from where it is: the
+// same cast, persona, style, direction and setting; recap, the record of the
+// story before fromID; the moments pinned before it, still pinned; and every
+// message from fromID on, word for word.
+//
+// A scene run for hours reads less well than one just begun, however good its
+// record: the transcript fills the model's memory and the character's own
+// description is a smaller share of what it reads each turn. A new chat that
+// knows the story, the pins and the last few exchanges starts with a nearly
+// empty memory and the thread still in hand. Kindroid's Chat Break is the
+// same idea. The original is left as it was.
+func (s *Store) ContinueChat(chatID, fromID int64, recap, title string) (Chat, error) {
+	src, err := s.Chat(chatID)
+	if err != nil {
+		return Chat{}, err
+	}
+	msgs, err := s.Messages(chatID)
+	if err != nil {
+		return Chat{}, err
+	}
+	at := -1
+	for i, m := range msgs {
+		if m.ID == fromID {
+			at = i
+			break
+		}
+	}
+	if at < 0 {
+		return Chat{}, fmt.Errorf("message %d is not in chat %d", fromID, chatID)
+	}
+	// The pinned moments from before the carried messages go first, pinned,
+	// so the new chat recalls them the way the old one did.
+	var carried []Message
+	pinned := map[int64]bool{}
+	for _, m := range msgs[:at] {
+		if m.Pinned && !m.Hidden {
+			carried = append(carried, m)
+			pinned[m.ID] = true
+		}
+	}
+	for _, m := range msgs[at:] {
+		if m.Pinned {
+			pinned[m.ID] = true
+		}
+	}
+
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return Chat{}, err
+	}
+	defer tx.Rollback()
+
+	id, err := copyChatRow(tx, src, title)
+	if err != nil {
+		return Chat{}, err
+	}
+	newID, err := copyMessages(tx, id, append(carried, msgs[at:]...), pinned)
+	if err != nil {
+		return Chat{}, err
+	}
+	// The record and the pins stand for everything before the carried
+	// messages. The bookmark sits just before the first of them, so the
+	// transcript starts there and the pins are recalled rather than read.
+	if strings.TrimSpace(recap) != "" || len(carried) > 0 {
+		if _, err := tx.Exec(`UPDATE chats SET summary = ?, summary_upto = ? WHERE id = ?`,
+			strings.TrimSpace(recap), newID[fromID]-1, id); err != nil {
+			return Chat{}, err
+		}
+	}
+	if err := carryLoreMark(tx, src, id, newID); err != nil {
+		return Chat{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Chat{}, err
+	}
+	return s.Chat(id)
+}
+
+// copyChatRow makes a new chat with everything about src but its messages,
+// its record and its lorebook bookmark, and the same cast.
+func copyChatRow(tx *sql.Tx, src Chat, title string) (int64, error) {
+	now := time.Now()
+	res, err := tx.Exec(`
+		INSERT INTO chats (character_id, world_id, title, model, kind, style_name, note, persona_id,
+		                   setting, setting_auto, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+		src.CharacterID, src.WorldID, title, src.Model, src.Kind, src.StyleName, src.Note, src.PersonaID,
+		src.Setting, boolInt(src.SettingAuto), unix(now), unix(now))
+	if err != nil {
+		return 0, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	if _, err := tx.Exec(`
+		INSERT INTO chat_cast (chat_id, character_id, position)
+		SELECT ?, character_id, position FROM chat_cast WHERE chat_id = ?`, id, src.ID); err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+// copyMessages copies msgs into chat id, in order, pinning the ones in
+// pinned, and says which new id each old one became.
+func copyMessages(tx *sql.Tx, id int64, msgs []Message, pinned map[int64]bool) (map[int64]int64, error) {
+	newID := make(map[int64]int64, len(msgs))
+	for _, m := range msgs {
+		r, err := tx.Exec(`
+			INSERT INTO messages (chat_id, role, content, thinking, character_id, eval_count, tok_per_sec,
+			                      created_at, versions, version, pinned, hidden)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+			id, m.Role, m.Content, m.Thinking, m.CharacterID, m.EvalCount, m.TokPerSec,
+			unix(m.CreatedAt), encodeVersions(m.Versions), m.Version, boolInt(pinned[m.ID]), boolInt(m.Hidden))
+		if err != nil {
+			return nil, err
+		}
+		nid, err := r.LastInsertId()
+		if err != nil {
+			return nil, err
+		}
+		newID[m.ID] = nid
+	}
+	return newID, nil
+}
+
+// carryLoreMark carries what the lorebook has already learned from: learned
+// is learned either way, so the copy carries on from the same point, or from
+// its end if that is earlier.
+func carryLoreMark(tx *sql.Tx, src Chat, id int64, newID map[int64]int64) error {
+	if src.LoreUpto <= 0 {
+		return nil
+	}
+	upto := int64(0)
+	for old, n := range newID {
+		if old <= src.LoreUpto && n > upto {
+			upto = n
+		}
+	}
+	_, err := tx.Exec(`UPDATE chats SET lore_upto = ? WHERE id = ?`, upto, id)
+	return err
 }
 
 // BranchTitle names a branch after the chat it came from.
@@ -184,4 +286,19 @@ func BranchTitle(title string) string {
 	// A branch of a branch is still just a branch.
 	title = strings.TrimSuffix(title, " (Branch)")
 	return title + " (Branch)"
+}
+
+// ContinueTitle names a continuation after the chat it carries on: Part 2,
+// and the next number for one that is already a part.
+func ContinueTitle(title string) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return "Part 2"
+	}
+	if i := strings.LastIndex(title, ", Part "); i >= 0 {
+		if n, err := strconv.Atoi(title[i+len(", Part "):]); err == nil && n > 0 {
+			return title[:i] + ", Part " + strconv.Itoa(n+1)
+		}
+	}
+	return title + ", Part 2"
 }
