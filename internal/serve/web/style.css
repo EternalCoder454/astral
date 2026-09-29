@@ -909,14 +909,20 @@ a.row { text-decoration: none; }
 	font-weight: 600;
 }
 
-/* A label under a field needs the room one under a heading gets. */
-.sheet-field + .sheet-label { margin-top: 10px; }
-
 /* A sheet taller than the screen scrolls; it must not squash what is in it.
    As a flex column it shrank its children to fit instead, which flattened the
    record to one line and the memory bar to nothing once Scene State made the
    sheet long enough. */
 .sheet > *, #memory-state > * { flex-shrink: 0; }
+
+/* The Scene State fields are laid out as the sheet around them is: a column
+   with the same gap. As a plain block its labels were inline, and inline
+   boxes take no vertical margin, so each sat tight under the field above. */
+#memory-state {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
 
 .sheet-hint { margin: 0; font-size: 0.85rem; }
 
