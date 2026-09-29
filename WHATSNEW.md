@@ -5,6 +5,7 @@ heading, a few plain lines each. The detailed history is in the git log.
 
 ## 0.5.27
 - Reading far back through a long scene no longer leaves it heavy: what you scrolled past is let go at the end
+- In a group scene, earlier messages loaded by scrolling up show each speaker's name again
 
 ## 0.5.26
 - Long sessions stay light: chats and dialogs you leave are now freed instead of piling up in memory

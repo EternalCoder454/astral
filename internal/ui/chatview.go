@@ -233,8 +233,11 @@ type ChatView struct {
 	// loadingEarlier is set while a batch scrolled into is being built.
 	loadingEarlier bool
 	// trimQueued is set while dropping the rows scrolled past is waiting to
-	// run. See trimBehind.
-	trimQueued bool
+	// run, and trimBlocked is the transcript as it was when it could not be
+	// trimmed, so it is not tried again until a row is built or taken away.
+	// See trimBehind.
+	trimQueued  bool
+	trimBlocked trimMark
 
 	pendMu   sync.Mutex
 	pendText strings.Builder
@@ -668,6 +671,7 @@ func (c *ChatView) Clear() {
 		r.Release()
 	}
 	c.rows = nil
+	c.trimBlocked = trimMark{}
 	c.live = nil
 	c.greeting = nil
 	c.settled = false
@@ -1079,7 +1083,9 @@ func (c *ChatView) loadEarlier() {
 	// and its own grouping was settled when it was built.
 	rows := make([]*MessageRow, 0, len(batch))
 	for i, m := range batch {
-		grouped := i > 0 && batch[i-1].Role == m.Role
+		// The same rule as appendRowAs: two characters in a row are two
+		// speakers, each with a name.
+		grouped := i > 0 && batch[i-1].Role == m.Role && batch[i-1].CharacterID == m.CharacterID
 		row := c.newRow(m.CharacterID, m.Role, m.Content, m.Thinking, m.ID, m.CreatedAt, grouped)
 		row.Versions, row.Version = m.Versions, m.Version
 		if m.Pinned {
@@ -1153,7 +1159,7 @@ func (c *ChatView) watchForEarlier() {
 // maybeTrim lets go of the rows scrolled past, once you are back at the
 // newest message with many more built than a chat opens with.
 func (c *ChatView) maybeTrim() {
-	if c.trimQueued || len(c.rows) <= keepBuilt || !c.trimmable() {
+	if c.trimQueued || len(c.rows) <= keepBuilt || c.trimBlocked == c.mark() || !c.trimmable() {
 		return
 	}
 	// Later, not inside the scroll: this can be called while the transcript
@@ -1167,18 +1173,18 @@ func (c *ChatView) maybeTrim() {
 }
 
 // trimmable reports whether the rows scrolled past can go now: at the very
-// bottom, with nothing being written or built.
+// bottom, with nothing being written or built. A message being rewritten
+// counts, because its row is written to when the rewrite comes back.
 func (c *ChatView) trimmable() bool {
-	if c.live != nil || c.busy || c.loadingEarlier || c.chat.ID == 0 {
+	if c.live != nil || c.busy || c.drafting || c.loadingEarlier || c.chat.ID == 0 {
 		return false
 	}
 	adj := c.scroll.VAdjustment()
 	return adj.PageSize() > 0 && adj.Value() >= adj.Upper()-adj.PageSize()-2
 }
 
-// trimBehind puts every row but the newest renderWindow back behind the
-// scroll, the way the chat opened, to be built again only if you scroll up to
-// them.
+// trimBehind puts the rows scrolled past back behind the scroll, the way the
+// chat opened, to be built again only if you scroll up to them.
 //
 // Every row scrolled back through stayed built, so a long read back through
 // a scene left hundreds of rows on the window for as long as the chat was
@@ -1187,52 +1193,122 @@ func (c *ChatView) trimmable() bool {
 // from the rows, so what is built again is what is stored, pins and edits
 // included.
 //
+// What stays is measured in pixels, not rows: at least a window's height and
+// the distance at which older rows are built again, and some to spare (a
+// row's height leaves out the gap under it, so a little more), so a trim
+// never takes a row that is on screen, and never leaves so little that
+// scrolling builds the same rows straight back. Never fewer than a chat
+// opens with.
+//
 // A few at a time, a frame apart: 144 rows taken away at once held the
 // window for about 100ms just as you arrived at the bottom.
 func (c *ChatView) trimBehind() {
-	if len(c.rows) <= renderWindow || !c.trimmable() {
+	if len(c.rows) <= keepBuilt || !c.trimmable() {
 		return
 	}
-	cut := min(len(c.rows)-renderWindow, trimStep)
+	heights := make([]int, len(c.rows))
+	for i, r := range c.rows {
+		heights[i] = gtk.BaseWidget(r.Widget()).Height()
+	}
+	need := int(c.scroll.VAdjustment().PageSize()) + earlierAhead + trimSpare
+	cut := len(c.rows) - keepCount(heights, c.column.Spacing(), need, renderWindow)
+	if cut <= 0 {
+		return
+	}
+	block := func() { c.trimBlocked = c.mark() }
 	for _, r := range c.rows[:cut] {
 		if r.ID == 0 {
-			return // not stored, so it could not be built again
+			block() // not stored, so it could not be built again
+			return
 		}
 	}
+	// Read once for the whole trim, which stops if a reply starts, a
+	// message is rewritten, or rows are built or cleared, and the next trim
+	// reads again. A pin changed on a row being trimmed, in the moment
+	// between two steps, would be built again as it was.
 	msgs, err := c.store.Messages(c.chat.ID)
 	if err != nil {
-		return
+		return // perhaps busy for a moment: tried again on the next scroll
 	}
-	first := c.rows[cut].ID
-	at := -1
-	for i, m := range msgs {
-		if m.ID == first {
-			at = i
-			break
+	var step func()
+	step = func() {
+		if !c.trimmable() || cut <= 0 {
+			return
+		}
+		n := min(cut, trimStep)
+		if n >= len(c.rows) {
+			return
+		}
+		older, ok := olderThan(msgs, c.rows[n].ID)
+		if !ok {
+			block()
+			return
+		}
+		for _, r := range c.rows[:n] {
+			c.column.Remove(r.Widget())
+			r.Release()
+		}
+		c.rows = append([]*MessageRow(nil), c.rows[n:]...)
+		c.older = older
+		c.refreshEarlierButton()
+		if cut -= n; cut > 0 {
+			c.trimQueued = true
+			first := c.rows[0]
+			coreglib.IdleAdd(func() bool {
+				c.trimQueued = false
+				if len(c.rows) > 0 && c.rows[0] == first { // nothing built or cleared since
+					step()
+				}
+				return false
+			})
 		}
 	}
-	if at < 0 {
-		return
-	}
-	for _, r := range c.rows[:cut] {
-		c.column.Remove(r.Widget())
-		r.Release()
-	}
-	c.rows = append([]*MessageRow(nil), c.rows[cut:]...)
-	c.older = msgs[:at]
-	c.refreshEarlierButton()
-	if len(c.rows) > renderWindow {
-		c.trimQueued = true
-		coreglib.IdleAdd(func() bool {
-			c.trimQueued = false
-			c.trimBehind()
-			return false
-		})
-	}
+	step()
 }
 
-// trimStep is how many rows trimBehind takes away in one frame.
-const trimStep = 24
+// trimMark is the transcript as trimBehind last saw it fail: its first row
+// and how many there were. Building a row or taking one away changes it.
+type trimMark struct {
+	first *MessageRow
+	n     int
+}
+
+func (c *ChatView) mark() trimMark {
+	if len(c.rows) == 0 {
+		return trimMark{}
+	}
+	return trimMark{c.rows[0], len(c.rows)}
+}
+
+// trimStep is how many rows trimBehind takes away in one frame, and
+// trimSpare how many pixels it keeps beyond what it has to.
+const (
+	trimStep  = 24
+	trimSpare = 600
+)
+
+// keepCount is how many of the newest rows, whose heights are given oldest
+// first, cover need pixels from the bottom: never fewer than least, and
+// never more than there are.
+func keepCount(heights []int, spacing, need, least int) int {
+	sum, n := 0, 0
+	for i := len(heights) - 1; i >= 0 && sum < need; i-- {
+		sum += heights[i] + spacing
+		n++
+	}
+	return min(len(heights), max(n, least))
+}
+
+// olderThan is the messages before the one with id first, from a chat's
+// messages in order; false when first is not among them.
+func olderThan(msgs []store.Message, first int64) ([]store.Message, bool) {
+	for i, m := range msgs {
+		if m.ID == first {
+			return msgs[:i], true
+		}
+	}
+	return nil, false
+}
 
 // lastRole is who spoke in the row currently at the bottom of the transcript.
 func (c *ChatView) lastRole() string {
