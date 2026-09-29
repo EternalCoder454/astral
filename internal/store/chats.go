@@ -72,8 +72,11 @@ type Chat struct {
 	// SettingAuto says Astral keeps Setting up to date after each reply,
 	// which it does until you write your own.
 	SettingAuto bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// Archived chats are kept but listed apart from the rest. Writing a
+	// message of your own in one brings it back; see AddMessage.
+	Archived  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
 
 	// Filled in by Chats() for the sidebar, not stored.
 	CharacterName string
@@ -138,7 +141,7 @@ func (s *Store) Chats() ([]Chat, error) {
 	// messages, and this runs on every sidebar refresh, twice a turn.
 	rows, err := s.db.Query(`
 		SELECT c.id, c.character_id, c.world_id, c.title, c.model, c.kind, c.created_at, c.updated_at,
-		       COALESCE(ch.name, ''), COALESCE(ch.accent, 0), COALESCE(n.count, 0),
+		       c.archived, COALESCE(ch.name, ''), COALESCE(ch.accent, 0), COALESCE(n.count, 0),
 		       COALESCE(cc.count, 0), COALESCE(ch.avatar_path, '')
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
@@ -158,7 +161,7 @@ func (s *Store) Chats() ([]Chat, error) {
 		var c Chat
 		var created, updated int64
 		if err := rows.Scan(&c.ID, &c.CharacterID, &c.WorldID, &c.Title, &c.Model, &c.Kind,
-			&created, &updated, &c.CharacterName, &c.Accent, &c.MessageCount,
+			&created, &updated, &c.Archived, &c.CharacterName, &c.Accent, &c.MessageCount,
 			&c.CastSize, &c.AvatarPath); err != nil {
 			return nil, err
 		}
@@ -174,13 +177,13 @@ func (s *Store) Chat(id int64) (Chat, error) {
 	var created, updated int64
 	err := s.db.QueryRow(`
 		SELECT c.id, c.character_id, c.world_id, c.title, c.model, c.kind, c.summary, c.summary_upto,
-		       c.lore_upto, c.style_name, c.note, c.persona_id, c.setting, c.setting_auto, c.created_at, c.updated_at,
+		       c.lore_upto, c.style_name, c.note, c.persona_id, c.setting, c.setting_auto, c.archived, c.created_at, c.updated_at,
 		       COALESCE(ch.name, ''), COALESCE(ch.accent, 0)
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
 		WHERE c.id = ?`, id).
 		Scan(&c.ID, &c.CharacterID, &c.WorldID, &c.Title, &c.Model, &c.Kind, &c.Summary, &c.SummaryUpto,
-			&c.LoreUpto, &c.StyleName, &c.Note, &c.PersonaID, &c.Setting, &c.SettingAuto, &created, &updated, &c.CharacterName, &c.Accent)
+			&c.LoreUpto, &c.StyleName, &c.Note, &c.PersonaID, &c.Setting, &c.SettingAuto, &c.Archived, &created, &updated, &c.CharacterName, &c.Accent)
 	if err == sql.ErrNoRows {
 		return c, fmt.Errorf("no chat with id %d", id)
 	}
@@ -322,6 +325,12 @@ func (s *Store) messages(chatID, afterID int64) ([]Message, error) {
 // reorders. Both statements run in one transaction: a message that exists in a
 // chat whose timestamp says otherwise would sort to the bottom of the list and
 // look lost.
+//
+// A turn of your own also unarchives the chat. Here rather than in each place
+// that sends, because the desktop and the phone both end up in this function,
+// and a chat you are writing in belongs in the main list whichever of them you
+// wrote from. A reply does not: it only ever follows one of yours, and a
+// finished chat is not called back by a late one.
 func (s *Store) AddMessage(m Message) (int64, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -352,8 +361,11 @@ func (s *Store) AddMessage(m Message) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if _, err := tx.Exec(`UPDATE chats SET updated_at = ? WHERE id = ?`,
-		unix(m.CreatedAt), m.ChatID); err != nil {
+	touch := `UPDATE chats SET updated_at = ? WHERE id = ?`
+	if m.Role == "user" {
+		touch = `UPDATE chats SET updated_at = ?, archived = 0 WHERE id = ?`
+	}
+	if _, err := tx.Exec(touch, unix(m.CreatedAt), m.ChatID); err != nil {
 		return 0, err
 	}
 	return id, tx.Commit()

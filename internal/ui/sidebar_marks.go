@@ -16,7 +16,7 @@ import (
 // of chats between the last one marked and this one, and while anything is
 // marked a plain click marks too, the way a phone's selection works, so a
 // touchscreen gets there through Select on a row's menu. A bar under the list
-// says how many are marked and deletes them; Escape, or the bar's close
+// says how many are marked and archives or deletes them; Escape, or the bar's close
 // button, lets them go.
 
 // chatRow is one conversation in the list and the parts of it that change.
@@ -24,6 +24,9 @@ type chatRow struct {
 	btn *gtk.Button
 	box *gtk.Box
 	dot gtk.Widgetter
+	// archived is whether the chat is put away, which decides what the bar's
+	// Archive button does to it.
+	archived bool
 	// check stands in for the avatar while the row is marked. Made the first
 	// time it is needed: most rows are never marked.
 	check *gtk.Image
@@ -151,6 +154,9 @@ func (s *Sidebar) buildMarkBar() *gtk.Revealer {
 	all.SetTooltipText("Select every chat in the list (Ctrl+A)")
 	all.ConnectClicked(s.markAll)
 	buttons.Append(all)
+	s.archiveBtn = gtk.NewButtonWithLabel("Archive")
+	s.archiveBtn.ConnectClicked(s.archiveMarked)
+	buttons.Append(s.archiveBtn)
 	del := gtk.NewButtonWithLabel("Delete")
 	del.AddCSSClass("destructive-action")
 	del.SetTooltipText("Delete the selected chats (Delete)")
@@ -261,6 +267,28 @@ func (s *Sidebar) deleteMarked() {
 	s.OnDeleteChats(ids)
 }
 
+// archiveMarked puts the marked chats away, or brings them back when every one
+// of them is already put away.
+func (s *Sidebar) archiveMarked() {
+	ids := s.Marked()
+	if len(ids) == 0 || s.OnArchiveChats == nil {
+		return
+	}
+	archive := !s.markedAllArchived()
+	s.ClearMarks()
+	s.OnArchiveChats(ids, archive)
+}
+
+// markedAllArchived says whether every marked chat is one that is put away.
+func (s *Sidebar) markedAllArchived() bool {
+	for _, id := range s.Marked() {
+		if row := s.rows[id]; row != nil && !row.archived {
+			return false
+		}
+	}
+	return true
+}
+
 // keepMarks is run after the list is drawn again: a marked chat that is still
 // listed stays marked, and one that has gone is forgotten.
 func (s *Sidebar) keepMarks() {
@@ -301,6 +329,13 @@ func (s *Sidebar) showMarks() {
 	n := len(s.marked)
 	if n > 0 {
 		s.markLabel.SetText(fmt.Sprintf("%d Selected", n))
+		if s.markedAllArchived() {
+			s.archiveBtn.SetLabel("Unarchive")
+			s.archiveBtn.SetTooltipText("Bring the selected chats back")
+		} else {
+			s.archiveBtn.SetLabel("Archive")
+			s.archiveBtn.SetTooltipText("Put the selected chats away")
+		}
 	}
 	s.markBar.SetRevealChild(n > 0)
 	if n > 0 {

@@ -235,6 +235,12 @@ func (a *App) buildSidebar() {
 	}
 	a.sidebar.OnSearch = a.searchChats
 	a.sidebar.OnDeleteChats = a.deleteChats
+	a.sidebar.OnArchiveChats = a.archiveChats
+	a.sidebar.SetGroupByCharacter(a.cfg.GroupChatsByCharacter)
+	a.sidebar.OnGroupByCharacter = func(on bool) {
+		a.cfg.GroupChatsByCharacter = on
+		_ = store.SaveConfig(a.cfg)
+	}
 }
 
 // searchChats answers the sidebar's search. On this thread: it is one indexed
@@ -479,6 +485,8 @@ func (a *App) registerActions() {
 	addInt("export-chat", a.actionExportChat)
 	addInt("delete-chat", a.actionDeleteChat)
 	addInt("select-chat", func(id int64) { a.sidebar.Mark(id) })
+	addInt("archive-chat", func(id int64) { a.archiveChats([]int64{id}, true) })
+	addInt("unarchive-chat", func(id int64) { a.archiveChats([]int64{id}, false) })
 
 	for accel, action := range map[string]string{
 		"<Control>n":     "win.new-chat",

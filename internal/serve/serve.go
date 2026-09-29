@@ -141,6 +141,7 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("POST /api/chats/{id}/send", s.guard(s.handleSend))
 	mux.Handle("POST /api/chats/{id}/regenerate", s.guard(s.handleRegenerate))
 	mux.Handle("POST /api/chats/{id}/stop", s.guard(s.handleStop))
+	mux.Handle("POST /api/chats/{id}/archive", s.guard(s.handleArchiveChat))
 	mux.Handle("DELETE /api/chats/{id}/messages/{mid}", s.guard(s.handleDeleteMessage))
 	mux.Handle("POST /api/chats/{id}/messages/{mid}/version", s.guard(s.handleVersion))
 	mux.Handle("POST /api/chats/{id}/persona", s.guard(s.handleChatPersona))
@@ -258,6 +259,9 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request, d store.Dev
 		// Character is who the chat is with, so the phone can show their
 		// picture on the row.
 		Character int64 `json:"character,omitempty"`
+		// Archived chats are left out of the phone's lists until the
+		// Archived entry is opened.
+		Archived bool `json:"archived,omitempty"`
 	}
 	out := struct {
 		Persona    string        `json:"persona"`
@@ -278,6 +282,7 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request, d store.Dev
 		out.Chats = append(out.Chats, chatOut{
 			ID: c.ID, Title: c.Title, Who: c.CharacterName, Accent: c.Accent,
 			Messages: c.MessageCount, Updated: c.UpdatedAt.Unix(), Character: c.CharacterID,
+			Archived: c.Archived,
 		})
 	}
 	if cs, err := s.store.Characters(); err == nil {
@@ -517,6 +522,30 @@ func (s *Server) handleDeleteChat(w http.ResponseWriter, r *http.Request, d stor
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "deleted"})
+}
+
+// handleArchiveChat puts a chat away, or brings it back, as the desktop's menu
+// does. The request says which it wants rather than toggling, so a tap that is
+// sent twice, or from a list that has gone stale, ends in the state that was
+// asked for.
+func (s *Server) handleArchiveChat(w http.ResponseWriter, r *http.Request, d store.Device) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var body struct {
+		Archived bool `json:"archived"`
+	}
+	if err != nil || json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&body) != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unreadable request"})
+		return
+	}
+	if _, err := s.store.Chat(id); err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such chat"})
+		return
+	}
+	if err := s.store.SetChatArchived(id, body.Archived); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"archived": body.Archived})
 }
 
 // handleDeleteMessage removes one turn from a scene.

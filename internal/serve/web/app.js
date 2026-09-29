@@ -12,6 +12,9 @@ const $ = (id) => document.getElementById(id);
 let token = localStorage.getItem(TOKEN_KEY) || "";
 let state = { chats: [], characters: [], worlds: [] };
 let current = null; // the open chat
+// archivedOpen is whether the Archived entry on the Chats screen is showing
+// the chats it holds.
+let archivedOpen = false;
 // The chats a reply is streaming into right now. Per chat, because leaving one
 // mid-reply for another must not make the second think it is busy.
 const streamingIn = new Set();
@@ -625,7 +628,9 @@ async function loadState() {
 
 	const recent = $("home-recent");
 	recent.replaceChildren();
-	const chats = state.chats || [];
+	// Archived chats stay out of both lists until the Archived entry is opened.
+	const chats = (state.chats || []).filter((c) => !c.archived);
+	const archived = (state.chats || []).filter((c) => c.archived);
 	if (!chats.length) {
 		const p = document.createElement("p");
 		p.className = "muted";
@@ -641,6 +646,26 @@ async function loadState() {
 		r.dataset.find = [c.title, c.who].filter(Boolean).join(" ").toLowerCase();
 		r.dataset.id = String(c.id);
 		all.append(r);
+	}
+	if (archived.length) {
+		const noteFor = () => (archivedOpen ? "Hide " : "") + archived.length + (archived.length === 1 ? " chat" : " chats");
+		const entry = row({
+			title: "Archived", note: noteFor(),
+			onClick: () => {
+				archivedOpen = !archivedOpen;
+				entry.querySelector(".row-note").textContent = noteFor();
+				filterChats();
+			},
+		});
+		entry.dataset.archivedEntry = "1";
+		all.append(entry);
+		for (const c of archived) {
+			const r = deletableChat(c);
+			r.dataset.find = [c.title, c.who].filter(Boolean).join(" ").toLowerCase();
+			r.dataset.id = String(c.id);
+			r.dataset.archived = "1";
+			all.append(r);
+		}
 	}
 	filterChats();
 
@@ -1327,6 +1352,9 @@ async function send(text) {
 	document.querySelector("#transcript .empty-chat")?.remove();
 	const mine = bubble("user", text);
 	$("transcript").append(mine);
+	// Writing in an archived chat brings it back, so the list here follows.
+	const wrote = (state.chats || []).find((c) => c.id === current.id);
+	if (wrote) wrote.archived = false;
 	const outcome = await stream("/api/chats/" + current.id + "/send", JSON.stringify({ text }), mine);
 	if (outcome === "refused") {
 		// The PC never took it (busy, or out of reach), so nothing was saved.
@@ -1673,12 +1701,19 @@ function filterChats() {
 	const q = $("chats-search").value.trim().toLowerCase();
 	let shown = 0;
 	for (const r of $("chats-list").children) {
+		// The Archived entry is for browsing, so a search has no use for it.
+		if (r.dataset.archivedEntry) {
+			r.hidden = !!q;
+			continue;
+		}
 		// Only what was found for the words in the box now, never the last
 		// search's while this one is on its way.
 		const said = hitsFor === q ? searchHits.get(r.dataset.id) : undefined;
 		const hit = !q || (r.dataset.find || "").includes(q) || said !== undefined;
-		r.hidden = !hit;
-		if (hit) shown++;
+		// The archive stays folded away until it is opened, unless a search is
+		// looking for something in it.
+		r.hidden = !hit || (!q && r.dataset.archived === "1" && !archivedOpen);
+		if (!r.hidden) shown++;
 		// A chat found by what was said in it shows the line that matched in
 		// place of its usual note, which comes back when the box is cleared.
 		const note = r.querySelector(".row-note");
@@ -2043,9 +2078,34 @@ function chatMenu() {
 			});
 		}
 	}
+	const listed = (state.chats || []).find((c) => c.id === current.id);
+	const away = !!listed?.archived;
+	items.push({
+		title: away ? "Unarchive" : "Archive",
+		note: away ? "Put this chat back in your list." : "Move this chat out of your list.",
+		icon: "history",
+		onClick: () => archiveChat(current.id, !away),
+	});
 	openMenu(current.title || "This Chat", items);
 }
 $("chat-more").addEventListener("click", chatMenu);
+
+// archiveChat puts a chat away, or brings it back.
+async function archiveChat(id, archived) {
+	try {
+		const res = await api("/api/chats/" + id + "/archive", {
+			method: "POST", body: JSON.stringify({ archived }),
+		});
+		if (!res.ok) throw new Error((await res.json()).error || "That could not be done.");
+	} catch (e) {
+		toast(e.message);
+		return;
+	}
+	const c = (state.chats || []).find((x) => x.id === id);
+	if (c) c.archived = archived;
+	toast(archived ? "Chat archived." : "Chat brought back.");
+	loadState().catch(() => {});
+}
 
 // hideMessage hides a message from the model, or shows it again.
 async function hideMessage(wrap, on) {

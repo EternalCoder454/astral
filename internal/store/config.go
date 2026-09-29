@@ -74,6 +74,9 @@ type Config struct {
 	WindowHeight int  `json:"window_height"`
 	SidebarWidth int  `json:"sidebar_width"`
 	SidebarOpen  bool `json:"sidebar_open"`
+	// GroupChatsByCharacter sorts the sidebar's chats under their characters
+	// rather than under the day they were last written in.
+	GroupChatsByCharacter bool `json:"group_chats_by_character"`
 	// PortraitOpen remembers whether the character portrait panel was showing.
 	PortraitOpen  bool   `json:"portrait_open"`
 	FontRendering string `json:"font_rendering"`

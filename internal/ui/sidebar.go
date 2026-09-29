@@ -32,10 +32,11 @@ type Sidebar struct {
 	// click selects a run of.
 	order []int64
 	// marked is the chats picked out to delete together; see sidebar_marks.go.
-	marked    map[int64]bool
-	anchor    int64
-	markBar   *gtk.Revealer
-	markLabel *gtk.Label
+	marked     map[int64]bool
+	anchor     int64
+	markBar    *gtk.Revealer
+	markLabel  *gtk.Label
+	archiveBtn *gtk.Button
 	// OnDeleteChats deletes the chats that are marked.
 	OnDeleteChats func(ids []int64)
 	// rowMenus holds each row's menu opener, so the dev harness can trigger
@@ -45,6 +46,16 @@ type Sidebar struct {
 	// lastSig is a digest of the list as last drawn, so an identical refresh
 	// costs a hash instead of rebuilding every row.
 	lastSig uint64
+	// byCharacter groups the list under characters rather than days, and
+	// archivedOpen is whether the archive at its end is showing its chats.
+	byCharacter  bool
+	archivedOpen bool
+	groupBtn     *gtk.ToggleButton
+	// OnGroupByCharacter is told when the grouping is switched, so the choice
+	// is kept for next time.
+	OnGroupByCharacter func(on bool)
+	// OnArchiveChats puts the chats away, or brings them back.
+	OnArchiveChats func(ids []int64, archived bool)
 
 	// search finds a chat by what was said in it. While it holds a query the
 	// list shows what it found, and chats is the full list to go back to.
@@ -167,7 +178,33 @@ func NewSidebar() *Sidebar {
 		})
 	})
 	s.search.ConnectStopSearch(func() { s.search.SetText("") })
-	s.widget.Append(s.search)
+
+	// The grouping toggle sits beside the search because both are about how
+	// the list below is read.
+	s.groupBtn = gtk.NewToggleButton()
+	s.groupBtn.SetIconName(IconCharacters)
+	s.groupBtn.AddCSSClass("flat")
+	s.groupBtn.AddCSSClass("group-toggle")
+	s.groupBtn.SetVAlign(gtk.AlignCenter)
+	s.groupBtn.SetTooltipText("Group chats by character")
+	s.groupBtn.ConnectToggled(func() {
+		on := s.groupBtn.Active()
+		if on == s.byCharacter {
+			return // set from the saved choice, which is not news
+		}
+		s.byCharacter = on
+		s.lastSig = 0
+		s.SetChats(s.chats)
+		if s.OnGroupByCharacter != nil {
+			s.OnGroupByCharacter(on)
+		}
+	})
+	s.search.SetHExpand(true)
+	find := gtk.NewBox(gtk.OrientationHorizontal, 4)
+	find.AddCSSClass("sidebar-find")
+	find.Append(s.search)
+	find.Append(s.groupBtn)
+	s.widget.Append(find)
 
 	// The conversation list.
 	s.listBox = gtk.NewBox(gtk.OrientationVertical, 1)
@@ -361,9 +398,6 @@ func (s *Sidebar) SetChats(chats []store.Chat) {
 
 	s.clearList()
 	s.firstChat = 0
-	if len(chats) > 0 {
-		s.firstChat = chats[0].ID
-	}
 
 	if len(chats) == 0 {
 		empty := gtk.NewLabel("No chats yet.")
@@ -374,23 +408,35 @@ func (s *Sidebar) SetChats(chats []store.Chat) {
 		return
 	}
 
-	lastSection := ""
-	for _, ch := range chats {
-		if sec := sectionFor(ch.UpdatedAt); sec != lastSection {
-			lastSection = sec
-			head := gtk.NewLabel(sec)
-			head.SetXAlign(0)
-			head.AddCSSClass("sidebar-section")
-			s.listBox.Append(head)
+	live, archived := splitArchived(chats)
+	for _, sec := range chatSections(live, s.byCharacter) {
+		head := gtk.NewLabel(sec.Title)
+		head.SetXAlign(0)
+		head.SetEllipsize(pango.EllipsizeEnd)
+		head.AddCSSClass("sidebar-section")
+		s.listBox.Append(head)
+		for _, ch := range sec.Chats {
+			if s.firstChat == 0 {
+				s.firstChat = ch.ID
+			}
+			s.listBox.Append(s.chatRow(ch))
 		}
-		s.listBox.Append(s.chatRow(ch))
+	}
+	// The archive is last in either grouping.
+	if len(archived) > 0 {
+		s.listBox.Append(s.archivedHeader(len(archived)))
+		if s.archivedOpen {
+			for _, ch := range archived {
+				s.listBox.Append(s.chatRow(ch))
+			}
+		}
 	}
 	s.applySelection()
 	s.keepMarks()
 }
 
-// chatSignature digests what the list actually draws: order, identity, title
-// and tint. Anything else about a chat can change without the sidebar looking
+// chatSignature digests what the list actually draws: order, identity, title,
+// tint and whether it is archived. Anything else about a chat can change without the sidebar looking
 // any different.
 func chatSignature(chats []store.Chat) uint64 {
 	const (
@@ -419,6 +465,9 @@ func chatSignature(chats []store.Chat) uint64 {
 		write([]byte(c.AvatarPath))
 		write([]byte(c.Kind))
 		writeInt(int64(c.CastSize))
+		if c.Archived {
+			write([]byte{1})
+		}
 		write([]byte{0})
 	}
 	return h
@@ -594,7 +643,7 @@ func (s *Sidebar) chatRowWith(ch store.Chat, snippet string) *gtk.Button {
 	more := gtk.NewImageFromIconName(IconMore)
 	more.SetName(rowMoreName)
 	more.AddCSSClass("chat-row-more")
-	more.SetTooltipText("Rename, export, select or delete")
+	more.SetTooltipText("Rename, export, archive, select or delete")
 	box.Append(more)
 	if snippet != "" {
 		col := gtk.NewBox(gtk.OrientationVertical, 2)
@@ -628,14 +677,14 @@ func (s *Sidebar) chatRowWith(ch store.Chat, snippet string) *gtk.Button {
 			s.OnOpenChat(id)
 		}
 	})
-	s.attachRowMenu(btn, id)
-	s.rows[id] = &chatRow{btn: btn, box: box, dot: dot}
+	s.attachRowMenu(btn, id, ch.Archived)
+	s.rows[id] = &chatRow{btn: btn, box: box, dot: dot, archived: ch.Archived}
 	s.order = append(s.order, id)
 	return btn
 }
 
 // attachRowMenu wires the right-click menu on a conversation row.
-func (s *Sidebar) attachRowMenu(btn *gtk.Button, id int64) {
+func (s *Sidebar) attachRowMenu(btn *gtk.Button, id int64, archived bool) {
 	// Built on the first right-click rather than with the row. A popover menu
 	// registers itself with the window's actions as it is made, and doing
 	// that for every chat was nearly half of what drawing the list cost:
@@ -644,7 +693,7 @@ func (s *Sidebar) attachRowMenu(btn *gtk.Button, id int64) {
 	var pop *gtk.PopoverMenu
 	show := func(x, y float64) {
 		if pop == nil {
-			pop = rowPopover(btn, id)
+			pop = rowPopover(btn, id, archived)
 		}
 		// The menu opens at the pointer. The rectangle must be built with
 		// gdk.NewRectangle: a &gdk.Rectangle{} is a Go struct with no native
@@ -670,19 +719,24 @@ func (s *Sidebar) attachRowMenu(btn *gtk.Button, id int64) {
 }
 
 // rowPopover builds a chat row's context menu.
-func rowPopover(btn *gtk.Button, id int64) *gtk.PopoverMenu {
+func rowPopover(btn *gtk.Button, id int64, archived bool) *gtk.PopoverMenu {
 	// The target is attached as a real GVariant rather than encoded into a
 	// detailed action string. "win.rename-chat(7)" looks right but parses its
 	// target as an int32, while the action is declared to take an int64, the
 	// types do not match, so GTK quietly refuses to activate the item and the
 	// menu entry does nothing at all when clicked.
 	menu := gio.NewMenu()
+	archive, archiveAction := "Archive", "win.archive-chat"
+	if archived {
+		archive, archiveAction = "Unarchive", "win.unarchive-chat"
+	}
 	for _, it := range []struct {
 		label  string
 		action string
 	}{
 		{"Rename…", "win.rename-chat"},
 		{"Export…", "win.export-chat"},
+		{archive, archiveAction},
 		{"Select", "win.select-chat"},
 		{"Delete", "win.delete-chat"},
 	} {

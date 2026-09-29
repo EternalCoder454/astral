@@ -17,6 +17,9 @@ func (s *Store) migrateExtras() {
 	// Whether Astral keeps the setting up to date as the scene moves. On
 	// until you write your own.
 	s.db.Exec(`ALTER TABLE chats ADD COLUMN setting_auto INTEGER NOT NULL DEFAULT 1`)
+	// A chat put away: out of the main list, kept, and back in it the next
+	// time you write in it.
+	s.db.Exec(`ALTER TABLE chats ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`)
 }
 
 func boolInt(b bool) int {
@@ -41,6 +44,16 @@ func (s *Store) SetMessageHidden(id int64, hidden bool) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	_, err := s.db.Exec(`UPDATE messages SET hidden = ? WHERE id = ?`, boolInt(hidden), id)
+	return err
+}
+
+// SetChatArchived puts a chat away, or brings it back. It leaves updated_at
+// alone: archiving is tidying, not activity, so a chat brought back sits where
+// its last message put it rather than jumping to the top of the list.
+func (s *Store) SetChatArchived(id int64, archived bool) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err := s.db.Exec(`UPDATE chats SET archived = ? WHERE id = ?`, boolInt(archived), id)
 	return err
 }
 

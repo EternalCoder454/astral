@@ -85,3 +85,61 @@ func TestSetMessageContent(t *testing.T) {
 		t.Errorf("the edited turn moved: first is %d, want %d", msgs[0].ID, id)
 	}
 }
+
+// A chat can be put away and brought back, and it comes back on its own when
+// you write in it: an archived chat you are typing into belongs in the main
+// list, and a reply must not be what does it, or a chat that finished
+// generating after you archived it would jump out of the archive.
+func TestChatArchive(t *testing.T) {
+	s := openTest(t)
+	ch, err := s.NewChat(0, "scene", "m", KindRoleplay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	archived := func() (list, one bool) {
+		t.Helper()
+		got, err := s.Chat(ch.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		all, err := s.Chats()
+		if err != nil || len(all) != 1 {
+			t.Fatalf("Chats() = %v, %v", all, err)
+		}
+		return all[0].Archived, got.Archived
+	}
+
+	if l, o := archived(); l || o {
+		t.Fatalf("a new chat starts archived: list %v, chat %v", l, o)
+	}
+	if err := s.SetChatArchived(ch.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if l, o := archived(); !l || !o {
+		t.Errorf("after archiving: list %v, chat %v, want both true", l, o)
+	}
+
+	if _, err := s.AddMessage(Message{ChatID: ch.ID, Role: "assistant", Content: "A late reply."}); err != nil {
+		t.Fatal(err)
+	}
+	if l, o := archived(); !l || !o {
+		t.Errorf("a reply unarchived the chat: list %v, chat %v", l, o)
+	}
+
+	if _, err := s.AddMessage(Message{ChatID: ch.ID, Role: "user", Content: "I am back."}); err != nil {
+		t.Fatal(err)
+	}
+	if l, o := archived(); l || o {
+		t.Errorf("a message of your own left it archived: list %v, chat %v", l, o)
+	}
+
+	if err := s.SetChatArchived(ch.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetChatArchived(ch.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	if l, o := archived(); l || o {
+		t.Errorf("after unarchiving: list %v, chat %v, want both false", l, o)
+	}
+}
