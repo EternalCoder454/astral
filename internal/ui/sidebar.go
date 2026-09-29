@@ -436,8 +436,8 @@ func (s *Sidebar) SetChats(chats []store.Chat) {
 }
 
 // chatSignature digests what the list actually draws: order, identity, title,
-// tint and whether it is archived. Anything else about a chat can change without the sidebar looking
-// any different.
+// tint and whether it is archived. Anything else about a chat can change
+// without the sidebar looking any different.
 func chatSignature(chats []store.Chat) uint64 {
 	const (
 		offset = 14695981039346656037
@@ -587,8 +587,11 @@ func chatMark(ch store.Chat) gtk.Widgetter {
 		tile.AddCSSClass("avatar")
 		tile.AddCSSClass("chat-kind")
 		tile.SetSizeRequest(chatAvatarSize, chatAvatarSize)
+		// Homogeneous rather than an expanding icon: expansion spreads up
+		// from a child, and it made the tile as wide as the row allowed.
+		tile.SetHomogeneous(true)
+		tile.SetHExpand(false)
 		img := gtk.NewImageFromIconName(icon)
-		img.SetHExpand(true)
 		img.SetHAlign(gtk.AlignCenter)
 		tile.Append(img)
 		w = tile

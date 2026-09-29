@@ -113,11 +113,15 @@ func (s *Sidebar) archivedHeader(count int) *gtk.Button {
 	n.SetHExpand(true)
 	n.AddCSSClass("archived-count")
 	box.Append(n)
-	icon, tip := "pan-end-symbolic", "Show archived chats"
+	// Said in words: GTK's own chevrons are not among the icons Astral
+	// ships, and drew nothing.
+	act, tip := "Show", "Show archived chats"
 	if s.archivedOpen {
-		icon, tip = "pan-down-symbolic", "Hide archived chats"
+		act, tip = "Hide", "Hide archived chats"
 	}
-	box.Append(gtk.NewImageFromIconName(icon))
+	shown := gtk.NewLabel(act)
+	shown.AddCSSClass("archived-count")
+	box.Append(shown)
 	btn.SetChild(box)
 	btn.SetTooltipText(tip)
 
@@ -138,4 +142,12 @@ func (s *Sidebar) SetGroupByCharacter(on bool) {
 	if len(s.chats) > 0 {
 		s.SetChats(s.chats)
 	}
+}
+
+// DevOpenArchived opens the archive at the end of the list, for the dev
+// harness, which cannot click.
+func (s *Sidebar) DevOpenArchived() {
+	s.archivedOpen = true
+	s.lastSig = 0
+	s.SetChats(s.chats)
 }

@@ -922,7 +922,8 @@ function showChat(chat) {
 	showChatPersona(chat);
 	$("composer-draft").hidden = !chat.can_draft;
 	refreshDraftButton();
-	$("chat-more").hidden = !chat.remembers && (chat.cast || []).length < 2;
+	// Always: every chat can at least be archived from it.
+	$("chat-more").hidden = false;
 	show("chat");
 	scrollDown(false);
 	setComposerBusy(streamingIn.has(chat.id));

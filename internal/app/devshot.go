@@ -208,6 +208,21 @@ func (a *App) runDevView() {
 				_ = a.openChat(chats[0].ID)
 				a.editMemory()
 			}
+		case "archive":
+			// A few chats, one archived and the archive open, grouped by
+			// character when the argument is "group".
+			if cs, err := a.store.Characters(); err == nil {
+				for i, c := range cs {
+					ch, err := a.store.NewChat(c.ID, "Another scene with "+c.Name, a.cfg.Model, store.KindRoleplay)
+					if err == nil && i == 0 {
+						_ = a.store.SetChatArchived(ch.ID, true)
+					}
+				}
+			}
+			_, _ = a.store.NewChat(0, "General Chat", a.cfg.Model, store.KindAssistant)
+			a.sidebar.SetGroupByCharacter(arg == "group")
+			a.refreshSidebar()
+			a.sidebar.DevOpenArchived()
 		case "leaks":
 			a.devLeaks(arg)
 		case "cycle":

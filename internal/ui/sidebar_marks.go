@@ -16,8 +16,8 @@ import (
 // of chats between the last one marked and this one, and while anything is
 // marked a plain click marks too, the way a phone's selection works, so a
 // touchscreen gets there through Select on a row's menu. A bar under the list
-// says how many are marked and archives or deletes them; Escape, or the bar's close
-// button, lets them go.
+// says how many are marked and archives or deletes them; Escape, or the bar's
+// close button, lets them go.
 
 // chatRow is one conversation in the list and the parts of it that change.
 type chatRow struct {

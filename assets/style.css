@@ -1201,7 +1201,3 @@ frame:focus-within {
 	text-transform: uppercase;
 	color: @astral_faint;
 }
-
-.archived-toggle image {
-	color: @astral_faint;
-}
