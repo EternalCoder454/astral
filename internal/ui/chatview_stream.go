@@ -273,6 +273,9 @@ func (c *ChatView) buildRequest() []ollama.Message {
 	if c.continuing != nil && len(hist) > 0 && hist[len(hist)-1].Role == ollama.RoleAssistant {
 		hist = hist[:len(hist)-1]
 	}
+	// Memory looks for earlier moments by meaning as well as by words, and has
+	// no client of its own to ask the embedding model with.
+	scene.UseEmbedding(c.client, c.cfg)
 	return scene.BuildTurn(c.store, c.cfg, c.chat, c.cast, hist, c.turn)
 }
 
@@ -666,6 +669,34 @@ func (c *ChatView) finishStream(gen int, msg ollama.Message, stats ollama.Stats,
 	c.maybeCompact()
 	c.maybeLearn()
 	c.maybeTrackSetting()
+	c.maybeIndex()
+}
+
+// indexTimeout bounds one pass of embedding a chat's messages. A pass is at
+// most a batch of them on the CPU, so this is for a server that has stopped
+// answering, not for a slow one.
+const indexTimeout = 2 * time.Minute
+
+// maybeIndex makes vectors for the messages that lack one, so that memory can
+// find an earlier moment by what it is about as well as by its words.
+//
+// It does not use the background lane. It runs on the CPU and takes nothing
+// from the scene's model, so it has no reason to wait behind a recap or to give
+// way to the next turn, and a scene whose setting is tracked every turn would
+// otherwise never get a turn at the lane. It does nothing when no embedding
+// model is installed.
+func (c *ChatView) maybeIndex() {
+	if c.chat.ID == 0 || c.store == nil || c.client == nil {
+		return
+	}
+	st, client, cfg, chatID := c.store, c.client, c.cfg, c.chat.ID
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), indexTimeout)
+		defer cancel()
+		if _, err := scene.IndexMessages(ctx, st, client, cfg, chatID); err != nil {
+			log.Printf("astral: embedding the messages of chat %d: %v", chatID, err)
+		}
+	}()
 }
 
 // maybeLearn teaches the world's lorebook from the scene.

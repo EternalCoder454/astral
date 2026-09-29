@@ -275,6 +275,16 @@ func copyMessages(tx *sql.Tx, id int64, msgs []Message, pinned map[int64]bool) (
 			return nil, err
 		}
 		newID[m.ID] = nid
+		// The copy says exactly what the original did, so the original's vector
+		// is still true of it and does not have to be made again. Matched on the
+		// text as well, so a message that was rewritten on its way over does not
+		// inherit a vector that describes the old words.
+		if _, err := tx.Exec(`
+			INSERT INTO message_vectors (message_id, model, vec)
+			SELECT ?, v.model, v.vec FROM message_vectors v JOIN messages o ON o.id = v.message_id
+			WHERE v.message_id = ? AND o.content = ?`, nid, m.ID, m.Content); err != nil {
+			return nil, err
+		}
 	}
 	return newID, nil
 }

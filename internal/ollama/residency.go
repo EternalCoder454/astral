@@ -126,7 +126,35 @@ func sameModel(a, b string) bool {
 
 // Embed returns one vector per input, from an embedding model.
 func (c *Client) Embed(ctx context.Context, model string, inputs []string) ([][]float32, error) {
-	body, err := json.Marshal(map[string]any{"model": model, "input": inputs, "truncate": true})
+	return c.embed(ctx, model, inputs, nil)
+}
+
+// cpuEmbedKeepAlive is how long an embedding model made on the CPU stays in
+// memory. Short, because it is no use to anything else, but long enough that
+// the next turn of a scene being played finds it loaded: a cold load takes
+// longer than the scene's memory is willing to wait for it.
+const cpuEmbedKeepAlive = "2m"
+
+// EmbedOnCPU is Embed with the model kept out of video memory.
+//
+// Astral keeps one model in video memory at a time, the scene's, and an
+// embedding model loaded beside it would take room the scene needs. Asking for
+// no layers on the GPU keeps this one in ordinary memory, where a small
+// embedding model is quick enough for the few messages a turn adds.
+func (c *Client) EmbedOnCPU(ctx context.Context, model string, inputs []string) ([][]float32, error) {
+	return c.embed(ctx, model, inputs, map[string]any{
+		"options":    map[string]any{"num_gpu": 0},
+		"keep_alive": cpuEmbedKeepAlive,
+	})
+}
+
+// embed is the request both share; extra is added to the body as it is.
+func (c *Client) embed(ctx context.Context, model string, inputs []string, extra map[string]any) ([][]float32, error) {
+	fields := map[string]any{"model": model, "input": inputs, "truncate": true}
+	for k, v := range extra {
+		fields[k] = v
+	}
+	body, err := json.Marshal(fields)
 	if err != nil {
 		return nil, err
 	}

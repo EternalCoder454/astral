@@ -209,6 +209,9 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat,
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	// Memory looks for earlier moments by meaning as well as by words, and has
+	// no client of its own to ask the embedding model with.
+	scene.UseEmbedding(s.client(), cfg)
 	msgs := scene.BuildTurn(s.store, cfg, ch, castFor(cast, ca), hist, turn)
 
 	flusher, ok := w.(http.Flusher)
@@ -491,6 +494,16 @@ func (s *Server) housekeep(chatID int64, cast []chars.Character) {
 		return
 	}
 	cfg := s.playedAs(s.config(), ch)
+	// Vectors for the newest messages, so memory can find an earlier moment by
+	// what it is about. On the CPU and beside the model calls below rather than
+	// behind them, because it takes nothing from the scene's model.
+	go func() {
+		ectx, ecancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer ecancel()
+		if _, err := scene.IndexMessages(ectx, s.store, s.client(), cfg, chatID); err != nil {
+			log.Printf("astral: embedding the messages of chat %d from a phone: %v", chatID, err)
+		}
+	}()
 	sceneModel := ch.Model
 	if sceneModel == "" {
 		sceneModel = cfg.Model

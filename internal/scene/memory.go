@@ -98,9 +98,16 @@ func recall(st *store.Store, ch store.Chat, hist []ollama.Message, budget int) (
 	}
 	var moments []store.Moment
 	if len(query) > 0 {
-		moments, err = st.Moments(ch.ID, ch.SummaryUpto, strings.Join(query, "\n"), 6)
+		text := strings.Join(query, "\n")
+		moments, err = st.Moments(ch.ID, ch.SummaryUpto, text, 6)
 		if err != nil {
 			log.Printf("astral: recalling earlier moments in chat %d: %v", ch.ID, err)
+		}
+		// A moment that says the same thing in other words shares nothing with
+		// the query for the search above to match. With an embedding model
+		// installed, what it is about is searched too and the two are merged.
+		if meant := byMeaning(st, ch, text); len(meant) > 0 {
+			moments = fuseMoments(moments, meant)
 		}
 	}
 

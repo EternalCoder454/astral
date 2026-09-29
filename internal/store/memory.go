@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"strings"
 	"time"
 )
@@ -41,6 +42,7 @@ func (s *Store) migrateMemory() {
 	if stored > 0 && indexed == 0 {
 		s.db.Exec(`INSERT INTO messages_fts (messages_fts) VALUES ('rebuild')`)
 	}
+	s.migrateMemoryVectors()
 }
 
 // Moment is one earlier message a search found.
@@ -82,6 +84,11 @@ func (s *Store) Moments(chatID, upto int64, text string, limit int) ([]Moment, e
 		return nil, err
 	}
 	defer rows.Close()
+	return scanMoments(rows)
+}
+
+// scanMoments reads rows of id, role, character, content and time.
+func scanMoments(rows *sql.Rows) ([]Moment, error) {
 	var out []Moment
 	for rows.Next() {
 		var m Moment
