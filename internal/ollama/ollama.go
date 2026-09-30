@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -373,6 +374,84 @@ func rejectsThinking(err error) bool {
 }
 
 func (c *Client) chat(ctx context.Context, model string, msgs []Message, opts Options, think *bool, format json.RawMessage, tools []Tool, onDelta func(Delta)) (Message, Stats, error) {
+	key := c.BaseURL + " " + model
+	if _, ok := systemFirstModels.Load(key); ok {
+		msgs = SystemFirst(msgs)
+	}
+	msg, stats, err := c.send(ctx, model, msgs, opts, think, format, tools, onDelta)
+	if err != nil && rejectsLateSystem(err) && ctx.Err() == nil && hasLateSystem(msgs) {
+		systemFirstModels.Store(key, struct{}{})
+		return c.send(ctx, model, SystemFirst(msgs), opts, think, format, tools, onDelta)
+	}
+	return msg, stats, err
+}
+
+// systemFirstModels are the models, on a server, whose chat template refuses
+// a system message anywhere but first. Learned from the refusal, which comes
+// before the model reads anything, and kept, so it is paid for once.
+var systemFirstModels sync.Map // base URL and model -> struct{}
+
+// rejectsLateSystem reports whether an error is a chat template refusing a
+// system message after the first, as Qwen 3.5's does when a GGUF brings its
+// own template: "System message must be at the beginning."
+func rejectsLateSystem(err error) bool {
+	s := strings.ToLower(err.Error())
+	return strings.Contains(s, "system message") && (strings.Contains(s, "beginning") || strings.Contains(s, "first"))
+}
+
+func hasLateSystem(msgs []Message) bool {
+	for i, m := range msgs {
+		if i > 0 && m.Role == RoleSystem {
+			return true
+		}
+	}
+	return false
+}
+
+// SystemFirst is a conversation with every system message but the first
+// made part of the person's side: the ones that open it joined into one, and
+// each later one added to the message of theirs just before it, or sent as
+// theirs where there is none.
+//
+// Astral sends the closing block, the recap and what memory recalls as system
+// messages after the conversation, because that is where a model weighs them
+// most and where they change without disturbing the cached start. Most
+// templates take a system message anywhere. The ones that do not get the same
+// words from the person, which is the next best place for them: the model
+// reads them just as late.
+func SystemFirst(msgs []Message) []Message {
+	out := make([]Message, 0, len(msgs))
+	opening := true // every message so far has been a system message
+	for _, m := range msgs {
+		if m.Role != RoleSystem {
+			opening = false
+			out = append(out, m)
+			continue
+		}
+		last := len(out) - 1
+		switch {
+		case last < 0:
+			out = append(out, m)
+		case opening:
+			out[0].Content = joinParts(out[0].Content, m.Content)
+		case out[last].Role == RoleUser && len(m.Images) == 0:
+			out[last].Content = joinParts(out[last].Content, m.Content)
+		default:
+			m.Role = RoleUser
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+func joinParts(a, b string) string {
+	if strings.TrimSpace(a) == "" {
+		return b
+	}
+	return a + "\n\n" + b
+}
+
+func (c *Client) send(ctx context.Context, model string, msgs []Message, opts Options, think *bool, format json.RawMessage, tools []Tool, onDelta func(Delta)) (Message, Stats, error) {
 	// A structured request is not streamed: Ollama then returns one JSON
 	// object rather than NDJSON, which the reader below handles either way
 	// because a single object is just a one-line stream that is already done.
