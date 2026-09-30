@@ -9,6 +9,6 @@ package app
 // installer. An update there is a new installer, so the app says so rather
 // than pretending it can do it.
 
-func (a *App) installUpdate(branch string, onStatus func(text string, done bool)) {
+func (a *App) installUpdate(_, _ string, onStatus func(text string, done bool)) {
 	onStatus("Download the new version from "+projectURL+"/releases and run the installer.", true)
 }

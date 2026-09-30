@@ -10,6 +10,7 @@ import (
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
+	"astral/internal/store"
 	"astral/internal/update"
 )
 
@@ -45,7 +46,7 @@ func (a *App) maybeCheckForUpdate() {
 	if notesURL != "" {
 		checker.NotesURL = notesURL
 	}
-	branch := a.cfg.UpdateChannel
+	branch := a.updateBranch()
 	coreglib.TimeoutAdd(updateCheckDelay, func() bool {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -75,7 +76,7 @@ func (a *App) checkForUpdateNow() {
 	if u := os.Getenv("ASTRAL_UPDATE_NOTES_URL"); u != "" {
 		checker.NotesURL = u
 	}
-	branch := a.cfg.UpdateChannel
+	branch := a.updateBranch()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -109,10 +110,20 @@ func (a *App) showUpdateFound(rel *update.Release) {
 	d.SetCloseResponse("later")
 	d.ConnectResponse(func(response string) {
 		if response == "now" {
-			a.startUpdate()
+			a.startUpdate(rel.Version)
 		}
 	})
 	d.Present(a.win)
+}
+
+// updateBranch is the branch updates are looked for on. A Flatpak follows
+// releases whatever the setting says: it updates from the builds attached to
+// a release, and there are none for a beta.
+func (a *App) updateBranch() string {
+	if inFlatpak() {
+		return store.ChannelRelease
+	}
+	return a.cfg.UpdateChannel
 }
 
 // notesWidthChars is the widest a release note line may run before it wraps.

@@ -22,14 +22,19 @@ import (
 // repoURL is where updates come from.
 const repoURL = projectURL + ".git"
 
-// startUpdate runs the update behind a dialog that reports what is happening.
-func (a *App) startUpdate() {
+// startUpdate runs the update to ver behind a dialog that reports what is
+// happening.
+func (a *App) startUpdate(ver string) {
 	if runtime.GOOS != "linux" {
 		a.toast("Automatic updates are Linux only, so download it from " + projectURL)
 		return
 	}
 	d := adw.NewAlertDialog("Updating Astral", "")
-	status := gtk.NewLabel("Fetching and building the new version, which takes a minute or two.")
+	what := "Fetching and building the new version, which takes a minute or two."
+	if inFlatpak() {
+		what = "Downloading the new version…"
+	}
+	status := gtk.NewLabel(what)
 	status.SetXAlign(0)
 	status.SetWrap(true)
 	status.SetMaxWidthChars(notesWidthChars)
@@ -38,7 +43,7 @@ func (a *App) startUpdate() {
 	d.SetCloseResponse("close")
 	d.Present(a.win)
 
-	a.installUpdate(a.cfg.UpdateChannel, func(text string, done bool) {
+	a.installUpdate(a.updateBranch(), ver, func(text string, done bool) {
 		status.SetText(text)
 		if done {
 			d.SetResponseEnabled("close", true)

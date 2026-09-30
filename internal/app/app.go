@@ -111,6 +111,10 @@ type App struct {
 	writingFirst   bool
 	writeFirstHeld map[int64]time.Time
 
+	// forgetLibrary says Astral was uninstalled with its library, which is
+	// deleted as it closes rather than saved.
+	forgetLibrary bool
+
 	// pendingRestore is a backup to put back once the library is closed, on
 	// the way out; see restore.go.
 	pendingRestore string
@@ -233,9 +237,20 @@ func keepBackingUp(st *store.Store) {
 
 func (a *App) shutdown() {
 	a.stopPhoneAccess()
-	a.rememberLayout()
 	if a.chat != nil {
 		a.chat.Stop()
+	}
+	// Uninstalled with the library: nothing is saved on the way out, since
+	// all of it is about to go. See uninstall.
+	if a.forgetLibrary {
+		if a.store != nil {
+			_ = a.store.Close()
+		}
+		deleteLibrary()
+		return
+	}
+	a.rememberLayout()
+	if a.chat != nil {
 		if ch := a.chat.Chat(); ch.ID != 0 {
 			a.cfg.LastChat = ch.ID
 		}

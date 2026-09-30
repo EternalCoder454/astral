@@ -385,9 +385,13 @@ func (a *App) buildAboutPage(f *settingsForm) *gtk.Box {
 	if a.cfg.UpdateChannel == store.ChannelBeta {
 		f.channel.SetSelected(1)
 	}
-	upCard.Append(labelledField("Channel",
-		"Beta gets changes sooner but may be rough.",
-		f.channel))
+	// A Flatpak updates from the builds attached to each release, and there
+	// are none for a beta, so it has no channel to choose.
+	if !inFlatpak() {
+		upCard.Append(labelledField("Channel",
+			"Beta gets changes sooner but may be rough.",
+			f.channel))
+	}
 
 	check := gtk.NewButtonWithLabel("Check Now")
 	check.SetHAlign(gtk.AlignStart)
@@ -412,6 +416,19 @@ func (a *App) buildAboutPage(f *settingsForm) *gtk.Box {
 	})
 	backCard.Append(buttonRow(restore, open))
 	page.Append(backOuter)
+
+	if canUninstall() {
+		unOuter, unCard := groupCard("Uninstall")
+		hint := wrappingLabel("Removes Astral from this computer. Your library is kept unless you choose to delete it too.")
+		hint.AddCSSClass("settings-hint")
+		unCard.Append(hint)
+		un := gtk.NewButtonWithLabel("Uninstall Astral…")
+		un.AddCSSClass("destructive-action")
+		un.SetHAlign(gtk.AlignStart)
+		un.ConnectClicked(a.confirmUninstall)
+		unCard.Append(un)
+		page.Append(unOuter)
+	}
 	return page
 }
 
