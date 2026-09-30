@@ -259,9 +259,13 @@ func (a *App) buildCharacterFromChat() {
 	// conversation did not touch is kept rather than written fresh; see
 	// chars.ReviseFromConversation.
 	existing, revising := a.revising()
+	kb, kbCfg := a.store, a.cfg
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), buildTimeout)
 		defer cancel()
+		// What the knowledge base holds about the design, which the
+		// conversation alone does not carry; see scene.WithBuildKnowledge.
+		history := scene.WithBuildKnowledge(ctx, kb, client, kbCfg, history)
 		opts := fitBuild(ctx, client, model, store.KindDesigner, opts, history)
 		build := chars.BuildFromConversation
 		if revising {

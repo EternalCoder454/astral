@@ -8,6 +8,7 @@ import (
 
 	"astral/internal/chars"
 	"astral/internal/ollama"
+	"astral/internal/scene"
 	"astral/internal/store"
 	"astral/internal/world"
 )
@@ -77,9 +78,13 @@ func (a *App) buildWorldFromChat() {
 	// A revision's build is shown the world as it stands; see
 	// world.ReviseFromConversation.
 	existingWorld, revising := a.revisingWorld()
+	kb, kbCfg := a.store, a.cfg
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), buildTimeout)
 		defer cancel()
+		// What the knowledge base holds about the design, which the
+		// conversation alone does not carry; see scene.WithBuildKnowledge.
+		history := scene.WithBuildKnowledge(ctx, kb, client, kbCfg, history)
 		opts := fitBuild(ctx, client, model, store.KindWorldDesigner, opts, history)
 		var draft world.Draft
 		var err error

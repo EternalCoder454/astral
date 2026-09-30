@@ -194,43 +194,43 @@ func buildOne(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Charact
 		// rather than inventing one. The column was already there, so a revision
 		// needs no new state: what makes it one is having somebody to revise.
 		if ca.Name != "" {
-			return system(withTools(cfg, chars.ReviseSystem(ca, Persona(cfg))))
+			return system(withTools(st, cfg, ch.Kind, chars.ReviseSystem(ca, Persona(cfg))))
 		}
-		return system(withTools(cfg, chars.DesignerPrompt()))
+		return system(withTools(st, cfg, ch.Kind, chars.DesignerPrompt()))
 	case store.KindStyleDesigner:
 		// A style design chat whose note names a style is revising that style.
 		// The note is the only field a chat has that can carry it, and it is
 		// unused on a designer chat.
 		if name := strings.TrimSpace(ch.Note); name != "" {
-			for _, st := range cfg.Styles() {
-				if st.Name == name {
-					return system(withTools(cfg, chars.ReviseStyleSystem(st)))
+			for _, style := range cfg.Styles() {
+				if style.Name == name {
+					return system(withTools(st, cfg, ch.Kind, chars.ReviseStyleSystem(style)))
 				}
 			}
 		}
-		return system(withTools(cfg, chars.StyleDesignerPrompt()))
+		return system(withTools(st, cfg, ch.Kind, chars.StyleDesignerPrompt()))
 	case store.KindWorldDesigner:
 		// A world design chat that names a world is revising that world.
 		if ch.WorldID != 0 && st != nil {
 			if w, err := st.World(ch.WorldID); err == nil {
-				return system(withTools(cfg, world.ReviseSystem(w, loreNames(st, w.ID))))
+				return system(withTools(st, cfg, ch.Kind, world.ReviseSystem(w, loreNames(st, w.ID))))
 			}
 		}
-		return system(withTools(cfg, world.DesignerPrompt()))
+		return system(withTools(st, cfg, ch.Kind, world.DesignerPrompt()))
 	case store.KindPersonaDesigner:
-		return system(withTools(cfg, chars.PersonaDesignerPrompt()))
+		return system(withTools(st, cfg, ch.Kind, chars.PersonaDesignerPrompt()))
 	case store.KindPromptOptimizer:
 		// Its subject is Astral's own prompts, every one of them in front of it
 		// or a tool call away, and it can search and keep what it learns like
 		// every other conversation that is not a scene.
-		return system(withTools(cfg, promptopt.System(ch.Note)))
+		return system(withTools(st, cfg, ch.Kind, promptopt.System(ch.Note)))
 	case store.KindAssistant:
-		return Plain(cfg, ch, hist)
+		return Plain(st, cfg, ch, hist)
 	}
 	if ca.Name == "" {
 		// A scene whose character was deleted. It is still readable and still
 		// worth continuing, as a conversation rather than as a roleplay.
-		return Plain(cfg, ch, hist)
+		return Plain(st, cfg, ch, hist)
 	}
 
 	p := Persona(cfg)
@@ -274,10 +274,10 @@ func buildOne(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Charact
 // this is what carries it: without this the turns it replaced would be dropped
 // from the history and the record of them sent nowhere, which is worse than the
 // bug it fixes.
-func Plain(cfg store.Config, ch store.Chat, hist []ollama.Message) []ollama.Message {
+func Plain(st *store.Store, cfg store.Config, ch store.Chat, hist []ollama.Message) []ollama.Message {
 	msgs := []ollama.Message{{
 		Role:    ollama.RoleSystem,
-		Content: withTools(cfg, chars.AssistantSystemFor(Persona(cfg))),
+		Content: withTools(st, cfg, ch.Kind, chars.AssistantSystemFor(Persona(cfg))),
 	}}
 	if r := strings.TrimSpace(ch.Summary); r != "" {
 		msgs = append(msgs, ollama.Message{
@@ -316,18 +316,29 @@ func loreNames(st *store.Store, worldID int64) []string {
 // when they cannot is how a scene ends up with someone claiming they looked
 // something up.
 //
-// Saving comes first and searching last, so the search guidance's last line,
-// search before answering anything current, is the last thing in the prompt.
+// Looking things up in the knowledge base comes first, then saving, then
+// searching, so the search guidance's last line, search before answering
+// anything current, is the last thing in the prompt.
 // See websearch.Guidance for why that line is there. Measured on SOMPOA it
 // searched as often wherever the line went, but at the very end it cost
 // General Chat nothing in formatting, where just above the saving guidance it
 // brought back a third more bolded lead-ins (about forty in forty-two replies
 // against thirty).
-func withTools(cfg store.Config, system string) string {
+//
+// None of it for a conversation that is given no tools, which is a scene
+// whose character was deleted and is carried on as a plain conversation:
+// told about tools it does not have, a model claims to have used them.
+func withTools(st *store.Store, cfg store.Config, kind, system string) string {
 	// The date, which a model cannot know: asked about 1 March 2026, SOMPOA
 	// called it "in the future". Only here, in the chats that are not scenes,
 	// since a scene keeps its own time.
 	system = "Today is " + time.Now().Format("Monday, 2 January 2006") + ".\n\n" + system
+	if !CanSearch(kind) {
+		return system
+	}
+	if g := knowledgeGuidanceFor(st); g != "" {
+		system += "\n\n" + g
+	}
 	if !Searchable(cfg) {
 		return system
 	}

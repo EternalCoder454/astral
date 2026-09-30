@@ -42,16 +42,16 @@ func WithKnowledge(ctx context.Context, st *store.Store, client *ollama.Client, 
 		return msgs
 	}
 	query := knowledge.QueryFrom(hist)
-	if query == "" {
-		return msgs
+	if designing(kind) && !lookupOff {
+		query = designQuery(hist)
 	}
-	var emb knowledge.Embedder
-	model := EmbedModel(ctx, client, cfg)
-	if model != "" && client != nil {
-		emb = client
+	var block string
+	if query != "" {
+		block = knowledge.Render(retrieve(ctx, st, client, cfg, query), time.Now())
 	}
-	hits := knowledge.Retrieve(ctx, st, emb, model, query, knowledge.Budget)
-	block := knowledge.Render(hits, time.Now())
+	if titles := titlesNote(st, cfg); titles != "" {
+		block = strings.TrimSpace(block + "\n\n" + titles)
+	}
 	if block == "" {
 		return msgs
 	}
@@ -67,6 +67,39 @@ func WithKnowledge(ctx context.Context, st *store.Store, client *ollama.Client, 
 	}
 	out = append(out, msgs...)
 	return append(out, note)
+}
+
+// designing reports whether a conversation is designing something: a
+// character, a world, a style or a persona.
+func designing(kind string) bool {
+	switch kind {
+	case store.KindDesigner, store.KindWorldDesigner, store.KindStyleDesigner, store.KindPersonaDesigner:
+		return true
+	}
+	return false
+}
+
+// designQuery is what a design conversation is about: everything the person
+// has said in it, newest first, up to maxBuildQuery characters.
+//
+// Not only the last two messages, as for a conversation that moves from
+// subject to subject. A design is about one thing from start to finish, and
+// the town a character comes from is named once, in the first message: by
+// the fourth, "give her a secret" matched nothing, and the notes on the town
+// were no longer in front of the designer at all.
+func designQuery(hist []ollama.Message) string {
+	var b strings.Builder
+	for i := len(hist) - 1; i >= 0 && b.Len() < maxBuildQuery; i-- {
+		if hist[i].Role == ollama.RoleUser && strings.TrimSpace(hist[i].Content) != "" {
+			b.WriteString(hist[i].Content)
+			b.WriteString("\n")
+		}
+	}
+	q := strings.TrimSpace(b.String())
+	if r := []rune(q); len(r) > maxBuildQuery {
+		q = string(r[:maxBuildQuery])
+	}
+	return q
 }
 
 // KeepPage saves a page a search opened, when the settings say to keep them.

@@ -473,9 +473,13 @@ func (a *App) buildPersonaFromChat() {
 	a.chat.SetBuilding(true)
 	client := a.client
 	opts := ollama.Options{TopP: a.cfg.TopP, RepeatPenalty: a.cfg.RepeatPenalty, NumCtx: a.cfg.NumCtx}
+	kb, kbCfg := a.store, a.cfg
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), buildTimeout)
 		defer cancel()
+		// What the knowledge base holds about the design, which the
+		// conversation alone does not carry; see scene.WithBuildKnowledge.
+		history := scene.WithBuildKnowledge(ctx, kb, client, kbCfg, history)
 		opts := fitBuild(ctx, client, model, store.KindPersonaDesigner, opts, history)
 		p, err := chars.BuildPersonaFromConversation(ctx, client, model, history, opts)
 		coreglib.IdleAdd(func() bool {

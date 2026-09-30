@@ -99,12 +99,16 @@ func KnowledgeSaver(st *store.Store) websearch.Extra {
 // Extras are the tools a conversation of this kind is given beside search.
 // Saving goes with searching: what is worth keeping is what was found, and
 // offered without search, a designer took it as a way to keep the character
-// it was designing, and said it had when it had not.
-func Extras(st *store.Store, cfg store.Config, kind string) []websearch.Extra {
+// it was designing, and said it had when it had not. Looking things up in the
+// knowledge base does not: it is offered whenever there is something there.
+func Extras(st *store.Store, client *ollama.Client, cfg store.Config, kind string) []websearch.Extra {
 	if !CanSearch(kind) {
 		return nil
 	}
 	var out []websearch.Extra
+	if HasKnowledge(st) {
+		out = append(out, KnowledgeSearcher(st, client, cfg))
+	}
 	if st != nil && Searchable(cfg) {
 		out = append(out, KnowledgeSaver(st))
 	}
@@ -128,7 +132,7 @@ func Runner(client *ollama.Client, cfg store.Config, st *store.Store, kind, mode
 		Options: opts,
 		Think:   think,
 		Results: cfg.SearchResults,
-		Extras:  Extras(st, cfg, kind),
+		Extras:  Extras(st, client, cfg, kind),
 	}
 	if Searchable(cfg) {
 		r.Provider = SearchProvider(cfg)

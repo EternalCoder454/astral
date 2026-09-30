@@ -240,6 +240,29 @@ func (s *Store) KnowledgeEntries() ([]KnowledgeEntry, error) {
 	return out, rows.Err()
 }
 
+// KnowledgeTitles is up to limit entry titles, for telling a model what the
+// knowledge base holds so it knows what is worth looking up. What the person
+// wrote, studied or imported comes before what a model kept on its own, pages
+// a search opened and notes it saved from them, and newer before older within
+// each.
+func (s *Store) KnowledgeTitles(limit int) []string {
+	rows, err := s.db.Query(`SELECT title FROM knowledge
+		ORDER BY CASE WHEN origin IN (?, ?) THEN 1 ELSE 0 END, updated_at DESC, id DESC LIMIT ?`,
+		OriginWeb, OriginChat, limit)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var t string
+		if rows.Scan(&t) == nil && strings.TrimSpace(t) != "" {
+			out = append(out, strings.TrimSpace(t))
+		}
+	}
+	return out
+}
+
 // KnowledgeCount is how many entries there are, for the sidebar and settings.
 func (s *Store) KnowledgeCount() int {
 	var n int
