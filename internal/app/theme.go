@@ -2,6 +2,7 @@ package app
 
 import (
 	"os"
+	"sync/atomic"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
@@ -30,6 +31,21 @@ type themer struct {
 	// changes, so an unchanged theme must cost nothing rather than a full restyle
 	// that changes nothing.
 	loaded string
+
+	// shown is the theme the window is drawing, kept where the phone server's
+	// goroutine can read it. "System" is already resolved by the time it gets
+	// here, which is what the phone needs: it has no desktop of its own to ask.
+	shown atomic.Pointer[theme.Theme]
+}
+
+// current is the theme the window is showing, or the default before it has
+// shown any.
+func (t *themer) current() theme.Theme {
+	if th := t.shown.Load(); th != nil {
+		return *th
+	}
+	th, _ := theme.ByID(theme.Default)
+	return th
 }
 
 func newThemer() *themer { return &themer{} }
@@ -89,6 +105,9 @@ func (t *themer) apply(setting string) {
 
 // load puts a theme's colours in the provider, unless they are already there.
 func (t *themer) load(th theme.Theme) {
+	// Recorded before the display check, and even when the colours are already
+	// loaded, so the phone hears about a theme whatever the window did with it.
+	t.shown.Store(&th)
 	if th.ID == t.loaded {
 		return
 	}

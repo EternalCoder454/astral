@@ -29,6 +29,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.WindowInsetsCompat
 
 /**
@@ -75,7 +76,7 @@ class MainActivity : AppCompatActivity() {
             settings.useWideViewPort = false
             settings.loadWithOverviewMode = false
             settings.setSupportZoom(false)
-            // The page and the app talk through one object with three methods.
+            // The page and the app talk through one object with a few methods.
             //
             // addJavascriptInterface hands the page real code, which is only
             // safe because of the rule below it: this WebView loads the one
@@ -162,6 +163,22 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun speak(text: String, id: String) {
             runOnUiThread { say(text, id) }
+        }
+
+        /**
+         * The page's colours changed: paint the status and navigation bars to
+         * match, with dark icons when the bars are light.
+         */
+        @JavascriptInterface
+        fun setBars(color: String, dark: Boolean) {
+            val c = try { Color.parseColor(color) } catch (e: IllegalArgumentException) { return }
+            runOnUiThread {
+                window.statusBarColor = c
+                window.navigationBarColor = c
+                val controls = WindowInsetsControllerCompat(window, window.decorView)
+                controls.isAppearanceLightStatusBars = !dark
+                controls.isAppearanceLightNavigationBars = !dark
+            }
         }
 
         /** Stops reading. */

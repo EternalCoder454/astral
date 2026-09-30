@@ -25,7 +25,7 @@ func testServer(t *testing.T) (*Server, *store.Store) {
 	cfg := store.DefaultConfig()
 	s := New(st, func() store.Config { return cfg },
 		func() *ollama.Client { return ollama.NewClient("http://127.0.0.1:1") },
-		func(next store.Config) error { cfg = next; return nil }, "test")
+		func(next store.Config) error { cfg = next; return nil }, nil, "test")
 	return s, st
 }
 
@@ -52,6 +52,7 @@ func TestEverythingNeedsAToken(t *testing.T) {
 	s, _ := testServer(t)
 	for _, c := range []struct{ method, path string }{
 		{"GET", "/api/state"},
+		{"GET", "/api/theme"},
 		{"GET", "/api/chats/1"},
 		{"POST", "/api/chats"},
 		{"POST", "/api/chats/1/send"},

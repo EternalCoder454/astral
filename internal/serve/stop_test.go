@@ -84,7 +84,7 @@ func serverOn(t *testing.T, ollamaURL string) *Server {
 	cfg.WebSearch = false
 	return New(st, func() store.Config { return cfg },
 		func() *ollama.Client { return ollama.NewClient(ollamaURL) },
-		func(next store.Config) error { cfg = next; return nil }, "test")
+		func(next store.Config) error { cfg = next; return nil }, nil, "test")
 }
 
 // lastReply is the newest assistant turn in a chat, or empty.
