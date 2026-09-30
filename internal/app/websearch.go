@@ -57,6 +57,7 @@ func (a *App) buildWebSearch(f *settingsForm) *gtk.Box {
 		"SearXNG Only",
 		"DuckDuckGo Only",
 	})
+	shrinkable(f.provider)
 	f.provider.SetSelected(uint(providerRow(a.cfg.SearchProvider)))
 	card.Append(labelledField("Search With",
 		"SearXNG is one you host yourself; DuckDuckGo needs no setup.",

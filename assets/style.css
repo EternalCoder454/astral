@@ -1240,3 +1240,92 @@ menubutton.chat-action-chip.direction-set > button:checked {
 	text-transform: uppercase;
 	color: @astral_faint;
 }
+
+/* ==== Themes and the settings navigation ===================================
+   Everything below belongs to the theme picker on the Appearance page and to
+   the list of pages down the side of Settings. It is a section of its own, at
+   the end of the file, so that it can be read and changed without touching the
+   rest. */
+
+/* One disc per theme, its two colours split on the diagonal. The colours
+   themselves are generated from the theme table (see theme.SwatchCSS), so a
+   theme cannot be added without them. This is only the shape.
+
+   Everything a button normally draws has to be taken away: Adwaita gives it a
+   background, a border and a shadow, and any of them would sit on top of or
+   around the colours this is meant to show. */
+.theme-swatch {
+	min-width: 34px;
+	min-height: 34px;
+	padding: 0;
+	border-radius: 9999px;
+	background-color: transparent;
+	background-image: none;
+	box-shadow: none;
+	outline: none;
+	/* The dark half of a dark theme's disc is nearly the colour of the dialog it
+	   sits on, so without an outline it reads as a half circle. */
+	border: 1px solid alpha(@astral_text, 0.25);
+}
+
+.theme-swatch:hover {
+	border-color: alpha(@astral_text, 0.5);
+}
+
+/* The chosen one gets a ring in the accent colour, set outside the border so it
+   does not cover either of the two colours. Adwaita tints a checked toggle's
+   background, and that tint would wash over the theme's own colours, so it is
+   removed: the ring is what says which one is chosen. The background image is
+   left alone, because it is the whole point. */
+.theme-swatch:checked {
+	border-color: @accent_bg_color;
+	box-shadow: 0 0 0 2px @accent_bg_color;
+}
+
+.theme-swatch:checked,
+.theme-swatch:checked:hover,
+.theme-swatch:active {
+	background-color: transparent;
+}
+
+/* The way back from a chosen theme. It is a correction, not an action, so it is
+   as quiet as a button can be and still be one. */
+.theme-follow {
+	min-height: 0;
+	padding: 4px 10px;
+	font-size: 0.86em;
+	color: @astral_muted;
+}
+
+.theme-follow:hover {
+	color: @astral_text;
+}
+
+/* The list of pages, shaped like the rows of the main sidebar so the two read as
+   one family: the same corner, the same quiet text, and the same bar on the
+   left for the one you are on. */
+list.settings-nav {
+	padding: 8px;
+}
+
+list.settings-nav > row {
+	border-radius: 10px;
+	min-height: 32px;
+	padding: 0 10px;
+	margin-bottom: 2px;
+	color: @astral_muted;
+	transition: background-color 100ms ease, color 100ms ease;
+}
+
+list.settings-nav > row:hover {
+	background-color: @astral_surface;
+	color: @sidebar_fg_color;
+}
+
+list.settings-nav > row:selected,
+list.settings-nav > row:selected:hover {
+	background-color: alpha(@accent_bg_color, 0.20);
+	color: @sidebar_fg_color;
+	font-weight: 600;
+	box-shadow: inset 3px 0 0 @accent_bg_color;
+}
