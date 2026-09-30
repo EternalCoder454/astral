@@ -203,3 +203,16 @@ func TestBuildGetsKnowledge(t *testing.T) {
 		t.Error("a note was added with nothing in the knowledge base")
 	}
 }
+
+// The first thing said in a design is kept in its query, however long what
+// came after.
+func TestDesignQueryKeepsTheFirstMessage(t *testing.T) {
+	hist := []ollama.Message{
+		{Role: ollama.RoleUser, Content: "A cartographer from Kestrel Bay."},
+		{Role: ollama.RoleUser, Content: strings.Repeat("a long paste ", 400)},
+	}
+	q := designQuery(hist)
+	if !strings.Contains(q, "Kestrel Bay") || len([]rune(q)) > maxBuildQuery {
+		t.Errorf("query of %d runes, first message kept: %v", len([]rune(q)), strings.Contains(q, "Kestrel Bay"))
+	}
+}

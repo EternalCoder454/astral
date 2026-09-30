@@ -67,7 +67,7 @@ var promptKnowledgeGuidance = prompts.Register(prompts.Prompt{
 const knowledgeGuidance = `YOUR KNOWLEDGE BASE
 The person keeps a knowledge base: notes they wrote, subjects they studied and pages they saved. Look things up in it with the ` + KnowledgeToolName + ` tool. What they wrote themselves is what they want used, so it comes before what you know or would invent. A saved web page is a source to weigh like any other.
 
-Look something up before you write about anything specific that the person names or that you are about to bring in: a place, a world, a people, an organisation, a person or character, a period, a subject. When designing a character, a world, a style or a persona, look up each such name as it comes up, and again before the final version. A list of what the knowledge base holds comes with each message. Do not look things up for arithmetic or plain writing help.
+Look something up before you write about anything specific that the person names or that you are about to bring in: a place, a world, a people, an organisation, a person or character, a period, a subject. When designing a character, a world, a style or a persona, look up each such name as it comes up, and again before the final version. When a list of what it holds comes with a message, use it to see what is worth looking up. Do not look things up for arithmetic or plain writing help.
 
 Pass the name or a few keywords, not a question. One lookup per subject; if nothing comes back, try its other name once, then carry on.
 

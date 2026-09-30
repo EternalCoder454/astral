@@ -79,27 +79,39 @@ func designing(kind string) bool {
 	return false
 }
 
-// designQuery is what a design conversation is about: everything the person
-// has said in it, newest first, up to maxBuildQuery characters.
+// designQuery is what a design conversation is about: the first thing the
+// person said, which is where the subject is usually named, then the rest,
+// newest first, up to maxBuildQuery characters.
 //
 // Not only the last two messages, as for a conversation that moves from
 // subject to subject. A design is about one thing from start to finish, and
 // the town a character comes from is named once, in the first message: by
 // the fourth, "give her a secret" matched nothing, and the notes on the town
-// were no longer in front of the designer at all.
+// were no longer in front of the designer at all. The first message is kept
+// whatever follows, so a long paste late in the design cannot push it out.
 func designQuery(hist []ollama.Message) string {
-	var b strings.Builder
-	for i := len(hist) - 1; i >= 0 && b.Len() < maxBuildQuery; i-- {
-		if hist[i].Role == ollama.RoleUser && strings.TrimSpace(hist[i].Content) != "" {
-			b.WriteString(hist[i].Content)
-			b.WriteString("\n")
+	var said []string
+	for _, m := range hist {
+		if m.Role == ollama.RoleUser && strings.TrimSpace(m.Content) != "" {
+			said = append(said, m.Content)
 		}
 	}
-	q := strings.TrimSpace(b.String())
-	if r := []rune(q); len(r) > maxBuildQuery {
-		q = string(r[:maxBuildQuery])
+	if len(said) == 0 {
+		return ""
 	}
-	return q
+	clip := func(s string, n int) string {
+		if r := []rune(s); len(r) > n {
+			return string(r[:n])
+		}
+		return s
+	}
+	var b strings.Builder
+	b.WriteString(clip(said[0], maxBuildQuery/2))
+	for i := len(said) - 1; i > 0 && b.Len() < maxBuildQuery; i-- {
+		b.WriteString("\n")
+		b.WriteString(said[i])
+	}
+	return strings.TrimSpace(clip(b.String(), maxBuildQuery))
 }
 
 // KeepPage saves a page a search opened, when the settings say to keep them.
