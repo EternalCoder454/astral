@@ -3,6 +3,11 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.35
+- The character designer builds on your Knowledge: notes on a town or a people you name end up in the card
+- Every designer keeps your notes in view for the whole design, not just the message that named them
+- General Chat and the designers can look things up in Knowledge themselves, and see what it holds
+
 ## 0.5.34
 - Install on any Linux with one command: it builds Astral where your distribution can, or installs the Flatpak
 - Linux Mint, Ubuntu 24.04, Debian, Pop!_OS, Zorin and others get the Flatpak, which updates itself too
