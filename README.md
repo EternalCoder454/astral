@@ -304,6 +304,8 @@ On Ubuntu 26.04:
 sudo apt install golang libgtk-4-dev libadwaita-1-dev libgirepository1.0-dev
 ```
 
+Where `libgirepository1.0-dev` is gone, `libgirepository-2.0-dev` stands in for it.
+
 Then:
 
 ```bash

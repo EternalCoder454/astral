@@ -1,4 +1,4 @@
-//go:build linux || darwin
+//go:build linux
 
 package app
 
@@ -7,11 +7,37 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
-// canUninstall says whether Astral can remove itself here: a build from source
-// or a Flatpak, which is every way it is installed on Linux.
-func canUninstall() bool { return true }
+// canUninstall says whether Astral can remove itself: a Flatpak, or the copy
+// make install and the install script put in ~/.local/bin. Not a build run
+// from a checkout, whose uninstall would take away the installed copy instead
+// of itself. A dev run offers it, and only logs what it would remove.
+func canUninstall() bool { return devRun() || inFlatpak() || runningInstalled() }
+
+// runningInstalled says this process is the installed copy.
+func runningInstalled() bool {
+	exe, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	// The installed binary is replaced by a rename on every update, which
+	// leaves a running copy's path marked as deleted.
+	exe = strings.TrimSuffix(exe, " (deleted)")
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = real
+	}
+	files := programFiles()
+	if len(files) == 0 {
+		return false
+	}
+	installed := files[0]
+	if real, err := filepath.EvalSymlinks(installed); err == nil {
+		installed = real
+	}
+	return exe == installed
+}
 
 // programFiles is what `make install` and the install script put in place,
 // and the clone and Go toolchain updates are built with. Not the library.

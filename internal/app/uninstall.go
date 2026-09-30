@@ -1,9 +1,11 @@
 package app
 
 import (
+	"errors"
 	"log"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
@@ -21,6 +23,11 @@ import (
 // here, and the library is kept unless you say otherwise twice, since
 // characters and scenes built up over months are the one thing here that
 // cannot be downloaded again.
+
+// forgettingLibrary says Astral was uninstalled with its library, which is
+// deleted as it closes rather than saved. Atomic, because the backup loop
+// reads it from its own goroutine.
+var forgettingLibrary atomic.Bool
 
 // confirmUninstall asks before removing Astral, and whether the library goes
 // with it.
@@ -86,6 +93,11 @@ func (a *App) uninstall(deleteLibrary bool) {
 			}
 		case inFlatpak():
 			err = uninstallFlatpak(deleteLibrary)
+		case !runningInstalled():
+			// canUninstall hides the button for this, and this is the
+			// second guard: a build run from a checkout removing the
+			// installed copy instead of itself.
+			err = errors.New("this Astral is not the installed copy, so nothing was removed")
 		default:
 			err = removeProgramFiles()
 		}
@@ -94,7 +106,7 @@ func (a *App) uninstall(deleteLibrary bool) {
 				a.showUninstallFailed(err)
 				return false
 			}
-			a.forgetLibrary = deleteLibrary
+			forgettingLibrary.Store(deleteLibrary)
 			a.adw.Quit()
 			return false
 		})
@@ -124,12 +136,23 @@ func libraryDirs() []string {
 	return dirs
 }
 
+// libraryDirOK says a directory is safe to delete as part of the library:
+// absolute and named after Astral. The paths come from XDG variables, which
+// can hold anything, a relative path among them.
+func libraryDirOK(dir string) bool {
+	return filepath.IsAbs(dir) && filepath.Base(dir) == store.AppName
+}
+
 // deleteLibrary removes the library, as Astral closes after an uninstall that
 // asked for it. The database is closed by then.
 func deleteLibrary() {
 	for _, dir := range libraryDirs() {
 		if devRun() {
 			log.Printf("astral: uninstall: would remove %s", dir)
+			continue
+		}
+		if !libraryDirOK(dir) {
+			log.Printf("astral: uninstall: kept %s, which does not look like Astral's own folder", dir)
 			continue
 		}
 		if err := os.RemoveAll(dir); err != nil {

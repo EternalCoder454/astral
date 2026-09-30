@@ -41,13 +41,14 @@ func inFlatpak() bool {
 
 // flatpakScope is the flatpak option naming the installation Astral was
 // installed into: --user for the user's own, which is what the install script
-// makes, and --system otherwise, which asks for an administrator's password
-// on the host. Flatpak on the host is asked; the sandbox's own record of
-// where the app lives is the fallback, for when it cannot be.
+// makes, or --system, which asks for an administrator's password on the host.
+// Flatpak on the host is asked about each; the sandbox's own record of where
+// the app lives decides when it cannot say.
 func flatpakScope() string {
 	if _, err := hostFlatpak("info", "--user", appID); err == nil {
 		return "--user"
-	} else if _, ok := err.(*exec.ExitError); ok {
+	}
+	if _, err := hostFlatpak("info", "--system", appID); err == nil {
 		return "--system"
 	}
 	f, err := os.Open(flatpakInfo)

@@ -48,3 +48,22 @@ func TestFlatpakScope(t *testing.T) {
 		t.Errorf("no information: %s", got)
 	}
 }
+
+// Deleting the library only ever deletes folders that are Astral's own: an
+// XDG variable holding a relative path, or the home directory itself, is
+// refused.
+func TestLibraryDirOK(t *testing.T) {
+	for dir, want := range map[string]bool{
+		"/home/someone/.local/share/astral": true,
+		"/home/someone/.config/astral":      true,
+		"astral":                            false,
+		"relative/astral":                   false,
+		"/home/someone":                     false,
+		"/":                                 false,
+		"/home/someone/.local/share":        false,
+	} {
+		if got := libraryDirOK(dir); got != want {
+			t.Errorf("libraryDirOK(%q) = %v, want %v", dir, got, want)
+		}
+	}
+}

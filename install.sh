@@ -149,10 +149,21 @@ as_root() {
   say "$why"
   say "  ${SUDO[*]:+${SUDO[*]} }$*"
   confirm "Run this?" || die "Stopped. Nothing was installed."
-  "${SUDO[@]}" "$@"
+  "${SUDO[@]}" "$@" || die "That command failed, see its output above."
 }
 
 astral_running() { have pgrep && pgrep -x astral >/dev/null 2>&1; }
+
+# library_path_ok says a directory is safe to delete as part of the library:
+# absolute, named astral, and neither the root nor the home directory. The
+# paths come from XDG variables, which can hold anything.
+library_path_ok() {
+  case "$1" in
+    /*) ;;
+    *) return 1 ;;
+  esac
+  [ "$1" != / ] && [ "$1" != "$HOME" ] && [ "$(basename "$1")" = astral ]
+}
 
 refresh_desktop() {
   update-desktop-database "$PREFIX/share/applications" >/dev/null 2>&1 || true
@@ -393,19 +404,23 @@ native_installed() {
 sync_clone() {
   step "Fetching Astral ($BRANCH branch)"
   # Mirrors updateScript in internal/app/update_unix.go.
+  # Every step ends in die: do_native runs under ||, where set -e does not
+  # reach, and a failed fetch must not go on to report an install.
   if [ ! -d "$SRC_DIR/.git" ]; then
     rm -rf "$SRC_DIR"
     mkdir -p "$(dirname "$SRC_DIR")"
-    git clone --quiet --depth 1 --branch "$BRANCH" "$REPO_URL" "$SRC_DIR"
+    git clone --quiet --depth 1 --branch "$BRANCH" "$REPO_URL" "$SRC_DIR" \
+      || die "Could not download Astral's source. Check your connection and run this again."
   fi
-  git -C "$SRC_DIR" fetch --quiet --depth 1 --prune origin "$BRANCH"
-  git -C "$SRC_DIR" checkout --quiet -B "$BRANCH" FETCH_HEAD
-  git -C "$SRC_DIR" reset --quiet --hard FETCH_HEAD
+  git -C "$SRC_DIR" fetch --quiet --depth 1 --prune origin "$BRANCH" \
+    || die "Could not fetch the $BRANCH branch. Check your connection and run this again."
+  git -C "$SRC_DIR" checkout --quiet -B "$BRANCH" FETCH_HEAD || die "Could not check out the $BRANCH branch."
+  git -C "$SRC_DIR" reset --quiet --hard FETCH_HEAD || die "Could not check out the $BRANCH branch."
 }
 
 make_install() { # make_install DIR
   step "Building Astral (the first build takes several minutes)"
-  make -C "$1" install
+  make -C "$1" install || die "The build failed, see the output above. Install the build packages (gtk4, libadwaita $MIN_ADW or newer, gobject-introspection headers, gcc) and try again."
 }
 
 prune_clone() {
@@ -453,7 +468,7 @@ do_build() {
   [ -f "$dir/go.mod" ] || die "No Astral source in $dir."
   have make || die "make is not installed."
   ensure_go "$dir"
-  make_install "$dir" || die "The build failed, see the output above. Install the build packages (gtk4, libadwaita 1.9 or newer, gobject-introspection headers, gcc) and try again."
+  make_install "$dir"
 }
 
 # ---------------------------------------------------------------- flatpak
@@ -474,14 +489,19 @@ do_flatpak() {
 
   if ! have flatpak; then
     [ -n "$PM" ] || die "Flatpak is not installed and I do not know how to install it on $DISTRO_NAME. Install flatpak (https://flatpak.org/setup/), then run this again."
+    if [ "$PM" = apt ] && ! apt-cache policy flatpak 2>/dev/null | grep -q 'Candidate: [0-9]'; then
+      as_root "The package lists do not know flatpak yet. Refresh them with:" apt-get update
+    fi
     # shellcheck disable=SC2046
     as_root "Astral's Flatpak needs flatpak itself:" $(install_cmd flatpak)
     have flatpak || die "flatpak did not install. Install it yourself, then run this again."
   fi
 
   scopes="$(flatpak_scope)"
+  # A system install is updated where it is; otherwise, and when both exist,
+  # the user's own.
   local scope=user
-  case "$scopes" in *system*) [ "$scopes" = system ] && scope=system ;; esac
+  [ "$scopes" = system ] && scope=system
 
   step "Adding the Flathub remote (for the runtime)"
   if [ "$scope" = system ]; then
@@ -577,7 +597,7 @@ do_install() {
 # as the Flatpak itself.
 confirm_delete_library() {
   [ "$DELETE_LIBRARY" = 1 ] || return 0
-  [ -n "$ASTRAL_DATA" ] && [ -n "$HOME" ] || die "Refusing to delete with an empty path."
+  [ -n "$HOME" ] || die "Refusing to delete with HOME unset."
   say "This deletes your library, everything Astral saved:"
   say "  $ASTRAL_DATA"
   say "  $ASTRAL_CONFIG"
@@ -603,14 +623,8 @@ do_uninstall() {
   confirm_delete_library
   step "Removing Astral"
 
-  if native_installed || [ -d "$SRC_DIR" ] || [ -d "$GO_DIR" ]; then
-    found=1
-    rm -f "$BIN_FILE" "$DESKTOP_FILE" "$ICON_FILE"
-    rm -rf "$SRC_DIR" "$GO_DIR"
-    refresh_desktop
-    ok "Removed the native install, its source clone and its private Go"
-  fi
-
+  # The Flatpak first: it is the step that can fail or ask for a password,
+  # and stopping there leaves everything in place rather than half removed.
   scopes="$(flatpak_scope | tr '\n' ' ')"
   for s in $scopes; do
     found=1
@@ -619,14 +633,26 @@ do_uninstall() {
     if [ "$s" = system ]; then
       as_root "Removing the system Flatpak needs root:" flatpak uninstall --system "${args[@]}" "$APP_ID"
     else
-      flatpak uninstall --user "${args[@]}" "$APP_ID"
+      flatpak uninstall --user "${args[@]}" "$APP_ID" || die "Could not remove the Flatpak, see the output above. Nothing else was removed."
     fi
     ok "Removed the $s Flatpak"
   done
 
+  if native_installed || [ -d "$SRC_DIR" ] || [ -d "$GO_DIR" ]; then
+    found=1
+    rm -f "$BIN_FILE" "$DESKTOP_FILE" "$ICON_FILE"
+    rm -rf "$SRC_DIR" "$GO_DIR"
+    refresh_desktop
+    ok "Removed the native install, its source clone and its private Go"
+  fi
+
   [ "$found" = 1 ] || say "No Astral program was installed, nothing to remove but the library."
 
   if [ "$DELETE_LIBRARY" = 1 ]; then
+    local d
+    for d in "$ASTRAL_DATA" "$ASTRAL_CONFIG" "$ASTRAL_CACHE"; do
+      library_path_ok "$d" || die "Refusing to delete $d, which does not look like Astral's own folder."
+    done
     rm -rf "$ASTRAL_DATA" "$ASTRAL_CONFIG" "$ASTRAL_CACHE"
     if [ -d "$FLATPAK_DATA" ]; then rm -rf "$FLATPAK_DATA"; fi
     ok "Deleted your library"
