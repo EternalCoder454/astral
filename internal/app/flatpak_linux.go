@@ -167,11 +167,18 @@ func download(url, path string) error {
 // then lets this one quit. It waits for the instance to leave rather than for
 // a fixed time: Astral is single instance, and one started while this is
 // still shutting down would hand itself to the old one and close.
+//
+// The waiting is detached on the host, and flatpak-spawn returns straight
+// away. A host command started from the sandbox keeps the sandbox alive for
+// as long as it runs, so a script that waited in the foreground for this
+// instance to leave kept it there, and gave up only after its twenty seconds.
 func (a *App) restartFlatpak() error {
-	script := `for i in $(seq 1 100); do flatpak ps --columns=application | grep -qx ` + appID +
+	wait := `for i in $(seq 1 100); do flatpak ps --columns=application | grep -qx ` + appID +
 		` || break; sleep 0.2; done; exec flatpak run ` + appID
-	if err := exec.Command("flatpak-spawn", "--host", "sh", "-c", script).Start(); err != nil {
-		return err
+	detach := `if command -v setsid >/dev/null; then setsid sh -c '` + wait + `' </dev/null >/dev/null 2>&1 &
+else nohup sh -c '` + wait + `' </dev/null >/dev/null 2>&1 & fi`
+	if out, err := exec.Command("flatpak-spawn", "--host", "sh", "-c", detach).CombinedOutput(); err != nil {
+		return fmt.Errorf("%v\n%s", err, tailLines(string(out), 400))
 	}
 	a.adw.Quit()
 	return nil
