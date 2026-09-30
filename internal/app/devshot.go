@@ -208,6 +208,15 @@ func (a *App) runDevView() {
 				_ = a.openChat(chats[0].ID)
 				a.editMemory()
 			}
+		case "replies":
+			// The Replies chip with its menu open, a length and a wait set.
+			a.devReplies(arg)
+		case "loreedit":
+			// A lorebook entry's editor, "filled" with a chance, wait and group.
+			a.devLoreEdit(arg == "filled")
+		case "skips":
+			// Scene Memory with lore entries left out for their wait, chance or group.
+			a.devSkips()
 		case "archive":
 			// A few chats, one archived and the archive open, grouped by
 			// character when the argument is "group".
@@ -619,12 +628,22 @@ func (a *App) devCycle(rounds int) {
 			if settle > 0 {
 				return true
 			}
+			if os.Getenv("ASTRAL_DEV_TRIM") != "" {
+				trimHeap()
+			}
 			var ms runtime.MemStats
 			runtime.ReadMemStats(&ms)
 			log.Printf("astral: cycle: round %d of %d chats, %s, Go heap %d MB, %d Go objects, rows %d built %d freed", round, len(chats), rss(),
 				ms.HeapInuse>>20, ms.HeapObjects, ui.DevRows.Built.Load(), ui.DevRows.Freed.Load())
 			if p := pprof.Lookup("gotk4-object-box"); p != nil {
 				log.Printf("astral: cycle: gotk4 holds %d objects", p.Count())
+				// Where each was made, to find what a round leaves behind.
+				if path := os.Getenv("ASTRAL_DEV_BOXES"); path != "" {
+					if f, err := os.Create(fmt.Sprintf("%s.%d", path, round)); err == nil {
+						_ = p.WriteTo(f, 1)
+						f.Close()
+					}
+				}
 			}
 			if path := os.Getenv("ASTRAL_DEV_HEAP"); path != "" && round == rounds {
 				if f, err := os.Create(path); err == nil {
@@ -954,4 +973,102 @@ func (a *App) devDemoScene() {
 	a.setTitle(store.Chat{Title: "The tide came in early"}, c)
 	// Leave a row mid-stream, so the typing indicator is on screen too.
 	a.chat.DevShowTyping()
+}
+
+// devReplies opens the seeded scene with its reply length and write-first wait
+// set (arg is a length key, "" for long, "unset" for neither, "closed" for the
+// defaults without opening the menu) and pops the Replies chip's menu up.
+func (a *App) devReplies(arg string) {
+	chats, err := a.store.Chats()
+	if err != nil || len(chats) == 0 {
+		return
+	}
+	_ = a.openChat(chats[0].ID)
+	closed := arg == "closed"
+	if closed {
+		arg = ""
+	}
+	if arg != "unset" {
+		if arg == "" {
+			arg = "long"
+		}
+		_ = a.chat.SetReplyLength(arg)
+		_ = a.chat.SetWriteFirst(60)
+	}
+	coreglib.TimeoutAdd(800, func() bool {
+		var find func(w *gtk.Widget) *gtk.MenuButton
+		find = func(w *gtk.Widget) *gtk.MenuButton {
+			for c := w.FirstChild(); c != nil; {
+				b := gtk.BaseWidget(c)
+				if mb, ok := c.(*gtk.MenuButton); ok && b.HasCSSClass("chat-action-chip") {
+					if l, ok := mb.Child().(*gtk.Label); ok && (l.Text() == "Replies" || strings.HasPrefix(l.Text(), "Length")) {
+						return mb
+					}
+				}
+				if mb := find(b); mb != nil {
+					return mb
+				}
+				if n := b.NextSibling(); n != nil {
+					c = n
+				} else {
+					c = nil
+				}
+			}
+			return nil
+		}
+		if mb := find(gtk.BaseWidget(a.win)); mb != nil {
+			if !closed {
+				mb.Popup()
+			}
+			log.Printf("astral: replies: popped up the menu")
+		} else {
+			log.Printf("astral: replies: no Replies chip found")
+		}
+		return false
+	})
+}
+
+// devLoreEdit opens the first lorebook entry's editor.
+func (a *App) devLoreEdit(filled bool) {
+	ws, err := a.store.Worlds()
+	if err != nil || len(ws) == 0 {
+		return
+	}
+	entries, err := a.store.LoreEntries(ws[0].ID)
+	if err != nil || len(entries) == 0 {
+		return
+	}
+	e := entries[0]
+	if filled {
+		e.Chance, e.Wait, e.Group = 40, 3, "Rumours"
+	}
+	a.editLore(e, ws[0])
+}
+
+// devSkips gives seeded lore entries a wait, a chance and a group, so Scene
+// Memory has reasons to show, then opens it.
+func (a *App) devSkips() {
+	ws, err := a.store.Worlds()
+	if err != nil || len(ws) == 0 {
+		return
+	}
+	entries, _ := a.store.LoreEntries(ws[0].ID)
+	for _, e := range entries {
+		// An automatic save leaves the three settings alone, so these are
+		// saved as by hand.
+		e.Auto = false
+		switch e.Name {
+		case "Kestrel Bay":
+			e.Wait = 8
+		case "Cartographers' Guild":
+			e.Chance, e.Group = 1, "Rules"
+		case "The Sever":
+			e.Group = "Rules"
+		}
+		_, _ = a.store.SaveLoreEntry(e)
+	}
+	if chats, err := a.store.Chats(); err == nil && len(chats) > 0 {
+		_ = a.openChat(chats[0].ID)
+		a.editMemory()
+	}
 }
