@@ -1727,3 +1727,21 @@ func (c *ChatView) warnIfCardTooLarge(ca chars.Character) {
 		"%s's card needs about %d tokens, too many for a context of %d, so shorten it or raise the context size.",
 		ca.Name, fixed/4, c.cfg.NumCtx))
 }
+
+// DevRequestModes lists the widget tree of the last message row with each
+// widget's size request mode, for the dev harness.
+func (c *ChatView) DevRequestModes() []string {
+	if len(c.rows) == 0 {
+		return nil
+	}
+	var out []string
+	var walk func(w *gtk.Widget, depth int)
+	walk = func(w *gtk.Widget, depth int) {
+		out = append(out, fmt.Sprintf("%s%s %v %v", strings.Repeat("  ", depth), w.CSSName(), w.CSSClasses(), w.RequestMode()))
+		for ch := w.FirstChild(); ch != nil; ch = gtk.BaseWidget(ch).NextSibling() {
+			walk(gtk.BaseWidget(ch), depth+1)
+		}
+	}
+	walk(gtk.BaseWidget(c.rows[len(c.rows)-1].Widget()), 0)
+	return out
+}

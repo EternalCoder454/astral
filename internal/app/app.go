@@ -48,7 +48,11 @@ type App struct {
 	// window gets too narrow for them; their widths follow the sidebar's.
 	sideBP, portraitBP *adw.Breakpoint
 	toasts             *adw.ToastOverlay
-	stack              *gtk.Stack
+	// tidyAt is when memory is next handed back, and tidyWaiting whether a
+	// timer is set for it. See scheduleTidy.
+	tidyAt      time.Time
+	tidyWaiting bool
+	stack       *gtk.Stack
 	// phone is the server another device on this network talks to. Nil until
 	// the setting is switched on; see phone.go.
 	phone   *serve.Server
@@ -404,6 +408,7 @@ func (a *App) openChat(id int64) error {
 	a.sidebar.Select(id)
 	a.setTitle(ch, ca)
 	a.cfg.LastChat = id
+	a.scheduleTidy()
 	return nil
 }
 

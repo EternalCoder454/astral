@@ -489,6 +489,11 @@ func (a *App) devOpenLong(n int) {
 		coreglib.IdleAdd(func() bool {
 			built, pending := a.chat.DevRowCount()
 			log.Printf("astral: open: %d rows built, %d waiting, %v to build", built, pending, time.Since(start).Round(time.Millisecond))
+			if os.Getenv("ASTRAL_DEV_MODES") != "" {
+				for _, l := range a.chat.DevRequestModes() {
+					log.Printf("astral: mode: %s", l)
+				}
+			}
 			return false
 		})
 		// And again later, after whatever scrolling a driver has done.
@@ -615,6 +620,24 @@ func (a *App) devCycle(rounds int) {
 		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	}
 	log.Printf("astral: cycle: before, %s", rss())
+	// How long each chat took to reach the screen: from asking for it to
+	// the end of the first frame painted after, which is the building, the
+	// layout and the drawing together, as a click would wait for them.
+	var asked time.Time
+	var shown, slowestShown time.Duration
+	var shownN int
+	if clock := gdk.BaseFrameClock(gtk.BaseWidget(a.win).FrameClock()); clock != nil {
+		clock.ConnectAfterPaint(func() {
+			if asked.IsZero() {
+				return
+			}
+			d := time.Since(asked)
+			asked = time.Time{}
+			shown += d
+			shownN++
+			slowestShown = max(slowestShown, d)
+		})
+	}
 	every := uint(40)
 	if ms, err := strconv.Atoi(os.Getenv("ASTRAL_DEV_CYCLE_MS")); err == nil && ms > 0 {
 		every = uint(ms)
@@ -651,10 +674,20 @@ func (a *App) devCycle(rounds int) {
 					f.Close()
 				}
 			}
+			if round == rounds {
+				// And once more after the tidy that the last chat opened
+				// asked for, which is what a session of switching chats
+				// ends with.
+				coreglib.TimeoutSecondsAdd(uint((tidyAfter+tidyPasses*time.Second)/time.Second)+5, func() bool {
+					log.Printf("astral: cycle: after the tidy, %s", rss())
+					return false
+				})
+			}
 			return round < rounds
 		}
 		t0 := time.Now()
 		_ = a.openChat(chats[i].ID)
+		asked = t0
 		took := time.Since(t0)
 		spent += took
 		if took > slowest {
@@ -666,7 +699,12 @@ func (a *App) devCycle(rounds int) {
 		}
 		log.Printf("astral: cycle: opening a chat took %v on average, %v at most",
 			(spent / time.Duration(len(chats))).Round(time.Microsecond*100), slowest.Round(time.Microsecond*100))
+		if shownN > 0 {
+			log.Printf("astral: cycle: a chat was on screen %v after it was asked for on average, %v at most",
+				(shown / time.Duration(shownN)).Round(time.Microsecond*100), slowestShown.Round(time.Microsecond*100))
+		}
 		spent, slowest = 0, 0
+		shown, slowestShown, shownN = 0, 0, 0
 		i = 0
 		round++
 		settle = 25
