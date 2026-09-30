@@ -158,13 +158,17 @@ func (c *ChatView) ensureChat(firstMessage string) error {
 			c.fail("Could not save where the scene is: " + err.Error())
 		}
 	}
+	// Stored without rebuilding the chips, which already show them, and one
+	// of which may be what sent this message.
 	if before.ReplyLength != "" {
-		if err := c.SetReplyLength(before.ReplyLength); err != nil {
+		c.chat.ReplyLength = before.ReplyLength
+		if err := c.store.SetChatReplyLength(ch.ID, before.ReplyLength); err != nil {
 			c.fail("Could not save how long the replies are: " + err.Error())
 		}
 	}
 	if before.WriteFirst != 0 {
-		if err := c.SetWriteFirst(before.WriteFirst); err != nil {
+		c.chat.WriteFirst = before.WriteFirst
+		if err := c.store.SetChatWriteFirst(ch.ID, before.WriteFirst); err != nil {
 			c.fail("Could not save when the character writes first: " + err.Error())
 		}
 	}
@@ -304,11 +308,18 @@ func (c *ChatView) syncChat() {
 	if err != nil {
 		return
 	}
-	chips := ch.ReplyLength != c.chat.ReplyLength || ch.WriteFirst != c.chat.WriteFirst
+	chips := ch.Note != c.chat.Note || ch.ReplyLength != c.chat.ReplyLength || ch.WriteFirst != c.chat.WriteFirst
 	c.chat.Note, c.chat.ReplyLength, c.chat.WriteFirst = ch.Note, ch.ReplyLength, ch.WriteFirst
 	c.chat.Setting, c.chat.State, c.chat.SettingAuto = ch.Setting, ch.State, ch.SettingAuto
 	if chips {
-		c.refreshActions()
+		// Later, since this can run from a chip's own button, and the chips
+		// are rebuilt.
+		chatID := c.chat.ID
+		coreglib.IdleAdd(func() {
+			if c.chat.ID == chatID {
+				c.refreshActions()
+			}
+		})
 	}
 }
 
