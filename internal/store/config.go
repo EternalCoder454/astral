@@ -390,7 +390,7 @@ func (c *Config) normalize() {
 	if c.WindowHeight < 480 {
 		c.WindowHeight = 780
 	}
-	if c.SidebarWidth < 180 || c.SidebarWidth > 600 {
+	if c.SidebarWidth < 150 || c.SidebarWidth > 600 {
 		c.SidebarWidth = 270
 	}
 	// Sampling values are clamped rather than reset: someone who typed 3.0 for

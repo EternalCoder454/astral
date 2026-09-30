@@ -20,11 +20,11 @@ import (
 // a person who navigates by the four buttons wants it narrow, and neither of them
 // wants to be told.
 
-// Sidebar width bounds. The lower one is where the four navigation buttons stop
-// fitting their labels; the upper one is where the transcript starts losing its
-// readable column on an ordinary window.
+// Sidebar width bounds. The lower one is where the navigation rows stop
+// fitting their names and counts; the upper one is where the transcript starts
+// losing its readable column on an ordinary window.
 const (
-	minSidebarWidth = 180
+	minSidebarWidth = 150
 	maxSidebarWidth = 520
 )
 

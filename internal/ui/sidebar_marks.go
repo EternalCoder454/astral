@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"strconv"
 	"strings"
 
@@ -148,8 +149,14 @@ func (s *Sidebar) buildMarkBar() *gtk.Revealer {
 	top.Append(done)
 	bar.Append(top)
 
-	buttons := gtk.NewBox(gtk.OrientationHorizontal, 6)
-	buttons.SetHomogeneous(true)
+	// Wrapping, not a row of equal buttons: the row was 303 pixels wide at
+	// its narrowest, and although the bar is hidden until chats are picked
+	// out, a hidden revealer still asks for its child's width, so the sidebar
+	// could not be dragged any narrower than this bar.
+	buttons := adw.NewWrapBox()
+	buttons.SetChildSpacing(6)
+	buttons.SetLineSpacing(6)
+	buttons.SetJustify(adw.JustifyFill)
 	all := gtk.NewButtonWithLabel("Select All")
 	all.SetTooltipText("Select every chat in the list (Ctrl+A)")
 	all.ConnectClicked(s.markAll)
