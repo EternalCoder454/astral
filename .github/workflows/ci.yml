@@ -76,12 +76,7 @@ jobs:
       - name: Trust the checkout
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Build
-        run: go build ./...
-
-      - name: Vet
-        run: go vet ./...
-
+      # First, since it needs no build and is the check most often failed.
       - name: Check formatting
         run: |
           unformatted=$(gofmt -l .)
@@ -90,6 +85,12 @@ jobs:
             echo "$unformatted"
             exit 1
           fi
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
 
       # -short skips everything that needs a model server, which a runner does
       # not have. What is left is every pure function in the project: the
