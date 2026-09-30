@@ -3,6 +3,15 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.29
+- The Replies chip sets how long a scene's replies are, and lets its character write first when you go quiet
+- Memory finds earlier moments by what they are about as well as their words, with an embedding model
+- In a group scene, someone who joined partway through no longer knows what was said before they came
+- Lorebook entries can have a chance to appear, a wait before they do, and a group that sends only one
+- Models that want the system prompt first, like some Qwen 3.5 downloads, now work in scenes
+- Chats open in about half the time, and Astral hands back memory once you stop switching between them
+- Phone: reply length and writing first too, from a chat's menu
+
 ## 0.5.28
 - Scene Memory shows what the model sees: which lorebook entries go with your next message, and why
 - Scene State keeps what everyone wears and holds, how things stand and what is unresolved, every turn
