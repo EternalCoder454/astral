@@ -2,6 +2,7 @@ package serve
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"strings"
 
@@ -93,6 +94,12 @@ func (s *Server) handleSaveSettings(w http.ResponseWriter, r *http.Request, d st
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unreadable request"})
 		return
 	}
+	// Refuse what the window's own boxes would not accept, before anything is
+	// written, so a bad value cannot land half way through a save.
+	if msg := settingsProblem(body.Persona, body.Temperature, body.NumPredict, body.NumCtx); msg != "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": msg})
+		return
+	}
 	cfg := s.config()
 	if body.Model != nil {
 		cfg.Model = strings.TrimSpace(*body.Model)
@@ -128,6 +135,31 @@ func (s *Server) handleSaveSettings(w http.ResponseWriter, r *http.Request, d st
 		return
 	}
 	s.handleSettings(w, r, d)
+}
+
+// The ranges the phone's boxes say, and the server holds to. The upper bounds
+// are far past any model's window; they only stop a typo becoming a request
+// the model server chokes on.
+const (
+	minNumCtx      = 512
+	maxNumCtx      = 1 << 20
+	maxNumPredict  = 1 << 20
+	maxTemperature = 2.0
+)
+
+// settingsProblem says what is wrong with a save, or nothing.
+func settingsProblem(name *string, temp *float64, predict, ctx *int) string {
+	switch {
+	case name != nil && strings.TrimSpace(*name) == "":
+		return "Your name cannot be empty."
+	case temp != nil && (math.IsNaN(*temp) || *temp < 0 || *temp > maxTemperature):
+		return "Temperature must be between 0 and 2."
+	case predict != nil && (*predict < 0 || *predict > maxNumPredict):
+		return "Reply limit must be between 0 (no limit) and 1048576 tokens."
+	case ctx != nil && (*ctx < minNumCtx || *ctx > maxNumCtx):
+		return "Context size must be between 512 and 1048576 tokens."
+	}
+	return ""
 }
 
 // handleForget revokes the device that asks. Unpairing from the phone rather

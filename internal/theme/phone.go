@@ -31,6 +31,9 @@ var inkPhone = map[string]string{
 	"outline":                   "#8e88a0",
 	"outline-variant":           "#453f57",
 	"error":                     "#ffb4ab",
+	"on-error":                  "#690005",
+	"error-container":           "#93000a",
+	"on-error-container":        "#ffdad6",
 }
 
 // PhoneRoles maps a theme onto the phone's Material roles.
@@ -65,6 +68,12 @@ func PhoneRoles(t Theme) Phone {
 			surface.hex(), mix(surface, sidebar, 0.5).hex(), sidebar.hex(),
 		}
 	}
+	// The error container is the theme's error colour stirred into its page, so
+	// it is a red that belongs to the theme, and its label is the theme's text
+	// when that reads on it.
+	errc := mustHex(t.Color("error_color"))
+	errContainer := mix(canvas, errc, 0.3)
+	text := mustHex(t.Color("astral_text"))
 	return Phone{Dark: t.Dark, Roles: map[string]string{
 		"surface-container-lowest":  levels[0],
 		"surface":                   levels[1],
@@ -81,5 +90,23 @@ func PhoneRoles(t Theme) Phone {
 		"primary-container":         t.Color("astral_user_bubble"),
 		"on-primary-container":      t.Color("astral_text"),
 		"error":                     t.Color("error_color"),
+		"on-error":                  readableOn(errc).hex(),
+		"error-container":           errContainer.hex(),
+		"on-error-container":        readableOn(errContainer, text).hex(),
 	}}
+}
+
+// readableOn is the theme's own text if it reads on bg, else whichever of black
+// and white does, so a colour made by mixing never ends up with a label that
+// cannot be read on it.
+func readableOn(bg rgb, prefer ...rgb) rgb {
+	for _, c := range prefer {
+		if contrast(c, bg) >= 4.5 {
+			return c
+		}
+	}
+	if contrast(rgb{255, 255, 255}, bg) >= contrast(rgb{0, 0, 0}, bg) {
+		return rgb{255, 255, 255}
+	}
+	return rgb{0, 0, 0}
 }

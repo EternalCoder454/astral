@@ -283,6 +283,9 @@ function render(text, role) {
 
 // ---- Screens ----
 
+// TOUCH is a phone or tablet, where focusing a text box raises the keyboard.
+const TOUCH = window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
+
 const SCREENS = ["pair", "home", "chats", "cast", "settings", "chat"];
 
 // The icons are the PC's own set, used as a CSS mask so they take the colour
@@ -294,7 +297,16 @@ function paintIcons(root = document) {
 	}
 }
 
+// activeScreen is the one showing, and chatOrigin the one a chat was opened
+// from, with where that screen was scrolled to, so Back returns to it as it was.
+let activeScreen = "home";
+let chatOrigin = { screen: "home", scroll: 0 };
+
+// scrollerOf is the part of a screen that scrolls.
+const scrollerOf = (name) => document.querySelector("#" + name + " .scroll");
+
 function show(name) {
+	activeScreen = name;
 	for (const id of SCREENS) $(id).hidden = id !== name;
 	$("tabs").hidden = name === "pair";
 	document.body.classList.toggle("in-chat", name === "chat");
@@ -316,7 +328,8 @@ async function loadSettings() {
 	fillSelect($("set-model"), settings.models, settings.model, shortModel);
 	fillSelect($("set-style"), settings.styles, settings.style);
 	$("set-numctx").value = settings.num_ctx || "";
-	$("set-numpredict").value = settings.num_predict || "";
+	// 0 is shown as 0, not as an empty box, since blank means "leave it".
+	$("set-numpredict").value = settings.num_predict ?? "";
 	$("set-temperature").value = settings.temperature ?? "";
 	$("set-persona").value = settings.persona || "";
 	$("set-persona-note").value = settings.persona_note || "";
@@ -453,7 +466,37 @@ function fillSelect(el, values, chosen, label = (v) => v) {
 	}
 }
 
+// checkSettings says what is wrong with the boxes, and puts the old value
+// back in the one that is, so a typo never becomes the setting. The server
+// holds to the same ranges.
+function checkSettings() {
+	const bad = (id, was, msg) => { $(id).value = was ?? ""; return msg; };
+	const num = (id) => numberOrNull($(id).value);
+	const ctx = num("set-numctx"), predict = num("set-numpredict"), temp = num("set-temperature");
+	if ($("set-persona").value.trim() === "") {
+		return bad("set-persona", settings?.persona, "Your name cannot be empty.");
+	}
+	if (ctx !== null && (!Number.isInteger(ctx) || ctx < 512 || ctx > 1048576)) {
+		return bad("set-numctx", settings?.num_ctx, "Context size must be a whole number from 512 to 1048576 tokens.");
+	}
+	if (predict !== null && (!Number.isInteger(predict) || predict < 0 || predict > 1048576)) {
+		return bad("set-numpredict", settings?.num_predict, "Reply limit must be a whole number from 0 (no limit) to 1048576 tokens.");
+	}
+	if (temp !== null && (temp < 0 || temp > 2)) {
+		return bad("set-temperature", settings?.temperature, "Temperature must be from 0 to 2.");
+	}
+	// Text that is not a number at all reads as blank, and would be saved as
+	// "leave it", so say so instead.
+	for (const [id, was, what] of [["set-numctx", settings?.num_ctx, "Context size"],
+		["set-numpredict", settings?.num_predict, "Reply limit"], ["set-temperature", settings?.temperature, "Temperature"]]) {
+		if ($(id).value.trim() !== "" && numberOrNull($(id).value) === null) return bad(id, was, what + " must be a number.");
+	}
+	return "";
+}
+
 async function saveSettings() {
+	const problem = checkSettings();
+	if (problem) { toast(problem); return; }
 	const body = {
 		model: $("set-model").value,
 		style: $("set-style").value,
@@ -901,6 +944,11 @@ async function newChat(body) {
 }
 
 async function openChat(id) {
+	// Remember the list this was opened from. Another chat opened from a chat
+	// (a branch) keeps the list the first one came from.
+	if (activeScreen !== "chat" && activeScreen !== "pair") {
+		chatOrigin = { screen: activeScreen, scroll: scrollerOf(activeScreen)?.scrollTop || 0 };
+	}
 	try {
 		const res = await api("/api/chats/" + id);
 		showChat(await res.json());
@@ -909,7 +957,9 @@ async function openChat(id) {
 		// history at all, so the app's Back handler saw nothing to go back to
 		// and quit.
 		if (history.state?.chat !== id) history.pushState({ chat: id }, "");
-		$("composer-text").focus();
+		// Not on a touch device: focusing raises the keyboard over the scene
+		// every time a chat opens. A plain desktop browser keeps it.
+		if (!TOUCH) $("composer-text").focus();
 	} catch (e) {
 		toast(e.message);
 	}
@@ -1053,16 +1103,24 @@ function leaveChat() {
 	stopSpeaking();
 	const left = current;
 	current = null;
-	show("home");
+	// The toast that said a chat was branched is about the chat being left.
+	if (/^Branched/.test($("toast").textContent)) $("toast").hidden = true;
+	// Back to the list the chat was opened from, where it was scrolled to,
+	// with its search box as it was left.
+	const { screen, scroll } = chatOrigin;
+	show(screen);
+	const back = () => { const el = scrollerOf(screen); if (el) el.scrollTop = scroll; };
+	back();
+	const refreshed = () => loadState().then(back).catch(() => {});
 	if (left && startedHere.has(left.id) && !streamingIn.has(left.id) &&
 		!document.querySelector("#transcript .from-user")) {
 		startedHere.delete(left.id);
 		api("/api/chats/" + left.id, { method: "DELETE" })
 			.catch(() => {})
-			.finally(() => loadState().catch(() => {}));
+			.finally(refreshed);
 		return;
 	}
-	loadState().catch(() => {});
+	refreshed();
 }
 
 // waitForReply is for a chat whose reply the PC is still writing, because the
@@ -1865,6 +1923,10 @@ function moreFor(wrap, isLastReply) {
 			icon: "pin", onClick: () => pin(wrap, !pinned),
 		});
 	}
+	if (id && !busyHere()) {
+		items.push({ title: "Edit", note: "Change what this message says.",
+			icon: "edit", onClick: () => editMessage(wrap) });
+	}
 	if (id) {
 		items.push({ title: "Branch from Here", note: "A new chat that is this one up to here.",
 			icon: "branch", onClick: () => branch(id) });
@@ -1899,7 +1961,7 @@ $("menu-cancel").addEventListener("click", () => { $("menu-sheet").hidden = true
 
 // Every sheet closes when the dimmed page around it is tapped, as Android's
 // own sheets do.
-for (const id of ["menu-sheet", "note-sheet", "memory-sheet", "persona-sheet"]) {
+for (const id of ["menu-sheet", "note-sheet", "memory-sheet", "persona-sheet", "edit-sheet", "confirm-sheet"]) {
 	$(id).addEventListener("click", (e) => { if (e.target === $(id)) $(id).hidden = true; });
 }
 
@@ -2030,6 +2092,108 @@ $("note-go").addEventListener("click", () => {
 	regenerate(note);
 });
 
+// askText is one sheet for the two things typed on it: a chat's new name, on
+// one line, and a message's new words, on several.
+let onEditSave = null;
+function askText({ heading, value, long, hint, label, save, onSave }) {
+	$("edit-heading").textContent = heading;
+	$("edit-title").hidden = !!long;
+	$("edit-text").hidden = !long;
+	const box = long ? $("edit-text") : $("edit-title");
+	box.value = value;
+	box.setAttribute("aria-label", label);
+	$("edit-hint").textContent = hint || "";
+	$("edit-go").textContent = save;
+	$("edit-error").textContent = "";
+	onEditSave = onSave;
+	$("edit-sheet").hidden = false;
+	box.focus();
+}
+$("edit-cancel").addEventListener("click", () => { $("edit-sheet").hidden = true; });
+$("edit-go").addEventListener("click", async () => {
+	const box = $("edit-text").hidden ? $("edit-title") : $("edit-text");
+	const value = box.value.trim();
+	if (!value) { $("edit-error").textContent = "This cannot be empty."; return; }
+	$("edit-go").disabled = true;
+	try {
+		await onEditSave(value);
+		$("edit-sheet").hidden = true;
+	} catch (e) {
+		$("edit-error").textContent = e.message;
+	} finally {
+		$("edit-go").disabled = false;
+	}
+});
+
+// askConfirm is a sheet that asks once before something that cannot be undone,
+// since a WebView cannot be relied on to show a dialog of its own.
+function askConfirm(heading, text, button, onYes) {
+	$("confirm-heading").textContent = heading;
+	$("confirm-text").textContent = text;
+	$("confirm-go").textContent = button;
+	$("confirm-go").onclick = () => { $("confirm-sheet").hidden = true; onYes(); };
+	$("confirm-sheet").hidden = false;
+}
+$("confirm-cancel").addEventListener("click", () => { $("confirm-sheet").hidden = true; });
+
+// renameChat gives the open chat another title.
+function renameChat() {
+	if (!current) return;
+	const chat = current;
+	askText({
+		heading: "Rename Chat", label: "Name", save: "Rename",
+		value: chat.title || chat.who || "",
+		onSave: async (title) => {
+			const res = await api("/api/chats/" + chat.id + "/title", {
+				method: "POST", body: JSON.stringify({ title }),
+			});
+			const out = await res.json();
+			chat.title = out.title;
+			if (current?.id === chat.id) $("chat-title").textContent = out.title;
+			loadState().catch(() => {});
+		},
+	});
+}
+
+// deleteChat removes the open chat, after asking.
+function deleteChat() {
+	if (!current) return;
+	const chat = current;
+	askConfirm("Delete This Chat?", "Everything said in it is removed. This cannot be undone.", "Delete", async () => {
+		try {
+			await api("/api/chats/" + chat.id, { method: "DELETE" });
+		} catch (e) {
+			toast(e.message);
+			return;
+		}
+		startedHere.delete(chat.id);
+		toast("Chat deleted.");
+		if (history.state?.chat) history.back();
+		else leaveChat();
+	});
+}
+
+// editMessage changes what one message says.
+function editMessage(wrap) {
+	const id = Number(wrap.dataset.id || 0);
+	const m = (current?.messages || []).find((x) => x.id === id);
+	if (!current || !m) return;
+	const chat = current;
+	askText({
+		heading: "Edit Message", label: "Message", save: "Save", long: true,
+		value: m.content,
+		hint: "The scene reads it as you write it here.",
+		onSave: async (content) => {
+			const res = await api("/api/chats/" + chat.id + "/messages/" + id + "/edit", {
+				method: "POST", body: JSON.stringify({ content }),
+			});
+			const out = await res.json();
+			m.content = out.content;
+			wrap.querySelector(".bubble").innerHTML = render(out.content, wrap.dataset.role);
+		},
+	});
+}
+
 // pin pins or unpins one message.
 async function pin(wrap, on) {
 	if (!current) return;
@@ -2114,9 +2278,11 @@ function chatMenu() {
 	items.push({
 		title: away ? "Unarchive" : "Archive",
 		note: away ? "Put this chat back in your list." : "Move this chat out of your list.",
-		icon: "history",
+		icon: "folder",
 		onClick: () => archiveChat(current.id, !away),
 	});
+	items.push({ title: "Rename", note: "Give this chat another name.", icon: "edit", onClick: renameChat });
+	items.push({ title: "Delete", note: "Remove this chat and everything said in it.", icon: "trash", onClick: deleteChat });
 	openMenu(current.title || "This Chat", items);
 }
 $("chat-more").addEventListener("click", chatMenu);
@@ -2365,14 +2531,34 @@ function showSeen(seen) {
 		line("None needed yet: the whole scene still fits in the model's memory.", true);
 		return;
 	}
-	const snip = (t) => (t.length > 160 ? t.slice(0, 157).trimEnd() + "…" : t);
+	// A moment as the scene shows it: cut at a word, not in the middle of one,
+	// with a narration star closed if the cut left one open, then drawn the way
+	// messages are so the asterisks read as narration and not as punctuation.
+	const quote = (m) => {
+		let t = m.text;
+		if (t.length > 160) {
+			t = t.slice(0, 160);
+			const at = t.lastIndexOf(" ");
+			t = (at > 80 ? t.slice(0, at) : t).trimEnd();
+			if ((t.match(/\*/g) || []).length % 2) t += "*";
+			t += "…";
+		}
+		const p = document.createElement("p");
+		p.className = "seen-line seen-moment";
+		const who = document.createElement("strong");
+		who.textContent = m.who + ": ";
+		const body = document.createElement("span");
+		body.innerHTML = render(t, "assistant");
+		p.append(who, body);
+		box.append(p);
+	};
 	if (seen.pinned.length) {
 		heading("Pinned");
-		for (const m of seen.pinned) line(m.who + ": " + snip(m.text), false);
+		for (const m of seen.pinned) quote(m);
 	}
 	heading("Recalled From Earlier");
 	if (!seen.recalled.length) line("Nothing from before the record matches what is happening now.", true);
-	for (const m of seen.recalled) line(m.who + ": " + snip(m.text), false);
+	for (const m of seen.recalled) quote(m);
 }
 async function openMemory() {
 	if (!current) return;

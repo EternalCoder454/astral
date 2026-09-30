@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -156,6 +157,8 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("POST /api/chats/{id}/write-first", s.guard(s.handleWriteFirst))
 	mux.Handle("DELETE /api/chats/{id}/messages/{mid}", s.guard(s.handleDeleteMessage))
 	mux.Handle("POST /api/chats/{id}/messages/{mid}/version", s.guard(s.handleVersion))
+	mux.Handle("POST /api/chats/{id}/title", s.guard(s.handleRenameChat))
+	mux.Handle("POST /api/chats/{id}/messages/{mid}/edit", s.guard(s.handleEditMessage))
 	mux.Handle("POST /api/chats/{id}/persona", s.guard(s.handleChatPersona))
 	mux.Handle("POST /api/chats/{id}/draft", s.guard(s.handleDraft))
 	mux.Handle("POST /api/chats/{id}/branch", s.guard(s.handleBranch))
@@ -550,6 +553,76 @@ func (s *Server) handleDeleteChat(w http.ResponseWriter, r *http.Request, d stor
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "deleted"})
+}
+
+// handleRenameChat gives a chat a new title, as the desktop's menu does. A
+// blank title is refused rather than stored: a chat with no name is a row you
+// cannot tell from another.
+func (s *Server) handleRenameChat(w http.ResponseWriter, r *http.Request, d store.Device) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var body struct {
+		Title string `json:"title"`
+	}
+	if err != nil || json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&body) != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unreadable request"})
+		return
+	}
+	title := strings.TrimSpace(body.Title)
+	if title == "" || len(title) > 200 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "a title is 1 to 200 characters"})
+		return
+	}
+	if _, err := s.store.Chat(id); err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such chat"})
+		return
+	}
+	if err := s.store.RenameChat(id, title); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"title": title})
+}
+
+// handleEditMessage rewrites what a turn says. Like deleting, not while a reply
+// is being written into the scene, since the turn may be part of that prompt.
+func (s *Server) handleEditMessage(w http.ResponseWriter, r *http.Request, d store.Device) {
+	chatID, err1 := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	mid, err2 := strconv.ParseInt(r.PathValue("mid"), 10, 64)
+	var body struct {
+		Content string `json:"content"`
+	}
+	if err1 != nil || err2 != nil || json.NewDecoder(http.MaxBytesReader(w, r.Body, 256<<10)).Decode(&body) != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unreadable request"})
+		return
+	}
+	content := strings.TrimSpace(body.Content)
+	if content == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "a message cannot be empty"})
+		return
+	}
+	release, free := s.busy.claim(chatID)
+	if !free {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "this chat is writing a reply"})
+		return
+	}
+	defer release()
+	msgs, _ := s.store.Messages(chatID)
+	i := slices.IndexFunc(msgs, func(m store.Message) bool { return m.ID == mid })
+	if i < 0 {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such message"})
+		return
+	}
+	// The phone shows an attached file as one line, so what it sends back would
+	// silently drop the file. Those are edited in the window.
+	if chars.HideAttachedFiles(msgs[i].Content) != msgs[i].Content {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "this message has a file attached; edit it on the PC"})
+		return
+	}
+	if err := s.store.SetMessageContent(mid, content); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"content": content})
 }
 
 // handleArchiveChat puts a chat away, or brings it back, as the desktop's menu
