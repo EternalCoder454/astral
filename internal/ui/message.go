@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
@@ -26,6 +27,11 @@ import (
 // ~65 typography would pick, because at 60 a conversation looks lost on a 4K
 // screen.
 const bubbleChars = 80
+
+// bodyMinChars is the narrowest a message's text wraps to, in characters,
+// once it has a line well past that: inside the narrowest window, and wide
+// enough that working out that width is cheap. See setFloor.
+const bodyMinChars = 20
 
 // bubbleMaxWidth is the bubble clamp's maximum, in pixels: a backstop for
 // windows wide enough that height-for-width would run away, since bubbleChars
@@ -62,7 +68,7 @@ type MessageOpts struct {
 // markup (italic action, weighted speech), wrap to the bubble, and be
 // selectable, and a label does all three without a text buffer's machinery.
 type MessageRow struct {
-	widget  *gtk.Box
+	widget  *gtk.Grid
 	bubble  *gtk.Box
 	body    *gtk.Label
 	meta    *gtk.Label
@@ -148,20 +154,23 @@ func NewMessageRow(o MessageOpts) *MessageRow {
 	}
 	fromUser := o.Role == ollama.RoleUser
 
-	m.widget = gtk.NewBox(gtk.OrientationHorizontal, 8)
+	// A grid rather than a horizontal box, and filling the row with a spacer
+	// taking what the message does not, rather than aligned to its side: both
+	// for the time a chat takes to open, which they halved.
+	//
+	// A box shares out its width by asking each child how wide it would be at
+	// the row's height, and GTK places an aligned widget whose height depends
+	// on its width by asking the same. For the column of wrapping text beside
+	// the avatar each ask is a search over widths, with every label in it laid
+	// out again at each step. A grid settles the widths first, without a
+	// height, and a column that fills its cell is not asked.
+	m.widget = gtk.NewGrid()
 	m.widget.AddCSSClass("message-row")
 	if fromUser {
 		m.widget.AddCSSClass("from-user")
-		m.widget.SetHAlign(gtk.AlignEnd)
-	} else {
-		m.widget.SetHAlign(gtk.AlignStart)
 	}
-	// halign only sizes a widget to its natural width while nothing is asking
-	// to expand. hexpand propagates up from any descendant that sets it, and a
-	// single one anywhere in the row makes GTK treat halign as Fill, which is
-	// how a bubble whose natural width was correctly capped at ~430px ended up
-	// allocated 800. Denying expansion explicitly at every level of the row is
-	// what makes the cap take effect.
+	// The spacer is what expands. Said here that the row does not, so that
+	// stops at the row rather than spreading up through the transcript.
 	m.widget.SetHExpand(false)
 	if o.Grouped {
 		m.widget.AddCSSClass("grouped")
@@ -170,14 +179,17 @@ func NewMessageRow(o MessageOpts) *MessageRow {
 	// The avatar is pinned to the top so it stays level with the first line of
 	// a long message rather than drifting to the middle of it.
 	avatar := m.buildAvatar(o, fromUser)
+	// The gap between the avatar and the message, kept on the avatar: the
+	// grid's own spacing would put one beside the spacer too, and take it
+	// from the message.
+	if fromUser {
+		gtk.BaseWidget(avatar).SetMarginStart(8)
+	} else {
+		gtk.BaseWidget(avatar).SetMarginEnd(8)
+	}
 
 	col := gtk.NewBox(gtk.OrientationVertical, 2)
 	col.SetHExpand(false)
-	if fromUser {
-		col.SetHAlign(gtk.AlignEnd)
-	} else {
-		col.SetHAlign(gtk.AlignStart)
-	}
 
 	// The speaker's name, on their first message in a run. Not shown for your
 	// own turns: a messaging app does not label your side "You", and the
@@ -208,6 +220,7 @@ func NewMessageRow(o MessageOpts) *MessageRow {
 	m.body.SetWrap(true)
 	m.body.SetWrapMode(pango.WrapWordChar) // a long URL must not widen the bubble
 	m.body.SetMaxWidthChars(bubbleChars)   // see the constant: this is what makes wrapping work
+	// And a floor under it once there is text: see setFloor.
 	m.body.SetXAlign(0)
 	m.body.SetYAlign(0)
 	// Selectable, and allowed to take focus, because in GTK4 a label holds a
@@ -271,12 +284,16 @@ func NewMessageRow(o MessageOpts) *MessageRow {
 	}
 	col.Append(foot)
 
+	spacer := gtk.NewBox(gtk.OrientationHorizontal, 0)
+	spacer.SetHExpand(true)
 	if fromUser {
-		m.widget.Append(col)
-		m.widget.Append(avatar)
+		m.widget.Attach(spacer, 0, 0, 1, 1)
+		m.widget.Attach(col, 1, 0, 1, 1)
+		m.widget.Attach(avatar, 2, 0, 1, 1)
 	} else {
-		m.widget.Append(avatar)
-		m.widget.Append(col)
+		m.widget.Attach(avatar, 0, 0, 1, 1)
+		m.widget.Attach(col, 1, 0, 1, 1)
+		m.widget.Attach(spacer, 2, 0, 1, 1)
 	}
 	m.SetMeta("")
 	return m
@@ -698,6 +715,7 @@ func (m *MessageRow) AppendText(s string) {
 		return
 	}
 	m.body.SetText(m.raw)
+	m.setFloor()
 }
 
 // ClearStreamed takes back the text streamed so far, for a turn whose first
@@ -706,6 +724,7 @@ func (m *MessageRow) ClearStreamed() {
 	m.raw = ""
 	m.dropStream()
 	m.body.SetText("")
+	m.setFloor()
 	if m.streaming {
 		m.showStream()
 	}
@@ -730,11 +749,35 @@ func (m *MessageRow) AppendThinking(s string) {
 func (m *MessageRow) Render() {
 	if strings.TrimSpace(m.raw) == "" {
 		m.body.SetText("")
+		m.setFloor()
 		return
 	}
 	// A file sent with a message is folded to its name on screen; the model
 	// still reads all of it, from the message as stored.
 	m.body.SetMarkup(Markup(chars.HideAttachedFiles(m.raw), m.mode))
+	m.setFloor()
+}
+
+// setFloor puts a floor under how narrow the text may wrap, for the time it
+// takes to lay out. Without one GTK finds a wrapping label's narrowest by
+// laying the whole text out at no width at all, broken at every place it can
+// be, and did that for every message each time a chat was opened.
+//
+// Only under text with a line well past it. The floor is also the label's
+// narrowest, and GTK sizes it by a wide average character, so a floor under
+// "Yes." gave it a bubble twenty characters wide, and one under a line of
+// twenty narrow ones widened that too.
+func (m *MessageRow) setFloor() {
+	floor := -1
+	for _, line := range strings.Split(m.body.Text(), "\n") {
+		if utf8.RuneCountInString(line) >= 2*bodyMinChars {
+			floor = bodyMinChars
+			break
+		}
+	}
+	if m.body.WidthChars() != floor {
+		m.body.SetWidthChars(floor)
+	}
 }
 
 // SetMarkdown sets the body and renders it in one step.
