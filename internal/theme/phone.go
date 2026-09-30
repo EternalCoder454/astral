@@ -50,13 +50,28 @@ func PhoneRoles(t Theme) Phone {
 	}
 	sidebar, canvas := mustHex(t.Color("astral_sidebar")), mustHex(t.Color("astral_canvas"))
 	surface := mustHex(t.Color("astral_surface"))
+	// Material's containers step up from the page: the page darkest in a
+	// dark scheme, lightest in a light one, each container a step further.
+	// On the desktop a light theme's sidebar is its darkest level, so the
+	// dark scheme's order put a light theme's page below its cards, and the
+	// phone's chat list lost its cards to the page behind them.
+	levels := []string{
+		sidebar.hex(), mix(sidebar, canvas, 0.6).hex(), canvas.hex(),
+		mix(canvas, surface, 0.5).hex(), surface.hex(), t.Color("astral_elevated"),
+	}
+	if !t.Dark {
+		levels = []string{
+			canvas.hex(), canvas.hex(), mix(canvas, surface, 0.5).hex(),
+			surface.hex(), mix(surface, sidebar, 0.5).hex(), sidebar.hex(),
+		}
+	}
 	return Phone{Dark: t.Dark, Roles: map[string]string{
-		"surface-container-lowest":  sidebar.hex(),
-		"surface":                   mix(sidebar, canvas, 0.6).hex(),
-		"surface-container-low":     canvas.hex(),
-		"surface-container":         mix(canvas, surface, 0.5).hex(),
-		"surface-container-high":    surface.hex(),
-		"surface-container-highest": t.Color("astral_elevated"),
+		"surface-container-lowest":  levels[0],
+		"surface":                   levels[1],
+		"surface-container-low":     levels[2],
+		"surface-container":         levels[3],
+		"surface-container-high":    levels[4],
+		"surface-container-highest": levels[5],
 		"on-surface":                t.Color("astral_text"),
 		"on-surface-variant":        t.Color("astral_muted"),
 		"outline":                   t.Color("astral_faint"),
