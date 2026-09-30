@@ -489,8 +489,15 @@ do_flatpak() {
 
   if ! have flatpak; then
     [ -n "$PM" ] || die "Flatpak is not installed and I do not know how to install it on $DISTRO_NAME. Install flatpak (https://flatpak.org/setup/), then run this again."
-    if [ "$PM" = apt ] && ! apt-cache policy flatpak 2>/dev/null | grep -q 'Candidate: [0-9]'; then
-      as_root "The package lists do not know flatpak yet. Refresh them with:" apt-get update
+    if [ "$PM" = apt ]; then
+      # In the C locale, since the label is translated, and read whole rather
+      # than piped, since grep stopping early would fail the pipe.
+      local policy
+      policy="$(LC_ALL=C apt-cache policy flatpak 2>/dev/null || true)"
+      case "$policy" in
+        *"Candidate: "[0-9]*) ;;
+        *) as_root "The package lists do not know flatpak yet. Refresh them with:" apt-get update ;;
+      esac
     fi
     # shellcheck disable=SC2046
     as_root "Astral's Flatpak needs flatpak itself:" $(install_cmd flatpak)
@@ -598,6 +605,11 @@ do_install() {
 confirm_delete_library() {
   [ "$DELETE_LIBRARY" = 1 ] || return 0
   [ -n "$HOME" ] || die "Refusing to delete with HOME unset."
+  # Checked before anything is removed, so a refusal leaves the install whole.
+  local d
+  for d in "$ASTRAL_DATA" "$ASTRAL_CONFIG" "$ASTRAL_CACHE"; do
+    library_path_ok "$d" || die "Refusing to delete $d, which does not look like Astral's own folder. Nothing was removed."
+  done
   say "This deletes your library, everything Astral saved:"
   say "  $ASTRAL_DATA"
   say "  $ASTRAL_CONFIG"
@@ -649,10 +661,6 @@ do_uninstall() {
   [ "$found" = 1 ] || say "No Astral program was installed, nothing to remove but the library."
 
   if [ "$DELETE_LIBRARY" = 1 ]; then
-    local d
-    for d in "$ASTRAL_DATA" "$ASTRAL_CONFIG" "$ASTRAL_CACHE"; do
-      library_path_ok "$d" || die "Refusing to delete $d, which does not look like Astral's own folder."
-    done
     rm -rf "$ASTRAL_DATA" "$ASTRAL_CONFIG" "$ASTRAL_CACHE"
     if [ -d "$FLATPAK_DATA" ]; then rm -rf "$FLATPAK_DATA"; fi
     ok "Deleted your library"
