@@ -39,6 +39,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     # Fedora rather than the runner's own Ubuntu, because the binding is
     # generated against a recent libadwaita and Ubuntu ships an older one: the
     # gotk4 sources reference adw_about_dialog_add_other_app, which is 1.6, and
@@ -104,6 +105,7 @@ jobs:
   # on nothing the tests do.
   race:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     container:
       image: ghcr.io/eternalcoder454/astral-ci:latest
       credentials:
@@ -130,6 +132,7 @@ jobs:
 
   staticcheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     container:
       image: ghcr.io/eternalcoder454/astral-ci:latest
       credentials:

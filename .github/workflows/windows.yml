@@ -39,6 +39,7 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 60
     defaults:
       run:
         shell: msys2 {0}
