@@ -257,7 +257,7 @@ func LengthBlock(length string) string {
 	case LengthShort:
 		ask = "Keep this reply short: one or two short paragraphs, about 40 to 80 words in all."
 	case LengthMedium:
-		ask = "Make this reply of medium length: two or three paragraphs, about 120 to 200 words in all."
+		ask = "Make this reply of medium length: two or three full paragraphs, about 150 to 200 words in all."
 	case LengthLong:
 		ask = "Make this reply long: four to six full paragraphs, about 300 to 450 words in all, taking the moment slowly."
 	default:

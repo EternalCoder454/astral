@@ -57,7 +57,7 @@ func TestLiveLengthAndArrivals(t *testing.T) {
 	}
 
 	if only == "" || only == "arrivals" {
-		knows := regexp.MustCompile(`(?i)\b(papers?|signed|sign|guild)\b`)
+		knows := regexp.MustCompile(`(?i)\b(papers?|signed|guild)\b`)
 		for _, late := range []bool{true, false} {
 			st := liveStore(t)
 			odileID, _ := st.SaveCharacter(odile)
