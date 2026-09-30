@@ -3,6 +3,10 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.33
+- Phone: a chat opens where you left off, or at its newest message, instead of at its very beginning
+- Phone: coming back to the app keeps your place in the open chat
+
 ## 0.5.32
 - Replies are written with about half the work they took, so the window stays smoother while they arrive
 - A chat opens a little faster: only what fills the window is laid out before it is shown
