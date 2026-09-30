@@ -20,6 +20,11 @@ on:
     paths-ignore: ["**.md", "screenshots/**"]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      reuse:
+        description: "A commit whose beta build to reuse, to try the path a release tag takes"
+        required: false
+        default: ""
 
 # A newer push to the same branch makes an older build pointless.
 concurrency:
@@ -28,6 +33,8 @@ concurrency:
 
 permissions:
   contents: write
+  # To find this commit's build on beta and download it; see below.
+  actions: read
 
 jobs:
   build:
@@ -39,6 +46,34 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # A release tag is always on a commit beta built minutes before, and a
+      # tag cannot use beta's Go cache, only the default branch's, which
+      # nothing fills: every tag compiled gotk4 from cold, 1106s of a 1335s
+      # run for v0.5.33. It takes beta's installer for the commit instead, and
+      # builds only when there is none, as before.
+      - name: Look for this commit's build on beta
+        id: prebuilt
+        if: startsWith(github.ref, 'refs/tags/') || inputs.reuse != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ inputs.reuse || github.sha }}
+        run: |
+          run=$(gh run list -R "$GITHUB_REPOSITORY" --workflow windows.yml --branch beta \
+            --commit "$SHA" --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "beta build of $SHA: ${run:-none, so building it here}"
+          echo "ASTRAL_VERSION=$(sed -n 's/^var version = "\(.*\)"/\1/p' internal/app/version.go)" >> "$GITHUB_ENV"
+
+      - name: Take beta's installer
+        if: steps.prebuilt.outputs.run != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: astral-windows-installer
+          path: packaging/output
+          run-id: ${{ steps.prebuilt.outputs.run }}
+          github-token: ${{ github.token }}
+
       # This step was most of the run, two and a half minutes of four. Most of
       # it was upgrading every package in a fresh MSYS2 before installing
       # anything (update), and the whole toolchain group, which brings gdb and
@@ -46,6 +81,7 @@ jobs:
       # longer asks it for the commit (-buildvcs=false below), and the version
       # comes from version.go.
       - name: Set up MSYS2
+        if: steps.prebuilt.outputs.run == ''
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -65,9 +101,11 @@ jobs:
       # and a Tcl along, several hundred megabytes of files to unpack that
       # nothing here runs.
       - name: Add the gobject-introspection headers
+        if: steps.prebuilt.outputs.run == ''
         run: pacman -S --noconfirm --needed --nodeps --nodeps mingw-w64-x86_64-gobject-introspection
 
       - name: Locate the Go caches
+        if: steps.prebuilt.outputs.run == ''
         id: gocache
         run: |
           echo "build=$(cygpath -w "$(go env GOCACHE)")" >> "$GITHUB_OUTPUT"
@@ -77,6 +115,7 @@ jobs:
       # takes the better part of half an hour. Caching it is the difference
       # between a CI round being worth doing and not.
       - name: Restore the Go caches
+        if: steps.prebuilt.outputs.run == ''
         uses: actions/cache@v6
         with:
           path: |
@@ -86,6 +125,7 @@ jobs:
           restore-keys: go-windows-
 
       - name: Report the toolchain
+        if: steps.prebuilt.outputs.run == ''
         run: |
           go version
           # gotk4 needs gobject-introspection as well as GTK itself, which is
@@ -93,6 +133,7 @@ jobs:
           pkg-config --modversion gtk4 libadwaita-1 gobject-introspection-1.0
 
       - name: Build
+        if: steps.prebuilt.outputs.run == ''
         env:
           CGO_ENABLED: "1"
         run: |
@@ -105,16 +146,19 @@ jobs:
             -o dist/astral.exe .
 
       - name: Gather the runtime
+        if: steps.prebuilt.outputs.run == ''
         run: |
           bash packaging/windows-bundle.sh dist
 
       - name: Upload the unpacked build
+        if: steps.prebuilt.outputs.run == ''
         uses: actions/upload-artifact@v7
         with:
           name: astral-windows-portable
           path: dist/
 
       - name: Build the installer
+        if: steps.prebuilt.outputs.run == ''
         shell: pwsh
         run: |
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
@@ -137,6 +181,8 @@ jobs:
       # ever had into the announcement of one of them.
       - name: Take this version's notes
         if: startsWith(github.ref, 'refs/tags/')
+        # Plain bash: MSYS2 is not set up when beta's installer is reused.
+        shell: bash
         run: |
           awk -v v="$ASTRAL_VERSION" '
             $0 == "## " v { taking = 1; next }
