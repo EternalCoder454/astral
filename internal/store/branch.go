@@ -249,8 +249,10 @@ func copyChatRow(tx *sql.Tx, src Chat, title string) (int64, error) {
 		return 0, err
 	}
 	if _, err := tx.Exec(`
-		INSERT INTO chat_cast (chat_id, character_id, position)
-		SELECT ?, character_id, position FROM chat_cast WHERE chat_id = ?`, id, src.ID); err != nil {
+		INSERT INTO chat_cast (chat_id, character_id, position, joined_after)
+		SELECT ?, character_id, position, 0 FROM chat_cast WHERE chat_id = ?`, id, src.ID); err != nil {
+		// Who arrived when is not carried: it is kept as a message id, and
+		// the copy's messages have new ones. A copy starts with everyone there.
 		return 0, err
 	}
 	return id, nil

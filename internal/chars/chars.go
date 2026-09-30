@@ -524,6 +524,17 @@ type Scene struct {
 	State   SceneState
 	// Length is how long a reply the scene asks for; see LengthBlock.
 	Length string
+	// Arrivals are the members of a group scene's cast who came partway
+	// through; see ArrivalsBlock.
+	Arrivals []Arrival
+}
+
+// Arrival is a member of a cast who came partway through a scene. Since is
+// the start of the first thing said after they came; Recorded says that is
+// now folded into the record; with neither, they have only just come.
+type Arrival struct {
+	Name, Since string
+	Recorded    bool
 }
 
 // BuildMessages assembles the full request.

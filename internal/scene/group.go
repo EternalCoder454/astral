@@ -82,6 +82,7 @@ func BuildTurn(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Ch
 		Setting:  ch.Setting,
 		State:    ch.State,
 		Length:   ch.ReplyLength,
+		Arrivals: arrivals(st, ch, cast),
 	}
 	sc.Lore = GroupLore(st, ch, cast, hist, sc.Budget.Lore)
 	byID := make(map[int64]string, len(cast))
@@ -124,7 +125,42 @@ func GroupBudget(cfg store.Config, cast []chars.Character, p chars.Persona, rels
 	if numCtx <= 0 {
 		numCtx = chars.DefaultNumCtx
 	}
-	return chars.Plan(numCtx, cfg.NumPredict, len(chars.BuildGroupSystem(cast, p, rels)))
+	// Room kept as well for saying who arrived partway through, which is in
+	// the closing block of a group scene and nowhere else.
+	arrivals := max(len(cast)-1, 0) * arrivalRoom
+	return chars.Plan(numCtx, cfg.NumPredict, len(chars.BuildGroupSystem(cast, p, rels))+arrivals)
+}
+
+// arrivalRoom is what saying one member arrived partway through can take.
+const arrivalRoom = 220
+
+// arrivals are the members of a group scene's cast who came partway through,
+// and what was said first after each came. See chars.ArrivalsBlock.
+func arrivals(st *store.Store, ch store.Chat, cast []chars.Character) []chars.Arrival {
+	if st == nil || ch.ID == 0 || len(cast) < 2 {
+		return nil
+	}
+	joins, err := st.CastJoins(ch.ID)
+	if err != nil || len(joins) == 0 {
+		return nil
+	}
+	var out []chars.Arrival
+	for _, c := range cast {
+		after, ok := joins[c.ID]
+		if !ok {
+			continue
+		}
+		a := chars.Arrival{Name: c.Name}
+		if m, ok := st.FirstMessageAfter(ch.ID, after); ok {
+			if m.ID > ch.SummaryUpto {
+				a.Since = chars.ArrivalSince(m.Content)
+			} else {
+				a.Recorded = true
+			}
+		}
+		out = append(out, a)
+	}
+	return out
 }
 
 // Relations is how the members of a cast know each other, for the pairs where

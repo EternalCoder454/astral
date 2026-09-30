@@ -257,6 +257,45 @@ func LengthBlock(length string) string {
 	return "\n\nLENGTH. " + ask + " This outranks any length the style asks for, and the length of the replies above."
 }
 
+// ArrivalsBlock tells a group scene who came partway through, and so does not
+// know what was said before they came.
+//
+// One prompt is written for the whole cast, so it cannot keep from one member
+// what another saw; what it can do is say who was not there, at the point in
+// the transcript where they arrived. SillyTavern's Presence extension and
+// Serene Pub do the same.
+func ArrivalsBlock(arrivals []Arrival, userName string) string {
+	if len(arrivals) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n\nWHO WAS THERE. Nobody knows what was said or done where they were not, unless they have been told since.")
+	for _, a := range arrivals {
+		switch {
+		case a.Since != "":
+			fmt.Fprintf(&b, " %s arrived partway through: they were not there for anything before \"%s\".", a.Name, a.Since)
+		case a.Recorded:
+			fmt.Fprintf(&b, " %s arrived partway through the part of the scene the record covers, and knows of it only what they have been told.", a.Name)
+		default:
+			fmt.Fprintf(&b, " %s has only just arrived, and was there for none of the scene above.", a.Name)
+		}
+	}
+	return Substitute(b.String(), "", userName)
+}
+
+// arrivalChars bounds what ArrivalsBlock quotes of the moment each member
+// arrived.
+const arrivalChars = 80
+
+// ArrivalSince is the start of a message, as ArrivalsBlock quotes it.
+func ArrivalSince(content string) string {
+	s := strings.Join(strings.Fields(strings.NewReplacer("*", "", "\"", "").Replace(content)), " ")
+	if r := []rune(s); len(r) > arrivalChars {
+		s = strings.TrimSpace(string(r[:arrivalChars])) + "…"
+	}
+	return s
+}
+
 // rewriteNote introduces a note on a reply being written again.
 //
 // Last in the closing block, after the direction, so it is the final thing

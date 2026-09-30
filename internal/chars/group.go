@@ -272,6 +272,7 @@ func GroupAnchor(cast []Character, sc Scene, userName string) string {
 		b.WriteString(PaceBlock(allNames, userName))
 	}
 	b.WriteString(LengthBlock(sc.Length))
+	b.WriteString(ArrivalsBlock(sc.Arrivals, userName))
 
 	if d := strings.TrimSpace(sc.Direction); d != "" {
 		b.WriteString("\n\nDIRECTION. Where the user wants this scene to go. Your next reply " +

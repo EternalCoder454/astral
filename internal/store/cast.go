@@ -32,6 +32,26 @@ func (s *Store) SetCast(chatID int64, ids []int64) error {
 	}
 	defer tx.Rollback() // no-op after a successful Commit
 
+	// When each member arrived, kept for those who stay: someone added now
+	// arrives after the newest message, and was not there for anything
+	// before it. The scene's own character was there from the start.
+	joined := map[int64]int64{}
+	if rows, err := tx.Query(`SELECT character_id, joined_after FROM chat_cast WHERE chat_id = ?`, chatID); err == nil {
+		for rows.Next() {
+			var id, after int64
+			if rows.Scan(&id, &after) == nil {
+				joined[id] = after
+			}
+		}
+		rows.Close()
+	}
+	var founder, newest int64
+	tx.QueryRow(`SELECT character_id FROM chats WHERE id = ?`, chatID).Scan(&founder)
+	tx.QueryRow(`SELECT COALESCE(MAX(id), 0) FROM messages WHERE chat_id = ?`, chatID).Scan(&newest)
+	if _, ok := joined[founder]; !ok && founder != 0 {
+		joined[founder] = 0
+	}
+
 	if _, err := tx.Exec(`DELETE FROM chat_cast WHERE chat_id = ?`, chatID); err != nil {
 		return err
 	}
@@ -42,9 +62,13 @@ func (s *Store) SetCast(chatID int64, ids []int64) error {
 			continue
 		}
 		seen[id] = true
+		after, ok := joined[id]
+		if !ok {
+			after = newest
+		}
 		if _, err := tx.Exec(`
-			INSERT INTO chat_cast (chat_id, character_id, position) VALUES (?,?,?)`,
-			chatID, id, pos); err != nil {
+			INSERT INTO chat_cast (chat_id, character_id, position, joined_after) VALUES (?,?,?,?)`,
+			chatID, id, pos, after); err != nil {
 			return err
 		}
 		pos++
@@ -98,6 +122,37 @@ func (s *Store) Cast(chatID int64) ([]chars.Character, error) {
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+// CastJoins says, for the members of a scene's cast who arrived partway
+// through, the id of the last message before they came. Members there from
+// the start are not listed.
+func (s *Store) CastJoins(chatID int64) (map[int64]int64, error) {
+	rows, err := s.db.Query(`SELECT character_id, joined_after FROM chat_cast
+		WHERE chat_id = ? AND joined_after > 0`, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]int64{}
+	for rows.Next() {
+		var id, after int64
+		if err := rows.Scan(&id, &after); err != nil {
+			return nil, err
+		}
+		out[id] = after
+	}
+	return out, rows.Err()
+}
+
+// FirstMessageAfter is the first message of a chat after the one with id
+// after, which the model reads (not hidden), or false when there is none.
+func (s *Store) FirstMessageAfter(chatID, after int64) (Message, bool) {
+	m := Message{ChatID: chatID}
+	err := s.db.QueryRow(`SELECT id, role, content FROM messages
+		WHERE chat_id = ? AND id > ? AND hidden = 0 ORDER BY id LIMIT 1`, chatID, after).
+		Scan(&m.ID, &m.Role, &m.Content)
+	return m, err == nil
 }
 
 // CastCounts returns how many characters each chat has, for the chats that have
