@@ -418,7 +418,11 @@ func (a *App) showWorld(w world.World) {
 		}
 	}
 
-	actions := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	// Wrapping: side by side the two buttons are wider than a 420px window,
+	// and the dialog's minimum width followed them past its edge.
+	actions := adw.NewWrapBox()
+	actions.SetChildSpacing(8)
+	actions.SetLineSpacing(8)
 	actions.SetMarginTop(8)
 	actions.SetMarginBottom(4)
 
