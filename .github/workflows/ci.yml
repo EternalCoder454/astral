@@ -12,11 +12,16 @@ on:
     # The release branch only fast-forwards to beta commits, which were tested
     # when they landed there.
     branches: [beta]
-    # No paths-ignore for documentation. WHATSNEW.md is asserted on by
-    # TestShippedNotes, so skipping a run for a Markdown change skipped the one
-    # file whose edits can fail the suite. The exclusion was there to dodge a
-    # sixteen minute run; a run is ninety seconds now.
-    paths-ignore: ["screenshots/**", "packaging/android/**"]
+    # Documentation at the top of the tree is skipped, except WHATSNEW.md,
+    # which TestShippedNotes asserts on. Only the top: TestNoDashesInTheProject
+    # reads every .md under internal and assets, so those still run it. Order
+    # matters, a later pattern overriding an earlier one.
+    paths:
+      - "**"
+      - "!*.md"
+      - "WHATSNEW.md"
+      - "!screenshots/**"
+      - "!packaging/android/**"
   pull_request:
   workflow_dispatch:
 
