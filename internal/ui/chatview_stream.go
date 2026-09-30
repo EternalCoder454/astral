@@ -273,9 +273,6 @@ func (c *ChatView) buildRequest() []ollama.Message {
 	if c.continuing != nil && len(hist) > 0 && hist[len(hist)-1].Role == ollama.RoleAssistant {
 		hist = hist[:len(hist)-1]
 	}
-	// Memory looks for earlier moments by meaning as well as by words, and has
-	// no client of its own to ask the embedding model with.
-	scene.UseEmbedding(c.client, c.cfg)
 	return scene.BuildTurn(c.store, c.cfg, c.chat, c.cast, hist, c.turn)
 }
 

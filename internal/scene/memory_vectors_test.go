@@ -83,12 +83,12 @@ func meaningOf(s string) []float32 {
 
 func noEmbeddingCache(t *testing.T) {
 	t.Helper()
-	embedModel = knowledge.Model{}
-	embedding.Store(nil)
-	t.Cleanup(func() {
+	clear := func() {
 		embedModel = knowledge.Model{}
-		embedding.Store(nil)
-	})
+		queries.Range(func(k, _ any) bool { queries.Delete(k); return true })
+	}
+	clear()
+	t.Cleanup(clear)
 }
 
 const gannetMoment = `*She pressed the brass key into your palm.* "The Gannet sails at dawn. Promise me you will be on it, whatever happens tonight."`
@@ -144,7 +144,9 @@ func TestIndexingFillsVectorsInBatchesOldestFirst(t *testing.T) {
 			t.Fatalf("pass %d embedded %d, %v, want %d", i, n, err, want)
 		}
 	}
-	if len(f.calls) != 2 || len(f.calls[0]) != 32 || len(f.calls[1]) != 8 {
+	// One request a pass, each with the latest exchange on the end for the
+	// next recall, the last with nothing else left to embed.
+	if len(f.calls) != 3 || len(f.calls[0]) != 33 || len(f.calls[1]) != 9 || len(f.calls[2]) != 1 {
 		t.Fatalf("requests were not batched: %d", len(f.calls))
 	}
 	if !strings.HasPrefix(f.calls[0][0], "message 00") || !strings.HasPrefix(f.calls[1][0], "message 32") {
@@ -169,7 +171,6 @@ func TestIndexingDoesNothingWithoutAModel(t *testing.T) {
 		t.Fatalf("embedded %d, %v with no embedding model", n, err)
 	}
 	// And recall does not so much as ask.
-	UseEmbedding(client, store.DefaultConfig())
 	hist := []ollama.Message{{Role: ollama.RoleUser, Content: "Which boat departs at sunrise?"}}
 	if _, kept := recall(st, ch, hist, 4000); len(kept) != 0 {
 		t.Errorf("recalled %d moments from nothing", len(kept))
@@ -198,7 +199,13 @@ func TestRecallFindsAMomentByMeaningWhenNoWordsAreShared(t *testing.T) {
 		t.Fatalf("the query shares words with the scene: %+v", found)
 	}
 
-	UseEmbedding(client, cfg)
+	// The latest exchange is stored, after the record: the query that
+	// indexing embeds for the next recall.
+	for _, m := range hist {
+		if _, err := st.AddMessage(store.Message{ChatID: ch.ID, Role: m.Role, Content: m.Content}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if _, kept := recall(st, ch, hist, 4000); len(kept) != 0 {
 		t.Fatalf("recalled %d moments before any had a vector", len(kept))
 	}
@@ -216,7 +223,10 @@ func TestRecallFindsAMomentByMeaningWhenNoWordsAreShared(t *testing.T) {
 	}
 }
 
-func TestASlowEmbeddingServerFallsBackToWords(t *testing.T) {
+// Recall uses the query indexing kept and never asks the embedding model
+// itself, so a slow or stopped model cannot hold a reply up; the words are
+// searched as ever.
+func TestRecallNeverWaitsForTheEmbeddingServer(t *testing.T) {
 	noEmbeddingCache(t)
 	st, ch := meaningScene(t)
 	f := &fakeEmbed{}
@@ -226,7 +236,6 @@ func TestASlowEmbeddingServerFallsBackToWords(t *testing.T) {
 	if n, _ := IndexMessages(context.Background(), st, client, cfg, ch.ID); n != 2 {
 		t.Fatalf("indexed %d", n)
 	}
-	UseEmbedding(client, cfg)
 
 	f.delay.Store(int64(5 * time.Second))
 	before := f.embeds()
@@ -235,11 +244,11 @@ func TestASlowEmbeddingServerFallsBackToWords(t *testing.T) {
 	_, kept := recall(st, ch, hist, 4000)
 	took := time.Since(start)
 
-	if f.embeds() == before {
-		t.Fatal("the slow server was never asked")
+	if f.embeds() != before {
+		t.Error("recall asked the embedding server")
 	}
-	if took > 2*time.Second {
-		t.Errorf("recall waited %v for a slow embedding server", took)
+	if took > 500*time.Millisecond {
+		t.Errorf("recall took %v", took)
 	}
 	if !recalled(kept, "brass key") {
 		t.Errorf("the words alone were not used: %+v", kept)

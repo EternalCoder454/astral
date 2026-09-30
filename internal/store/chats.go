@@ -331,6 +331,27 @@ func (s *Store) messages(chatID, afterID int64) ([]Message, error) {
 	return out, rows.Err()
 }
 
+// LastMessages is a chat's newest n messages that the model reads, oldest
+// first: not the ones hidden from it.
+func (s *Store) LastMessages(chatID int64, n int) ([]Message, error) {
+	rows, err := s.db.Query(`
+		SELECT id, role, content FROM messages
+		WHERE chat_id = ? AND hidden = 0 ORDER BY id DESC LIMIT ?`, chatID, n)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Message
+	for rows.Next() {
+		m := Message{ChatID: chatID}
+		if err := rows.Scan(&m.ID, &m.Role, &m.Content); err != nil {
+			return nil, err
+		}
+		out = append([]Message{m}, out...)
+	}
+	return out, rows.Err()
+}
+
 // AddMessage appends a turn and bumps the chat's updated_at, so the sidebar
 // reorders. Both statements run in one transaction: a message that exists in a
 // chat whose timestamp says otherwise would sort to the bottom of the list and

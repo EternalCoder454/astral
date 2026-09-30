@@ -106,7 +106,7 @@ func recall(st *store.Store, ch store.Chat, hist []ollama.Message, budget int) (
 		// A moment that says the same thing in other words shares nothing with
 		// the query for the search above to match. With an embedding model
 		// installed, what it is about is searched too and the two are merged.
-		if meant := byMeaning(st, ch, text); len(meant) > 0 {
+		if meant := byMeaning(st, ch); len(meant) > 0 {
 			moments = fuseMoments(moments, meant)
 		}
 	}

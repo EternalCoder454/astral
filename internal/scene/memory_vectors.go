@@ -2,13 +2,10 @@ package scene
 
 import (
 	"context"
-	"errors"
 	"log"
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"astral/internal/ollama"
 	"astral/internal/store"
@@ -33,40 +30,39 @@ const (
 	embedChars = 2000
 	// queryChars bounds the query, newest words first, for the same reason.
 	queryChars = 1500
-	// queryTimeout is how long recall waits for the embedding model. It runs
-	// while a reply is being prepared, so it can never hold one up: past this
-	// the scene goes on with the word search alone.
-	queryTimeout = 300 * time.Millisecond
 	// meaningMoments is how many moments the vectors put forward, as many
 	// as the word search does.
 	meaningMoments = 6
+	// meaningFloor is how near a moment has to be to be recalled at all:
+	// without one, the nearest six are put forward however far they are.
+	// Unmeasured, since no embedding model was installed to measure with;
+	// sentence embedding models commonly score related passages above 0.6
+	// and unrelated ones below 0.5.
+	meaningFloor = 0.5
 )
 
-// embedSource is the client and settings recall embeds with.
-type embedSource struct {
-	client *ollama.Client
-	cfg    store.Config
+// queryVec is a chat's latest exchange, embedded after the reply that ended
+// it, with the model that made it.
+type queryVec struct {
+	model string
+	vec   []float32
 }
 
-// embedding is what recall was last told to use. Prompt assembly is deep
-// inside recall's callers and has no client or settings to pass along, and the
-// window and the phone are one process with one of each, so each says what it
-// is about to build a prompt with.
-var embedding atomic.Pointer[embedSource]
-
-// UseEmbedding tells recall which client and settings to embed with. Call it
-// before building a turn.
-func UseEmbedding(client *ollama.Client, cfg store.Config) {
-	embedding.Store(&embedSource{client: client, cfg: cfg})
-}
+// queries holds each chat's latest queryVec. Recall reads it rather than ask
+// the embedding model while a reply is being prepared: on the desktop that is
+// the UI thread, and the model, unloaded between turns, can take seconds to
+// come back. It is one message behind, the reply before your newest message
+// rather than both, which is close enough to what the scene is about.
+var queries sync.Map // chat id -> queryVec
 
 // indexing holds the chats being embedded, so the window and a phone playing
 // the same scene do not both embed the same batch.
 var indexing sync.Map // chat id -> struct{}
 
 // IndexMessages makes vectors for up to a batch of a chat's messages that
-// lack one, oldest first, and says how many it made. It does nothing when no
-// embedding model is installed.
+// lack one, oldest first, and says how many it made, and embeds the chat's
+// latest exchange for the next recall to search with, in the same request. It
+// does nothing when no embedding model is installed.
 //
 // Call it off the UI thread, after a reply. The embedding runs on the CPU, so
 // it takes nothing from the scene's model in video memory.
@@ -83,16 +79,41 @@ func IndexMessages(ctx context.Context, st *store.Store, client *ollama.Client, 
 	}
 	defer indexing.Delete(chatID)
 	pending, err := st.MessagesWithoutVector(chatID, model, indexBatch)
-	if err != nil || len(pending) == 0 {
+	if err != nil {
 		return 0, err
 	}
-	inputs := make([]string, len(pending))
-	for i, p := range pending {
-		inputs[i] = excerpt(p.Content, embedChars)
+	// The same query recall's word search makes: your newest message and
+	// the reply before it, newest first.
+	recent, err := st.LastMessages(chatID, 2)
+	if err != nil {
+		return 0, err
+	}
+	var query []string
+	for i := len(recent) - 1; i >= 0; i-- {
+		if c := strings.TrimSpace(recent[i].Content); c != "" {
+			query = append(query, c)
+		}
+	}
+	inputs := make([]string, 0, len(pending)+1)
+	for _, p := range pending {
+		inputs = append(inputs, excerpt(p.Content, embedChars))
+	}
+	if len(query) > 0 {
+		inputs = append(inputs, excerpt(strings.Join(query, "\n"), queryChars))
+	}
+	if len(inputs) == 0 {
+		return 0, nil
 	}
 	vecs, err := client.EmbedOnCPU(ctx, model, inputs)
 	if err != nil {
 		return 0, err
+	}
+	if len(query) > 0 {
+		queries.Store(chatID, queryVec{model: model, vec: vecs[len(vecs)-1]})
+		vecs = vecs[:len(vecs)-1]
+	}
+	if len(pending) == 0 {
+		return 0, nil
 	}
 	if err := st.SaveMessageVectors(model, pending, vecs); err != nil {
 		return 0, err
@@ -100,34 +121,16 @@ func IndexMessages(ctx context.Context, st *store.Store, client *ollama.Client, 
 	return len(pending), nil
 }
 
-// byMeaning finds the moments before the scene's bookmark whose vectors are
-// nearest to the text, best first. It returns nothing, rather than waiting,
-// whenever the embedding model is not there or not quick.
-func byMeaning(st *store.Store, ch store.Chat, text string) []store.Moment {
-	src := embedding.Load()
-	if src == nil || src.client == nil || strings.TrimSpace(text) == "" {
+// byMeaning finds the moments before the scene's bookmark nearest to its
+// latest exchange, best first, from the query IndexMessages last embedded. It
+// never asks the embedding model anything, so it costs a reply nothing.
+func byMeaning(st *store.Store, ch store.Chat) []store.Moment {
+	q, ok := queries.Load(ch.ID)
+	if !ok {
 		return nil
 	}
-	// Before anything is asked of the server: a scene without vectors, which is
-	// every scene while no embedding model is installed, costs one small query.
-	if has, err := st.HasMessageVectors(ch.ID); err != nil || !has {
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
-	defer cancel()
-	model := embedModelWithin(ctx, src.client, src.cfg)
-	if model == "" {
-		return nil
-	}
-	vecs, err := src.client.EmbedOnCPU(ctx, model, []string{excerpt(text, queryChars)})
-	if err != nil || len(vecs) != 1 {
-		// A model that is still loading is expected and quiet.
-		if err != nil && !errors.Is(err, context.DeadlineExceeded) {
-			log.Printf("astral: embedding the query for chat %d: %v", ch.ID, err)
-		}
-		return nil
-	}
-	stored, err := st.MessageVectors(ch.ID, ch.SummaryUpto, model)
+	qv := q.(queryVec)
+	stored, err := st.MessageVectors(ch.ID, ch.SummaryUpto, qv.model)
 	if err != nil {
 		log.Printf("astral: reading vectors for chat %d: %v", ch.ID, err)
 		return nil
@@ -140,9 +143,9 @@ func byMeaning(st *store.Store, ch store.Chat, text string) []store.Moment {
 	// messages, a few megabytes of vectors and some milliseconds of arithmetic.
 	all := make([]scored, 0, len(stored))
 	for _, v := range stored {
-		// Not positive means unrelated, or a vector from a model of another
-		// size, which Cosine reports as -1.
-		if sim := store.Cosine(vecs[0], v.Vec); sim > 0 {
+		// A vector from a model of another size scores -1 and falls below
+		// the floor with everything else that is not near.
+		if sim := store.Cosine(qv.vec, v.Vec); sim >= meaningFloor {
 			all = append(all, scored{v.ID, sim})
 		}
 	}
@@ -165,26 +168,6 @@ func byMeaning(st *store.Store, ch store.Chat, text string) []store.Moment {
 		return nil
 	}
 	return moments
-}
-
-// embedModelWithin is EmbedModel, given up on when ctx runs out.
-//
-// The lookup is not handed ctx: knowledge.Model remembers a lookup that failed
-// for ten minutes, and one cut short by a deadline this tight would switch the
-// knowledge base's vectors off with it. It carries on in the background and
-// its answer is there for the next turn.
-func embedModelWithin(ctx context.Context, client *ollama.Client, cfg store.Config) string {
-	if m := strings.TrimSpace(cfg.EmbeddingModel); m != "" {
-		return m
-	}
-	found := make(chan string, 1)
-	go func() { found <- EmbedModel(context.Background(), client, cfg) }()
-	select {
-	case m := <-found:
-		return m
-	case <-ctx.Done():
-		return ""
-	}
 }
 
 // fuseMoments merges ranked lists of moments by reciprocal rank, as the

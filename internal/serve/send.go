@@ -209,9 +209,6 @@ func (s *Server) generate(w http.ResponseWriter, r *http.Request, ch store.Chat,
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	// Memory looks for earlier moments by meaning as well as by words, and has
-	// no client of its own to ask the embedding model with.
-	scene.UseEmbedding(s.client(), cfg)
 	msgs := scene.BuildTurn(s.store, cfg, ch, castFor(cast, ca), hist, turn)
 
 	flusher, ok := w.(http.Flusher)
