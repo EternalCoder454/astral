@@ -49,6 +49,10 @@ func (a *App) buildWelcome() *gtk.Widget {
 
 // refreshWelcome rebuilds the home screen's contents.
 func (a *App) refreshWelcome() {
+	// Every change to the cast or the worlds ends here, so the sidebar's counts
+	// are brought up to date first: they belong to the sidebar, which is there
+	// whether or not the home screen has been built.
+	a.refreshNavCounts()
 	if a.welcomeBox == nil {
 		return
 	}

@@ -433,8 +433,14 @@ func (a *App) showChat() {
 		a.stack.SetVisibleChildName("chat")
 	}
 	if a.sidebar != nil {
-		a.sidebar.SetHomeActive(false)
+		a.sidebar.SetActivePage(ui.NavNone)
 	}
+}
+
+// chatShowing reports whether the window is on the open chat, rather than on
+// Home or one of the pages.
+func (a *App) chatShowing() bool {
+	return a.stack != nil && a.stack.VisibleChildName() == "chat"
 }
 
 func (a *App) showWelcome() {
@@ -445,7 +451,7 @@ func (a *App) showWelcome() {
 	a.setTitle(store.Chat{}, chars.Character{})
 	if a.sidebar != nil {
 		a.sidebar.Select(0)
-		a.sidebar.SetHomeActive(true)
+		a.sidebar.SetActivePage(ui.NavHome)
 	}
 }
 
