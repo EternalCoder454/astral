@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 
@@ -102,8 +104,12 @@ func (a *App) worldRow(w world.World) *gtk.Box {
 	})
 	row.Append(open)
 
-	side := gtk.NewBox(gtk.OrientationVertical, 4)
+	// Laid out as a character's row is: edit beside the card, and deleting,
+	// which takes the lorebook with it, a step away in a menu.
+	side := gtk.NewBox(gtk.OrientationHorizontal, 2)
 	side.SetVAlign(gtk.AlignCenter)
+	side.AddCSSClass("card-actions")
+	row.AddCSSClass("card-row")
 	edit := gtk.NewButtonFromIconName(ui.IconEdit)
 	edit.SetTooltipText("Rename " + setting.Name)
 	edit.AddCSSClass("flat")
@@ -112,10 +118,9 @@ func (a *App) worldRow(w world.World) *gtk.Box {
 	})
 	side.Append(edit)
 
-	del := gtk.NewButtonFromIconName(ui.IconTrash)
-	del.SetTooltipText("Delete " + setting.Name)
-	del.AddCSSClass("flat")
-	del.ConnectClicked(func() {
+	acts := gio.NewSimpleActionGroup()
+	del := gio.NewSimpleAction("delete", nil)
+	del.ConnectActivate(func(*glib.Variant) {
 		a.confirm("Delete "+setting.Name,
 			"Its lorebook is deleted too, but its characters are kept.",
 			"Delete", func() {
@@ -126,7 +131,22 @@ func (a *App) worldRow(w world.World) *gtk.Box {
 				a.refreshPage(pageWorlds)
 			})
 	})
-	side.Append(del)
+	acts.AddAction(del)
+	row.InsertActionGroup("world", acts)
+	menu := gio.NewMenu()
+	menu.Append("Details", "world.open")
+	danger := gio.NewMenu()
+	danger.Append("Delete", "world.delete")
+	menu.AppendSection("", danger)
+	open2 := gio.NewSimpleAction("open", nil)
+	open2.ConnectActivate(func(*glib.Variant) { a.showWorld(setting) })
+	acts.AddAction(open2)
+	more := gtk.NewMenuButton()
+	more.SetIconName(ui.IconMore)
+	more.SetTooltipText("More for " + setting.Name)
+	more.AddCSSClass("flat")
+	more.SetMenuModel(menu)
+	side.Append(more)
 	row.Append(side)
 	return row
 }

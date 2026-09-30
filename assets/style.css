@@ -841,6 +841,28 @@ frame:focus-within {
 	font-weight: normal;
 }
 
+/* A command with a menu is a menubutton holding a button of its own. Padded
+   at both levels it stood taller than the plain commands beside it, and the
+   Characters page's content sat lower than every other page's. So the outer
+   one is bare and the inner one is the command. */
+menubutton.page-command,
+menubutton.page-command:hover {
+	padding: 0;
+	background: none;
+}
+
+menubutton.page-command > button {
+	padding: 5px 10px;
+	border-radius: 6px;
+	color: @astral_muted;
+}
+
+menubutton.page-command > button:hover,
+menubutton.page-command > button:checked {
+	background-color: @astral_surface;
+	color: @window_fg_color;
+}
+
 /* ---- Welcome screen ---- */
 
 .welcome-page {

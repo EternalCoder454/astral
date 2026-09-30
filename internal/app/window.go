@@ -283,7 +283,11 @@ func (a *App) buildHeader() *adw.HeaderBar {
 	a.portraitBtn.ConnectToggled(func() {
 		open := a.portraitBtn.Active()
 		a.portraitSplit.SetShowSidebar(open)
-		if !a.portraitSplit.Collapsed() {
+		// Your choice only while there is a portrait to choose about. Home and
+		// the pages hide the panel, which turns this off too, and that was
+		// kept as though you had closed it: the chat you went back to came
+		// back without its portrait.
+		if !a.portraitSplit.Collapsed() && a.portraitHas {
 			a.cfg.PortraitOpen = open
 		}
 	})
