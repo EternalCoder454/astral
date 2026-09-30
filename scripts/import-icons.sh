@@ -51,6 +51,14 @@ map=(
     check:check
     more_horiz:more
     close:close
+    keep:pin
+    call_split:branch
+    edit_note:draft
+    lightbulb_2:ideas
+    record_voice_over:speaker
+    star_filled:star
+    star:star-outline
+    visibility_off:hidden
 )
 
 mkdir -p "$out_dir"

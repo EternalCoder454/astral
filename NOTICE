@@ -7,7 +7,7 @@ This product includes software and assets developed by third parties.
 Material Symbols
 --------------------------------------------------------------------------------
 
-The icons in internal/app/icons/ are derived from Google's Material Symbols
+The icons in internal/icons/svg/ are derived from Google's Material Symbols
 (Outlined, weight 400, grade 0, optical size 20), used under the Apache License
 2.0.
 
@@ -36,18 +36,10 @@ Astral, because the vendored set had no equivalent:
 They are drawn on the same 960-unit grid at the same optical weight so they sit
 with the rest, and are covered by Astral's own licence.
 
-Eight more are Google's Material Icons (Filled), also under the Apache License
-2.0, written into place by hand rather than imported, with the same filename,
-size and fill changes as above:
-
-  * astral-pin-symbolic.svg (push_pin)
-  * astral-branch-symbolic.svg (call_split)
-  * astral-draft-symbolic.svg (edit_note)
-  * astral-speaker-symbolic.svg (volume_up)
-  * astral-star-symbolic.svg (star)
-  * astral-star-outline-symbolic.svg (star_border)
-  * astral-hidden-symbolic.svg (visibility_off)
-  * astral-ideas-symbolic.svg (lightbulb)
+Eight more were first written in by hand from Material Icons (Filled), and
+are now Material Symbols imported like the rest: keep (the pin), call_split,
+edit_note, lightbulb_2, record_voice_over, star in both its filled and unfilled
+forms, and visibility_off.
 
 --------------------------------------------------------------------------------
 Colour palette
