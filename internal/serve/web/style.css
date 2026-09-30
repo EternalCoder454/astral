@@ -182,6 +182,8 @@ html, body {
 	min-height: 48px;
 	min-width: 48px;
 	border: 8px solid transparent;
+	/* The padding edge, where the outline is drawn, is 8dp inside this. */
+	border-radius: calc(var(--md-corner-s) + 8px);
 	background-clip: padding-box;
 	box-shadow: inset 0 0 0 1px var(--md-outline-variant);
 	padding: 0 8px;
