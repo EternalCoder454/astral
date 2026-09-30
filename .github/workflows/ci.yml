@@ -96,7 +96,14 @@ jobs:
   # The race detector, as a job of its own beside the tests rather than after
   # them in the same one: it was over half of that job's time, and it depends
   # on nothing the tests do.
+  #
+  # In two shards: the store and scene tests are about 40s of it on their own,
+  # and serve another 30s, and together they held it to the slowest of them
+  # plus every test binary linked one after another on four cores.
   race:
+    strategy:
+      matrix:
+        shard: [store-scene, rest]
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/eternalcoder454/astral-ci:latest
@@ -120,7 +127,18 @@ jobs:
       # dependency), so the packages that touch it are tagged out of it and the
       # rest still get checked.
       - name: Test under the race detector
-        run: go test -race -short ./...
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          # Every package lands in exactly one shard: store and scene in one,
+          # the rest, new ones included, in the other.
+          pkgs=$(go list ./... | grep -E '/internal/(store|scene)$' || true)
+          if [ "$SHARD" = rest ]; then
+            pkgs=$(go list ./... | grep -vE '/internal/(store|scene)$')
+          fi
+          echo "$pkgs"
+          # shellcheck disable=SC2086
+          go test -race -short $pkgs
 
   staticcheck:
     runs-on: ubuntu-latest
