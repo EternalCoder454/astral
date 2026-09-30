@@ -106,10 +106,10 @@ func (a *App) appendWorlds() {
 
 	flow := gtk.NewFlowBox()
 	flow.SetSelectionMode(gtk.SelectionNone)
-	flow.SetMaxChildrenPerLine(2)
+	flow.SetMaxChildrenPerLine(1) // Home's column never holds two, and a lone card took only its own width
 	flow.SetColumnSpacing(10)
 	flow.SetRowSpacing(10)
-	flow.SetHomogeneous(true)
+	flow.SetHomogeneous(false) // each card its own height; see characterCard
 
 	const maxShown = 4
 	shown := worlds
@@ -142,6 +142,7 @@ func (a *App) worldCard(w world.World) *gtk.Button {
 	btn := gtk.NewButton()
 	btn.AddCSSClass("character-card")
 	btn.SetVAlign(gtk.AlignStart)
+	btn.SetHExpand(true) // as wide as the column, however short its text
 
 	col := gtk.NewBox(gtk.OrientationVertical, 3)
 	head := gtk.NewBox(gtk.OrientationHorizontal, 8)
@@ -204,10 +205,10 @@ func (a *App) appendCast() {
 	// to a fixed number of columns.
 	flow := gtk.NewFlowBox()
 	flow.SetSelectionMode(gtk.SelectionNone)
-	flow.SetMaxChildrenPerLine(2)
+	flow.SetMaxChildrenPerLine(1) // Home's column never holds two, and a lone card took only its own width
 	flow.SetColumnSpacing(10)
 	flow.SetRowSpacing(10)
-	flow.SetHomogeneous(true)
+	flow.SetHomogeneous(false) // each card its own height; see characterCard
 
 	const maxShown = 6
 	shown := characters
@@ -291,9 +292,11 @@ func (a *App) buildEmptyCast() *gtk.Box {
 func (a *App) characterCard(c chars.Character) *gtk.Button {
 	btn := gtk.NewButton()
 	btn.AddCSSClass("character-card")
-	// The flow box gives every card in a row the tallest one's height, which
-	// left a one-line character with a hollow at the bottom.
+	// Each card as tall as its own text: a flow box of equal cells gave every
+	// card the tallest one's height, which left a one-line character with a
+	// hollow at the bottom. And as wide as the column, however short.
 	btn.SetVAlign(gtk.AlignStart)
+	btn.SetHExpand(true)
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 10)
 	avatar := ui.NewCharacterAvatar(c, 36)
