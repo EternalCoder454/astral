@@ -3,6 +3,11 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.32
+- Replies are written with about half the work they took, so the window stays smoother while they arrive
+- A chat opens a little faster: only what fills the window is laid out before it is shown
+- After you send a message, the reply stays in view as it is written, even in a short window
+
 ## 0.5.31
 - The sidebar can be dragged much narrower, down to 150 pixels; it used to stop at about 330
 
