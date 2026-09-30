@@ -31,6 +31,56 @@ modules:
         sha256: 63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445
         strip-components: 0
 
+  # Astral's dependencies, gotk4 above all, compiled on their own into a Go
+  # cache in /app that the next module builds from. flatpak-builder rebuilds a
+  # module only when its sources change, and these are go.mod and go.sum, not
+  # the whole tree: with its cache kept between runs (see flatpak.yml), a
+  # build compiles only Astral. Without this every build compiled gotk4 from
+  # cold, sixteen of its eighteen minutes.
+  - name: astral-deps
+    buildsystem: simple
+    build-options:
+      build-args:
+        - --share=network
+      env:
+        CGO_ENABLED: "1"
+    build-commands:
+      - |
+        export PATH=/app/go-toolchain/bin:$PATH
+        export GOCACHE=/app/.gocache GOPATH=/app/.gopath GOFLAGS=-modcacherw
+        go mod download
+        go build .
+    sources:
+      - type: file
+        path: ../../go.mod
+      - type: file
+        path: ../../go.sum
+      # Every package outside the standard library that Astral imports. One
+      # left out is only compiled with Astral instead of cached.
+      - type: inline
+        dest-filename: warm.go
+        contents: |
+          package warm
+
+          import (
+          	_ "github.com/diamondburned/gotk4-adwaita/pkg/adw"
+          	_ "github.com/diamondburned/gotk4/pkg/cairo"
+          	_ "github.com/diamondburned/gotk4/pkg/core/glib"
+          	_ "github.com/diamondburned/gotk4/pkg/gdk/v4"
+          	_ "github.com/diamondburned/gotk4/pkg/gdkpixbuf/v2"
+          	_ "github.com/diamondburned/gotk4/pkg/gio/v2"
+          	_ "github.com/diamondburned/gotk4/pkg/glib/v2"
+          	_ "github.com/diamondburned/gotk4/pkg/graphene"
+          	_ "github.com/diamondburned/gotk4/pkg/gtk/v4"
+          	_ "github.com/diamondburned/gotk4/pkg/pango"
+          	_ "golang.org/x/image/bmp"
+          	_ "golang.org/x/image/draw"
+          	_ "golang.org/x/image/tiff"
+          	_ "golang.org/x/image/webp"
+          	_ "golang.org/x/net/html"
+          	_ "modernc.org/sqlite"
+          )
+
   - name: astral
     buildsystem: simple
     build-options:
@@ -43,10 +93,12 @@ modules:
     build-commands:
       - |
         export PATH=/app/go-toolchain/bin:$PATH
-        export GOCACHE=$PWD/.gocache GOPATH=$PWD/.gopath GOFLAGS=-modcacherw
+        export GOCACHE=/app/.gocache GOPATH=/app/.gopath GOFLAGS=-modcacherw
         VERSION=$(sed -n 's/^var version = "\(.*\)"/\1/p' internal/app/version.go)
         echo "version: $VERSION"
         go build -buildvcs=false -ldflags "-s -w -X 'astral/internal/app.version=$VERSION'" -o /app/bin/astral .
+        # The cache and the module downloads are for building, not for the app.
+        rm -rf /app/.gocache /app/.gopath
       - install -Dm644 assets/astral.svg /app/share/icons/hicolor/scalable/apps/io.github.astral.svg
       - sed 's|@BIN@|astral|' packaging/io.github.astral.desktop > io.github.astral.desktop
       - install -Dm644 io.github.astral.desktop /app/share/applications/io.github.astral.desktop

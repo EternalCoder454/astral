@@ -120,7 +120,12 @@ jobs:
           bundle: astral-${{ env.ASTRAL_VERSION }}-x86_64.flatpak
           manifest-path: packaging/flatpak/io.github.astral.yml
           runtime-repo: https://dl.flathub.org/repo/flathub.flatpakrepo
-          cache-key: flatpak-builder-${{ github.sha }}
+          # The action restores only keys starting flatpak-builder-x86_64 and
+          # appends the arch itself. Keyed on the commit, as this was, it never
+          # restored anything, and every run compiled everything. Keyed on what
+          # the dependency module is built from, it restores the last build's
+          # state, and saves a new one only when those change.
+          cache-key: flatpak-builder-x86_64-${{ hashFiles('go.sum', 'packaging/flatpak/io.github.astral.yml') }}
           restore-cache: true
 
       - name: Upload the bundle
