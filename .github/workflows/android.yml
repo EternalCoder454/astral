@@ -20,6 +20,11 @@ on:
       - ".github/workflows/android.yml"
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      reuse:
+        description: "A commit whose beta build to reuse, to try the path a release tag takes"
+        required: false
+        default: ""
 
 concurrency:
   group: android-${{ github.ref }}
@@ -27,6 +32,8 @@ concurrency:
 
 permissions:
   contents: write
+  # To find this commit's build on beta and download it; see below.
+  actions: read
 
 jobs:
   build:
@@ -40,7 +47,36 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # A release tag is always on a commit beta built minutes before, since a
+      # release bumps build.gradle.kts, which this workflow watches on beta.
+      # The tag takes that APK rather than building the same one again, and
+      # builds only when there is none. See windows.yml, where this saves the
+      # most.
+      - name: Look for this commit's build on beta
+        id: prebuilt
+        if: startsWith(github.ref, 'refs/tags/') || inputs.reuse != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ inputs.reuse || github.sha }}
+        run: |
+          run=$(gh run list -R "$GITHUB_REPOSITORY" --workflow android.yml --branch beta \
+            --commit "$SHA" --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "beta build of $SHA: ${run:-none, so building it here}"
+          VERSION=$(sed -n 's/^var version = "\(.*\)"/\1/p' ../../internal/app/version.go)
+          echo "apk=packaging/android/out/astral-$VERSION.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Take beta's APK
+        if: steps.prebuilt.outputs.run != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: astral-android
+          path: packaging/android/out
+          run-id: ${{ steps.prebuilt.outputs.run }}
+          github-token: ${{ github.token }}
+
       - name: Set up Java
+        if: steps.prebuilt.outputs.run == ''
         uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -51,6 +87,7 @@ jobs:
       # for "tools", a package Google removed. Using what is already installed
       # is both shorter and one fewer thing to break.
       - name: Install what we build against
+        if: steps.prebuilt.outputs.run == ''
         run: |
           SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -1)
           echo "sdkmanager: $SDKMANAGER"
@@ -62,13 +99,14 @@ jobs:
       # nothing from the cache to trade for that. v4 is not one of the actions
       # GitHub is deprecating.
       - name: Set up Gradle
+        if: steps.prebuilt.outputs.run == ''
         uses: gradle/actions/setup-gradle@v4
 
       # The signing key, from the repository's secrets rather than the
       # repository. Without it the build still works and still produces an
       # installable app; it just produces one that cannot update the last.
       - name: Unlock the signing key
-        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' && steps.prebuilt.outputs.run == '' }}
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
@@ -76,6 +114,7 @@ jobs:
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
       - name: Build
+        if: steps.prebuilt.outputs.run == ''
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -83,6 +122,7 @@ jobs:
         run: gradle --no-daemon assembleRelease
 
       - name: Name it after the version
+        if: steps.prebuilt.outputs.run == ''
         id: name
         run: |
           VERSION=$(sed -n 's/^var version = "\(.*\)"/\1/p' ../../internal/app/version.go)
@@ -119,7 +159,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v3
         with:
-          files: ${{ steps.name.outputs.apk }}
+          files: ${{ steps.name.outputs.apk || steps.prebuilt.outputs.apk }}
           draft: true
           generate_release_notes: false
           body_path: packaging/android/release-notes.md
