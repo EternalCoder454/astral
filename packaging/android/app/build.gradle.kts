@@ -14,8 +14,8 @@ android {
 		// machine running a 27B model.
 		minSdk = 24
 		targetSdk = 35
-		versionCode = 44
-		versionName = "0.5.30"
+		versionCode = 45
+		versionName = "0.5.31"
 	}
 
 	// Signing.

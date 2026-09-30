@@ -3,6 +3,9 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.31
+- The sidebar can be dragged much narrower, down to 150 pixels; it used to stop at about 330
+
 ## 0.5.30
 - A new look after Atlas Monitor: one title bar across the window, and the page as a layer inside the frame
 - Characters, Worlds, Knowledge and Prompts are pages in the window now, and the sidebar marks where you are
