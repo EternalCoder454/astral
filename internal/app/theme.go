@@ -7,46 +7,49 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
-	"astral/internal/store"
+	"astral/internal/theme"
 )
 
-// Astral does not follow the desktop's grey. Its whole point is to look like
-// Claude Desktop, so it redefines libadwaita's named colours to Anthropic's
-// palette and every widget, including stock popovers and dialogs, inherits
-// the warm scheme.
+// Astral does not follow the desktop's grey. It has colours of its own, and every
+// widget, including stock popovers and dialogs, inherits them because the theme
+// redefines libadwaita's named colours. Which colours is a setting: the themes are
+// in internal/theme, and Ink is the default.
 //
-// GTK CSS has no equivalent of prefers-color-scheme, so the two schemes cannot
-// live in one stylesheet. Instead the structural CSS is loaded once and the
-// colour definitions live in a second provider that is swapped when the scheme
-// changes. Swapping a provider re-resolves every @named colour in the first
-// one, which is what makes a live theme switch possible at all.
+// GTK CSS has no equivalent of prefers-color-scheme, so the themes cannot live in
+// one stylesheet. Instead the structural CSS is loaded once and the colour
+// definitions live in a second provider whose contents are replaced when the theme
+// changes. Loading new contents into a provider re-resolves every @named colour in
+// the first one, which is what makes a live theme switch possible at all.
 type themer struct {
 	structure *gtk.CSSProvider
 	colors    *gtk.CSSProvider
-	dark      string
-	light     string
 
-	// installed tracks whether the colour provider is currently attached, so
-	// a swap removes the old one rather than stacking a second on top.
-	installed bool
+	// loaded is the ID of the theme whose colours are in the provider now. Loading
+	// a stylesheet restyles every widget in every window, and apply is called
+	// whenever the setting is touched and whenever the desktop's own scheme
+	// changes, so an unchanged theme must cost nothing rather than a full restyle
+	// that changes nothing.
+	loaded string
 }
 
-func newThemer(structure, dark, light string) *themer {
-	return &themer{dark: dark, light: light}
-}
+func newThemer() *themer { return &themer{} }
 
 // install loads the structural stylesheet. Called once, at activation.
+//
+// The picker's circles are generated from the theme table and go in the same
+// provider, so a theme cannot be added without its circle.
 //
 // ASTRAL_DEV_CSS is appended to it, which is how a rule can be tried without a
 // rebuild, GTK's own layout is the only way to find out what a value actually
 // renders as, and a five-minute gotk4 build per experiment makes that
 // impractical otherwise.
 func (t *themer) install(css string) {
-	if extra := os.Getenv("ASTRAL_DEV_CSS"); extra != "" {
-		css += "\n" + extra
-	}
 	if css == "" {
 		return
+	}
+	css += "\n" + theme.SwatchCSS()
+	if extra := os.Getenv("ASTRAL_DEV_CSS"); extra != "" {
+		css += "\n" + extra
 	}
 	display := gdk.DisplayGetDefault()
 	if display == nil {
@@ -60,54 +63,59 @@ func (t *themer) install(css string) {
 	gtk.StyleContextAddProviderForDisplay(display, t.structure, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 }
 
-// apply sets the colour scheme, both for libadwaita (so its own stylesheet
-// picks the right variant) and for our colour provider.
-func (t *themer) apply(theme string) {
+// apply puts a setting into effect: a theme's ID, or theme.Follow.
+//
+// Two separate things, and both matter. The colour scheme decides whether
+// libadwaita draws its light or its dark widgets, its symbolic icons and its
+// scrollbars, and the colours then supply the palette itself. A theme that is dark
+// under the light scheme would have dark icons on a dark page.
+func (t *themer) apply(setting string) {
 	sm := adw.StyleManagerGetDefault()
-	dark := theme == store.ThemeDark
-	switch theme {
-	case store.ThemeDark:
-		sm.SetColorScheme(adw.ColorSchemeForceDark)
-	case store.ThemeLight:
-		sm.SetColorScheme(adw.ColorSchemeForceLight)
-	default:
+	if theme.IsFollowing(setting) {
 		sm.SetColorScheme(adw.ColorSchemePreferDark)
 		// "System" means whatever the desktop settled on, which libadwaita has
 		// already worked out, so ask it rather than re-deriving it here.
-		dark = sm.Dark()
+		t.load(theme.Resolve(setting, sm.Dark()))
+		return
 	}
-	t.loadColors(dark)
+	th := theme.Resolve(setting, false)
+	if th.Dark {
+		sm.SetColorScheme(adw.ColorSchemeForceDark)
+	} else {
+		sm.SetColorScheme(adw.ColorSchemeForceLight)
+	}
+	t.load(th)
 }
 
-func (t *themer) loadColors(dark bool) {
+// load puts a theme's colours in the provider, unless they are already there.
+func (t *themer) load(th theme.Theme) {
+	if th.ID == t.loaded {
+		return
+	}
 	display := gdk.DisplayGetDefault()
 	if display == nil {
 		return
 	}
-	if t.installed && t.colors != nil {
-		gtk.StyleContextRemoveProviderForDisplay(display, t.colors)
-		t.installed = false
+	first := t.colors == nil
+	if first {
+		t.colors = gtk.NewCSSProvider()
 	}
-	css := t.light
-	if dark {
-		css = t.dark
+	t.colors.LoadFromString(th.CSS())
+	if first {
+		// Loaded before it is added, so that the first theme is one restyle and
+		// not an empty stylesheet followed by the real one.
+		gtk.StyleContextAddProviderForDisplay(display, t.colors, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION+1)
 	}
-	if css == "" {
-		return
-	}
-	t.colors = gtk.NewCSSProvider()
-	t.colors.LoadFromString(css)
-	gtk.StyleContextAddProviderForDisplay(display, t.colors, gtk.STYLE_PROVIDER_PRIORITY_APPLICATION+1)
-	t.installed = true
+	t.loaded = th.ID
 }
 
-// watchSystem re-applies the scheme when the desktop's preference changes,
-// which only matters while the app is set to follow it.
+// watchSystem re-applies the theme when the desktop's preference changes, which
+// only matters while the app is set to follow it.
 func (t *themer) watchSystem(current func() string) {
 	sm := adw.StyleManagerGetDefault()
 	sm.NotifyProperty("dark", func() {
-		if current() == store.ThemeSystem {
-			t.loadColors(sm.Dark())
+		if setting := current(); theme.IsFollowing(setting) {
+			t.load(theme.Resolve(setting, sm.Dark()))
 		}
 	})
 }

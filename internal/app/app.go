@@ -163,7 +163,7 @@ func (a *App) activate() {
 	// it is being constructed.
 	installIcons()
 
-	a.theme = newThemer(a.assets.Style, a.assets.Dark, a.assets.Light)
+	a.theme = newThemer()
 	a.theme.install(a.assets.Style)
 	a.theme.apply(a.cfg.Theme)
 	a.theme.watchSystem(func() string { return a.cfg.Theme })

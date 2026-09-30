@@ -246,7 +246,7 @@ func TestConfigRoundTripAndNormalize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig on a fresh profile: %v", err)
 	}
-	if cfg.Theme != ThemeDark || cfg.Temperature != DefaultTemperature {
+	if cfg.Theme != ThemeDefault || cfg.Temperature != DefaultTemperature {
 		t.Errorf("defaults not applied: %+v", cfg)
 	}
 
@@ -271,8 +271,37 @@ func TestConfigRoundTripAndNormalize(t *testing.T) {
 	if back.WindowWidth < 640 {
 		t.Errorf("WindowWidth not repaired: %d", back.WindowWidth)
 	}
-	if back.Theme != ThemeDark {
+	if back.Theme != ThemeDefault {
 		t.Errorf("unknown theme not repaired: %q", back.Theme)
+	}
+}
+
+// The setting used to hold "dark" or "light", and those became Ink and Paper. A
+// config from before that must open on the scheme it was on, not on the default,
+// and one that names a theme must keep it.
+func TestConfigCarriesOldThemesOver(t *testing.T) {
+	for stored, want := range map[string]string{
+		"dark":     "ink",
+		"light":    "paper",
+		"system":   ThemeSystem,
+		"nord":     "nord",
+		"contrast": "contrast",
+		"":         ThemeDefault,
+	} {
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+		if err := os.MkdirAll(filepath.Dir(ConfigPath()), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(ConfigPath(), []byte(`{"theme":"`+stored+`"}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := LoadConfig()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Theme != want {
+			t.Errorf("a config holding %q loaded as %q, want %q", stored, cfg.Theme, want)
+		}
 	}
 }
 
@@ -300,7 +329,7 @@ func TestConfigBackfillsNewSettings(t *testing.T) {
 	// to be one of these and is now false by default, so it no longer proves
 	// anything here.
 	// KeepAlive was one as well, until its default became empty.
-	if cfg.NumCtx != DefaultNumCtx || cfg.Theme != ThemeDark || cfg.SearchProvider != SearchAuto ||
+	if cfg.NumCtx != DefaultNumCtx || cfg.Theme != ThemeDefault || cfg.SearchProvider != SearchAuto ||
 		cfg.Temperature != DefaultTemperature || !cfg.SidebarOpen {
 		t.Errorf("new settings did not backfill: %+v", cfg)
 	}

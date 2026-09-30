@@ -24,7 +24,6 @@ type settingsForm struct {
 
 	keepAlive *gtk.Entry
 
-	theme    *gtk.DropDown
 	fontMode *gtk.DropDown
 	showStat *gtk.CheckButton
 	updates  *gtk.CheckButton
@@ -347,10 +346,6 @@ func (a *App) buildYouPage(f *settingsForm) *gtk.Box {
 	page.Append(a.buildRulebook())
 
 	appOuter, appCard := groupCard("Appearance")
-	f.theme = gtk.NewDropDownFromStrings([]string{"Dark", "Light", "Follow the System"})
-	f.theme.SetSelected(uint(themeIndex(a.cfg.Theme)))
-	appCard.Append(labelledField("Theme", "", f.theme))
-
 	f.fontMode = gtk.NewDropDownFromStrings([]string{"Automatic", "Crisp (1080p Screens)", "Smooth (HiDPI Screens)"})
 	f.fontMode.SetSelected(uint(fontIndex(a.cfg.FontRendering)))
 	appCard.Append(labelledField("Text Rendering",
@@ -399,7 +394,6 @@ func (a *App) applySettings(f *settingsForm) {
 	// Empty is a real choice now, the server's setting, so it is saved rather
 	// than ignored.
 	a.cfg.KeepAlive = strings.TrimSpace(f.keepAlive.Text())
-	a.cfg.Theme = themeFromIndex(int(f.theme.Selected()))
 	a.cfg.FontRendering = fontFromIndex(int(f.fontMode.Selected()))
 	a.cfg.ShowStats = f.showStat.Active()
 	a.cfg.NotifyReplies = f.notify.Active()
@@ -436,7 +430,6 @@ func (a *App) applySettings(f *settingsForm) {
 	// because its base URL is baked into an http.Client at construction.
 	a.client = ollamaClientFor(a.cfg.BaseURL)
 	a.client.KeepAlive = a.cfg.KeepAlive
-	a.theme.apply(a.cfg.Theme)
 	a.applyFontRendering()
 	if a.chat != nil {
 		a.chat.SetClient(a.client)
@@ -626,28 +619,6 @@ func atoiOr(s string, fallback int) int {
 		}
 	}
 	return n
-}
-
-func themeIndex(t string) int {
-	switch t {
-	case store.ThemeLight:
-		return 1
-	case store.ThemeSystem:
-		return 2
-	default:
-		return 0
-	}
-}
-
-func themeFromIndex(i int) string {
-	switch i {
-	case 1:
-		return store.ThemeLight
-	case 2:
-		return store.ThemeSystem
-	default:
-		return store.ThemeDark
-	}
 }
 
 func fontIndex(m string) int {

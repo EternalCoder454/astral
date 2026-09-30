@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"astral/internal/theme"
 )
 
 // These two need no GTK, so unlike the parse tests next door they run
@@ -23,23 +25,24 @@ func readAsset(t *testing.T, path string) string {
 	return string(b)
 }
 
-// TestEveryColourIsDefinedInBothSchemes is the check the parser will not do.
+// TestEveryColourIsDefinedInEveryTheme is the check the parser will not do.
 //
-// The colours live in a second stylesheet so the scheme can be swapped while
-// the window is open, and the cost of that is two files that have to agree.
-// A colour added to one and forgotten in the other draws as transparent,
-// silently, in one theme only.
-func TestEveryColourIsDefinedInBothSchemes(t *testing.T) {
+// The colours live in a second stylesheet so the theme can be swapped while the
+// window is open, and the cost of that is a stylesheet that has to keep up with
+// the first. A colour added to style.css and forgotten in a theme draws as
+// transparent, silently, in that theme only. The themes are generated from one
+// list of names, so this also catches a name that list is missing.
+func TestEveryColourIsDefinedInEveryTheme(t *testing.T) {
 	assets := filepath.Join("..", "..", "assets")
 	used := colorsUsed(readAsset(t, filepath.Join(assets, "style.css")))
 	if len(used) < 5 {
 		t.Fatalf("only found %d colour references in style.css, so the pattern is wrong", len(used))
 	}
-	for _, scheme := range []string{"dark.css", "light.css"} {
-		defined := colorsDefined(readAsset(t, filepath.Join(assets, scheme)))
+	for _, th := range theme.Themes {
+		defined := colorsDefined(th.CSS())
 		for _, name := range used {
 			if !defined[name] {
-				t.Errorf("style.css uses @%s, which %s does not define", name, scheme)
+				t.Errorf("style.css uses @%s, which the %s theme does not define", name, th.Name)
 			}
 		}
 	}
