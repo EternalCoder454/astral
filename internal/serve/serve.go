@@ -22,6 +22,7 @@ import (
 	"astral/internal/ollama"
 	"astral/internal/scene"
 	"astral/internal/store"
+	"astral/internal/theme"
 )
 
 //go:embed web
@@ -37,6 +38,9 @@ type Server struct {
 	// version is what the phone shows on its about screen.
 	save    func(store.Config) error
 	version string
+	// theme is the desktop theme as the window shows it now, "system" already
+	// resolved, so the phone can wear the same colours.
+	theme func() theme.Theme
 
 	pair pairing
 	// busy stops two generations running on one chat: the window and a phone
@@ -56,11 +60,15 @@ type Server struct {
 // settings while a phone is connected, and the phone should get what the window
 // would get.
 func New(st *store.Store, config func() store.Config, client func() *ollama.Client,
-	save func(store.Config) error, version string) *Server {
+	save func(store.Config) error, themeNow func() theme.Theme, version string) *Server {
 	if save == nil {
 		save = func(store.Config) error { return nil }
 	}
-	return &Server{store: st, config: config, client: client, save: save, version: version}
+	if themeNow == nil {
+		// The default theme, so a server built without a window still has colours.
+		themeNow = func() theme.Theme { t, _ := theme.ByID(theme.Default); return t }
+	}
+	return &Server{store: st, config: config, client: client, save: save, theme: themeNow, version: version}
 }
 
 // Start begins listening. Starting an already-running server is not an error.
@@ -133,6 +141,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /api/pair", s.handlePair)
 
 	mux.Handle("GET /api/state", s.guard(s.handleState))
+	mux.Handle("GET /api/theme", s.guard(s.handleTheme))
 	mux.Handle("GET /api/chats/{id}", s.guard(s.handleChat))
 	mux.Handle("GET /api/chats/{id}/portrait", s.guard(s.handlePortrait))
 	mux.Handle("GET /api/characters/{id}/avatar", s.guard(s.handleAvatar))
@@ -267,14 +276,18 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request, d store.Dev
 		Archived bool `json:"archived,omitempty"`
 	}
 	out := struct {
-		Persona    string        `json:"persona"`
-		Model      string        `json:"model"`
-		Chats      []chatOut     `json:"chats"`
-		Characters []nameOut     `json:"characters"`
-		Worlds     []nameOut     `json:"worlds"`
-		Device     string        `json:"device"`
-		Since      time.Duration `json:"-"`
-	}{Persona: cfg.PersonaName, Model: cfg.Model, Device: d.Name}
+		Persona    string    `json:"persona"`
+		Model      string    `json:"model"`
+		Chats      []chatOut `json:"chats"`
+		Characters []nameOut `json:"characters"`
+		Worlds     []nameOut `json:"worlds"`
+		Device     string    `json:"device"`
+		// Theme rides along because the phone fetches state on opening and on
+		// every return to the app, which is when a theme changed on the PC has
+		// to reach it.
+		Theme theme.Phone   `json:"theme"`
+		Since time.Duration `json:"-"`
+	}{Persona: cfg.PersonaName, Model: cfg.Model, Device: d.Name, Theme: theme.PhoneRoles(s.theme())}
 
 	chats, err := s.store.Chats()
 	if err != nil {
@@ -301,6 +314,10 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request, d store.Dev
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) handleTheme(w http.ResponseWriter, r *http.Request, d store.Device) {
+	writeJSON(w, http.StatusOK, theme.PhoneRoles(s.theme()))
 }
 
 type nameOut struct {

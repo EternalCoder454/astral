@@ -29,6 +29,7 @@ func (a *App) startPhoneAccess() {
 			func() store.Config { return a.cfg },
 			func() *ollama.Client { return a.client },
 			a.applyConfigFromPhone,
+			a.theme.current,
 			version)
 	}
 	if err := a.phone.Start(a.cfg.PhonePort); err != nil {

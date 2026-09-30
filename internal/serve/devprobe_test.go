@@ -11,6 +11,7 @@ import (
 	"astral/internal/chars"
 	"astral/internal/ollama"
 	"astral/internal/store"
+	"astral/internal/theme"
 	"astral/internal/world"
 )
 
@@ -103,7 +104,8 @@ func TestDevServe(t *testing.T) {
 	}
 	s := New(st, func() store.Config { return cfg },
 		func() *ollama.Client { return ollama.NewClient(ollamaURL) },
-		func(next store.Config) error { cfg = next; return nil }, "0.3.0")
+		func(next store.Config) error { cfg = next; return nil },
+		func() theme.Theme { return theme.Resolve(os.Getenv("ASTRAL_DEV_SERVE_THEME"), true) }, "0.3.0")
 	if err := s.Start(8799); err != nil {
 		t.Fatal(err)
 	}

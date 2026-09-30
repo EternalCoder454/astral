@@ -601,11 +601,31 @@ function initialOf(name) {
 	return (name || "?").trim().charAt(0).toUpperCase() || "?";
 }
 
+// ---- Theme ----
+
+// applyTheme puts the desktop's colours under the phone's Material roles. Only
+// the custom properties change, so the shapes and components are untouched, and
+// it is cheap enough to run on every state fetch: a theme changed on the PC
+// arrives the next time the app is opened or reconnects, with no reload.
+function applyTheme(t) {
+	if (!t?.roles) return;
+	const root = document.documentElement;
+	for (const [role, hex] of Object.entries(t.roles)) root.style.setProperty("--md-" + role, hex);
+	const bars = t.roles["surface-container-lowest"];
+	document.querySelector('meta[name="theme-color"]')?.setAttribute("content", bars);
+	// Only the Android app has a status bar to colour; a browser just gets the
+	// meta tag above.
+	if (inApp() && typeof window.AstralApp.setBars === "function") {
+		try { window.AstralApp.setBars(bars, !!t.dark); } catch (_) {}
+	}
+}
+
 // ---- Home ----
 
 async function loadState() {
 	const res = await api("/api/state");
 	state = await res.json();
+	applyTheme(state.theme);
 
 	$("home-greeting").textContent = state.persona ? "Welcome back, " + state.persona : "Astral";
 	$("home-model").textContent = shortModel(state.model);
