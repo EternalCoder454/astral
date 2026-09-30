@@ -11,6 +11,11 @@ on:
     paths-ignore: ["**.md", "screenshots/**"]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      reuse:
+        description: "A commit whose beta build to reuse, to try the path a release tag takes"
+        required: false
+        default: ""
 
 concurrency:
   group: flatpak-${{ github.ref }}
@@ -18,9 +23,83 @@ concurrency:
 
 permissions:
   contents: write
+  # To find this commit's build on beta and download it; see below.
+  actions: read
 
 jobs:
+  # A release tag is always on a commit beta built minutes before, and the
+  # build is eighteen minutes, most of it compiling gotk4. The tag takes beta's
+  # bundle for the commit instead, and builds only when there is none. Its own
+  # job, on the plain runner, because the builder image need not have gh.
+  prebuilt:
+    if: startsWith(github.ref, 'refs/tags/') || inputs.reuse != ''
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.find.outputs.run }}
+    steps:
+      - name: Look for this commit's build on beta
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ inputs.reuse || github.sha }}
+        run: |
+          run=$(gh run list -R "$GITHUB_REPOSITORY" --workflow flatpak.yml --branch beta \
+            --commit "$SHA" --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "beta build of $SHA: ${run:-none, so building it here}"
+
+  reuse:
+    needs: prebuilt
+    if: needs.prebuilt.outputs.run != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read the version
+        run: |
+          VERSION=$(sed -n 's/^var version = "\(.*\)"/\1/p' internal/app/version.go)
+          echo "version: $VERSION"
+          echo "ASTRAL_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Take beta's bundle
+        uses: actions/download-artifact@v8
+        with:
+          name: astral-flatpak
+          run-id: ${{ needs.prebuilt.outputs.run }}
+          github-token: ${{ github.token }}
+
+      - name: Upload the bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: astral-flatpak
+          path: astral-${{ env.ASTRAL_VERSION }}-x86_64.flatpak
+
+      - name: Take this version's notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          awk -v v="$ASTRAL_VERSION" '
+            $0 == "## " v { taking = 1; next }
+            /^## / && taking  { exit }
+            taking            { print }
+          ' WHATSNEW.md > release-notes.md
+          echo "--- release notes ---"
+          cat release-notes.md
+
+      - name: Attach the bundle to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: astral-${{ env.ASTRAL_VERSION }}-x86_64.flatpak
+          draft: true
+          generate_release_notes: false
+          body_path: release-notes.md
+
   build:
+    # Whenever there is no beta build to take: every push to beta, and a tag
+    # whose commit beta did not build. The lookup being skipped or failing
+    # counts as none.
+    needs: prebuilt
+    if: ${{ !cancelled() && needs.prebuilt.outputs.run == '' }}
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
