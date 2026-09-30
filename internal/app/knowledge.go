@@ -49,6 +49,7 @@ func originLabel(origin string) string {
 
 // showKnowledge shows the list, with search, and the ways to add to it.
 func (a *App) showKnowledge() {
+	carried, refreshing := a.carriedQuery(pageKnowledge)
 	p := newPage("Knowledge")
 	p.commands.Append(commandButton(ui.IconFolder, "Import", a.importKnowledgeFiles))
 	p.commands.Append(commandButton(ui.IconSearch, "Study a Topic", func() {
@@ -123,8 +124,8 @@ func (a *App) showKnowledge() {
 	// rather than by its title, so what you see here is what the model would
 	// be shown. Titles are matched as well, for the one-word query the text
 	// search ignores as too short.
-	search.ConnectSearchChanged(func() {
-		q := strings.TrimSpace(search.Text())
+	apply := func(text string) {
+		q := strings.TrimSpace(text)
 		if q == "" {
 			fill(entries, "")
 			return
@@ -147,11 +148,23 @@ func (a *App) showKnowledge() {
 			}
 		}
 		fill(shown, q)
-	})
+	}
+	search.ConnectSearchChanged(func() { apply(search.Text()) })
+	// A refresh keeps the query, and applies it now rather than after the
+	// entry's own delay, so the list does not flash unfiltered.
+	if carried != "" {
+		search.SetText(carried)
+		apply(carried)
+	}
 
 	p.setCaption(count(len(entries), "entry", "entries"))
 	a.installPage(pageKnowledge, p)
-	search.GrabFocus()
+	a.rememberSearch(pageKnowledge, search)
+	// Only a page just opened takes the focus: a refresh after an edit would
+	// otherwise pull it out of whatever the reader was doing.
+	if !refreshing {
+		search.GrabFocus()
+	}
 }
 
 // describeKnowledge says how many entries there are and how they are searched,
@@ -268,7 +281,7 @@ func (a *App) editKnowledge(e store.KnowledgeEntry) {
 			return false
 		}
 		a.indexKnowledge()
-		a.showKnowledge()
+		a.refreshPage(pageKnowledge)
 		return true
 	})
 
@@ -294,7 +307,7 @@ func (a *App) editKnowledge(e store.KnowledgeEntry) {
 					return
 				}
 				d.Close()
-				a.showKnowledge()
+				a.refreshPage(pageKnowledge)
 			})
 		})
 		page.Append(del)
@@ -456,7 +469,7 @@ func (a *App) importKnowledgeFiles() {
 			a.toast(fmt.Sprintf("Imported %d %s.", added, plural(added, "file", "files")))
 		}
 		a.indexKnowledge()
-		a.showKnowledge()
+		a.refreshPage(pageKnowledge)
 	})
 }
 

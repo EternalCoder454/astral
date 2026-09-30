@@ -393,20 +393,14 @@ func (a *App) refreshNavCounts() {
 // decide what to do next. LastChat is still recorded, because the sidebar uses
 // it to mark where you were.
 
-// openChat loads a conversation into the centre panel.
-func (a *App) openChat(id int64) error {
-	// The chat a page was opened over, asked for again through its row: it is
-	// still loaded, and loading it again would stop a reply being written and
-	// throw away the reader's place in the transcript.
-	if id != 0 && a.pages.parked && a.pageShowing() != "" && a.chat.Chat().ID == id {
-		a.resumeChat()
-		return nil
-	}
-	ch, err := a.store.Chat(id)
+// chatParts reads a chat from the store with the character who leads it and
+// everyone in the cast, as the chat view is loaded with them. The messages are
+// read only when asked for, because resuming a parked chat has no use for them.
+func (a *App) chatParts(id int64, withMessages bool) (ch store.Chat, ca chars.Character, cast []chars.Character, msgs []store.Message, err error) {
+	ch, err = a.store.Chat(id)
 	if err != nil {
-		return err
+		return
 	}
-	var ca chars.Character
 	switch {
 	case ch.CharacterID != 0:
 		// A character deleted out from under an old chat is not an error: the
@@ -417,26 +411,44 @@ func (a *App) openChat(id int64) error {
 		// stored, because it is not a character anyone wrote: it is rebuilt
 		// from the world every time the chat is opened, so editing the world
 		// changes the scenes already running in it.
-		if w, err := a.store.World(ch.WorldID); err == nil {
+		if w, werr := a.store.World(ch.WorldID); werr == nil {
 			ca = narratorFor(w)
 		}
 	}
-	msgs, err := a.store.Messages(id)
-	if err != nil {
-		return err
+	if withMessages {
+		if msgs, err = a.store.Messages(id); err != nil {
+			return
+		}
 	}
 	// Whoever else is in it. A scene with one character has no cast rows, so
 	// this is empty for almost every conversation and the ordinary path runs
 	// unchanged.
-	cast, err := a.store.Cast(id)
-	if err != nil {
-		log.Printf("astral: reading the cast of chat %d: %v", id, err)
+	cast, cerr := a.store.Cast(id)
+	if cerr != nil {
+		log.Printf("astral: reading the cast of chat %d: %v", id, cerr)
 	}
 	// A scene in a world is played by the place as well as by anyone in it, so
 	// the narrator leads the cast. It is not in the stored rows because it is not
 	// a character anyone wrote.
 	if ch.WorldID != 0 && len(cast) > 0 && ca.Name != "" {
 		cast = append([]chars.Character{ca}, cast...)
+	}
+	return ch, ca, cast, msgs, nil
+}
+
+// openChat loads a conversation into the centre panel.
+func (a *App) openChat(id int64) error {
+	// The chat a page was opened over, asked for again through its row: it is
+	// still loaded, and loading it again would stop a reply being written and
+	// throw away the reader's place in the transcript.
+	if id != 0 && a.pages.parked && a.pageShowing() != "" && a.chat.Chat().ID == id {
+		if a.resumeChat() {
+			return nil
+		}
+	}
+	ch, ca, cast, msgs, err := a.chatParts(id, true)
+	if err != nil {
+		return err
 	}
 	if len(cast) > 1 {
 		a.chat.LoadScene(ch, cast, msgs)

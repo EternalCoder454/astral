@@ -136,6 +136,7 @@ func (a *App) buildWindow() {
 	a.toasts = adw.NewToastOverlay()
 	a.toasts.SetChild(frame)
 	a.win.SetContent(a.toasts)
+	a.installPageEscape()
 
 	// Folding for width, done here rather than by the split views.
 	//

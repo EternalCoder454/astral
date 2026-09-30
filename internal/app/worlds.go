@@ -123,7 +123,7 @@ func (a *App) worldRow(w world.World) *gtk.Box {
 					a.toast("Could not delete: " + err.Error())
 					return
 				}
-				a.showWorlds()
+				a.refreshPage(pageWorlds)
 			})
 	})
 	side.Append(del)
@@ -177,7 +177,7 @@ func (a *App) editWorld(w world.World) {
 			a.toast("Could not save: " + err.Error())
 			return false
 		}
-		a.showWorlds()
+		a.refreshPage(pageWorlds)
 		return true
 	})
 
@@ -497,6 +497,7 @@ func (a *App) worldCastRow(c chars.Character, w world.World, parent *adw.Dialog)
 
 	character := c
 	play.ConnectClicked(func() {
+		parent.Close()
 		a.newChat(character)
 	})
 	row.Append(play)
@@ -507,6 +508,7 @@ func (a *App) worldCastRow(c chars.Character, w world.World, parent *adw.Dialog)
 	open.SetTooltipText("Edit " + character.Name)
 	open.AddCSSClass("flat")
 	open.ConnectClicked(func() {
+		parent.Close()
 		a.editCharacter(character)
 	})
 	side.Append(open)
@@ -518,6 +520,7 @@ func (a *App) worldCastRow(c chars.Character, w world.World, parent *adw.Dialog)
 	out.SetTooltipText("Move " + character.Name + " out of " + w.Name)
 	out.AddCSSClass("flat")
 	out.ConnectClicked(func() {
+		parent.Close()
 		a.confirm("Move "+character.Name+" Out of "+w.Name,
 			"Their scenes stop drawing on this world's lorebook.",
 			"Move Out", func() {
@@ -573,6 +576,7 @@ func (a *App) lorebookRow(w world.World, parent *adw.Dialog) *gtk.Button {
 	btn.SetChild(col)
 	btn.SetTooltipText("Open the lorebook for " + w.Name)
 	btn.ConnectClicked(func() {
+		parent.Close()
 		a.showLorebook(w)
 	})
 	return btn

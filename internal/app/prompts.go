@@ -40,6 +40,7 @@ func (a *App) loadPromptOverrides() {
 
 // showPrompts shows every prompt, grouped by what uses it.
 func (a *App) showPrompts() {
+	carried, _ := a.carriedQuery(pagePrompts)
 	p := newPage("Prompts")
 	p.setCaption(count(len(prompts.All()), "prompt", "prompts"))
 	p.commands.Append(commandButton(ui.IconAdd, "Bring a Prompt", func() {
@@ -92,9 +93,13 @@ func (a *App) showPrompts() {
 			}))
 		}
 	}
-	fill("")
+	fill(carried)
 	search.ConnectSearchChanged(func() { fill(search.Text()) })
+	if carried != "" {
+		search.SetText(carried)
+	}
 	a.installPage(pagePrompts, p)
+	a.rememberSearch(pagePrompts, search)
 }
 
 // promptCard is one prompt in the list.
