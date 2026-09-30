@@ -1,0 +1,59 @@
+# Flatpak manifest for Astral. Build it from the repository root with
+#   flatpak-builder --user --install-deps-from=flathub build packaging/flatpak/io.github.astral.yml
+# Native builds need libadwaita 1.9, which older distributions do not ship, so
+# this is how those users get Astral: GNOME 50 brings its own libadwaita.
+app-id: io.github.astral
+runtime: org.gnome.Platform
+runtime-version: "50"
+sdk: org.gnome.Sdk
+command: astral
+
+finish-args:
+  - --share=network
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # The app updates and uninstalls itself through flatpak-spawn --host.
+  - --talk-name=org.freedesktop.Flatpak
+
+modules:
+  # The SDK carries no Go of its own, and go.mod needs 1.26 or newer.
+  - name: golang
+    buildsystem: simple
+    build-commands:
+      - cp -r go /app/go-toolchain
+    cleanup:
+      - "*"
+    sources:
+      - type: archive
+        url: https://go.dev/dl/go1.27.1.linux-amd64.tar.gz
+        sha256: 63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445
+        strip-components: 0
+
+  - name: astral
+    buildsystem: simple
+    build-options:
+      # Go modules are fetched during the build. Not acceptable for Flathub,
+      # fine for a bundle built in this repository's own CI.
+      build-args:
+        - --share=network
+      env:
+        CGO_ENABLED: "1"
+    build-commands:
+      - |
+        export PATH=/app/go-toolchain/bin:$PATH
+        export GOCACHE=$PWD/.gocache GOPATH=$PWD/.gopath GOFLAGS=-modcacherw
+        VERSION=$(sed -n 's/^var version = "\(.*\)"/\1/p' internal/app/version.go)
+        echo "version: $VERSION"
+        go build -buildvcs=false -ldflags "-s -w -X 'astral/internal/app.version=$VERSION'" -o /app/bin/astral .
+      - install -Dm644 assets/astral.svg /app/share/icons/hicolor/scalable/apps/io.github.astral.svg
+      - sed 's|@BIN@|astral|' packaging/io.github.astral.desktop > io.github.astral.desktop
+      - install -Dm644 io.github.astral.desktop /app/share/applications/io.github.astral.desktop
+      - install -Dm644 packaging/io.github.astral.metainfo.xml /app/share/metainfo/io.github.astral.metainfo.xml
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - .git
+          - bin

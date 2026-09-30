@@ -1,0 +1,72 @@
+# Build Astral as a Flatpak bundle, so it installs on any Linux distribution.
+#
+# A native build needs libadwaita 1.9, which Linux Mint 22, Ubuntu 24.04 and
+# Debian 12 and 13 do not ship. The Flatpak brings GNOME 50's own.
+
+name: flatpak
+
+on:
+  push:
+    branches: [beta]
+    paths-ignore: ["**.md", "screenshots/**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: flatpak-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read the version
+        run: |
+          VERSION=$(sed -n 's/^var version = "\(.*\)"/\1/p' internal/app/version.go)
+          echo "version: $VERSION"
+          echo "ASTRAL_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build the bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: astral-${{ env.ASTRAL_VERSION }}-x86_64.flatpak
+          manifest-path: packaging/flatpak/io.github.astral.yml
+          runtime-repo: https://dl.flathub.org/repo/flathub.flatpakrepo
+          cache-key: flatpak-builder-${{ github.sha }}
+          restore-cache: true
+
+      - name: Upload the bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: astral-flatpak
+          path: astral-${{ env.ASTRAL_VERSION }}-x86_64.flatpak
+
+      # The release body is this version's notes, not the whole file.
+      - name: Take this version's notes
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          awk -v v="$ASTRAL_VERSION" '
+            $0 == "## " v { taking = 1; next }
+            /^## / && taking  { exit }
+            taking            { print }
+          ' WHATSNEW.md > release-notes.md
+          echo "--- release notes ---"
+          cat release-notes.md
+
+      - name: Attach the bundle to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          files: astral-${{ env.ASTRAL_VERSION }}-x86_64.flatpak
+          draft: true
+          generate_release_notes: false
+          body_path: release-notes.md

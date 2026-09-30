@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.astral</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Astral</name>
+  <summary>Local AI roleplay with models you run yourself through Ollama</summary>
+  <developer id="io.github.eternalcoder454">
+    <name>EternalCoder454</name>
+  </developer>
+  <description>
+    <p>Astral is a roleplay app for local AI. Chat with characters, build worlds and lorebooks, and shape the writing style, all with models you run yourself through Ollama. Nothing leaves your machine.</p>
+  </description>
+  <launchable type="desktop-id">io.github.astral.desktop</launchable>
+  <url type="homepage">https://github.com/EternalCoder454/astral</url>
+  <url type="bugtracker">https://github.com/EternalCoder454/astral/issues</url>
+  <content_rating type="oars-1.1"/>
+  <categories>
+    <category>Network</category>
+    <category>Chat</category>
+  </categories>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/EternalCoder454/astral/release/screenshots/01-chat.png</image>
+      <caption>Chat with a character</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/EternalCoder454/astral/release/screenshots/05-characters.png</image>
+      <caption>Characters</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/EternalCoder454/astral/release/screenshots/07-worlds.png</image>
+      <caption>Worlds</caption>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="0.5.33" date="2026-09-30"/>
+  </releases>
+</component>
