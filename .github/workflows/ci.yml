@@ -93,6 +93,29 @@ jobs:
       - name: Test
         run: go test -short ./...
 
+  # The race detector, as a job of its own beside the tests rather than after
+  # them in the same one: it was over half of that job's time, and it depends
+  # on nothing the tests do.
+  race:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/eternalcoder454/astral-ci:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      GOPATH: /opt/go
+      GOCACHE: /opt/gocache
+      GOMODCACHE: /opt/go/pkg/mod
+    steps:
+      - name: Put the toolchain on the path
+        run: |
+          echo /usr/local/go/bin >> "$GITHUB_PATH"
+          echo /opt/go/bin >> "$GITHUB_PATH"
+      - uses: actions/checkout@v7
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       # The race detector cannot initialise GTK (checkptr aborts inside a gotk4
       # dependency), so the packages that touch it are tagged out of it and the
       # rest still get checked.
