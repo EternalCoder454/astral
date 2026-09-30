@@ -923,7 +923,7 @@ func (c *ChatView) attachActions(row *MessageRow) {
 		})
 	}
 	if row.Role == ollama.RoleAssistant {
-		row.AddAction(IconHistory, "Continue this reply", func() {
+		row.AddAction(IconContinue, "Continue this reply", func() {
 			c.continueReply(row)
 		})
 	}

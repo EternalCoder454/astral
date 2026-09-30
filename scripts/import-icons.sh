@@ -59,6 +59,8 @@ map=(
     star_filled:star
     star:star-outline
     visibility_off:hidden
+    fast_forward:continue
+    person:persona
 )
 
 mkdir -p "$out_dir"

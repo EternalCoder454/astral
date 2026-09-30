@@ -95,7 +95,7 @@ func (a *App) showNewChat() {
 	cast, _ := a.store.CountCharacters()
 	worlds, _ := a.store.Worlds()
 	if cast > 0 {
-		add(ui.IconCharacters, "Play a Scene", "", true, a.showCharacters)
+		add(ui.IconChat, "Play a Scene", "", true, a.showCharacters)
 	}
 	// A group needs two people to put in a room, so it appears when there are
 	// two to pick from and not before.
@@ -115,7 +115,7 @@ func (a *App) showNewChat() {
 	// Labels only: each says what it makes, and a line under it saying the
 	// model interviews you was the same line three times.
 	add(ui.IconDesigner, "New Character", "", false, a.newDesignerChat)
-	add(ui.IconHome, "New Persona", "", false, a.newPersonaDesignerChat)
+	add(ui.IconPersona, "New Persona", "", false, a.newPersonaDesignerChat)
 	add(ui.IconEdit, "New Writing Style", "", false, a.newStyleDesignerChat)
 	add(ui.IconWorlds, "New World", "", false, a.newWorldDesignerChat)
 	add(ui.IconFolder, "Import a Character", "from a .png or .json card", false, a.actionImportCharacter)

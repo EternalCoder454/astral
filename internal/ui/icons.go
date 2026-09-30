@@ -37,6 +37,8 @@ const (
 	IconStarOff    = "astral-star-outline-symbolic"
 	IconHidden     = "astral-hidden-symbolic"
 	IconIdeas      = "astral-ideas-symbolic"
+	IconContinue   = "astral-continue-symbolic"
+	IconPersona    = "astral-persona-symbolic"
 )
 
 // AllIcons is every name the app uses, so the dev harness can check that none
@@ -47,4 +49,5 @@ var AllIcons = []string{
 	IconSettings, IconFolder, IconAdd, IconSearch, IconHistory, IconInfo,
 	IconWorlds, IconHome, IconKnowledge, IconCheck, IconMore, IconClose,
 	IconPin, IconBranch, IconDraft, IconSpeaker, IconStar, IconStarOff, IconHidden, IconIdeas,
+	IconContinue, IconPersona,
 }
