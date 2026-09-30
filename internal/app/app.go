@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -180,6 +181,11 @@ func (a *App) activate() {
 	a.applyFontRendering()
 	a.buildWindow()
 	a.win.SetVisible(true)
+	// Timed from here rather than from a dev view, which starts later than
+	// the first frame it would be timing.
+	if devRun() && os.Getenv("ASTRAL_DEV_STARTUP") != "" {
+		a.devTimeStartup()
+	}
 	a.applyFontRendering() // again, now that the window's own display is known
 	a.watchScaleChanges()
 

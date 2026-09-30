@@ -92,9 +92,6 @@ func (a *App) runDevView() {
 		if os.Getenv("ASTRAL_DEV_FRAMES") != "" {
 			a.devTimeFrames()
 		}
-		if os.Getenv("ASTRAL_DEV_STARTUP") != "" {
-			a.devTimeStartup()
-		}
 		// Split first, then lowercase only the name: the argument can be a
 		// filesystem path, and lowercasing the whole value turned one into a
 		// path that does not exist.
@@ -526,16 +523,22 @@ func (a *App) devStream(text string) {
 		log.Printf("astral: stream: %v", err)
 		return
 	}
-	prev := a.chat.OnReplyDone
-	start := time.Now()
-	a.chat.OnReplyDone = func(title, reply string) {
-		log.Printf("astral: stream: reply of %d characters done in %v",
-			len(reply), time.Since(start).Round(time.Millisecond))
-		if prev != nil {
-			prev(title, reply)
+	// Sent once the chat is on screen, as it is for someone typing: a reply
+	// started before the transcript has a width is not pinned to one, and
+	// streams by a slower path nobody sees.
+	coreglib.TimeoutAdd(500, func() bool {
+		prev := a.chat.OnReplyDone
+		start := time.Now()
+		a.chat.OnReplyDone = func(title, reply string) {
+			log.Printf("astral: stream: reply of %d characters done in %v",
+				len(reply), time.Since(start).Round(time.Millisecond))
+			if prev != nil {
+				prev(title, reply)
+			}
 		}
-	}
-	a.chat.DevSend(text)
+		a.chat.DevSend(text)
+		return false
+	})
 }
 
 // devSidebar rebuilds the chat list n times and reports how long a rebuild
