@@ -39,6 +39,9 @@
 	--md-outline: #8e88a0;
 	--md-outline-variant: #453f57;
 	--md-error: #ffb4ab;
+	--md-on-error: #690005;
+	--md-error-container: #93000a;
+	--md-on-error-container: #ffdad6;
 
 	/* A state layer is the same colour at a fixed opacity over whatever is
 	   underneath, rather than a second set of hand-picked colours. */
@@ -662,7 +665,7 @@ body.in-chat .screen { inset: 0; }
 
 
 .muted { color: var(--muted); font-size: 0.9rem; margin: 0; overflow-wrap: anywhere; }
-.error { color: #ffb4b4; font-size: 0.88rem; min-height: 1.2em; margin: 0; }
+.error { color: var(--md-error); font-size: 0.88rem; min-height: 1.2em; margin: 0; }
 
 .icon {
 	border: none;
@@ -1056,8 +1059,8 @@ a.row { text-decoration: none; }
 	border-radius: 0 var(--md-corner-m) var(--md-corner-m) 0;
 	/* Material's error container rather than a hand-picked red, so it sits in
 	   the same palette as everything else on the page. */
-	background: #93000a;
-	color: var(--md-error);
+	background: var(--md-error-container);
+	color: var(--md-on-error-container);
 	font: inherit;
 	font-weight: 600;
 	/* Above the row's own ripple but below the row itself, so it is only
@@ -1152,7 +1155,7 @@ a.row { text-decoration: none; }
 	font-size: 0.875rem;
 	font-weight: 600;
 	background: var(--md-error, #ef9aa0);
-	color: #3b0d0a;
+	color: var(--md-on-error);
 }
 
 .msg-action .tab-icon {
