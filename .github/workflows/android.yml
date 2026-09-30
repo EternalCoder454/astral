@@ -102,6 +102,11 @@ jobs:
       - name: Set up Gradle
         if: steps.prebuilt.outputs.run == ''
         uses: gradle/actions/setup-gradle@v4
+        # By default only the default branch writes the cache, and that is
+        # release, where nothing runs: every build read an empty one (433 KB)
+        # and downloaded Gradle's dependencies again. Beta writes it now.
+        with:
+          cache-read-only: false
 
       # The signing key, from the repository's secrets rather than the
       # repository. Without it the build still works and still produces an
