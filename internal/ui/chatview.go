@@ -708,6 +708,11 @@ func (c *ChatView) LoadScene(ch store.Chat, cast []chars.Character, msgs []store
 	if len(cast) > 0 {
 		ca = cast[0]
 	}
+	if ch.ID == 0 {
+		// As a stored chat starts, so Scene Memory shows the same for a
+		// scene before its first message as after it.
+		ch.SettingAuto = true
+	}
 	c.chat, c.char, c.cast = ch, ca, cast
 	// Anyone who has spoken but is no longer in the cast. Read once here rather
 	// than resolved per row, and only for a scene that has a cast at all.

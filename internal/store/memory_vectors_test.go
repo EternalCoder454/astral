@@ -36,8 +36,11 @@ func TestMessageVectorsRoundTripAndFollowTheirMessage(t *testing.T) {
 	if two, _ := st.MessagesWithoutVector(ch.ID, "embed", 2); len(two) != 2 {
 		t.Fatalf("the limit was ignored: %d", len(two))
 	}
-	if has, _ := st.HasMessageVectors(ch.ID); has {
-		t.Fatal("a chat with no vectors says it has some")
+	if ok, _ := st.MessageExists(ch.ID, c); !ok {
+		t.Fatal("a message the chat has was not found")
+	}
+	if ok, _ := st.MessageExists(ch.ID+1, c); ok {
+		t.Fatal("a message was found in another chat")
 	}
 
 	if err := st.SaveMessageVectors("embed", pend[:2], [][]float32{{1, 0, 0.5}, {0, 1, 0}}); err != nil {
@@ -52,9 +55,6 @@ func TestMessageVectorsRoundTripAndFollowTheirMessage(t *testing.T) {
 	}
 	if other, _ := st.MessageVectors(ch.ID, b, "another"); len(other) != 0 {
 		t.Errorf("vectors of one model were listed for another")
-	}
-	if has, _ := st.HasMessageVectors(ch.ID); !has {
-		t.Error("a chat with vectors says it has none")
 	}
 	// What is left to do is what lacks a vector from this model.
 	if left, _ := st.MessagesWithoutVector(ch.ID, "embed", 10); len(left) != 1 || left[0].ID != c {

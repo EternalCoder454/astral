@@ -87,22 +87,31 @@ func Lore(st *store.Store, ch store.Chat, ca chars.Character, hist []ollama.Mess
 // lore entry's Wait and Chance are worked out against: the chat's stored
 // messages, or the transcript itself for a chat that is not stored yet.
 //
-// A turn is an answer to the person's message. When the transcript does not end
-// with one, because it is being looked at before they write it or the turn
-// carries on without them, that message is counted as if it were there, so the
-// preview, the meter and the reply all decide an entry the same way. Once the
-// message is stored the count is the stored one and comes to the same number.
+// A turn is an answer to the person's message. When the transcript ends with
+// one, the count runs to that message, so a reply written again, or carried
+// on, counts as the reply it replaces did and not with that reply's own rows.
+// When it does not, because it is being looked at before they write it, the
+// message is counted as if it were there, so the preview, the meter and the
+// reply all decide an entry the same way. Once the message is stored the count
+// is the stored one and comes to the same number.
 func sceneLength(st *store.Store, ch store.Chat, hist []ollama.Message) int {
-	n := len(hist)
-	if st != nil && ch.ID != 0 {
-		if stored, err := st.CountChatMessages(ch.ID); err == nil {
-			n = stored
+	endsWithUser := len(hist) > 0 && hist[len(hist)-1].Role == ollama.RoleUser
+	if st == nil || ch.ID == 0 {
+		if endsWithUser {
+			return len(hist)
 		}
+		return len(hist) + 1
 	}
-	if len(hist) == 0 || hist[len(hist)-1].Role != ollama.RoleUser {
-		n++
+	if endsWithUser {
+		if n, err := st.CountThroughLastUser(ch.ID); err == nil && n > 0 {
+			return n
+		}
+		return len(hist)
 	}
-	return n
+	if n, err := st.CountChatMessages(ch.ID); err == nil {
+		return n + 1
+	}
+	return len(hist) + 1
 }
 
 // loreHits is what Lore chooses from, and why: the character's world, and

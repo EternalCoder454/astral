@@ -443,6 +443,7 @@ func (a *App) toastAction(msg, label string, onClick func()) {
 		return
 	}
 	t := adw.NewToast(msg)
+	t.SetUseMarkup(false) // a chat's title or an error's text, not markup
 	t.SetTimeout(6)
 	t.SetButtonLabel(label)
 	t.ConnectButtonClicked(onClick)
@@ -456,6 +457,7 @@ func (a *App) toast(msg string) {
 		return
 	}
 	t := adw.NewToast(msg)
+	t.SetUseMarkup(false) // a chat's title or an error's text, not markup
 	t.SetTimeout(6)
 	a.toasts.AddToast(t)
 }

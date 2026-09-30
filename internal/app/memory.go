@@ -400,7 +400,8 @@ func (a *App) continueChat(chatID int64) {
 			// Opened for you only if you are still where you asked for it
 			// and nothing is being written: this can take minutes, and
 			// switching chats under a reply would throw that reply away.
-			if a.chat != nil && a.chat.Chat().ID == chatID && !a.chat.Busy() {
+			if a.chat != nil && a.chat.Chat().ID == chatID && !a.chat.Busy() &&
+				a.stack != nil && a.stack.VisibleChildName() == "chat" {
 				open()
 				return false
 			}

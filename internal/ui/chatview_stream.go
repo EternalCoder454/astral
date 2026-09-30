@@ -138,18 +138,34 @@ func (c *ChatView) ensureChat(firstMessage string) error {
 			c.fail("Could not save who is in this scene: " + err.Error())
 		}
 	}
-	kind, note := c.chat.Kind, c.chat.Note
+	before := c.chat
 	c.chat = ch
-	c.chat.Kind = kind
+	c.chat.Kind = before.Kind
 	c.recordPersona()
-	// The note says what a revision or an optimizer chat is about, and it
-	// was set before there was a row to keep it in. Replaced along with the
-	// rest, it was lost at the first message: a style being revised turned
-	// into a new one from the second reply on.
-	if note != "" {
-		c.chat.Note = note
-		if err := c.store.SetChatNote(ch.ID, note); err != nil {
+	// What was chosen for the chat before there was a row to keep it in:
+	// the note saying what a revision or an optimizer chat is about, and a
+	// scene's setting, reply length and writing first. Replaced along with
+	// the rest, they were lost at the first message: a style being revised
+	// turned into a new one from the second reply on.
+	if before.Note != "" {
+		c.chat.Note = before.Note
+		if err := c.store.SetChatNote(ch.ID, before.Note); err != nil {
 			c.fail("Could not save what this chat is about: " + err.Error())
+		}
+	}
+	if before.Setting != "" || !before.State.Empty() || before.SettingAuto != ch.SettingAuto {
+		if err := c.SetSetting(before.Setting, before.State, before.SettingAuto); err != nil {
+			c.fail("Could not save where the scene is: " + err.Error())
+		}
+	}
+	if before.ReplyLength != "" {
+		if err := c.SetReplyLength(before.ReplyLength); err != nil {
+			c.fail("Could not save how long the replies are: " + err.Error())
+		}
+	}
+	if before.WriteFirst != 0 {
+		if err := c.SetWriteFirst(before.WriteFirst); err != nil {
+			c.fail("Could not save when the character writes first: " + err.Error())
 		}
 	}
 
@@ -266,6 +282,7 @@ func (c *ChatView) buildRequest() []ollama.Message {
 	// too. Two clients that build their own prompts answer the same scene
 	// differently and throw away each other's cached prefix every time you
 	// switch between them, so there is one assembler and this calls it.
+	c.syncChat()
 	hist := c.history()
 	// A continuation ends the prompt with the partial reply so the model
 	// carries straight on from it, which means taking it out of the transcript
@@ -274,6 +291,25 @@ func (c *ChatView) buildRequest() []ollama.Message {
 		hist = hist[:len(hist)-1]
 	}
 	return scene.BuildTurn(c.store, c.cfg, c.chat, c.cast, hist, c.turn)
+}
+
+// syncChat takes what a phone may have changed about this chat since it was
+// opened here, how the scene is steered, from the store, so the next turn is
+// built as the phone left it rather than as this window last saw it.
+func (c *ChatView) syncChat() {
+	if c.chat.ID == 0 || c.store == nil {
+		return
+	}
+	ch, err := c.store.Chat(c.chat.ID)
+	if err != nil {
+		return
+	}
+	chips := ch.ReplyLength != c.chat.ReplyLength || ch.WriteFirst != c.chat.WriteFirst
+	c.chat.Note, c.chat.ReplyLength, c.chat.WriteFirst = ch.Note, ch.ReplyLength, ch.WriteFirst
+	c.chat.Setting, c.chat.State, c.chat.SettingAuto = ch.Setting, ch.State, ch.SettingAuto
+	if chips {
+		c.refreshActions()
+	}
 }
 
 // budget divides this chat's context window between the parts of its prompt.

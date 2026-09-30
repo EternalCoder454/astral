@@ -338,6 +338,7 @@ func (c *ChatView) finishGroupTurn(content, thinking string, stats ollama.Stats,
 	c.maybeCompact()
 	c.maybeLearn()
 	c.maybeTrackSetting()
+	c.maybeIndex()
 }
 
 // greetingSpeaker is who opens a scene. In a group that is the first member of

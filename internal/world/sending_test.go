@@ -210,3 +210,49 @@ func TestWorldFileCarriesWhenAnEntryIsSent(t *testing.T) {
 		t.Errorf("out of range settings came back as %d, %d, %q", e.Chance, e.Wait, e.Group)
 	}
 }
+
+// A group's entry that does not fit gives its place to the next of the group
+// that does, rather than leaving the group out.
+func TestGroupGivesWayWhenItsEntryDoesNotFit(t *testing.T) {
+	big := entry(1, "Long Rumour", strings.Repeat("A long rumour. ", 20), "tavern")
+	big.Group, big.Priority = "Rumours", 5
+	small := entry(2, "Short Rumour", "A short one.", "tavern")
+	small.Group = "Rumours"
+	other := entry(3, "Also Short", "Another.", "tavern")
+	other.Group = "Rumours"
+
+	h := Explain([]Entry{big, small, other}, "the tavern", 60, 10)
+	if got := strings.Join(sentNames(h), ","); got != "Short Rumour" {
+		t.Fatalf("sent %v, want the next of the group in the place of the one that did not fit", got)
+	}
+	for _, x := range h {
+		switch x.Entry.Name {
+		case "Long Rumour":
+			if !x.Dropped || x.Skipped != "" {
+				t.Errorf("the entry that did not fit was reported as %+v", x)
+			}
+		case "Also Short":
+			if x.Skipped != "Another entry in the group Rumours went instead." {
+				t.Errorf("the third of the group was reported as %+v", x)
+			}
+		}
+	}
+}
+
+// An entry a sent entry mentions never takes the place of one of its group
+// that is already going, however it ranks: the one going has already named
+// what it names.
+func TestAMentionedEntryDoesNotDisplaceItsGroup(t *testing.T) {
+	harbour := entry(1, "Harbourmaster", "She answers to the Guild.", "harbourmaster")
+	harbour.Group = "People"
+	guild := entry(2, "The Guild", "Cartographers who own the docks.", "Guild")
+	guild.Group, guild.Priority = "people", 9
+
+	h := Explain([]Entry{harbour, guild}, "the harbourmaster", BudgetChars, 10)
+	if got := strings.Join(sentNames(h), ","); got != "Harbourmaster" {
+		t.Fatalf("sent %v, want the direct match kept", got)
+	}
+	if h[1].Entry.Name != "The Guild" || h[1].Via != "Harbourmaster" || h[1].Skipped == "" {
+		t.Errorf("the mentioned entry was reported as %+v", h[1])
+	}
+}

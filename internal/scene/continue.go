@@ -85,18 +85,27 @@ func ContinueChat(ctx context.Context, client *ollama.Client, model string, st *
 // castOf is who is in a chat: its cast when it has more than one, else its
 // character, or a world scene's narrator.
 func castOf(st *store.Store, ch store.Chat) []chars.Character {
-	if cast, err := st.Cast(ch.ID); err == nil && len(cast) > 1 {
-		return cast
-	}
+	var lead chars.Character
 	switch {
 	case ch.CharacterID != 0:
-		if c, err := st.Character(ch.CharacterID); err == nil {
-			return []chars.Character{c}
-		}
+		lead, _ = st.Character(ch.CharacterID)
 	case ch.WorldID != 0:
 		if w, err := st.World(ch.WorldID); err == nil {
-			return []chars.Character{Narrator(w)}
+			lead = Narrator(w)
 		}
+	}
+	cast, _ := st.Cast(ch.ID)
+	// As the window opens it: a scene in a world is played by the place as
+	// well as by anyone in it, so the narrator leads a cast that is stored
+	// without it.
+	if ch.WorldID != 0 && len(cast) > 0 && lead.Name != "" {
+		cast = append([]chars.Character{lead}, cast...)
+	}
+	if len(cast) > 1 {
+		return cast
+	}
+	if lead.Name != "" {
+		return []chars.Character{lead}
 	}
 	return nil
 }

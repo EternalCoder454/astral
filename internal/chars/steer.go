@@ -278,7 +278,7 @@ func ArrivalsBlock(arrivals []Arrival, userName string) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("\n\nWHO WAS THERE. Nobody knows what was said or done where they were not, unless they have been told since.")
+	b.WriteString(arrivalsHeader)
 	for _, a := range arrivals {
 		switch {
 		case a.Since != "":
@@ -292,9 +292,24 @@ func ArrivalsBlock(arrivals []Arrival, userName string) string {
 	return Substitute(b.String(), "", userName)
 }
 
+const arrivalsHeader = "\n\nWHO WAS THERE. Nobody knows what was said or done where they were not, unless they have been told since."
+
 // arrivalChars bounds what ArrivalsBlock quotes of the moment each member
 // arrived.
 const arrivalChars = 80
+
+// ArrivalsRoom is the most ArrivalsBlock takes when that many members of a
+// cast arrived partway through, for a budget to keep room for.
+func ArrivalsRoom(late int) int {
+	if late <= 0 {
+		return 0
+	}
+	return len(arrivalsHeader) + late*arrivalRoom
+}
+
+// arrivalRoom is one member's sentence at its longest: the words, the quote
+// of arrivalChars and a long name.
+const arrivalRoom = 220
 
 // ArrivalSince is the start of a message, as ArrivalsBlock quotes it.
 func ArrivalSince(content string) string {
@@ -485,7 +500,7 @@ var (
 			"what everyone is wearing and holding, how things stand and what is unresolved, and when " +
 			"Scene Memory suggests them.",
 		Keep: "{{record}}, {{latest}} and {{ask}} are filled in by Astral. The part names (where, wearing, holding, " +
-			"between, unresolved) are the answer's and must stay. {{char}} becomes the character's name, " +
+			"relationship, unresolved) are the answer's and must stay. {{char}} becomes the character's name, " +
 			"or the whole cast's, and {{user}} yours.",
 		Default: stateAnchor,
 		Anchors: []string{"you are not writing {{char}}", "{{record}}", "{{latest}}", "{{ask}}"},

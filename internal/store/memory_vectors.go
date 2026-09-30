@@ -47,14 +47,10 @@ type PendingMessage struct {
 	Content string
 }
 
-// HasMessageVectors reports whether any message of a chat has a vector, of any
-// model. It is what lets recall skip the embedding model entirely for a scene
-// that has never had one.
-func (s *Store) HasMessageVectors(chatID int64) (bool, error) {
+// MessageExists reports whether a chat still has a message.
+func (s *Store) MessageExists(chatID, id int64) (bool, error) {
 	var n int
-	err := s.db.QueryRow(`
-		SELECT EXISTS (SELECT 1 FROM messages m JOIN message_vectors v ON v.message_id = m.id
-					   WHERE m.chat_id = ?)`, chatID).Scan(&n)
+	err := s.db.QueryRow(`SELECT EXISTS (SELECT 1 FROM messages WHERE id = ? AND chat_id = ?)`, id, chatID).Scan(&n)
 	return n == 1, err
 }
 

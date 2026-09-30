@@ -178,7 +178,7 @@ func TestIndexingDoesNothingWithoutAModel(t *testing.T) {
 	if f.embeds() != 0 {
 		t.Errorf("the embedding server was asked %d times", f.embeds())
 	}
-	if has, _ := st.HasMessageVectors(ch.ID); has {
+	if got, _ := st.MessageVectors(ch.ID, ch.SummaryUpto, "fake-embed"); len(got) != 0 {
 		t.Error("vectors appeared with no model")
 	}
 }
@@ -263,5 +263,91 @@ func TestAMomentBothSearchesLikedComesFirst(t *testing.T) {
 	}
 	if only := fuseMoments([]store.Moment{m(5), m(4)}); only[0].ID != 5 || only[1].ID != 4 {
 		t.Errorf("one list changed order: %+v", only)
+	}
+}
+
+// A query kept from an exchange that has since been taken back is not searched
+// with: the scene is no longer about it.
+func TestRecallForgetsAQueryWhoseExchangeIsGone(t *testing.T) {
+	noEmbeddingCache(t)
+	st, ch := meaningScene(t)
+	f := &fakeEmbed{}
+	client := f.client(t)
+	cfg := store.DefaultConfig()
+	cfg.EmbeddingModel = "fake-embed"
+	asked, err := st.AddMessage(store.Message{ChatID: ch.ID, Role: ollama.RoleUser, Content: "Which boat departs at sunrise?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := IndexMessages(context.Background(), st, client, cfg, ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	hist := []ollama.Message{{Role: ollama.RoleUser, Content: "Which boat departs at sunrise?"}}
+	if _, kept := recall(st, ch, hist, 4000); !recalled(kept, "The Gannet sails at dawn") {
+		t.Fatalf("not recalled before the message was taken back: %+v", kept)
+	}
+	if err := st.DeleteMessagesFrom(ch.ID, asked); err != nil {
+		t.Fatal(err)
+	}
+	if _, kept := recall(st, ch, hist, 4000); recalled(kept, "The Gannet sails at dawn") {
+		t.Errorf("recalled by a query from a message that is gone: %+v", kept)
+	}
+}
+
+// A reply that ends while its scene is still being embedded is not lost: the
+// pass going on goes round once more for it.
+func TestIndexingAskedWhileBusyGoesRoundAgain(t *testing.T) {
+	noEmbeddingCache(t)
+	st, ch := meaningScene(t)
+	f := &fakeEmbed{}
+	client := f.client(t)
+	cfg := store.DefaultConfig()
+	cfg.EmbeddingModel = "fake-embed"
+	EmbedModel(context.Background(), client, cfg) // looked up before the race, not in it
+	f.delay.Store(int64(300 * time.Millisecond))
+
+	done := make(chan int)
+	go func() {
+		n, _ := IndexMessages(context.Background(), st, client, cfg, ch.ID)
+		done <- n
+	}()
+	for f.embeds() == 0 {
+		time.Sleep(5 * time.Millisecond)
+	}
+	later, err := st.AddMessage(store.Message{ChatID: ch.ID, Role: ollama.RoleUser, Content: "And the lamp by the door, is it lit tonight, or has the oil run out at last?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := IndexMessages(context.Background(), st, client, cfg, ch.ID); n != 0 || err != nil {
+		t.Fatalf("a second pass ran beside the first: %d, %v", n, err)
+	}
+	if n := <-done; n != 3 {
+		t.Errorf("embedded %d messages, want the two and the one written during the pass", n)
+	}
+	if f.embeds() != 2 {
+		t.Errorf("%d requests, want the pass and one more", f.embeds())
+	}
+	if q, ok := queries.Load(ch.ID); !ok || q.(queryVec).upto != later {
+		t.Errorf("the kept query is not from the newest message")
+	}
+}
+
+// Of moments all above the floor, only those near the best are put forward.
+func TestMeaningKeepsOnlyThoseNearTheBest(t *testing.T) {
+	noEmbeddingCache(t)
+	st, ch := meaningScene(t)
+	stored, err := st.MessagesWithoutVector(ch.ID, "m", 10)
+	if err != nil || len(stored) != 2 {
+		t.Fatalf("pending %d, %v", len(stored), err)
+	}
+	// The Gannet exactly on the query, the lamp near enough to pass the
+	// floor but well behind it.
+	if err := st.SaveMessageVectors("m", stored, [][]float32{{1, 0, 0}, {0.6, 0.8, 0}}); err != nil {
+		t.Fatal(err)
+	}
+	queries.Store(ch.ID, queryVec{model: "m", vec: []float32{1, 0, 0}, upto: ch.SummaryUpto})
+	got := byMeaning(st, ch)
+	if len(got) != 1 || !strings.Contains(got[0].Content, "Gannet") {
+		t.Errorf("by meaning = %+v, want the Gannet alone", got)
 	}
 }

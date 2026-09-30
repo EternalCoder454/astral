@@ -461,6 +461,9 @@ func chipLabel(text string, maxChars int) *gtk.Label {
 // chatActions are the chat's own actions, for its chips' menus. A menu built
 // from actions holds no handler of its own, so a chip rebuilt with every chat
 // leaves nothing behind; see MessageRow.Release for why that matters.
+//
+// Each is carried out once the menu that chose it has finished with it,
+// because it rebuilds the chips, and the chip the menu hangs from is one.
 func (c *ChatView) chatActions() *gio.SimpleActionGroup {
 	group := gio.NewSimpleActionGroup()
 	length := gio.NewSimpleAction("reply-length", glib.NewVariantType("s"))
@@ -468,9 +471,12 @@ func (c *ChatView) chatActions() *gio.SimpleActionGroup {
 		if p == nil {
 			return
 		}
-		if err := c.SetReplyLength(p.String()); err != nil {
-			c.fail("Could not change the reply length: " + err.Error())
-		}
+		chosen := p.String()
+		coreglib.IdleAdd(func() {
+			if err := c.SetReplyLength(chosen); err != nil {
+				c.fail("Could not change the reply length: " + err.Error())
+			}
+		})
 	})
 	group.AddAction(length)
 	writeFirst := gio.NewSimpleAction("write-first", glib.NewVariantType("x"))
@@ -478,9 +484,12 @@ func (c *ChatView) chatActions() *gio.SimpleActionGroup {
 		if p == nil {
 			return
 		}
-		if err := c.SetWriteFirst(int(p.Int64())); err != nil {
-			c.fail("Could not change when the character writes first: " + err.Error())
-		}
+		minutes := int(p.Int64())
+		coreglib.IdleAdd(func() {
+			if err := c.SetWriteFirst(minutes); err != nil {
+				c.fail("Could not change when the character writes first: " + err.Error())
+			}
+		})
 	})
 	group.AddAction(writeFirst)
 	return group

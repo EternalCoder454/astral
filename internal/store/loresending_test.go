@@ -83,4 +83,11 @@ func TestCountChatMessages(t *testing.T) {
 	if n, _ := s.CountChatMessages(ch.ID); n != 3 {
 		t.Errorf("counted %d messages, want 3", n)
 	}
+	// A reply after the last message you wrote is not counted through it.
+	if _, err := s.AddMessage(Message{ChatID: ch.ID, Role: "assistant", Content: "hi"}); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.CountThroughLastUser(ch.ID); err != nil || n != 3 {
+		t.Errorf("counted %d through the last message you wrote, err %v, want 3", n, err)
+	}
 }

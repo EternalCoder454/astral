@@ -62,7 +62,9 @@ type Entry struct {
 	// sent. 1 to 100, and 0 reads as 100, so an entry written without ever
 	// hearing of this field is still sent whenever it is triggered. A scene
 	// where every rumour turns up every time is a scene where none is a rumour.
-	// Constant entries ignore it.
+	// It is rolled afresh as the scene grows, so an entry sent with one reply
+	// can be left out of the next and back again after. Constant entries
+	// ignore it.
 	Chance int
 	// Wait is how many messages the scene must have before this entry is sent.
 	// It keeps a secret out of the first scene and a late reveal out of the
@@ -139,6 +141,10 @@ type Hit struct {
 	// its roll this turn, or another entry in its group went instead. Empty for
 	// an entry that was not.
 	Skipped string
+
+	// lostGroup marks an entry Skipped only because another in its group went
+	// instead, which it may still do if that one does not fit.
+	lostGroup bool
 }
 
 // Sent reports whether the entry goes out with the turn.
@@ -175,7 +181,8 @@ func Explain(entries []Entry, recent string, budget int, messages int) []Hit {
 		}
 	}
 	byPriority(hits)
-	oneOfEachGroup(hits)
+	won := map[string]bool{}
+	oneOfEachGroup(hits, won)
 
 	// Entries the matched ones mention, and the ones those mention: a
 	// harbourmaster's entry that names the guild she answers to brings the
@@ -208,24 +215,42 @@ func Explain(entries []Entry, recent string, budget int, messages int) []Hit {
 			}
 		}
 		byPriority(next)
-		at := len(hits)
+		// A group already has its entry from an earlier level, which has
+		// named what it names by now, so a mentioned entry never takes its
+		// place however it ranks.
+		oneOfEachGroup(next, won)
 		hits = append(hits, next...)
-		// Settled again with these in, because a mentioned entry can outrank
-		// one that came in before it. What that one names has been looked for
-		// already, which is the rarer case and is left as it is.
-		oneOfEachGroup(hits)
-		from = sending(hits[at:])
+		from = sending(next)
 	}
 
+	// Each group's entry comes before the others of its group, so when it
+	// does not fit, the next of them that does goes in its place: a group is
+	// one entry of several, not one entry or none. What that one names has not
+	// been looked for, which is left as it is.
 	used := 0
+	open := map[string]bool{}
 	for i := range hits {
-		if hits[i].Skipped != "" {
+		h := &hits[i]
+		g := groupOf(h.Entry)
+		if h.lostGroup {
+			if !open[g] {
+				continue
+			}
+		} else if h.Skipped != "" {
 			continue // not being sent, so it takes no room
 		}
-		cost := len(hits[i].Entry.Name) + len(hits[i].Entry.Content) + 4
+		cost := len(h.Entry.Name) + len(h.Entry.Content) + 4
 		if used+cost > budget {
-			hits[i].Dropped = true // skip this one, but a later cheaper entry may still fit
+			// Skip this one, but a later cheaper entry may still fit.
+			h.Dropped, h.Skipped, h.lostGroup = true, "", false
+			if g != "" {
+				open[g] = true
+			}
 			continue
+		}
+		if h.lostGroup {
+			h.Skipped, h.lostGroup = "", false
+			delete(open, g)
 		}
 		used += cost
 	}
@@ -312,31 +337,33 @@ func roll(id int64, messages int) int {
 	return int(h.Sum64() % 100)
 }
 
-// oneOfEachGroup leaves out all but the first entry of each group, in priority
-// order and then by id, among those still being sent. Groups are compared
-// without regard to case, so "Rumours" and "rumours" are one.
+// oneOfEachGroup leaves out all but the first entry of each group among those
+// still being sent, which is the highest in priority and then the oldest when
+// hits are in byPriority's order, and every entry of a group already in won.
+// It adds the groups it settles to won. Groups are compared without regard to
+// case, so "Rumours" and "rumours" are one.
 //
 // Wait and Chance have been settled by now, so an entry that did not roll in
 // cannot take the place of one that did.
-func oneOfEachGroup(hits []Hit) {
-	first := map[string]int{}
-	for i, h := range hits {
-		g := strings.ToLower(strings.TrimSpace(h.Entry.Group))
+func oneOfEachGroup(hits []Hit, won map[string]bool) {
+	for i := range hits {
+		h := &hits[i]
+		g := groupOf(h.Entry)
 		if g == "" || h.Skipped != "" {
 			continue
 		}
-		j, taken := first[g]
-		if !taken {
-			first[g] = i
+		if !won[g] {
+			won[g] = true
 			continue
 		}
-		loser := i
-		if ranksAbove(h.Entry, hits[j].Entry) {
-			first[g] = i
-			loser = j
-		}
-		hits[loser].Skipped = "Another entry in the group " + strings.TrimSpace(hits[loser].Entry.Group) + " went instead."
+		h.Skipped = "Another entry in the group " + strings.TrimSpace(h.Entry.Group) + " went instead."
+		h.lostGroup = true
 	}
+}
+
+// groupOf is the entry's group as groups are compared, or "" for none.
+func groupOf(e Entry) string {
+	return strings.ToLower(strings.TrimSpace(e.Group))
 }
 
 // ranksAbove is byPriority's order for two entries: a goes first.

@@ -133,13 +133,13 @@ func GroupBudget(cfg store.Config, cast []chars.Character, p chars.Persona, rels
 		numCtx = chars.DefaultNumCtx
 	}
 	// Room kept as well for saying who arrived partway through, which is in
-	// the closing block of a group scene and nowhere else.
-	arrivals := max(len(cast)-1, 0) * arrivalRoom
+	// the closing block of a group scene and nowhere else. Kept whether or
+	// not anyone has, so the budget is the cast's alone and everything that
+	// works it out agrees without reading when each member came: it is a few
+	// hundred characters of a window.
+	arrivals := chars.ArrivalsRoom(len(cast) - 1)
 	return chars.Plan(numCtx, cfg.NumPredict, len(chars.BuildGroupSystem(cast, p, rels))+arrivals)
 }
-
-// arrivalRoom is what saying one member arrived partway through can take.
-const arrivalRoom = 220
 
 // arrivals are the members of a group scene's cast who came partway through,
 // and what was said first after each came. See chars.ArrivalsBlock.

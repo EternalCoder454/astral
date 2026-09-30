@@ -52,6 +52,7 @@ func (a *App) deleteChats(ids []int64) {
 	}
 	undone := false
 	t := adw.NewToast(msg)
+	t.SetUseMarkup(false) // a chat's title or an error's text, not markup
 	t.SetTimeout(8)
 	t.SetButtonLabel("Undo")
 	t.ConnectButtonClicked(func() {

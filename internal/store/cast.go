@@ -35,19 +35,37 @@ func (s *Store) SetCast(chatID int64, ids []int64) error {
 	// When each member arrived, kept for those who stay: someone added now
 	// arrives after the newest message, and was not there for anything
 	// before it. The scene's own character was there from the start.
+	// Somebody taken out and brought back arrives again, as though new: they
+	// were there for what came before they left, but one arrival is all a
+	// row keeps, and missing what they missed matters more than forgetting
+	// what they saw.
+	//
+	// Read or nothing: a cast rewritten from a failed read would mark every
+	// member as arriving now, and the scene would forget who was there.
 	joined := map[int64]int64{}
-	if rows, err := tx.Query(`SELECT character_id, joined_after FROM chat_cast WHERE chat_id = ?`, chatID); err == nil {
-		for rows.Next() {
-			var id, after int64
-			if rows.Scan(&id, &after) == nil {
-				joined[id] = after
-			}
+	rows, err := tx.Query(`SELECT character_id, joined_after FROM chat_cast WHERE chat_id = ?`, chatID)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var id, after int64
+		if err := rows.Scan(&id, &after); err != nil {
+			rows.Close()
+			return err
 		}
-		rows.Close()
+		joined[id] = after
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
 	}
 	var founder, newest int64
-	tx.QueryRow(`SELECT character_id FROM chats WHERE id = ?`, chatID).Scan(&founder)
-	tx.QueryRow(`SELECT COALESCE(MAX(id), 0) FROM messages WHERE chat_id = ?`, chatID).Scan(&newest)
+	if err := tx.QueryRow(`SELECT character_id FROM chats WHERE id = ?`, chatID).Scan(&founder); err != nil {
+		return err
+	}
+	if err := tx.QueryRow(`SELECT COALESCE(MAX(id), 0) FROM messages WHERE chat_id = ?`, chatID).Scan(&newest); err != nil {
+		return err
+	}
 	if _, ok := joined[founder]; !ok && founder != 0 {
 		joined[founder] = 0
 	}
@@ -146,11 +164,12 @@ func (s *Store) CastJoins(chatID int64) (map[int64]int64, error) {
 }
 
 // FirstMessageAfter is the first message of a chat after the one with id
-// after, which the model reads (not hidden), or false when there is none.
+// after, which the model reads (not hidden, and not empty), or false when
+// there is none.
 func (s *Store) FirstMessageAfter(chatID, after int64) (Message, bool) {
 	m := Message{ChatID: chatID}
 	err := s.db.QueryRow(`SELECT id, role, content FROM messages
-		WHERE chat_id = ? AND id > ? AND hidden = 0 ORDER BY id LIMIT 1`, chatID, after).
+		WHERE chat_id = ? AND id > ? AND hidden = 0 AND TRIM(content) <> '' ORDER BY id LIMIT 1`, chatID, after).
 		Scan(&m.ID, &m.Role, &m.Content)
 	return m, err == nil
 }

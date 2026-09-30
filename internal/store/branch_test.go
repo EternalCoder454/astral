@@ -176,4 +176,12 @@ func TestBranchCarriesTheRecordAndNotTheEnd(t *testing.T) {
 	if late.Setting != "The ferry at dawn" || late.State.Holding != "the brass key" {
 		t.Errorf("a branch from the end lost its setting %q and state %+v", late.Setting, late.State)
 	}
+	// A setting you keep yourself is not Astral's to clear.
+	if err := s.SetChatSettingAuto(ch.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	mine, _ := s.BranchChat(ch.ID, ids[2], "mine")
+	if mine.Setting != "The ferry at dawn" || mine.State.Holding != "the brass key" || mine.SettingAuto {
+		t.Errorf("a branch cleared a setting written by hand: %q, %+v, auto %v", mine.Setting, mine.State, mine.SettingAuto)
+	}
 }

@@ -267,6 +267,18 @@ func (s *Store) CountChatMessages(chatID int64) (int, error) {
 	return n, err
 }
 
+// CountThroughLastUser is how many of a chat's messages there are up to and
+// including the last one the person wrote. A reply being written again, or
+// carried on, is still an answer to that message, and whatever of the old
+// reply is stored after it is not part of the count.
+func (s *Store) CountThroughLastUser(chatID int64) (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM messages WHERE chat_id = ?
+		AND id <= (SELECT COALESCE(MAX(id), 0) FROM messages WHERE chat_id = ? AND role = 'user')`,
+		chatID, chatID).Scan(&n)
+	return n, err
+}
+
 // CountCharactersInWorld is how many characters live in a world. The home
 // screen shows it because a world with nobody in it cannot be played, and that
 // is worth knowing before you click into it.

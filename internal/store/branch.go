@@ -109,12 +109,14 @@ func (s *Store) BranchChat(chatID, uptoID int64, title string) (Chat, error) {
 	}
 	defer tx.Rollback()
 
-	// Where and when the scene is and how it stands describe its end. A
-	// branch from earlier in it starts without them rather than with a
-	// moment it has not reached; Astral fills them in again as it goes.
+	// Where and when the scene is and how it stands describe its end, when
+	// Astral keeps them. A branch from earlier in it starts without them
+	// rather than with a moment it has not reached, and Astral fills them in
+	// again as it goes. What you wrote there yourself is yours and goes with
+	// it, since nothing would write it again.
 	atEnd := cut == len(all)-1
 	row := src
-	if !atEnd {
+	if !atEnd && src.SettingAuto {
 		row.Setting, row.State = "", chars.SceneState{}
 	}
 	id, err := copyChatRow(tx, row, title)

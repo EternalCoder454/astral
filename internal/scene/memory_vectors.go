@@ -39,13 +39,19 @@ const (
 	// sentence embedding models commonly score related passages above 0.6
 	// and unrelated ones below 0.5.
 	meaningFloor = 0.5
+	// meaningSpread is how far below the nearest moment another may be and
+	// still be put forward. A model that scores everything in a scene above
+	// the floor, as some do for text in one voice, would otherwise send the
+	// six nearest of a crowd of equals.
+	meaningSpread = 0.1
 )
 
 // queryVec is a chat's latest exchange, embedded after the reply that ended
-// it, with the model that made it.
+// it, with the model that made it and the newest message it holds.
 type queryVec struct {
 	model string
 	vec   []float32
+	upto  int64
 }
 
 // queries holds each chat's latest queryVec. Recall reads it rather than ask
@@ -56,13 +62,16 @@ type queryVec struct {
 var queries sync.Map // chat id -> queryVec
 
 // indexing holds the chats being embedded, so the window and a phone playing
-// the same scene do not both embed the same batch.
-var indexing sync.Map // chat id -> struct{}
+// the same scene do not both embed the same batch, and again the chats asked
+// for while that was happening, so the pass going on goes round once more for
+// the exchange it did not see.
+var indexing, again sync.Map // chat id -> struct{}
 
 // IndexMessages makes vectors for up to a batch of a chat's messages that
 // lack one, oldest first, and says how many it made, and embeds the chat's
 // latest exchange for the next recall to search with, in the same request. It
-// does nothing when no embedding model is installed.
+// does nothing when no embedding model is installed, or for a chat that is
+// never recalled from.
 //
 // Call it off the UI thread, after a reply. The embedding runs on the CPU, so
 // it takes nothing from the scene's model in video memory.
@@ -70,14 +79,41 @@ func IndexMessages(ctx context.Context, st *store.Store, client *ollama.Client, 
 	if st == nil || client == nil || chatID == 0 {
 		return 0, nil
 	}
+	if ch, err := st.Chat(chatID); err != nil || !Recalls(ch.Kind) {
+		return 0, err
+	}
 	model := EmbedModel(ctx, client, cfg)
 	if model == "" {
+		// Nothing to search with, and a query kept from a model since removed
+		// is not left for recall to use.
+		queries.Delete(chatID)
 		return 0, nil
 	}
+	again.Store(chatID, struct{}{})
 	if _, busy := indexing.LoadOrStore(chatID, struct{}{}); busy {
-		return 0, nil
+		return 0, nil // the pass going on goes round again for this
 	}
-	defer indexing.Delete(chatID)
+	total := 0
+	for {
+		again.Delete(chatID)
+		n, err := indexPass(ctx, st, client, model, chatID)
+		total += n
+		indexing.Delete(chatID)
+		if err != nil {
+			queries.Delete(chatID)
+			return total, err
+		}
+		if _, asked := again.Load(chatID); !asked {
+			return total, nil
+		}
+		if _, busy := indexing.LoadOrStore(chatID, struct{}{}); busy {
+			return total, nil // another has started, and will see it
+		}
+	}
+}
+
+// indexPass is one request of IndexMessages.
+func indexPass(ctx context.Context, st *store.Store, client *ollama.Client, model string, chatID int64) (int, error) {
 	pending, err := st.MessagesWithoutVector(chatID, model, indexBatch)
 	if err != nil {
 		return 0, err
@@ -100,6 +136,8 @@ func IndexMessages(ctx context.Context, st *store.Store, client *ollama.Client, 
 	}
 	if len(query) > 0 {
 		inputs = append(inputs, excerpt(strings.Join(query, "\n"), queryChars))
+	} else {
+		queries.Delete(chatID)
 	}
 	if len(inputs) == 0 {
 		return 0, nil
@@ -109,7 +147,7 @@ func IndexMessages(ctx context.Context, st *store.Store, client *ollama.Client, 
 		return 0, err
 	}
 	if len(query) > 0 {
-		queries.Store(chatID, queryVec{model: model, vec: vecs[len(vecs)-1]})
+		queries.Store(chatID, queryVec{model: model, vec: vecs[len(vecs)-1], upto: recent[len(recent)-1].ID})
 		vecs = vecs[:len(vecs)-1]
 	}
 	if len(pending) == 0 {
@@ -121,6 +159,18 @@ func IndexMessages(ctx context.Context, st *store.Store, client *ollama.Client, 
 	return len(pending), nil
 }
 
+// Recalls reports whether a kind of chat has a memory to recall from: the
+// scenes and the assistant, which are compacted, and not the designers,
+// whose conversations are short and about the thing being made.
+func Recalls(kind string) bool {
+	switch kind {
+	case store.KindDesigner, store.KindStyleDesigner, store.KindWorldDesigner, store.KindPromptOptimizer,
+		store.KindPersonaDesigner:
+		return false
+	}
+	return true
+}
+
 // byMeaning finds the moments before the scene's bookmark nearest to its
 // latest exchange, best first, from the query IndexMessages last embedded. It
 // never asks the embedding model anything, so it costs a reply nothing.
@@ -130,6 +180,11 @@ func byMeaning(st *store.Store, ch store.Chat) []store.Moment {
 		return nil
 	}
 	qv := q.(queryVec)
+	// The exchange it was made from is gone, taken back or written again, and
+	// what it was about is not what the scene is about now.
+	if ok, err := st.MessageExists(ch.ID, qv.upto); err != nil || !ok {
+		return nil
+	}
 	stored, err := st.MessageVectors(ch.ID, ch.SummaryUpto, qv.model)
 	if err != nil {
 		log.Printf("astral: reading vectors for chat %d: %v", ch.ID, err)
@@ -155,8 +210,11 @@ func byMeaning(st *store.Store, ch store.Chat) []store.Moment {
 		}
 		return all[i].id > all[j].id
 	})
-	if len(all) > meaningMoments {
-		all = all[:meaningMoments]
+	for n, sc := range all {
+		if n == meaningMoments || sc.sim < all[0].sim-meaningSpread {
+			all = all[:n]
+			break
+		}
 	}
 	ids := make([]int64, len(all))
 	for i, sc := range all {
