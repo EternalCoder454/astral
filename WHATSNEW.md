@@ -3,6 +3,12 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.36
+- Novel Chat: a new chat where the model writes a story of its own from your prompt, in a world it builds
+- A ring beside Send shows how full the model's memory is, what fills it, and your video memory
+- Compact Now in that ring folds a long chat into its recap whenever you like
+- A long scene uses its newest recap straight away, where it used to need reopening
+
 ## 0.5.35
 - The character designer builds on your Knowledge: notes on a town or a people you name end up in the card
 - Every designer keeps your notes in view for the whole design, not just the message that named them
