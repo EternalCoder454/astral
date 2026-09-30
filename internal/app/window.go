@@ -14,8 +14,13 @@ import (
 	"astral/internal/ui"
 )
 
-// buildWindow constructs the main window: a collapsible sidebar beside a
-// header bar and the chat, laid out the way Claude Desktop is.
+// buildWindow constructs the main window, laid out as a frame and a page.
+//
+// The title bar and the sidebar are one surface, and the page, the welcome
+// screen or a chat, sits on a layer of its own inside it, its top corners
+// rounded where it meets the frame and a hairline along the edges that face
+// it. It is how Atlas Monitor draws itself, after Windows 11's Task Manager:
+// the frame is where you go, and the page is what you are reading.
 func (a *App) buildWindow() {
 	a.win = adw.NewApplicationWindow(&a.adw.Application)
 	if fixedWindowTitle {
@@ -29,6 +34,9 @@ func (a *App) buildWindow() {
 		a.win.SetDefaultSize(w, h)
 	} else {
 		a.win.SetDefaultSize(a.cfg.WindowWidth, a.cfg.WindowHeight)
+		if a.cfg.WindowMaximized {
+			a.win.Maximize()
+		}
 	}
 	a.win.AddCSSClass("astral-window")
 	// The narrowest the window may go, stated. Without it libadwaita takes the
@@ -42,6 +50,7 @@ func (a *App) buildWindow() {
 	a.buildSidebar()
 	a.buildCenter()
 	a.registerActions()
+	header := a.buildHeader()
 
 	// OverlaySplitView rather than a Paned: the sidebar is a fixed-width
 	// navigation column that collapses, not a pane you drag, and on a narrow
@@ -49,17 +58,19 @@ func (a *App) buildWindow() {
 	// The portrait sits on the far side of the chat, inside the main split so
 	// hiding the navigation does not take it with it.
 	a.portraitSplit = adw.NewOverlaySplitView()
+	a.portraitSplit.AddCSSClass("astral-shell")
 	a.portraitSplit.SetSidebarPosition(gtk.PackEnd)
 	a.portraitSplit.SetSidebar(a.buildPortraitPanel())
-	a.portraitSplit.SetContent(a.stack)
+	a.portraitSplit.SetContent(a.buildPage())
 	a.portraitSplit.SetSidebarWidthFraction(0.18)
 	a.portraitSplit.SetMaxSidebarWidth(300)
 	a.portraitSplit.SetMinSidebarWidth(170)
 	a.portraitSplit.SetShowSidebar(false)
 
 	a.split = adw.NewOverlaySplitView()
+	a.split.AddCSSClass("astral-shell")
 	a.split.SetSidebar(a.sidebarWithGrip())
-	a.split.SetContent(a.buildContent())
+	a.split.SetContent(a.portraitSplit)
 	a.split.SetShowSidebar(a.cfg.SidebarOpen)
 	// The width you left it at, which is the point of being able to drag it.
 	a.applySidebarWidth(a.cfg.SidebarWidth)
@@ -91,10 +102,31 @@ func (a *App) buildWindow() {
 	a.sideBP = adw.NewBreakpoint(adw.BreakpointConditionParse(sidebarBreakpoint(a.cfg.SidebarWidth)))
 	a.sideBP.AddSetter(a.split, "collapsed", glib.NewValue(true))
 	a.sideBP.AddSetter(a.portraitSplit, "collapsed", glib.NewValue(true))
+	// And the version goes, so the title bar's buttons and the chat's name
+	// still fit on one line.
+	a.sideBP.AddSetter(a.brandVersion, "visible", glib.NewValue(false))
 	a.win.AddBreakpoint(a.sideBP)
 
+	// Narrowest of all, the name goes as well: at the window's smallest a
+	// scene's title bar, its buttons and the window's own, needed more room
+	// than there was, and pushed the close button off the edge. Added last,
+	// so it wins, and repeating what the one above sets.
+	narrow := adw.NewBreakpoint(adw.BreakpointConditionParse("max-width: 520sp"))
+	narrow.AddSetter(a.split, "collapsed", glib.NewValue(true))
+	narrow.AddSetter(a.portraitSplit, "collapsed", glib.NewValue(true))
+	narrow.AddSetter(a.brandVersion, "visible", glib.NewValue(false))
+	narrow.AddSetter(a.brand, "visible", glib.NewValue(false))
+	a.win.AddBreakpoint(narrow)
+
+	// The title bar spans the window, over the sidebar as well as the page,
+	// which is what makes the two one frame.
+	frame := adw.NewToolbarView()
+	frame.AddCSSClass("astral-frame")
+	frame.AddTopBar(header)
+	frame.SetContent(a.split)
+
 	a.toasts = adw.NewToastOverlay()
-	a.toasts.SetChild(a.split)
+	a.toasts.SetChild(frame)
 	a.win.SetContent(a.toasts)
 
 	// Folding for width, done here rather than by the split views.
@@ -113,6 +145,7 @@ func (a *App) buildWindow() {
 		} else {
 			a.split.SetShowSidebar(a.cfg.SidebarOpen)
 		}
+		a.fitPage()
 	})
 	a.portraitSplit.NotifyProperty("collapsed", func() {
 		if a.portraitSplit.Collapsed() {
@@ -120,16 +153,50 @@ func (a *App) buildWindow() {
 		} else {
 			a.portraitSplit.SetShowSidebar(a.portraitHas && a.cfg.PortraitOpen)
 		}
+		a.fitPage()
 	})
 
 	// Keep the toggles honest when a split view is shown or hidden by
 	// anything but them.
 	a.split.NotifyProperty("show-sidebar", func() {
 		a.sideBtn.SetActive(a.split.ShowSidebar())
+		a.fitPage()
 	})
 	a.portraitSplit.NotifyProperty("show-sidebar", func() {
 		a.portraitBtn.SetActive(a.portraitSplit.ShowSidebar())
+		a.fitPage()
 	})
+	a.fitPage()
+}
+
+// buildPage is the layer the welcome screen and the chats are drawn on.
+func (a *App) buildPage() *adw.Bin {
+	a.page = adw.NewBin()
+	a.page.AddCSSClass("astral-page")
+	// Clipped, so what is drawn on it keeps to its rounded corners.
+	a.page.SetOverflow(gtk.OverflowHidden)
+	a.page.SetChild(a.stack)
+	return a.page
+}
+
+// fitPage rounds the page's corners only where it meets the frame: beside the
+// sidebar, and beside the portrait. Where it runs to the window's edge, a
+// corner would be a notch cut out of the window. A panel laid over the page
+// on a narrow window does not count; the page is under it.
+func (a *App) fitPage() {
+	if a.page == nil {
+		return
+	}
+	beside := func(v *adw.OverlaySplitView) bool { return v.ShowSidebar() && !v.Collapsed() }
+	fit := func(class string, on bool) {
+		if on {
+			a.page.AddCSSClass(class)
+		} else {
+			a.page.RemoveCSSClass(class)
+		}
+	}
+	fit("after-sidebar", beside(a.split))
+	fit("before-portrait", beside(a.portraitSplit))
 }
 
 // The window's smallest size: the header bar's buttons and title in one row,
@@ -139,14 +206,28 @@ const (
 	windowMinHeight = 420
 )
 
-// buildContent is everything to the right of the sidebar: header bar on top,
-// the welcome screen or a chat below.
-func (a *App) buildContent() *adw.ToolbarView {
+// buildHeader is the title bar: the app's name, the sidebar and a new chat
+// at the start, what is open in the middle, and the portrait and the menu at
+// the end.
+func (a *App) buildHeader() *adw.HeaderBar {
 	header := adw.NewHeaderBar()
 	header.AddCSSClass("astral-header")
 	header.SetShowTitle(true)
 
-	a.title = adw.NewWindowTitle("Astral", "")
+	// The name and the version at the start, where Atlas Monitor has them,
+	// rather than in the middle, which is the open chat's.
+	a.brand = gtk.NewBox(gtk.OrientationHorizontal, 6)
+	a.brand.AddCSSClass("astral-brand")
+	a.brand.SetVAlign(gtk.AlignCenter)
+	name := gtk.NewLabel("Astral")
+	name.AddCSSClass("astral-brand-name")
+	a.brand.Append(name)
+	a.brandVersion = gtk.NewLabel(version)
+	a.brandVersion.AddCSSClass("astral-brand-version")
+	a.brand.Append(a.brandVersion)
+	header.PackStart(a.brand)
+
+	a.title = adw.NewWindowTitle("", "")
 	header.SetTitleWidget(a.title)
 
 	a.sideBtn = gtk.NewToggleButton()
@@ -206,11 +287,7 @@ func (a *App) buildContent() *adw.ToolbarView {
 	menuBtn.SetPrimary(true)
 	menuBtn.SetMenuModel(a.buildMainMenu())
 	header.PackEnd(menuBtn)
-
-	tv := adw.NewToolbarView()
-	tv.AddTopBar(header)
-	tv.SetContent(a.portraitSplit)
-	return tv
+	return header
 }
 
 // buildSidebar constructs the left panel and wires its callbacks.
@@ -355,6 +432,9 @@ func (a *App) showChat() {
 	if a.stack != nil {
 		a.stack.SetVisibleChildName("chat")
 	}
+	if a.sidebar != nil {
+		a.sidebar.SetHomeActive(false)
+	}
 }
 
 func (a *App) showWelcome() {
@@ -365,6 +445,7 @@ func (a *App) showWelcome() {
 	a.setTitle(store.Chat{}, chars.Character{})
 	if a.sidebar != nil {
 		a.sidebar.Select(0)
+		a.sidebar.SetHomeActive(true)
 	}
 }
 
@@ -404,13 +485,14 @@ func (a *App) setTitle(ch store.Chat, ca chars.Character) {
 		a.title.SetTitle(ch.Title)
 		a.title.SetSubtitle("")
 	default:
-		a.title.SetTitle("Astral")
+		// Nothing open: the name is already at the start of the bar.
+		a.title.SetTitle("")
 		a.title.SetSubtitle("")
 	}
 	if fixedWindowTitle {
 		return
 	}
-	if t := a.title.Title(); t != "" && t != "Astral" {
+	if t := a.title.Title(); t != "" {
 		a.win.SetTitle(t + " · Astral")
 	} else {
 		a.win.SetTitle("Astral")

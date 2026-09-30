@@ -28,7 +28,11 @@ type Sidebar struct {
 	homeBtn     *gtk.Button
 
 	selected int64
-	rows     map[int64]*chatRow
+
+	// charsCount and worldsCount are the counts at the end of their rows.
+	charsCount, worldsCount *gtk.Label
+
+	rows map[int64]*chatRow
 	// order is the chats as listed, top to bottom, which is what a Shift
 	// click selects a run of.
 	order []int64
@@ -122,39 +126,51 @@ func NewSidebar() *Sidebar {
 	nav.AddCSSClass("sidebar-nav")
 
 	// The way back. The welcome screen holds the cast, the worlds and the
-	// greeting, and until now it could only be reached by having no chat open
-	//, which, once you had opened one, meant not at all.
+	// greeting, and until there was this it could only be reached by having no
+	// chat open, which, once you had opened one, meant not at all.
 	s.homeBtn = gtk.NewButton()
 	s.homeBtn.AddCSSClass("sidebar-item")
-	s.homeBtn.SetChild(navContent(IconHome, "Home"))
+	s.homeBtn.AddCSSClass("nav-row")
+	home, _ := navRow(IconHome, "Home")
+	s.homeBtn.SetChild(home)
 	s.homeBtn.SetTooltipText("Your cast and your worlds")
 	s.homeBtn.ConnectClicked(func() { fire(s.OnHome) })
 	nav.Append(s.homeBtn)
 
 	s.charsBtn = gtk.NewButton()
 	s.charsBtn.AddCSSClass("sidebar-item")
-	s.charsBtn.SetChild(navContent(IconCharacters, "Characters"))
+	s.charsBtn.AddCSSClass("nav-row")
+	var charactersRow *gtk.Box
+	charactersRow, s.charsCount = navRow(IconCharacters, "Characters")
+	s.charsBtn.SetChild(charactersRow)
 	s.charsBtn.SetTooltipText("Browse and import characters (Ctrl+K)")
 	s.charsBtn.ConnectClicked(func() { fire(s.OnCharacters) })
 	nav.Append(s.charsBtn)
 
 	worldsBtn := gtk.NewButton()
 	worldsBtn.AddCSSClass("sidebar-item")
-	worldsBtn.SetChild(navContent(IconWorlds, "Worlds"))
+	worldsBtn.AddCSSClass("nav-row")
+	var worldsRow *gtk.Box
+	worldsRow, s.worldsCount = navRow(IconWorlds, "Worlds")
+	worldsBtn.SetChild(worldsRow)
 	worldsBtn.SetTooltipText("Settings your characters live in (Ctrl+W)")
 	worldsBtn.ConnectClicked(func() { fire(s.OnWorlds) })
 	nav.Append(worldsBtn)
 
 	knowledgeBtn := gtk.NewButton()
 	knowledgeBtn.AddCSSClass("sidebar-item")
-	knowledgeBtn.SetChild(navContent(IconKnowledge, "Knowledge"))
+	knowledgeBtn.AddCSSClass("nav-row")
+	knowledgeRow, _ := navRow(IconKnowledge, "Knowledge")
+	knowledgeBtn.SetChild(knowledgeRow)
 	knowledgeBtn.SetTooltipText("Notes and pages your chats draw on")
 	knowledgeBtn.ConnectClicked(func() { fire(s.OnKnowledge) })
 	nav.Append(knowledgeBtn)
 
 	promptsBtn := gtk.NewButton()
 	promptsBtn.AddCSSClass("sidebar-item")
-	promptsBtn.SetChild(navContent(IconDesigner, "Prompts"))
+	promptsBtn.AddCSSClass("nav-row")
+	promptsRow, _ := navRow(IconDesigner, "Prompts")
+	promptsBtn.SetChild(promptsRow)
 	promptsBtn.SetTooltipText("Read, edit and optimize every prompt Astral sends")
 	promptsBtn.ConnectClicked(func() { fire(s.OnPrompts) })
 	nav.Append(promptsBtn)
@@ -359,6 +375,51 @@ func rowContent(icon, text string) *gtk.Box {
 // line of text. Four destinations centred read as a set; the same four pinned left
 // with a wide gap after them read as a list that has lost its right-hand column,
 // which is what a resizable sidebar makes obvious.
+// navRow is a navigation row's content, the way Atlas Monitor lays its pages
+// out: the icon and the name from the start, and at the end a count, empty
+// until SetCounts fills it in.
+func navRow(icon, text string) (*gtk.Box, *gtk.Label) {
+	box := gtk.NewBox(gtk.OrientationHorizontal, 10)
+	if icon != "" {
+		box.Append(gtk.NewImageFromIconName(icon))
+	}
+	l := gtk.NewLabel(text)
+	l.SetXAlign(0)
+	l.SetHExpand(true)
+	l.SetEllipsize(pango.EllipsizeEnd)
+	box.Append(l)
+	count := gtk.NewLabel("")
+	count.AddCSSClass("sidebar-count")
+	count.SetVisible(false)
+	box.Append(count)
+	return box, count
+}
+
+// SetCounts shows how many characters and worlds there are beside their
+// rows, and nothing for none.
+func (s *Sidebar) SetCounts(characters, worlds int) {
+	for _, c := range []struct {
+		l *gtk.Label
+		n int
+	}{{s.charsCount, characters}, {s.worldsCount, worlds}} {
+		if c.l == nil {
+			continue
+		}
+		c.l.SetVisible(c.n > 0)
+		c.l.SetText(fmt.Sprint(c.n))
+	}
+}
+
+// SetHomeActive marks Home as where you are, while the welcome screen is
+// showing, the way an open chat's row is marked.
+func (s *Sidebar) SetHomeActive(on bool) {
+	if on {
+		s.homeBtn.AddCSSClass("selected")
+	} else {
+		s.homeBtn.RemoveCSSClass("selected")
+	}
+}
+
 func navContent(icon, text string) *gtk.Box {
 	box := gtk.NewBox(gtk.OrientationHorizontal, 10)
 	box.SetHAlign(gtk.AlignCenter)

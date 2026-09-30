@@ -40,15 +40,79 @@ tooltip {
 
 /* ---- Shell ---- */
 
+/*
+ * The frame and the page, the way Atlas Monitor draws itself after Windows
+ * 11's Task Manager. The title bar and the sidebar are one surface, the
+ * sidebar's colour, and the page sits on a layer of its own inside it: the
+ * canvas colour, its top corners rounded where they meet the frame, and a
+ * hairline along the edges that face it. Which corners round is set from the
+ * code (App.fitPage), since a corner against the window's own edge would be a
+ * notch cut out of it.
+ *
+ * The hairline is one colour on every side, with only some sides given a
+ * width: a border whose sides differ in colour is drawn as a gradient mesh,
+ * the slowest thing GTK's renderer does.
+ */
 .astral-window {
-	background-color: @window_bg_color;
+	background-color: @sidebar_bg_color;
 }
 
-.astral-header {
+toolbarview.astral-frame > .top-bar,
+toolbarview.astral-frame > .top-bar:backdrop,
+.astral-shell {
+	background-color: @sidebar_bg_color;
 	box-shadow: none;
-	border-bottom: 1px solid alpha(@astral_border, 0.55);
-	min-height: 46px;
+}
+
+/* libadwaita rules a line down the inside edge of a split view's side
+   panel. In the frame the page's hairline is the edge, and a second line a
+   pixel away from it stood apart from the rounded corner. The shadow a
+   panel casts when it floats over the page on a narrow window is a widget
+   of its own, and stays. */
+.astral-shell > .sidebar-pane,
+.astral-shell > .sidebar-pane:backdrop {
+	box-shadow: none;
+}
+
+.astral-page {
 	background-color: @window_bg_color;
+	border-style: solid;
+	border-color: alpha(@window_fg_color, 0.07);
+	border-width: 1px 0 0 0;
+}
+
+.astral-page.after-sidebar {
+	border-left-width: 1px;
+	border-top-left-radius: 10px;
+}
+
+.astral-page.before-portrait {
+	border-right-width: 1px;
+	border-top-right-radius: 10px;
+}
+
+.astral-header,
+.astral-header:backdrop {
+	box-shadow: none;
+	border: none;
+	min-height: 46px;
+	background-color: transparent;
+}
+
+.astral-brand {
+	margin-left: 6px;
+	margin-right: 4px;
+}
+
+.astral-brand-name {
+	font-weight: 600;
+	font-size: 0.95em;
+}
+
+.astral-brand-version {
+	font-size: 0.8em;
+	color: alpha(currentColor, 0.5);
+	font-feature-settings: "tnum" 1;
 }
 
 .astral-header button.flat {
@@ -61,6 +125,18 @@ tooltip {
 .astral-header button.flat:hover {
 	background-color: @astral_surface;
 	color: @window_fg_color;
+}
+
+/* A toggle that is on, the sidebar or the portrait, stays flat and says so
+   with its icon in the accent, as Atlas Monitor's command toggles do. A
+   filled box sat heavy on the frame, and read as a button being held down. */
+.astral-header button.flat:checked {
+	background-color: transparent;
+	color: @accent_color;
+}
+
+.astral-header button.flat:checked:hover {
+	background-color: @astral_surface;
 }
 
 /*
@@ -99,7 +175,6 @@ frame:focus-within {
 
 .astral-sidebar {
 	background-color: @sidebar_bg_color;
-	border-right: 1px solid alpha(@astral_border, 0.7);
 }
 
 .sidebar-head {
@@ -143,19 +218,48 @@ frame:focus-within {
 }
 
 .sidebar-item:hover {
-	background-color: @astral_surface;
+	background-color: alpha(@sidebar_fg_color, 0.10);
 	color: @sidebar_fg_color;
 }
 
-/* The open chat. An earlier version marked it with a slightly lighter fill,
-   which on this palette was almost exactly the hover state, so you could not
-   tell what you were pointing at from what you were reading. The accent bar
-   is unambiguous at a glance down the list. */
-.sidebar-item.selected {
-	background-color: alpha(@accent_bg_color, 0.20);
+/* Where you are: the open chat, or Home. An earlier version marked it with a
+   slightly lighter fill, which on this palette was almost exactly the hover
+   state, so you could not tell what you were pointing at from what you were
+   reading. So it keeps a tint of the accent, and carries Atlas Monitor's mark
+   of the current page: a short upright pill in the accent at the left edge.
+   It is a gradient image rather than a widget, sized and placed rather than
+   stretched, so no row carries an extra widget for it. */
+.sidebar-item.selected,
+.sidebar-item.selected:hover {
+	background-color: alpha(@accent_bg_color, 0.16);
+	background-image: linear-gradient(@accent_bg_color, @accent_bg_color);
+	background-size: 3px 16px;
+	background-position: left center;
+	background-repeat: no-repeat;
 	color: @sidebar_fg_color;
 	font-weight: 600;
-	box-shadow: inset 3px 0 0 @accent_bg_color;
+}
+
+/* Navigation rows a little taller than a chat's, as Atlas Monitor's pages
+   are, with their icons at 18px rather than GTK's 16, which on a dense
+   display reads as a label with a speck beside it. */
+.sidebar-item.nav-row {
+	min-height: 36px;
+	padding-top: 4px;
+	padding-bottom: 4px;
+}
+
+.sidebar-item.nav-row image {
+	-gtk-icon-size: 18px;
+}
+
+/* A quiet count at the end of a navigation row, the way Atlas Monitor puts a
+   reading beside a page: there, but the row still reads as a place first. */
+.sidebar-count {
+	font-size: 0.85em;
+	color: alpha(currentColor, 0.55);
+	font-feature-settings: "tnum" 1;
+	margin-right: 2px;
 }
 
 .sidebar-item image {
@@ -351,7 +455,6 @@ frame:focus-within {
 
 .portrait-panel {
 	background-color: @sidebar_bg_color;
-	border-left: 1px solid alpha(@astral_border, 0.7);
 	padding: 16px 12px;
 }
 

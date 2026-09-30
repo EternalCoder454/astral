@@ -48,6 +48,11 @@ type App struct {
 	// window gets too narrow for them; their widths follow the sidebar's.
 	sideBP, portraitBP *adw.Breakpoint
 	toasts             *adw.ToastOverlay
+	// page is the layer the welcome screen and the chats are drawn on, inside
+	// the frame, and brand the name and version at the start of the title bar.
+	page         *adw.Bin
+	brand        *gtk.Box
+	brandVersion *gtk.Label
 	// tidyAt is when memory is next handed back, and tidyWaiting whether a
 	// timer is set for it. See scheduleTidy.
 	tidyAt      time.Time
@@ -250,6 +255,7 @@ func (a *App) rememberLayout() {
 		if w, h := a.win.DefaultSize(); w > 0 && h > 0 {
 			a.cfg.WindowWidth, a.cfg.WindowHeight = w, h
 		}
+		a.cfg.WindowMaximized = a.win.IsMaximized()
 	}
 	// Only what you chose with room to choose it: closing the window while
 	// it is narrow, with the sidebar folded away, must not close it for good.
@@ -348,6 +354,18 @@ func (a *App) refreshSidebar() {
 		a.sidebar.Select(a.chat.Chat().ID)
 	}
 	a.refreshProfile()
+	a.refreshNavCounts()
+}
+
+// refreshNavCounts puts the number of characters and worlds beside their
+// rows in the sidebar.
+func (a *App) refreshNavCounts() {
+	if a.store == nil || a.sidebar == nil {
+		return
+	}
+	characters, _ := a.store.CountCharacters()
+	worlds, _ := a.store.Worlds()
+	a.sidebar.SetCounts(characters, len(worlds))
 }
 
 // Astral opens on Home, always.

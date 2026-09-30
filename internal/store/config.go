@@ -70,10 +70,13 @@ type Config struct {
 	Theme    string `json:"theme"`
 	LastChat int64  `json:"last_chat"`
 
-	WindowWidth  int  `json:"window_width"`
-	WindowHeight int  `json:"window_height"`
-	SidebarWidth int  `json:"sidebar_width"`
-	SidebarOpen  bool `json:"sidebar_open"`
+	WindowWidth  int `json:"window_width"`
+	WindowHeight int `json:"window_height"`
+	// WindowMaximized opens the window maximized, as it was closed. The
+	// width and height stay the size it goes back to.
+	WindowMaximized bool `json:"window_maximized"`
+	SidebarWidth    int  `json:"sidebar_width"`
+	SidebarOpen     bool `json:"sidebar_open"`
 	// GroupChatsByCharacter sorts the sidebar's chats under their characters
 	// rather than under the day they were last written in.
 	GroupChatsByCharacter bool `json:"group_chats_by_character"`

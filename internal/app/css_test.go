@@ -90,10 +90,19 @@ func TestNoUnusedCSSClasses(t *testing.T) {
 	css := readAsset(t, filepath.Join("..", "..", "assets", "style.css"))
 	applied := classesAppliedInGo(t, filepath.Join("..", ".."))
 	for _, class := range classesStyled(css) {
-		if !applied[class] {
+		if !applied[class] && !libadwaitaClasses[class] {
 			t.Errorf(".%s is styled but nothing applies it", class)
 		}
 	}
+}
+
+// libadwaitaClasses are classes libadwaita puts on parts of its own widgets,
+// which the stylesheet restyles where they sit inside Astral's: the title
+// bar area of a toolbar view, and a split view's side panel. Nothing in
+// Astral applies them, and nothing needs to.
+var libadwaitaClasses = map[string]bool{
+	"top-bar":      true,
+	"sidebar-pane": true,
 }
 
 // classesStyled returns the classes named in selectors. Comments are stripped
