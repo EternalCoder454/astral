@@ -38,6 +38,14 @@ func (a *App) buildWindow() {
 			a.win.Maximize()
 		}
 	}
+	// Whether it is maximized, noted while it is on screen: by the time the
+	// app shuts down the window is gone, and says nothing either way.
+	a.maximized = a.cfg.WindowMaximized
+	a.win.NotifyProperty("maximized", func() {
+		if a.win.Mapped() {
+			a.maximized = a.win.IsMaximized()
+		}
+	})
 	a.win.AddCSSClass("astral-window")
 	// The narrowest the window may go, stated. Without it libadwaita takes the
 	// content's own minimum, which with the sidebar open is wider than the

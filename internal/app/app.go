@@ -53,6 +53,9 @@ type App struct {
 	page         *adw.Bin
 	brand        *gtk.Box
 	brandVersion *gtk.Label
+	// maximized is whether the window was last seen maximized. See
+	// buildWindow.
+	maximized bool
 	// tidyAt is when memory is next handed back, and tidyWaiting whether a
 	// timer is set for it. See scheduleTidy.
 	tidyAt      time.Time
@@ -255,7 +258,7 @@ func (a *App) rememberLayout() {
 		if w, h := a.win.DefaultSize(); w > 0 && h > 0 {
 			a.cfg.WindowWidth, a.cfg.WindowHeight = w, h
 		}
-		a.cfg.WindowMaximized = a.win.IsMaximized()
+		a.cfg.WindowMaximized = a.maximized
 	}
 	// Only what you chose with room to choose it: closing the window while
 	// it is narrow, with the sidebar folded away, must not close it for good.
