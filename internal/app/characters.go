@@ -9,6 +9,7 @@ import (
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 
@@ -138,7 +139,7 @@ func (a *App) castRow(c chars.Character) *gtk.Box {
 	})
 	row.Append(play)
 
-	// Across, not down. Stacked, the four of them set the height of every
+	// Across, not down. Stacked, the buttons set the height of every
 	// row, so a card holding two lines of description was built to the
 	// height of six and most of it was empty. In a row they sit beside the
 	// card at its own height, dimmed until the row is pointed at or tabbed
@@ -188,41 +189,50 @@ func (a *App) castRow(c chars.Character) *gtk.Box {
 	})
 	side.Append(edit)
 
-	info := gtk.NewButtonFromIconName(ui.IconInfo)
-	info.SetTooltipText("Everything about " + c.Name + ", and their scenes")
-	info.AddCSSClass("flat")
-	info.ConnectClicked(func() {
-		a.showCharacter(character)
-	})
-	side.Append(info)
-
-	// The designer, pointed at somebody who already exists. The form next door
-	// edits the words; this argues about them, which is what you want when the
+	// The rest behind a menu: what someone does often, playing, starring and
+	// editing, stays in reach, and deleting takes one more step. Five buttons
+	// in a row held the page, and the window, wider than its narrowest.
+	acts := gio.NewSimpleActionGroup()
+	for _, it := range []struct {
+		name string
+		fire func()
+	}{
+		{"details", func() { a.showCharacter(character) }},
+		{"revise", func() { a.reviseCharacter(character) }},
+		{"delete", func() {
+			a.confirm("Delete "+character.Name,
+				"The character is removed, but their chats are kept.",
+				"Delete", func() {
+					if err := a.store.DeleteCharacter(character.ID); err != nil {
+						a.toast("Could not delete: " + err.Error())
+						return
+					}
+					a.refreshWelcome()
+					a.showCharacters()
+				})
+		}},
+	} {
+		fire := it.fire
+		act := gio.NewSimpleAction(it.name, nil)
+		act.ConnectActivate(func(*glib.Variant) { fire() })
+		acts.AddAction(act)
+	}
+	row.InsertActionGroup("cast", acts)
+	menu := gio.NewMenu()
+	menu.Append("Details", "cast.details")
+	// The designer, pointed at somebody who already exists. The form edits
+	// the words; this argues about them, which is what you want when the
 	// problem is that the description is all adjectives.
-	revise := gtk.NewButtonFromIconName(ui.IconDesigner)
-	revise.SetTooltipText("Revise " + c.Name + " with the designer")
-	revise.AddCSSClass("flat")
-	revise.ConnectClicked(func() {
-		a.reviseCharacter(character)
-	})
-	side.Append(revise)
-
-	del := gtk.NewButtonFromIconName(ui.IconTrash)
-	del.SetTooltipText("Delete " + c.Name)
-	del.AddCSSClass("flat")
-	del.ConnectClicked(func() {
-		a.confirm("Delete "+character.Name,
-			"The character is removed, but their chats are kept.",
-			"Delete", func() {
-				if err := a.store.DeleteCharacter(character.ID); err != nil {
-					a.toast("Could not delete: " + err.Error())
-					return
-				}
-				a.refreshWelcome()
-				a.showCharacters()
-			})
-	})
-	side.Append(del)
+	menu.Append("Revise with the Designer", "cast.revise")
+	danger := gio.NewMenu()
+	danger.Append("Delete", "cast.delete")
+	menu.AppendSection("", danger)
+	more := gtk.NewMenuButton()
+	more.SetIconName(ui.IconMore)
+	more.SetTooltipText("More for " + c.Name)
+	more.AddCSSClass("flat")
+	more.SetMenuModel(menu)
+	side.Append(more)
 	row.Append(side)
 
 	return row
