@@ -172,29 +172,50 @@ was actually said out loud.
 
 ## Requirements
 
-* Linux with GTK 4.10 or newer and libadwaita 1.4 or newer
-* Go 1.26 or newer, to build
+* Linux, any distribution, or Windows
 * [Ollama](https://ollama.com), running locally, with at least one model pulled
 
-On Fedora:
-
-```bash
-sudo dnf install golang gtk4-devel libadwaita-devel
-```
-
-On Debian or Ubuntu:
-
-```bash
-sudo apt install golang libgtk-4-dev libadwaita-1-dev
-```
-
-On Arch:
-
-```bash
-sudo pacman -S go gtk4 libadwaita
-```
-
 ## Install
+
+### Linux
+
+One command, on any distribution:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/EternalCoder454/astral/release/install.sh | bash
+```
+
+It works out the right way for your distribution and says which it chose:
+
+* **Built on your machine** where the distribution ships libadwaita 1.9 or
+  newer: Fedora 44 and later, Arch Linux and the distributions built on it
+  (Manjaro, EndeavourOS, CachyOS, Garuda), openSUSE Tumbleweed, and Ubuntu
+  26.04 and the distributions built on it. It installs the build packages with
+  your package manager, showing the command and asking for your password first,
+  and installs Astral for you alone, in `~/.local`. A Go new enough to build
+  with is downloaded beside it if yours is older.
+* **As a Flatpak** everywhere else: Linux Mint, Ubuntu 24.04, Debian, Pop!_OS,
+  Zorin OS, elementary OS, and any distribution with Flatpak. The Flatpak brings
+  its own GNOME libraries, so the age of your distribution's does not matter. It
+  installs Flatpak first if you have none. The Flatpak is built for x86_64.
+
+Add `--flatpak` or `--native` to choose for yourself, for example
+`curl -fsSL https://raw.githubusercontent.com/EternalCoder454/astral/release/install.sh | bash -s -- --flatpak`.
+Once installed, Astral is in your application menu.
+
+**Updating.** Astral offers each new version itself when it starts, and
+Settings, About has Check Now. Running the install command again updates it too.
+
+**Uninstalling.** Settings, About, Uninstall Astral. Your characters, worlds and
+chats are kept, unless you tick the box to delete them too. From a terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/EternalCoder454/astral/release/install.sh | bash -s -- uninstall
+```
+
+Add `--delete-library` to delete your library as well; it asks you to type
+`delete` first. A Flatpak can also be removed from GNOME Software, Discover or
+the Software Manager, like any other app.
 
 ### Windows
 
@@ -259,7 +280,31 @@ Your library and your conversations never leave your network. There is no
 account, no server belonging to anyone else, and with phone access switched off
 nothing is listening.
 
-### Linux
+### Building from source
+
+For working on Astral. It needs GTK 4 and libadwaita 1.9 or newer with their
+development headers, the gobject-introspection headers, gcc, and Go 1.26 or
+newer.
+
+On Fedora:
+
+```bash
+sudo dnf install golang gtk4-devel libadwaita-devel gobject-introspection-devel
+```
+
+On Arch:
+
+```bash
+sudo pacman -S go gtk4 libadwaita gobject-introspection
+```
+
+On Ubuntu 26.04:
+
+```bash
+sudo apt install golang libgtk-4-dev libadwaita-1-dev libgirepository1.0-dev
+```
+
+Then:
 
 ```bash
 git clone https://github.com/EternalCoder454/astral.git
@@ -288,21 +333,32 @@ make uninstall
 Astral is single instance. If a copy is already open when you install a new
 build, that copy keeps running the old one. Quit it and open it again.
 
+To build the Flatpak, with its GNOME 50 SDK from Flathub:
+
+```bash
+flatpak-builder --user --install-deps-from=flathub --install build packaging/flatpak/io.github.astral.yml
+```
+
 ## Updates
 
 Astral checks once on launch whether a newer version has been published, and
 says so if there is one. It reads a single text file from this repository and
 sends nothing about your machine, your characters or your scenes. Switch it off
-under **Settings, Appearance**, along with the channel:
+under **Settings, About**, along with the channel:
 
 - **Release** is the tested one, and the default.
 - **Beta** is ahead of it and may be rough.
 
-Updating fetches the branch into a clone under your data directory, rebuilds,
-and restarts. It never touches a checkout you are working in. Building from
-source rather than downloading a binary is slower, and means what you end up
-running was built against the GTK and libadwaita on your own machine, which is
-the thing that actually breaks when a binary is carried between distributions.
+Built on your machine, updating fetches the branch into a clone under your data
+directory, rebuilds, and restarts. It never touches a checkout you are working
+in. Building from source rather than downloading a binary is slower, and means
+what you end up running was built against the GTK and libadwaita on your own
+machine, which is the thing that actually breaks when a binary is carried
+between distributions.
+
+As a Flatpak, updating downloads the new version's Flatpak from its release and
+installs it over the old one, then restarts. A Flatpak follows releases only,
+since there is no Flatpak of a beta.
 
 `WHATSNEW.md` is what the update dialog shows: one heading per version, a few
 plain lines each. The git log is the technical history.
