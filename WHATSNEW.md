@@ -3,6 +3,16 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.30
+- A new look after Atlas Monitor: one title bar across the window, and the page as a layer inside the frame
+- Characters, Worlds, Knowledge and Prompts are pages in the window now, and the sidebar marks where you are
+- Nine themes in Settings, Appearance: Ink, Paper, Ember, Nord, Sage, Plum, Rose, Solarized and Contrast
+- Settings folds into one column on a narrow window, and a theme applies the moment you pick it
+- Every icon is now from Material Symbols, and each action has an icon of its own
+- A polishing pass over narrow windows, empty screens, dialogs and delete buttons
+- Phone: colours follow the desktop's theme, and chats can be renamed, deleted and edited
+- Phone: Back returns to where you were, bigger touch targets, and settings that check their values
+
 ## 0.5.29
 - The Replies chip sets how long a scene's replies are, and lets its character write first when you go quiet
 - Memory finds earlier moments by what they are about as well as their words, with an embedding model
