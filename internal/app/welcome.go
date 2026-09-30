@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"os/user"
 	"strings"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
@@ -142,6 +141,7 @@ func (a *App) appendWorlds() {
 func (a *App) worldCard(w world.World) *gtk.Button {
 	btn := gtk.NewButton()
 	btn.AddCSSClass("character-card")
+	btn.SetVAlign(gtk.AlignStart)
 
 	col := gtk.NewBox(gtk.OrientationVertical, 3)
 	head := gtk.NewBox(gtk.OrientationHorizontal, 8)
@@ -171,23 +171,11 @@ func (a *App) worldCard(w world.World) *gtk.Button {
 	return btn
 }
 
-// greetingLine addresses you by name when the system knows it, the way the
-// desktop's own greeter does.
+// greetingLine addresses you by your persona's name, the one the sidebar's
+// footer shows, so the two never disagree. With no persona it says nothing
+// personal rather than guessing a name from the operating system.
 func (a *App) greetingLine() string {
-	name := a.cfg.PersonaName
-	if name == "" {
-		if u, err := user.Current(); err == nil {
-			name = strings.TrimSpace(u.Name)
-			if name == "" {
-				name = u.Username
-			}
-			// A full name in a greeting reads as a form letter; the first word
-			// reads as a greeting.
-			if i := strings.IndexByte(name, ' '); i > 0 {
-				name = name[:i]
-			}
-		}
-	}
+	name := strings.TrimSpace(a.cfg.PersonaName)
 	if name == "" {
 		return "Welcome to Astral"
 	}
@@ -280,8 +268,11 @@ func (a *App) buildEmptyCast() *gtk.Box {
 	// The designer is the prominent offer. Facing eight empty text boxes is
 	// where most people give up, and being asked "who are they?" is a far
 	// easier way in.
-	row := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	// A wrapping box: three buttons in a row are wider than a 420px window.
+	row := adw.NewWrapBox()
 	row.SetHAlign(gtk.AlignStart)
+	row.SetChildSpacing(8)
+	row.SetLineSpacing(8)
 	design := gtk.NewButtonWithLabel("New Character")
 	design.AddCSSClass("suggested-action")
 	design.ConnectClicked(a.newDesignerChat)
@@ -300,6 +291,9 @@ func (a *App) buildEmptyCast() *gtk.Box {
 func (a *App) characterCard(c chars.Character) *gtk.Button {
 	btn := gtk.NewButton()
 	btn.AddCSSClass("character-card")
+	// The flow box gives every card in a row the tallest one's height, which
+	// left a one-line character with a hollow at the bottom.
+	btn.SetVAlign(gtk.AlignStart)
 
 	box := gtk.NewBox(gtk.OrientationHorizontal, 10)
 	avatar := ui.NewCharacterAvatar(c, 36)

@@ -97,7 +97,7 @@ type ChatView struct {
 	clamp     *adw.Clamp
 	column    *gtk.Box
 	composer  *gtk.TextView
-	actionBar *gtk.Box
+	actionBar *adw.WrapBox
 	// lengthAct and writeFirstAct are the Replies chip's actions, holding the
 	// scene's choices as their state so its menu marks them, and repliesMenu
 	// is that menu. See lengthChip.
@@ -415,7 +415,12 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 	c.fileChips.SetVisible(false)
 	wrap.Append(c.fileChips)
 
-	c.actionBar = gtk.NewBox(gtk.OrientationHorizontal, 6)
+	// A wrapping box: five chips do not fit a narrow window in one line, and
+	// each one squeezed to fit read "Add Someo…". A second line costs less.
+	c.actionBar = adw.NewWrapBox()
+	c.actionBar.SetChildSpacing(6)
+	c.actionBar.SetLineSpacing(6)
+	c.actionBar.SetAlign(0.5)
 	c.actionBar.AddCSSClass("chat-actions")
 	c.actionBar.SetHAlign(gtk.AlignCenter)
 	c.actionBar.SetVisible(false)
