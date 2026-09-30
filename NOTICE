@@ -53,7 +53,8 @@ size and fill changes as above:
 Colour palette
 --------------------------------------------------------------------------------
 
-The warm neutrals and the clay accent follow Anthropic's published brand
-palette. The specific values in assets/dark.css and assets/light.css were
+The warm neutrals and the clay accent of the Ember theme follow Anthropic's
+published brand palette. The specific values in internal/theme/theme.go were
 derived from it and then adjusted for contrast; they are not a verbatim copy of
-any published token set.
+any published token set. Nord, Plum and Solarized take their hues from the
+palettes of those names, and are likewise adjusted for contrast.

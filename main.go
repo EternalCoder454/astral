@@ -12,16 +12,8 @@ import (
 //go:embed assets/style.css
 var styleCSS string
 
-//go:embed assets/dark.css
-var darkCSS string
-
-//go:embed assets/light.css
-var lightCSS string
-
 func main() {
 	os.Exit(app.New(app.Assets{
 		Style: styleCSS,
-		Dark:  darkCSS,
-		Light: lightCSS,
 	}).Run(os.Args))
 }

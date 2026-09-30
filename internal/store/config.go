@@ -10,16 +10,19 @@ import (
 	"strings"
 
 	"astral/internal/chars"
+	"astral/internal/theme"
 )
 
 // AppName is the XDG application directory name.
 const AppName = "astral"
 
-// Colour schemes. System follows the desktop's own light/dark preference.
+// Colour themes. The setting is a theme's ID from internal/theme, or ThemeSystem
+// to follow the desktop's own light and dark preference. Settings files written
+// before there were themes say "dark" or "light", which loading carries over to
+// Ink and Paper.
 const (
-	ThemeDark   = "dark"
-	ThemeLight  = "light"
-	ThemeSystem = "system"
+	ThemeDefault = theme.Default
+	ThemeSystem  = theme.Follow
 )
 
 // Font-rendering modes: "crisp" hints glyphs onto the pixel grid, which is what
@@ -277,7 +280,7 @@ const DefaultPhonePort = 8765
 func DefaultConfig() Config {
 	return Config{
 		BaseURL:        "http://localhost:11434",
-		Theme:          ThemeDark,
+		Theme:          ThemeDefault,
 		WindowWidth:    1180,
 		WindowHeight:   780,
 		SidebarWidth:   270,
@@ -375,11 +378,7 @@ func (c *Config) normalize() {
 	if c.BaseURL == "" {
 		c.BaseURL = "http://localhost:11434"
 	}
-	switch c.Theme {
-	case ThemeDark, ThemeLight, ThemeSystem:
-	default:
-		c.Theme = ThemeDark
-	}
+	c.Theme = theme.Normalise(c.Theme)
 	switch c.FontRendering {
 	case FontRenderingCrisp, FontRenderingSmooth:
 	default:

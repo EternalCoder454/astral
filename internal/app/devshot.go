@@ -156,7 +156,7 @@ func (a *App) runDevView() {
 			a.newAssistantChat()
 		case "settings":
 			if arg != "" {
-				a.showSettingsPage(arg) // "you", "about"
+				a.showSettingsPage(arg) // "appearance", "model", "you", "about"
 			} else {
 				a.showSettings()
 			}

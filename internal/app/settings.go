@@ -7,8 +7,10 @@ import (
 	"strings"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
+	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gio/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+	"github.com/diamondburned/gotk4/pkg/pango"
 
 	"astral/internal/chars"
 	"astral/internal/store"
@@ -24,7 +26,6 @@ type settingsForm struct {
 
 	keepAlive *gtk.Entry
 
-	theme    *gtk.DropDown
 	fontMode *gtk.DropDown
 	showStat *gtk.CheckButton
 	updates  *gtk.CheckButton
@@ -55,7 +56,9 @@ type settingsForm struct {
 // It applies on an explicit Save rather than instantly. Several of these
 // settings change what the model does mid-scene, and having a stray scroll
 // over a slider quietly alter the temperature of a conversation you are in the
-// middle of is not a trade worth making for one fewer click.
+// middle of is not a trade worth making for one fewer click. The colour theme is
+// the exception: it cannot be judged without seeing it, so it applies and saves
+// the moment it is chosen, and Save and Cancel leave it alone.
 func (a *App) showSettings() { a.showSettingsPage("") }
 
 // showSettingsPage opens settings on a particular page, so a menu entry can
@@ -70,43 +73,152 @@ func (a *App) showSettingsPage(page string) {
 	d := adw.NewDialog()
 	ui.FreeOnClose(d)
 	d.SetTitle("Settings")
-	d.SetContentWidth(700)
+	// Wider than the pages need. The dialog folds under 500sp, and sp scales with
+	// the text: at a text scale of 1.5, which is what a HiDPI desktop commonly
+	// runs, 500sp is 750px, and a dialog of 700px would open already folded.
+	d.SetContentWidth(800)
 	d.SetContentHeight(760)
+	// A dialog with a breakpoint does not work out its own minimum size from what
+	// is in it, because the breakpoint changes what that is, so it has to be told.
+	// This is the narrowest and shortest the pages can be at, folded.
+	d.SetSizeRequest(300, 300)
 
 	f := &settingsForm{}
+	picker := a.newThemePicker()
 	stack := gtk.NewStack()
-	// Three pages, not five. Appearance held three switches and Phone held one
-	// with a device list under it, and neither was worth a trip through a
-	// sidebar: what they had in common is that all of them are about you and
-	// this machine rather than about the model.
+	stack.SetHExpand(true)
+	// A stack is as wide as its widest page by default, hidden ones included, so
+	// the narrowest the dialog could be was set by whichever page happened to be
+	// widest. Each page takes its own width instead.
+	stack.SetHhomogeneous(false)
+	// Four pages. Appearance is first because it is about the window rather than
+	// the model, and Model stays the one the dialog opens on. Phone and the
+	// display options live on You, which is about you and this machine.
+	stack.AddTitled(scrolled(a.buildAppearancePage(picker)), "appearance", "Appearance")
 	stack.AddTitled(scrolled(a.buildModelPage(f)), "model", "Model")
 	stack.AddTitled(scrolled(a.buildYouPage(f)), "you", "You")
 	stack.AddTitled(scrolled(a.buildAboutPage(f)), "about", "About")
 
-	side := gtk.NewStackSidebar()
-	side.SetStack(stack)
-	side.SetSizeRequest(150, -1)
+	// The list of pages and the page itself, as a split view that folds.
+	//
+	// It was a fixed 150px column beside the page in a plain box. On a window
+	// narrower than the dialog the column kept its width and the page was cut off
+	// down its right-hand side, the end of every hint and value. Folded, the list
+	// is one screen and each page another, with a back button between them, which
+	// is how libadwaita's own preferences behave.
+	list := gtk.NewListBox()
+	list.AddCSSClass("navigation-sidebar")
+	list.AddCSSClass("settings-nav")
+	titles := map[string]string{}
+	for _, id := range []string{"appearance", "model", "you", "about"} {
+		title := stack.Page(stack.ChildByName(id)).Title()
+		titles[id] = title
+		row := gtk.NewListBoxRow()
+		row.SetName(id)
+		label := gtk.NewLabel(title)
+		label.SetXAlign(0)
+		row.SetChild(label)
+		list.Append(row)
+	}
 
-	body := gtk.NewBox(gtk.OrientationHorizontal, 0)
-	body.Append(side)
-	body.Append(gtk.NewSeparator(gtk.OrientationVertical))
-	stack.SetHExpand(true)
-	body.Append(stack)
+	sideScroll := gtk.NewScrolledWindow()
+	sideScroll.SetChild(list)
+	sideScroll.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+
+	// The page's own bar exists for the back button, so it is only there while
+	// folded. Save and Cancel sit above both screens in the dialog's own bar, and
+	// are reachable from the list as well as from a page.
+	pageBar := adw.NewHeaderBar()
+	pageBar.AddCSSClass("flat")
+	pageBar.SetShowStartTitleButtons(false)
+	pageBar.SetShowEndTitleButtons(false)
+	pageBar.SetVisible(false)
+	pageView := adw.NewToolbarView()
+	pageView.AddTopBar(pageBar)
+	pageView.SetContent(stack)
+	contentPage := adw.NewNavigationPage(pageView, titles["model"])
+
+	split := adw.NewNavigationSplitView()
+	split.SetSidebar(adw.NewNavigationPage(sideScroll, "Settings"))
+	split.SetContent(contentPage)
+	// In pixels, whose default unit scales with the text: on a desktop with large
+	// fonts that takes the width from the page, which is the part with something
+	// to read.
+	split.SetSidebarWidthUnit(adw.LengthUnitPx)
+	split.SetMinSidebarWidth(180)
+	split.SetMaxSidebarWidth(220)
+
+	// Fold below 500sp. The unit matters: sp scales with the text, so the pages
+	// fold when there is no longer room to read them, whatever the pixel width.
+	bp := adw.NewBreakpoint(adw.NewBreakpointConditionLength(
+		adw.BreakpointConditionMaxWidth, 500, adw.LengthUnitSp))
+	d.AddBreakpoint(bp)
+
+	// The breakpoint folds the split view and brings up the page's bar with its
+	// back button. As setters rather than as handlers: they hold no Go closure, so
+	// there is nothing to cut when the dialog closes, and they put the two back on
+	// their own when the dialog widens again.
+	bp.AddSetter(split, "collapsed", true)
+	bp.AddSetter(pageBar, "visible", true)
+
+	// Every handler below reaches something above the widget it is on, so each is
+	// cut when the dialog closes; see themePicker.release for why.
+	var conns []connection
+	track := func(obj coreglib.Objector, h coreglib.SignalHandle) {
+		conns = append(conns, connection{obj, h})
+	}
+	track(list, list.ConnectRowSelected(func(row *gtk.ListBoxRow) {
+		if row != nil {
+			stack.SetVisibleChildName(row.Name())
+			contentPage.SetTitle(titles[row.Name()])
+		}
+	}))
+	// Selecting a row switches the page; activating one, by a click or Enter,
+	// also moves to it when folded. They are separate because opening the dialog
+	// selects a row, and on a narrow window that should land on the list, not
+	// jump straight past it.
+	track(list, list.ConnectRowActivated(func(*gtk.ListBoxRow) { split.SetShowContent(true) }))
+	d.ConnectClosed(func() {
+		for _, c := range conns {
+			c.cut()
+		}
+		picker.release()
+		// The dialog holds the breakpoint, and Go's hold on it is not one the
+		// collector can see the end of, so it is let go here: measured, it was the
+		// one thing a Settings dialog kept after closing.
+		coreglib.Destroy(bp)
+	})
+
+	// The page asked for, or Model, which is what the dialog opens on: it is the
+	// one most visits are for, and it is not first in the list.
+	selected := -1
+	for i := 0; ; i++ {
+		row := list.RowAtIndex(i)
+		if row == nil {
+			break
+		}
+		if row.Name() == page || (selected < 0 && row.Name() == "model") {
+			selected = i
+		}
+	}
+	list.SelectRow(list.RowAtIndex(selected))
+	if page != "" {
+		split.SetShowContent(true) // asked for a page, so show it even when folded
+	}
 
 	header := saveHeader(d, "Save the changes on every page", func() bool {
 		a.applySettings(f)
 		return true
 	})
 
-	if page != "" {
-		stack.SetVisibleChildName(page)
-	}
-
-	// A sidebar of pages beside a single Save leaves a fair question open:
-	// does Save mean this page or all of them? It means all of them, so it
-	// says so where the button is rather than leaving it to be discovered.
-	scope := gtk.NewLabel("Changes on every page are saved together.")
+	// A list of pages beside a single Save leaves a fair question open: does Save
+	// mean this page or all of them? It means all of them, so it says so where the
+	// button is rather than leaving it to be discovered. It wraps, because a
+	// sentence this long would otherwise set a minimum width wider than a phone.
+	scope := gtk.NewLabel("Changes on every page are saved together, " +
+		"except the theme, which applies as soon as you choose it.")
 	scope.AddCSSClass("settings-hint")
+	scope.SetWrap(true)
 	scope.SetMarginTop(6)
 	scope.SetMarginBottom(6)
 	scope.SetMarginStart(14)
@@ -116,9 +228,17 @@ func (a *App) showSettingsPage(page string) {
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(header)
 	tv.AddBottomBar(scope)
-	tv.SetContent(body)
+	tv.SetContent(split)
 	d.SetChild(tv)
 	d.Present(a.win)
+}
+
+// buildAppearancePage is how Astral looks. Its one card applies as you choose,
+// unlike the rest of the dialog.
+func (a *App) buildAppearancePage(p *themePicker) *gtk.Box {
+	page := settingsPage()
+	page.Append(p.box)
+	return page
 }
 
 func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
@@ -130,6 +250,7 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	// from memory turns a feature into a spelling test.
 	f.models = a.modelNames()
 	f.model = gtk.NewDropDownFromStrings(f.modelLabels(a))
+	shrinkable(f.model)
 	f.model.SetSelected(uint(indexOf(f.models, a.cfg.Model)))
 	f.model.SetHExpand(true)
 	// A dropdown of installed models needs no caption saying it lists installed
@@ -158,6 +279,7 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	// also run in the background after a reply, so whatever they use is what
 	// the next message has to queue behind.
 	f.housekeeping = gtk.NewDropDownFromStrings(f.housekeepingLabels(a))
+	shrinkable(f.housekeeping)
 	// Not indexOf: it answers 0 for a miss, which is the right fallback for the
 	// scene's model (use the first installed one) and the wrong one here, where
 	// row 0 already means something and an unset value would silently select a
@@ -170,6 +292,7 @@ func (a *App) buildModelPage(f *settingsForm) *gtk.Box {
 	// Same shape as the background model: row 0 is the automatic choice,
 	// which is what an empty setting means.
 	f.vision = gtk.NewDropDownFromStrings(f.visionLabels(a))
+	shrinkable(f.vision)
 	f.vision.SetSelected(uint(housekeepingRow(f.models, a.cfg.VisionModel)))
 	card.Append(labelledField("Image Model",
 		"Looks at the pictures you add to a chat.",
@@ -280,28 +403,26 @@ func (a *App) buildAboutPage(f *settingsForm) *gtk.Box {
 	backHint := wrappingLabel("A copy of your library is kept for each of the last seven days.")
 	backHint.AddCSSClass("settings-hint")
 	backCard.Append(backHint)
-	backButtons := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	restore := gtk.NewButtonWithLabel("Restore a Backup…")
 	restore.ConnectClicked(a.showRestoreBackup)
-	backButtons.Append(restore)
 	open := gtk.NewButtonWithLabel("Open Backups Folder")
 	open.ConnectClicked(func() {
 		dir := store.BackupDir()
 		_ = os.MkdirAll(dir, 0o755)
 		gtk.NewFileLauncher(gio.NewFileForPath(dir)).Launch(context.Background(), &a.win.Window, nil)
 	})
-	backButtons.Append(open)
-	backCard.Append(backButtons)
+	backCard.Append(buttonRow(restore, open))
 	page.Append(backOuter)
 	return page
 }
 
 // buildYouPage is everything about you and this machine: who you play as, the
-// rules you play under, how the window looks, and which phone may use it.
+// rules you play under, how text is drawn, and which phone may use it.
 //
-// One page rather than three. Appearance was three switches and Phone was one
+// One page rather than three. Display was three switches and Phone was one
 // switch with a device list, and a sidebar trip to reach either of them bought
 // nothing; what the three have in common is that none of them is about the model.
+// The colour theme is the exception, and has a page of its own.
 func (a *App) buildYouPage(f *settingsForm) *gtk.Box {
 	page := settingsPage()
 
@@ -321,14 +442,11 @@ func (a *App) buildYouPage(f *settingsForm) *gtk.Box {
 	card.Append(labelledField("In Use",
 		"New chats are played as this persona.",
 		who))
-	personas := gtk.NewBox(gtk.OrientationHorizontal, 8)
 	manageP := gtk.NewButtonWithLabel("Manage Personas…")
 	manageP.ConnectClicked(func() { a.showPersonas() })
-	personas.Append(manageP)
 	createP := gtk.NewButtonWithLabel("Create a Persona…")
 	createP.ConnectClicked(func() { a.newPersonaDesignerChat() })
-	personas.Append(createP)
-	card.Append(personas)
+	card.Append(buttonRow(manageP, createP))
 	page.Append(outer)
 
 	styleOuter, styleCard := groupCard("Writing Style")
@@ -346,11 +464,8 @@ func (a *App) buildYouPage(f *settingsForm) *gtk.Box {
 
 	page.Append(a.buildRulebook())
 
-	appOuter, appCard := groupCard("Appearance")
-	f.theme = gtk.NewDropDownFromStrings([]string{"Dark", "Light", "Follow the System"})
-	f.theme.SetSelected(uint(themeIndex(a.cfg.Theme)))
-	appCard.Append(labelledField("Theme", "", f.theme))
-
+	// Not called Appearance: the theme has a page of that name of its own.
+	appOuter, appCard := groupCard("Display")
 	f.fontMode = gtk.NewDropDownFromStrings([]string{"Automatic", "Crisp (1080p Screens)", "Smooth (HiDPI Screens)"})
 	f.fontMode.SetSelected(uint(fontIndex(a.cfg.FontRendering)))
 	appCard.Append(labelledField("Text Rendering",
@@ -399,7 +514,6 @@ func (a *App) applySettings(f *settingsForm) {
 	// Empty is a real choice now, the server's setting, so it is saved rather
 	// than ignored.
 	a.cfg.KeepAlive = strings.TrimSpace(f.keepAlive.Text())
-	a.cfg.Theme = themeFromIndex(int(f.theme.Selected()))
 	a.cfg.FontRendering = fontFromIndex(int(f.fontMode.Selected()))
 	a.cfg.ShowStats = f.showStat.Active()
 	a.cfg.NotifyReplies = f.notify.Active()
@@ -436,7 +550,6 @@ func (a *App) applySettings(f *settingsForm) {
 	// because its base URL is baked into an http.Client at construction.
 	a.client = ollamaClientFor(a.cfg.BaseURL)
 	a.client.KeepAlive = a.cfg.KeepAlive
-	a.theme.apply(a.cfg.Theme)
 	a.applyFontRendering()
 	if a.chat != nil {
 		a.chat.SetClient(a.client)
@@ -573,6 +686,52 @@ func (f *settingsForm) visionLabels(a *App) []string {
 	return out
 }
 
+// shrinkable lets a dropdown be narrower than its longest item.
+//
+// A dropdown built from strings is as wide as the widest of them, and its label
+// does not shorten to fit. A model's label carries its size and quantisation, so
+// the model pickers were 600px or more, which set the narrowest the whole dialog
+// could be and cut it off on a narrow window. With the label ellipsised the
+// dropdown takes the room there is, and the popup still lists every name in full.
+func shrinkable(dd *gtk.DropDown) {
+	factory := gtk.NewSignalListItemFactory()
+	factory.ConnectSetup(func(obj *coreglib.Object) {
+		label := gtk.NewLabel("")
+		label.SetXAlign(0)
+		label.SetEllipsize(pango.EllipsizeEnd)
+		obj.Cast().(*gtk.ListItem).SetChild(label)
+	})
+	factory.ConnectBind(func(obj *coreglib.Object) {
+		item := obj.Cast().(*gtk.ListItem)
+		if label, ok := item.Child().(*gtk.Label); ok {
+			label.SetLabel(item.Item().Cast().(*gtk.StringObject).String())
+		}
+	})
+	dd.SetFactory(&factory.ListItemFactory)
+}
+
+// buttonRow is a row of buttons that wraps onto further lines when it must.
+//
+// In a plain row their combined width was the narrowest the page could be, and so
+// the narrowest the dialog could be. Their cells are not focusable, or each button
+// would take two tab stops: the cell that does nothing, then the button.
+func buttonRow(buttons ...*gtk.Button) *gtk.FlowBox {
+	row := gtk.NewFlowBox()
+	row.SetSelectionMode(gtk.SelectionNone)
+	row.SetActivateOnSingleClick(false)
+	row.SetMinChildrenPerLine(1)
+	row.SetMaxChildrenPerLine(uint(len(buttons)))
+	row.SetColumnSpacing(8)
+	row.SetRowSpacing(8)
+	for i, b := range buttons {
+		row.Append(b)
+		if cell := row.ChildAtIndex(i); cell != nil {
+			cell.SetFocusable(false)
+		}
+	}
+	return row
+}
+
 func settingsPage() *gtk.Box {
 	page := gtk.NewBox(gtk.OrientationVertical, 16)
 	page.SetMarginTop(16)
@@ -626,28 +785,6 @@ func atoiOr(s string, fallback int) int {
 		}
 	}
 	return n
-}
-
-func themeIndex(t string) int {
-	switch t {
-	case store.ThemeLight:
-		return 1
-	case store.ThemeSystem:
-		return 2
-	default:
-		return 0
-	}
-}
-
-func themeFromIndex(i int) string {
-	switch i {
-	case 1:
-		return store.ThemeLight
-	case 2:
-		return store.ThemeSystem
-	default:
-		return store.ThemeDark
-	}
 }
 
 func fontIndex(m string) int {

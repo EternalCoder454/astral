@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
+
+	"astral/internal/theme"
 )
 
 // The stylesheets have no compiler: a misspelled property or an unimplemented
@@ -25,9 +27,13 @@ import (
 // which is not a failing stylesheet.
 const noDisplayExit = 3
 
-// cssSchemeEnv names what the child process should parse. Its presence is also
-// what tells the helper test that it is the child.
+// cssSchemeEnv names what the child process should parse: "theme:" and a theme's
+// ID, or a literal stylesheet. Its presence is also what tells the helper test
+// that it is the child.
 const cssSchemeEnv = "ASTRAL_CSS_PARSE_SCHEME"
+
+// themePrefix marks a scheme that is a theme's ID rather than a literal.
+const themePrefix = "theme:"
 
 // parseInChild parses a stylesheet in a subprocess and returns what GTK wrote
 // to stderr.
@@ -60,25 +66,30 @@ func TestCSSParseHelper(t *testing.T) {
 		os.Exit(noDisplayExit)
 	}
 	css := scheme // a literal stylesheet, for calibration
-	if strings.HasSuffix(scheme, ".css") {
-		assets := filepath.Join("..", "..", "assets")
-		css = readAsset(t, filepath.Join(assets, scheme)) + "\n" +
-			readAsset(t, filepath.Join(assets, "style.css"))
+	if id, ok := strings.CutPrefix(scheme, themePrefix); ok {
+		th, ok := theme.ByID(id)
+		if !ok {
+			t.Fatalf("no theme %q", id)
+		}
+		// What the app loads: the theme's colours, and the structural sheet with
+		// the picker's generated circles appended to it.
+		css = th.CSS() + "\n" + readAsset(t, filepath.Join("..", "..", "assets", "style.css")) +
+			"\n" + theme.SwatchCSS()
 	}
 	gtk.NewCSSProvider().LoadFromString(css)
 	os.Exit(0)
 }
 
-// TestStylesheetsParse checks both schemes. The colour file is prepended to the
-// structural one because that is how the two are combined at runtime.
+// TestStylesheetsParse checks every theme. The colours are prepended to the
+// structural sheet because that is how the two are combined at runtime.
 //
 // It does not prove the colours resolve: GTK looks a @named colour up when it
 // draws, not when it parses, so an undefined one is silently transparent.
-// TestEveryColourIsDefinedInBothSchemes covers that.
+// TestEveryColourIsDefinedInEveryTheme covers that.
 func TestStylesheetsParse(t *testing.T) {
-	for _, scheme := range []string{"dark.css", "light.css"} {
-		t.Run(scheme, func(t *testing.T) {
-			if got := parseInChild(t, scheme); got != "" {
+	for _, th := range theme.Themes {
+		t.Run(th.ID, func(t *testing.T) {
+			if got := parseInChild(t, themePrefix+th.ID); got != "" {
 				t.Errorf("GTK rejected part of the stylesheet:\n%s", got)
 			}
 		})
