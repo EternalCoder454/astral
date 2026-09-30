@@ -24,11 +24,10 @@ import (
 // basename exactly, GNOME takes the dock name and icon from that match.
 const appID = "io.github.astral"
 
-// Assets are the embedded stylesheets handed in from main.
+// Assets are the embedded stylesheet handed in from main. The colours are
+// not in it: they come from the theme table, internal/theme.
 type Assets struct {
 	Style string
-	Dark  string
-	Light string
 }
 
 // App is the top-level controller. It owns the long-lived services and the

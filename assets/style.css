@@ -1,9 +1,9 @@
 /*
  * Astral styles.
  *
- * Every colour here is a named colour defined in dark.css / light.css, so this
- * file is scheme-agnostic: switching theme swaps those definitions and nothing
- * in here changes. The only literal colours are the Ollama status dot and the
+ * Every colour here is a named colour defined by the theme table in
+ * internal/theme, so this file is scheme-agnostic: switching theme swaps those
+ * definitions and nothing in here changes. The only literal colours are the Ollama status dot and the
  * per-character accent tints, which carry meaning rather than decoration.
  *
  * Spacing follows a 4px scale: 4 / 8 / 12 / 16 / 24.
