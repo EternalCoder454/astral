@@ -50,6 +50,7 @@ func (a *App) showPrompts() {
 	page := p.body
 	about := wrappingLabel("Every prompt Astral sends, which you can edit or optimize.")
 	about.AddCSSClass("settings-hint")
+	about.AddCSSClass("page-hint")
 	page.Append(about)
 	page.Append(a.optimizeAllRow())
 

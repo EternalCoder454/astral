@@ -112,7 +112,8 @@ func (a *App) pickCast(already []chars.Character, confirm string, least int, onP
 	ui.FreeOnClose(d)
 	d.SetTitle("Cast")
 	d.SetContentWidth(560)
-	d.SetContentHeight(620)
+	// No fixed height: three characters filled a 620px dialog with nothing, so
+	// it sizes to its rows up to a limit and scrolls past that.
 
 	list := gtk.NewBox(gtk.OrientationVertical, 8)
 	list.SetMarginTop(14)
@@ -265,7 +266,7 @@ func (a *App) pickCast(already []chars.Character, confirm string, least int, onP
 
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(adw.NewHeaderBar())
-	tv.SetContent(scrolled(list))
+	tv.SetContent(scrolledToFit(list))
 	tv.AddBottomBar(footer)
 	d.SetChild(tv)
 	d.Present(a.win)

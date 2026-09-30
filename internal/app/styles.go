@@ -57,8 +57,12 @@ func (a *App) showStyles() {
 
 	tv := adw.NewToolbarView()
 	tv.AddTopBar(header)
-	tv.SetContent(scrolled(list))
+	scroll := scrolled(list)
+	tv.SetContent(scroll)
 	d.SetChild(tv)
+	// The dialog put its first focus on the designer button in the header,
+	// which drew a ring round it on opening. The list is where you are going.
+	d.SetFocus(scroll)
 	d.Present(a.win)
 }
 
@@ -269,7 +273,7 @@ func (a *App) reviseStyle(st chars.WritingStyle) {
 }
 
 func (a *App) newStyleDesignerChat() {
-	a.startPlainChat(store.KindStyleDesigner, "Designing a Writing Style", chars.StyleDesignerOpening)
+	a.startPlainChat(store.KindStyleDesigner, "Designing a Style", chars.StyleDesignerOpening)
 }
 
 // buildStyleFromChat turns the open design conversation into a style, opening

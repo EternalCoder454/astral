@@ -269,7 +269,7 @@ type ChatView struct {
 	OnBuildStyle func()
 	// OnBuildWorld is the same for a world design chat.
 	OnBuildWorld func()
-	// OnBuildPersona turns a Persona Creator chat into a persona.
+	// OnBuildPersona turns a Persona Designer chat into a persona.
 	OnBuildPersona func()
 	// PersonaFor looks up one of your personas, and OnPickPersona asks the
 	// app to choose who you are in this chat; see chatpersona.go.
@@ -809,7 +809,7 @@ func (c *ChatView) speakerFor(role string, speaker int64) (string, string, int) 
 		case store.KindPromptOptimizer:
 			return "Prompt Optimizer", "✦", 4
 		case store.KindPersonaDesigner:
-			return "Persona Creator", "✦", 2
+			return "Persona Designer", "✦", 2
 		}
 	}
 	if role == ollama.RoleUser {

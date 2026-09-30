@@ -115,6 +115,7 @@ func (a *App) optimizeAllRow() *gtk.Box {
 	label := wrappingLabel("")
 	label.SetHExpand(true)
 	label.AddCSSClass("settings-hint")
+	label.AddCSSClass("page-hint")
 	row.Append(label)
 	button := gtk.NewButton()
 	row.Append(button)

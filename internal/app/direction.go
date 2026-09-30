@@ -6,6 +6,7 @@ import (
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
+	"astral/internal/chars"
 	"astral/internal/ui"
 )
 
@@ -50,12 +51,25 @@ func (a *App) editDirection() {
 		"The model quietly steers toward this until you change it.",
 		frame))
 
-	ex := gtk.NewLabel("For example:\n" + strings.Join(directionExamples, "\n"))
+	// The examples are shown with the real names. What is stored keeps the
+	// tokens, so a direction still works if the scene changes character.
+	charName, youName := a.chat.Names()
+	shown := make([]string, len(directionExamples))
+	for i, e := range directionExamples {
+		shown[i] = chars.Substitute(e, charName, youName)
+	}
+	ex := gtk.NewLabel("For example:\n" + strings.Join(shown, "\n"))
 	ex.SetXAlign(0)
 	ex.SetWrap(true)
 	ex.SetSelectable(true)
 	ex.AddCSSClass("settings-hint")
 	card.Append(ex)
+	tokens := gtk.NewLabel("{{char}} stands for the character's name and {{user}} for yours; " +
+		"either works in a direction.")
+	tokens.SetXAlign(0)
+	tokens.SetWrap(true)
+	tokens.AddCSSClass("settings-hint")
+	card.Append(tokens)
 	page.Append(outer)
 
 	header := adw.NewHeaderBar()

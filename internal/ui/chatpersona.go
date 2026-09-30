@@ -93,3 +93,7 @@ func (c *ChatView) refreshPersonaChip() {
 	c.personaBtn.SetChild(chipLabel(c.youName(), 16))
 	c.personaBtn.SetTooltipText("Click to play as someone other than " + c.youName())
 }
+
+// Names returns the character's name and yours as this scene shows them, for
+// dialogs that display text stored with {{char}} and {{user}} in it.
+func (c *ChatView) Names() (char, you string) { return c.char.Name, c.youName() }

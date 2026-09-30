@@ -29,7 +29,7 @@ const (
 	// prompt. Its note holds the id of the prompt it is about, or nothing when
 	// the prompt was brought in the conversation itself.
 	KindPromptOptimizer = "prompt"
-	// KindPersonaDesigner is the Persona Creator, whose product is one of the
+	// KindPersonaDesigner is the Persona Designer, whose product is one of the
 	// people you play as.
 	KindPersonaDesigner = "persona"
 )

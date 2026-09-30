@@ -156,7 +156,7 @@ const DesignerOpening = `Let's build someone.
 
 Tell me anything to start, a role, a setting, a line of dialogue you want to hear, or just a feeling. "A tired detective", "someone who runs a bookshop at the end of the world", "unbearably smug" all work.
 
-If you'd rather I just invent one, say so and tell me what kind of story you're in the mood for.`
+If you'd rather I invent one, say so and tell me what kind of story you're in the mood for.`
 
 // characterSchema constrains the extraction call. Ollama restricts decoding to
 // this schema, so the reply parses, the difference between this and asking
@@ -439,7 +439,7 @@ const StyleDesignerOpening = `Let's build a writing style.
 
 Name a book, a film, a genre, or just a feeling, "sparse and cold", "overwritten Victorian", "like a screenplay", "funny but never winking". Anything is enough to start from.
 
-If you'd rather I suggest a few, say so.`
+If you'd rather I invent one, say so.`
 
 // styleSchema decomposes a style into one required field per aspect.
 //
