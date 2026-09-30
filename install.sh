@@ -572,8 +572,35 @@ do_install() {
   fi
 }
 
+# confirm_delete_library asks, before anything is removed, whether the library
+# really goes too. Asked first because the Flatpak's data goes in the same step
+# as the Flatpak itself.
+confirm_delete_library() {
+  [ "$DELETE_LIBRARY" = 1 ] || return 0
+  [ -n "$ASTRAL_DATA" ] && [ -n "$HOME" ] || die "Refusing to delete with an empty path."
+  say "This deletes your library, everything Astral saved:"
+  say "  $ASTRAL_DATA"
+  say "  $ASTRAL_CONFIG"
+  say "  $ASTRAL_CACHE"
+  [ -d "$FLATPAK_DATA" ] && say "  $FLATPAK_DATA"
+  [ "$ASSUME_YES" = 1 ] && return 0
+  local reply=""
+  if ! { exec 3</dev/tty; } 2>/dev/null; then
+    die "No terminal to ask on. Run this again with --yes to go ahead without questions."
+  fi
+  printf 'Type delete to confirm: ' >&2
+  read -r reply <&3 || reply=""
+  exec 3<&-
+  if [ "$reply" != delete ]; then
+    say "Not confirmed, so your library will be kept."
+    DELETE_LIBRARY=0
+  fi
+  say ""
+}
+
 do_uninstall() {
   local found=0 scopes s
+  confirm_delete_library
   step "Removing Astral"
 
   if native_installed || [ -d "$SRC_DIR" ] || [ -d "$GO_DIR" ]; then
@@ -600,26 +627,6 @@ do_uninstall() {
   [ "$found" = 1 ] || say "No Astral program was installed, nothing to remove but the library."
 
   if [ "$DELETE_LIBRARY" = 1 ]; then
-    [ -n "$ASTRAL_DATA" ] && [ -n "$HOME" ] || die "Refusing to delete with an empty path."
-    say ""
-    say "This deletes your library, everything Astral saved:"
-    say "  $ASTRAL_DATA"
-    say "  $ASTRAL_CONFIG"
-    say "  $ASTRAL_CACHE"
-    [ -d "$FLATPAK_DATA" ] && say "  $FLATPAK_DATA"
-    if [ "$ASSUME_YES" != 1 ]; then
-      local reply=""
-      if ! { exec 3</dev/tty; } 2>/dev/null; then
-        die "No terminal to ask on. Run this again with --yes to go ahead without questions."
-      fi
-      printf 'Type delete to confirm: ' >&2
-      read -r reply <&3 || reply=""
-      exec 3<&-
-      if [ "$reply" != delete ]; then
-        say "Not confirmed. Your library was kept."
-        return 0
-      fi
-    fi
     rm -rf "$ASTRAL_DATA" "$ASTRAL_CONFIG" "$ASTRAL_CACHE"
     if [ -d "$FLATPAK_DATA" ]; then rm -rf "$FLATPAK_DATA"; fi
     ok "Deleted your library"
