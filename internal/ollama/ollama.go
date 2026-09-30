@@ -374,14 +374,18 @@ func rejectsThinking(err error) bool {
 }
 
 func (c *Client) chat(ctx context.Context, model string, msgs []Message, opts Options, think *bool, format json.RawMessage, tools []Tool, onDelta func(Delta)) (Message, Stats, error) {
-	key := c.BaseURL + " " + model
+	key := c.BaseURL + " " + strings.TrimSuffix(model, ":latest")
 	if _, ok := systemFirstModels.Load(key); ok {
 		msgs = SystemFirst(msgs)
 	}
 	msg, stats, err := c.send(ctx, model, msgs, opts, think, format, tools, onDelta)
 	if err != nil && rejectsLateSystem(err) && ctx.Err() == nil && hasLateSystem(msgs) {
-		systemFirstModels.Store(key, struct{}{})
-		return c.send(ctx, model, SystemFirst(msgs), opts, think, format, tools, onDelta)
+		msg, stats, err = c.send(ctx, model, SystemFirst(msgs), opts, think, format, tools, onDelta)
+		// Remembered only once moving them has been seen to answer the
+		// refusal, so a message that happened to read like it changes nothing.
+		if err == nil || !rejectsLateSystem(err) {
+			systemFirstModels.Store(key, struct{}{})
+		}
 	}
 	return msg, stats, err
 }
@@ -396,7 +400,8 @@ var systemFirstModels sync.Map // base URL and model -> struct{}
 // own template: "System message must be at the beginning."
 func rejectsLateSystem(err error) bool {
 	s := strings.ToLower(err.Error())
-	return strings.Contains(s, "system message") && (strings.Contains(s, "beginning") || strings.Contains(s, "first"))
+	return strings.Contains(s, "system message") &&
+		(strings.Contains(s, "must be at the beginning") || strings.Contains(s, "must be first"))
 }
 
 func hasLateSystem(msgs []Message) bool {
@@ -440,6 +445,17 @@ func SystemFirst(msgs []Message) []Message {
 			m.Role = RoleUser
 			out = append(out, m)
 		}
+	}
+	// Nothing but system messages, a scene before anyone has said a word:
+	// the template wants somebody to answer, so what came after the card is
+	// the person's.
+	if opening && len(msgs) > 1 {
+		rest := msgs[1:]
+		parts := make([]string, len(rest))
+		for i, m := range rest {
+			parts[i] = m.Content
+		}
+		out = []Message{msgs[0], {Role: RoleUser, Content: strings.Join(parts, "\n\n")}}
 	}
 	return out
 }

@@ -40,6 +40,12 @@ func TestSystemFirstJoinsTheOpeningAndHandsTheRestToThePerson(t *testing.T) {
 	if got := SystemFirst(nudge); len(got) != 3 || got[2].Role != RoleUser || got[2].Content != "[Speak first.]" {
 		t.Errorf("got %+v", got)
 	}
+	// Before anyone has said anything there is still somebody to answer.
+	only := []Message{{Role: RoleSystem, Content: "Card."}, {Role: RoleSystem, Content: "Recap."}, {Role: RoleSystem, Content: "[Begin.]"}}
+	want = []Message{{Role: RoleSystem, Content: "Card."}, {Role: RoleUser, Content: "Recap.\n\n[Begin.]"}}
+	if got := SystemFirst(only); !reflect.DeepEqual(got, want) {
+		t.Errorf("only system messages: got %+v", got)
+	}
 }
 
 // A template that refuses a late system message is asked again with it moved,
@@ -65,7 +71,10 @@ func TestChatMovesSystemMessagesForATemplateThatRefusesThem(t *testing.T) {
 		ndjson(w, `{"message":{"role":"assistant","content":"Hi."},"done":true}`)
 	}))
 	defer srv.Close()
-	t.Cleanup(func() { systemFirstModels.Delete(srv.URL + " qwen") })
+	t.Cleanup(func() {
+		systemFirstModels.Delete(srv.URL + " qwen")
+		systemFirstModels.Delete(srv.URL + " gemma")
+	})
 
 	c := NewClient(srv.URL)
 	msgs := []Message{{Role: RoleSystem, Content: "Card."}, {Role: RoleUser, Content: "Hello."}, {Role: RoleSystem, Content: "[Close.]"}}
