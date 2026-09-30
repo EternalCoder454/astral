@@ -601,6 +601,7 @@ func (m *MessageRow) BeginStreaming(maxWidth int) {
 	if maxWidth > 0 {
 		m.body.SetSizeRequest(maxWidth, -1)
 	}
+	m.fillWhileStreaming()
 	if m.dots == nil {
 		m.dots = NewTypingDots()
 		m.bubble.Append(m.dots)
@@ -616,8 +617,31 @@ func (m *MessageRow) EndStreaming() {
 	m.stopDots()
 	m.dropStream()
 	m.body.SetSizeRequest(-1, -1)
+	if m.Role != ollama.RoleUser {
+		m.bubble.SetHAlign(gtk.AlignStart)
+	}
 	m.body.SetVisible(true)
 	m.Render()
+}
+
+// fillWhileStreaming lets the bubble take its column's width while a reply is
+// written into it, rather than keeping to its side.
+//
+// GTK places a widget aligned to one side by asking how wide it would be at
+// the height it is given, and for a column of wrapping labels that is a
+// search over widths with every label laid out again at each step. A reply
+// grows taller with each flush, so no answer was ever reused: every
+// paragraph already written was laid out again, several times, twenty times
+// a second. Filling, it is simply given the column's width, which does not
+// change, and only the paragraph still being written is laid out.
+//
+// The width is the same either way while streaming, since the text is pinned
+// to it (see BeginStreaming); EndStreaming puts the alignment back so a
+// finished short reply shrinks to its text.
+func (m *MessageRow) fillWhileStreaming() {
+	if m.Role != ollama.RoleUser && m.streamWidth > 0 {
+		m.bubble.SetHAlign(gtk.AlignFill)
+	}
 }
 
 // streamLabel is one paragraph of a reply being written, styled as the body.
@@ -632,6 +656,12 @@ func (m *MessageRow) streamLabel(text string) *gtk.Label {
 	l.AddCSSClass("message-body")
 	if m.streamWidth > 0 {
 		l.SetSizeRequest(m.streamWidth, -1)
+		// A floor under the wrapping, for the same reason as setFloor. The
+		// window asks for its narrowest after every flush, and without one
+		// GTK finds this label's by laying the paragraph out at no width at
+		// all, a character to a line. Pinned, the label is wider than the
+		// floor anyway, so it changes nothing on screen.
+		l.SetWidthChars(bodyMinChars)
 	}
 	return l
 }
@@ -695,6 +725,7 @@ func (m *MessageRow) ContinueStreaming(maxWidth int) {
 	if maxWidth > 0 {
 		m.body.SetSizeRequest(maxWidth, -1)
 	}
+	m.fillWhileStreaming()
 	m.dropStream()
 	m.showStream()
 }

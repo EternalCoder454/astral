@@ -49,6 +49,11 @@ func TestStreamingFreezesParagraphs(t *testing.T) {
 	if m.body.Visible() {
 		t.Error("the body showed while streaming")
 	}
+	// Filling its column while pinned, so GTK is not searching for its width
+	// at each new height; see fillWhileStreaming.
+	if a := m.bubble.HAlign(); a != gtk.AlignFill {
+		t.Errorf("a streaming bubble aligned %v, not filling", a)
+	}
 
 	// A preamble taken back leaves nothing behind.
 	m.ClearStreamed()
@@ -63,5 +68,36 @@ func TestStreamingFreezesParagraphs(t *testing.T) {
 	m.EndStreaming()
 	if m.stream != nil || !m.body.Visible() || m.Text() != "Only this." {
 		t.Errorf("after the end: stream %v, body visible %v, text %q", m.stream != nil, m.body.Visible(), m.Text())
+	}
+	if a := m.bubble.HAlign(); a != gtk.AlignStart {
+		t.Errorf("a finished reply aligned %v, so it would not shrink to its text", a)
+	}
+}
+
+// A reply too narrow to pin keeps to its side while it streams, since its
+// width is still negotiated; a reply continued fills like a new one; and
+// ending twice, as a group scene's rows can be, leaves it aligned as it was.
+func TestStreamingAlignment(t *testing.T) {
+	if !gtk.InitCheck() || gdk.DisplayGetDefault() == nil {
+		t.Skip("no display to start GTK on")
+	}
+	narrow := NewMessageRow(MessageOpts{Role: ollama.RoleAssistant, Mode: Roleplay})
+	narrow.BeginStreaming(0)
+	if a := narrow.bubble.HAlign(); a != gtk.AlignStart {
+		t.Errorf("an unpinned reply aligned %v while streaming", a)
+	}
+	narrow.EndStreaming()
+
+	cont := NewMessageRow(MessageOpts{Role: ollama.RoleAssistant, Mode: Roleplay})
+	cont.SetMarkdown("*She waits.*")
+	cont.ContinueStreaming(400)
+	if a := cont.bubble.HAlign(); a != gtk.AlignFill {
+		t.Errorf("a continued reply aligned %v while streaming", a)
+	}
+	cont.AppendText(" \"Well?\"")
+	cont.EndStreaming()
+	cont.EndStreaming()
+	if a := cont.bubble.HAlign(); a != gtk.AlignStart {
+		t.Errorf("a continued reply aligned %v once finished", a)
 	}
 }
