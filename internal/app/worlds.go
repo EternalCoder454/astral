@@ -37,7 +37,6 @@ func (a *App) showWorlds() {
 		empty := gtk.NewLabel("No worlds yet, so create a setting your characters can share.")
 		empty.SetWrap(true)
 		empty.SetJustify(gtk.JustifyCenter)
-		empty.SetVExpand(true)
 		empty.AddCSSClass("dim-label")
 		list.Append(empty)
 	}

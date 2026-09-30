@@ -60,7 +60,6 @@ func (a *App) showCharacters() {
 		empty := gtk.NewLabel("No characters yet, so import a card or create one.")
 		empty.SetWrap(true)
 		empty.SetJustify(gtk.JustifyCenter)
-		empty.SetVExpand(true)
 		empty.AddCSSClass("dim-label")
 		list.Append(empty)
 	}
