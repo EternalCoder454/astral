@@ -38,33 +38,19 @@ func (a *App) loadPromptOverrides() {
 	prompts.SetOverrides(m)
 }
 
-// showPrompts lists every prompt, grouped by what uses it.
+// showPrompts shows every prompt, grouped by what uses it.
 func (a *App) showPrompts() {
-	d := adw.NewDialog()
-	ui.FreeOnClose(d)
-	d.SetTitle("Prompts")
-	d.SetContentWidth(640)
-	d.SetContentHeight(720)
-
-	header := adw.NewHeaderBar()
-	bring := gtk.NewButtonFromIconName(ui.IconAdd)
-	bring.SetTooltipText("Bring a prompt of your own to the Prompt Optimizer")
-	bring.ConnectClicked(func() {
-		d.Close()
+	p := newPage("Prompts")
+	p.setCaption(count(len(prompts.All()), "prompt", "prompts"))
+	p.commands.Append(commandButton(ui.IconAdd, "Bring a Prompt", func() {
 		a.startPromptOptimizer("")
-	})
-	header.PackEnd(bring)
+	}))
 
-	page := gtk.NewBox(gtk.OrientationVertical, 10)
-	page.SetMarginTop(14)
-	page.SetMarginBottom(14)
-	page.SetMarginStart(14)
-	page.SetMarginEnd(14)
-
+	page := p.body
 	about := wrappingLabel("Every prompt Astral sends, which you can edit or optimize.")
 	about.AddCSSClass("settings-hint")
 	page.Append(about)
-	page.Append(a.optimizeAllRow(d))
+	page.Append(a.optimizeAllRow())
 
 	search := gtk.NewSearchEntry()
 	search.SetPlaceholderText("Search the prompts")
@@ -91,7 +77,7 @@ func (a *App) showPrompts() {
 				h.AddCSSClass("settings-heading")
 				list.Append(h)
 			}
-			list.Append(a.promptCard(p, d))
+			list.Append(a.promptCard(p))
 			shown++
 		}
 		if shown == 0 {
@@ -102,23 +88,17 @@ func (a *App) showPrompts() {
 		}
 		if q == "" {
 			list.Append(addRow("Optimize a Prompt of Your Own", func() {
-				d.Close()
 				a.startPromptOptimizer("")
 			}))
 		}
 	}
 	fill("")
 	search.ConnectSearchChanged(func() { fill(search.Text()) })
-
-	tv := adw.NewToolbarView()
-	tv.AddTopBar(header)
-	tv.SetContent(scrolled(page))
-	d.SetChild(tv)
-	d.Present(a.win)
+	a.installPage(pagePrompts, p)
 }
 
 // promptCard is one prompt in the list.
-func (a *App) promptCard(p prompts.Prompt, parent *adw.Dialog) *gtk.Button {
+func (a *App) promptCard(p prompts.Prompt) *gtk.Button {
 	btn := gtk.NewButton()
 	btn.AddCSSClass("character-card")
 
@@ -142,7 +122,6 @@ func (a *App) promptCard(p prompts.Prompt, parent *adw.Dialog) *gtk.Button {
 	btn.SetTooltipText("Open " + p.Name)
 	id := p.ID
 	btn.ConnectClicked(func() {
-		parent.Close()
 		a.editPrompt(id)
 	})
 	return btn
@@ -259,6 +238,7 @@ func (a *App) savePrompt(id, text string) bool {
 		return false
 	}
 	a.loadPromptOverrides()
+	a.refreshPage(pagePrompts)
 	a.toast("Astral sends your " + p.Name + " from now on.")
 	return true
 }

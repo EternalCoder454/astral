@@ -17,20 +17,17 @@ import (
 	"astral/internal/ui"
 )
 
-// showCharacters opens the cast: everyone you can play a scene with.
+// showCharacters shows the cast: everyone you can play a scene with.
 func (a *App) showCharacters() {
-	d := adw.NewDialog()
-	ui.FreeOnClose(d)
-	d.SetTitle("Characters")
-	d.SetContentWidth(560)
-	d.SetContentHeight(620)
-
-	header := adw.NewHeaderBar()
+	characters, err := a.store.Characters()
+	if err != nil {
+		a.toast("Could not read your characters: " + err.Error())
+	}
+	p := newPage("Characters")
+	p.setCaption(count(len(characters), "character", "characters"))
+	a.refreshNavCounts()
 
 	// A file, or a link: a Chub character page or a card's own address.
-	importBtn := gtk.NewMenuButton()
-	importBtn.SetIconName(ui.IconFolder)
-	importBtn.SetTooltipText("Import a Character Card")
 	importMenu := gtk.NewBox(gtk.OrientationVertical, 2)
 	importPop := gtk.NewPopover()
 	for _, it := range []struct {
@@ -46,33 +43,18 @@ func (a *App) showCharacters() {
 		gtk.BaseWidget(b.Child()).SetHAlign(gtk.AlignStart)
 		b.ConnectClicked(func() {
 			importPop.Popdown()
-			d.Close()
 			fire()
 		})
 		importMenu.Append(b)
 	}
 	importPop.SetChild(importMenu)
-	importBtn.SetPopover(importPop)
-	header.PackStart(importBtn)
-
-	newBtn := gtk.NewButtonFromIconName(ui.IconAdd)
-	newBtn.SetTooltipText("Create a character")
-	newBtn.ConnectClicked(func() {
-		d.Close()
+	p.commands.Append(commandMenu(ui.IconFolder, "Import", importPop))
+	p.commands.Append(commandButton(ui.IconAdd, "New Character", func() {
 		a.editCharacter(chars.Character{})
-	})
-	header.PackEnd(newBtn)
+	}))
 
 	list := gtk.NewBox(gtk.OrientationVertical, 8)
-	list.SetMarginTop(14)
-	list.SetMarginBottom(14)
-	list.SetMarginStart(14)
-	list.SetMarginEnd(14)
-
-	characters, err := a.store.Characters()
-	if err != nil {
-		a.toast("Could not read your characters: " + err.Error())
-	}
+	p.body.Append(list)
 	if len(characters) == 0 {
 		empty := gtk.NewLabel("No characters yet, so import a card or create one.")
 		empty.SetWrap(true)
@@ -84,26 +66,20 @@ func (a *App) showCharacters() {
 	rows := make([]filterRow, 0, len(characters))
 	for _, c := range characters {
 		rows = append(rows, filterRow{
-			Widget: a.castRow(c, d),
+			Widget: a.castRow(c),
 			Text:   strings.ToLower(c.Name + " " + c.SummaryFor(a.cfg.PersonaName) + " " + strings.Join(c.Tags, " ")),
 		})
 	}
 	searchableList(list, "Search by name, description or tag", rows)
 	list.Append(addRow("New Character", func() {
-		d.Close()
 		a.editCharacter(chars.Character{})
 	}))
-
-	tv := adw.NewToolbarView()
-	tv.AddTopBar(header)
-	tv.SetContent(scrolled(list))
-	d.SetChild(tv)
-	d.Present(a.win)
+	a.installPage(pageCharacters, p)
 }
 
 // castRow is one character in the list: click to play, with edit and delete
 // alongside.
-func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
+func (a *App) castRow(c chars.Character) *gtk.Box {
 	row := gtk.NewBox(gtk.OrientationHorizontal, 8)
 
 	play := gtk.NewButton()
@@ -158,7 +134,6 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 
 	character := c
 	play.ConnectClicked(func() {
-		parent.Close()
 		a.newChat(character)
 	})
 	row.Append(play)
@@ -209,7 +184,6 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 	edit.SetTooltipText("Edit " + c.Name)
 	edit.AddCSSClass("flat")
 	edit.ConnectClicked(func() {
-		parent.Close()
 		a.editCharacter(character)
 	})
 	side.Append(edit)
@@ -218,7 +192,6 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 	info.SetTooltipText("Everything about " + c.Name + ", and their scenes")
 	info.AddCSSClass("flat")
 	info.ConnectClicked(func() {
-		parent.Close()
 		a.showCharacter(character)
 	})
 	side.Append(info)
@@ -230,7 +203,6 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 	revise.SetTooltipText("Revise " + c.Name + " with the designer")
 	revise.AddCSSClass("flat")
 	revise.ConnectClicked(func() {
-		parent.Close()
 		a.reviseCharacter(character)
 	})
 	side.Append(revise)
@@ -239,7 +211,6 @@ func (a *App) castRow(c chars.Character, parent *adw.Dialog) *gtk.Box {
 	del.SetTooltipText("Delete " + c.Name)
 	del.AddCSSClass("flat")
 	del.ConnectClicked(func() {
-		parent.Close()
 		a.confirm("Delete "+character.Name,
 			"The character is removed, but their chats are kept.",
 			"Delete", func() {
@@ -532,6 +503,7 @@ func (a *App) saveCharacterForm(c chars.Character, f *characterForm) (chars.Char
 	}
 	c.ID = id
 	a.refreshWelcome()
+	a.refreshPage(pageCharacters)
 	a.toast(name + " saved.")
 	return c, true
 }

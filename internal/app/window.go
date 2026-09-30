@@ -429,6 +429,7 @@ func (a *App) notifyReply(title, text string) {
 }
 
 func (a *App) showChat() {
+	a.pages.parked = false
 	if a.stack != nil {
 		a.stack.SetVisibleChildName("chat")
 	}
@@ -444,6 +445,7 @@ func (a *App) chatShowing() bool {
 }
 
 func (a *App) showWelcome() {
+	a.pages.parked = false
 	a.refreshWelcome()
 	if a.stack != nil {
 		a.stack.SetVisibleChildName("welcome")
@@ -467,6 +469,18 @@ func (a *App) goHome() {
 	a.showPortraitFor(chars.Character{})
 	a.cfg.LastChat = 0
 	a.showWelcome()
+}
+
+// setPageTitle names a page in the window's title, and leaves the title bar's
+// middle empty, as it is on Home.
+func (a *App) setPageTitle(name string) {
+	if a.title != nil {
+		a.title.SetTitle("")
+		a.title.SetSubtitle("")
+	}
+	if !fixedWindowTitle {
+		a.win.SetTitle(name + " · Astral")
+	}
 }
 
 // setTitle puts the open scene in the header bar.

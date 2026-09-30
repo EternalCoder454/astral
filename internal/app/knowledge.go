@@ -47,44 +47,18 @@ func originLabel(origin string) string {
 	return "Written"
 }
 
-// showKnowledge is the list, with search, and the ways to add to it.
+// showKnowledge shows the list, with search, and the ways to add to it.
 func (a *App) showKnowledge() {
-	d := adw.NewDialog()
-	ui.FreeOnClose(d)
-	d.SetTitle("Knowledge")
-	d.SetContentWidth(620)
-	d.SetContentHeight(680)
-
-	header := adw.NewHeaderBar()
-	importBtn := gtk.NewButtonFromIconName(ui.IconFolder)
-	importBtn.SetTooltipText("Import text or Markdown files")
-	importBtn.ConnectClicked(func() {
-		d.Close()
-		a.importKnowledgeFiles()
-	})
-	header.PackStart(importBtn)
-
-	newBtn := gtk.NewButtonFromIconName(ui.IconAdd)
-	newBtn.SetTooltipText("Write an entry")
-	newBtn.ConnectClicked(func() {
-		d.Close()
-		a.editKnowledge(store.KnowledgeEntry{})
-	})
-	header.PackEnd(newBtn)
-
-	studyBtn := gtk.NewButtonFromIconName(ui.IconSearch)
-	studyBtn.SetTooltipText("Study a topic on the web and write notes")
-	studyBtn.ConnectClicked(func() {
-		d.Close()
+	p := newPage("Knowledge")
+	p.commands.Append(commandButton(ui.IconFolder, "Import", a.importKnowledgeFiles))
+	p.commands.Append(commandButton(ui.IconSearch, "Study a Topic", func() {
 		a.studyTopic("")
-	})
-	header.PackEnd(studyBtn)
+	}))
+	p.commands.Append(commandButton(ui.IconAdd, "Write an Entry", func() {
+		a.editKnowledge(store.KnowledgeEntry{})
+	}))
 
-	page := gtk.NewBox(gtk.OrientationVertical, 10)
-	page.SetMarginTop(14)
-	page.SetMarginBottom(14)
-	page.SetMarginStart(14)
-	page.SetMarginEnd(14)
+	page := p.body
 
 	about := wrappingLabel("")
 	about.AddCSSClass("settings-hint")
@@ -126,22 +100,19 @@ func (a *App) showKnowledge() {
 			list.Append(empty)
 			if query == "" {
 				list.Append(addRow("Write an Entry", func() {
-					d.Close()
 					a.editKnowledge(store.KnowledgeEntry{})
 				}))
 				list.Append(addRow("Study a Topic", func() {
-					d.Close()
 					a.studyTopic("")
 				}))
 			}
 			return
 		}
 		for _, e := range shown {
-			list.Append(a.knowledgeCard(e, d))
+			list.Append(a.knowledgeCard(e))
 		}
 		if query == "" {
 			list.Append(addRow("Write an Entry", func() {
-				d.Close()
 				a.editKnowledge(store.KnowledgeEntry{})
 			}))
 		}
@@ -178,11 +149,8 @@ func (a *App) showKnowledge() {
 		fill(shown, q)
 	})
 
-	tv := adw.NewToolbarView()
-	tv.AddTopBar(header)
-	tv.SetContent(scrolled(page))
-	d.SetChild(tv)
-	d.Present(a.win)
+	p.setCaption(count(len(entries), "entry", "entries"))
+	a.installPage(pageKnowledge, p)
 	search.GrabFocus()
 }
 
@@ -217,7 +185,7 @@ func plural(n int, one, many string) string {
 }
 
 // knowledgeCard is one entry in the list.
-func (a *App) knowledgeCard(e store.KnowledgeEntry, parent *adw.Dialog) *gtk.Button {
+func (a *App) knowledgeCard(e store.KnowledgeEntry) *gtk.Button {
 	btn := gtk.NewButton()
 	btn.AddCSSClass("character-card")
 
@@ -257,7 +225,6 @@ func (a *App) knowledgeCard(e store.KnowledgeEntry, parent *adw.Dialog) *gtk.But
 	btn.SetTooltipText("Open " + e.Title)
 	entry := e
 	btn.ConnectClicked(func() {
-		parent.Close()
 		a.editKnowledge(entry)
 	})
 	return btn

@@ -58,6 +58,8 @@ type App struct {
 	tidyAt      time.Time
 	tidyWaiting bool
 	stack       *gtk.Stack
+	// pages is what the Characters, Worlds, Knowledge and Prompts pages keep.
+	pages pageState
 	// phone is the server another device on this network talks to. Nil until
 	// the setting is switched on; see phone.go.
 	phone   *serve.Server
@@ -391,6 +393,13 @@ func (a *App) refreshNavCounts() {
 
 // openChat loads a conversation into the centre panel.
 func (a *App) openChat(id int64) error {
+	// The chat a page was opened over, asked for again through its row: it is
+	// still loaded, and loading it again would stop a reply being written and
+	// throw away the reader's place in the transcript.
+	if id != 0 && a.pages.parked && a.pageShowing() != "" && a.chat.Chat().ID == id {
+		a.resumeChat()
+		return nil
+	}
 	ch, err := a.store.Chat(id)
 	if err != nil {
 		return err
