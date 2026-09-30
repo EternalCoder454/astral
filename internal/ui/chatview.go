@@ -172,6 +172,10 @@ type ChatView struct {
 	// scrollAnim glides the transcript to a new message. One object, re-aimed;
 	// see motion.go.
 	scrollAnim *adw.TimedAnimation
+	// glideFrom is where the glide playing now set out from, glideLast where
+	// it last put the view, and glideT0 how far through it was when it set
+	// out (later than the start when it began as a snap); see glide.
+	glideFrom, glideLast, glideT0 float64
 	// settled says the transcript on screen is the one that was stored, so a
 	// row added from here is new and should arrive rather than appear.
 	settled bool

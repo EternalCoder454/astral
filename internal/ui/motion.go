@@ -89,30 +89,60 @@ func (c *ChatView) scheduleScroll(travel bool) {
 		c.scrollTravel = false
 
 		adj := c.scroll.VAdjustment()
-		to := adj.Upper() - adj.PageSize()
-		if !glide || math.Abs(to-adj.Value()) < glideMin {
-			adj.SetValue(to)
-			return false
+		if glide {
+			c.glide(adj.Value())
+		} else {
+			adj.SetValue(adj.Upper() - adj.PageSize())
 		}
-		c.glide(adj.Value(), to)
 		return false
 	})
 }
 
-// glide animates the scroll position. One animation object is kept and re-aimed
-// rather than built per scroll: an adw.Animation is a GObject with a callback
-// attached, and building one per message would accumulate them for the life of
-// the window.
-func (c *ChatView) glide(from, to float64) {
+// glide animates the scroll position from where it is to the end of the
+// transcript. One animation object is kept and replayed rather than built per
+// scroll: an adw.Animation is a GObject with a callback attached, and building
+// one per message would accumulate them for the life of the window.
+//
+// The animation runs from nought to one and the end is read again on every
+// frame, rather than fixed when the glide starts. The glide is asked for from
+// an idle callback, which can run before GTK has laid out the message just
+// sent; aimed at the end as it was, it stopped short of that message and of
+// the reply after it, and a reply that starts away from the bottom is not
+// followed, so it streamed out of sight. Read each frame, the end includes
+// them as soon as they are laid out.
+//
+// A glide shorter than glideMin is a snap, decided afresh each frame too, so
+// one that turns out to be longer once the rows are in travels from there,
+// over what is left of the animation.
+//
+// Scrolling away during a glide ends it. The view is the reader's once they
+// move it, and a glide that put it back every frame would fight them for it.
+func (c *ChatView) glide(from float64) {
+	c.glideFrom, c.glideLast, c.glideT0 = from, from, 0
 	if c.scrollAnim == nil {
-		target := adw.NewCallbackAnimationTarget(func(v float64) {
-			c.scroll.VAdjustment().SetValue(v)
+		target := adw.NewCallbackAnimationTarget(func(t float64) {
+			adj := c.scroll.VAdjustment()
+			to := adj.Upper() - adj.PageSize()
+			// Moved by someone else, and not just held at the end by the
+			// transcript growing or the window shrinking under it.
+			if v := adj.Value(); math.Abs(v-c.glideLast) > 1 && v < to-1 {
+				c.scrollAnim.Pause()
+				return
+			}
+			if math.Abs(to-c.glideFrom) < glideMin {
+				c.glideFrom, c.glideT0 = to, t
+			} else if c.glideT0 < 1 {
+				to = c.glideFrom + (to-c.glideFrom)*(t-c.glideT0)/(1-c.glideT0)
+			}
+			adj.SetValue(to)
+			c.glideLast = adj.Value()
 		})
-		c.scrollAnim = adw.NewTimedAnimation(c.scroll, from, to, glideDuration, target)
+		c.scrollAnim = adw.NewTimedAnimation(c.scroll, 0, 1, glideDuration, target)
 		c.scrollAnim.SetEasing(adw.EaseOutCubic)
 	}
-	c.scrollAnim.SetValueFrom(from)
-	c.scrollAnim.SetValueTo(to)
+	// From the start whatever state the last glide was left in: stopGlide
+	// leaves one paused partway.
+	c.scrollAnim.Reset()
 	c.scrollAnim.Play()
 }
 
