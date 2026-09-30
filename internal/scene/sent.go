@@ -30,7 +30,7 @@ func sentKind(kind string, group bool) (string, string) {
 	case store.KindPromptOptimizer:
 		return "optimizer", "Prompt Optimizer Request"
 	case store.KindPersonaDesigner:
-		return "persona", "Persona Creator Request"
+		return "persona", "Persona Designer Request"
 	}
 	if group {
 		return "group", "Group Scene Request"

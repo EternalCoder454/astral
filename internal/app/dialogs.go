@@ -285,6 +285,9 @@ func multilineField(text string, minLines int) (*gtk.Frame, *gtk.TextView) {
 	sw.SetMaxContentHeight(max(multilineMax, minLines*22))
 
 	frame := gtk.NewFrame("")
+	// Styled as an entry is, for the stylesheet's sake: without it the text
+	// area was a darker, bordered inset among lighter fields.
+	frame.AddCSSClass("field-frame")
 	frame.SetChild(sw)
 	return frame, tv
 }

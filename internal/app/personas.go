@@ -156,7 +156,7 @@ func (a *App) showPersonas() {
 
 	header := adw.NewHeaderBar()
 	designBtn := gtk.NewButtonFromIconName(ui.IconDesigner)
-	designBtn.SetTooltipText("Create a persona with the Persona Creator")
+	designBtn.SetTooltipText("Create a persona with the Persona Designer")
 	designBtn.ConnectClicked(func() {
 		d.Close()
 		a.newPersonaDesignerChat()
@@ -186,7 +186,7 @@ func (a *App) showPersonas() {
 	for _, p := range all {
 		page.Append(a.personaCard(p, d))
 	}
-	page.Append(addRow("Create a Persona with the Persona Creator", func() {
+	page.Append(addRow("Create a Persona with the Persona Designer", func() {
 		d.Close()
 		a.newPersonaDesignerChat()
 	}))
@@ -390,7 +390,11 @@ func (a *App) showPersonaPicker() {
 	d := adw.NewAlertDialog("Choose Your Persona", "Characters see your choice from the next turn.")
 	ui.FreeOnClose(&d.Dialog)
 	list := gtk.NewBox(gtk.OrientationVertical, 4)
-	var group *gtk.CheckButton
+	// A hidden leader, because a group of one is drawn as a square checkbox:
+	// the radio look only comes with a second member.
+	group := gtk.NewCheckButton()
+	group.SetVisible(false)
+	list.Append(group)
 	picked := current
 	for _, p := range all {
 		p := p
@@ -400,11 +404,7 @@ func (a *App) showPersonaPicker() {
 			label += " (" + ui.Snippet(f, 60) + ")"
 		}
 		radio.SetChild(wrappingLabel(label))
-		if group == nil {
-			group = radio
-		} else {
-			radio.SetGroup(group)
-		}
+		radio.SetGroup(group)
 		radio.SetActive(p.ID == current)
 		radio.ConnectToggled(func() {
 			if radio.Active() {
@@ -413,10 +413,17 @@ func (a *App) showPersonaPicker() {
 		})
 		list.Append(radio)
 	}
-	d.SetExtraChild(scrolled(list))
+	// Sized to its rows up to a limit, not stretched: the dialog left a wide
+	// gap between one persona and the buttons.
+	sw := gtk.NewScrolledWindow()
+	sw.SetChild(list)
+	sw.SetPolicy(gtk.PolicyNever, gtk.PolicyAutomatic)
+	sw.SetPropagateNaturalHeight(true)
+	sw.SetMaxContentHeight(320)
+	d.SetExtraChild(sw)
 	d.AddResponse("manage", "Personas…")
 	d.AddResponse("cancel", "Cancel")
-	d.AddResponse("ok", "Play as Them")
+	d.AddResponse("ok", "Use This Persona")
 	d.SetResponseAppearance("ok", adw.ResponseSuggested)
 	d.SetDefaultResponse("ok")
 	d.SetCloseResponse("cancel")
@@ -442,12 +449,12 @@ func (a *App) showPersonaPicker() {
 	d.Present(a.win)
 }
 
-// newPersonaDesignerChat opens the Persona Creator.
+// newPersonaDesignerChat opens the Persona Designer.
 func (a *App) newPersonaDesignerChat() {
-	a.startPlainChat(store.KindPersonaDesigner, "Creating a Persona", chars.PersonaDesignerOpening)
+	a.startPlainChat(store.KindPersonaDesigner, "Designing a Persona", chars.PersonaDesignerOpening)
 }
 
-// buildPersonaFromChat turns the Persona Creator conversation into a persona,
+// buildPersonaFromChat turns the Persona Designer conversation into a persona,
 // opened in the editor to look over before it is saved.
 func (a *App) buildPersonaFromChat() {
 	history := a.chat.History()

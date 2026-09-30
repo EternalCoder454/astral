@@ -97,7 +97,7 @@ type ChatView struct {
 	clamp     *adw.Clamp
 	column    *gtk.Box
 	composer  *gtk.TextView
-	actionBar *gtk.Box
+	actionBar *adw.WrapBox
 	// lengthAct and writeFirstAct are the Replies chip's actions, holding the
 	// scene's choices as their state so its menu marks them, and repliesMenu
 	// is that menu. See lengthChip.
@@ -269,7 +269,7 @@ type ChatView struct {
 	OnBuildStyle func()
 	// OnBuildWorld is the same for a world design chat.
 	OnBuildWorld func()
-	// OnBuildPersona turns a Persona Creator chat into a persona.
+	// OnBuildPersona turns a Persona Designer chat into a persona.
 	OnBuildPersona func()
 	// PersonaFor looks up one of your personas, and OnPickPersona asks the
 	// app to choose who you are in this chat; see chatpersona.go.
@@ -415,7 +415,12 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 	c.fileChips.SetVisible(false)
 	wrap.Append(c.fileChips)
 
-	c.actionBar = gtk.NewBox(gtk.OrientationHorizontal, 6)
+	// A wrapping box: five chips do not fit a narrow window in one line, and
+	// each one squeezed to fit read "Add Someo…". A second line costs less.
+	c.actionBar = adw.NewWrapBox()
+	c.actionBar.SetChildSpacing(6)
+	c.actionBar.SetLineSpacing(6)
+	c.actionBar.SetAlign(0.5)
 	c.actionBar.AddCSSClass("chat-actions")
 	c.actionBar.SetHAlign(gtk.AlignCenter)
 	c.actionBar.SetVisible(false)
@@ -804,7 +809,7 @@ func (c *ChatView) speakerFor(role string, speaker int64) (string, string, int) 
 		case store.KindPromptOptimizer:
 			return "Prompt Optimizer", "✦", 4
 		case store.KindPersonaDesigner:
-			return "Persona Creator", "✦", 2
+			return "Persona Designer", "✦", 2
 		}
 	}
 	if role == ollama.RoleUser {

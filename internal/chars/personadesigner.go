@@ -10,7 +10,7 @@ import (
 	"astral/internal/prompts"
 )
 
-// The Persona Creator: a conversation whose product is one of the people you
+// The Persona Designer: a conversation whose product is one of the people you
 // play as, the same shape as the character and world designers.
 //
 // It asks for less than the character designer does, on purpose. The model
@@ -61,7 +61,7 @@ const PersonaDesignerOpening = `Let's build who you play as.
 
 Anything is enough to start from: a name, a look, a job, the kind of scenes you want to be in. "A tired bounty hunter", "a noble who ran away from home", "an android who passes for human" all work.
 
-If you would rather I invented someone, say so and tell me what kind of stories you want to play.`
+If you'd rather I invent one, say so and tell me what kind of stories you want to play.`
 
 // personaExtractInstruction is the turn that asks for the persona. Its last
 // clause is the other half of the fix described at PersonaDesignerSystem: a
@@ -99,7 +99,7 @@ var personaSchema = json.RawMessage(`{
 
 var (
 	promptPersonaDesigner = prompts.Register(prompts.Prompt{
-		ID: "designer.persona", Name: "Persona Creator", Group: "Designers",
+		ID: "designer.persona", Name: "Persona Designer", Group: "Designers",
 		About:   "The system prompt of a chat that builds one of your personas with you.",
 		Keep:    "It should tell you to press Create Persona when it has enough.",
 		Default: PersonaDesignerSystem,
@@ -123,7 +123,7 @@ var (
 	})
 )
 
-// PersonaDesignerPrompt is the Persona Creator's system prompt as it is sent.
+// PersonaDesignerPrompt is the Persona Designer's system prompt as it is sent.
 func PersonaDesignerPrompt() string { return prompts.Text(promptPersonaDesigner) }
 
 // BuildPersonaFromConversation turns a design conversation into a persona.

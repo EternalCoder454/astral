@@ -122,6 +122,11 @@ func (a *App) buildWindow() {
 	narrow := adw.NewBreakpoint(adw.BreakpointConditionParse("max-width: 520sp"))
 	narrow.AddSetter(a.split, "collapsed", glib.NewValue(true))
 	narrow.AddSetter(a.portraitSplit, "collapsed", glib.NewValue(true))
+	// Floating over the chat it still covered 300px of a 420px window, which
+	// left the transcript a sliver of one or two words a line. Narrower, the
+	// portrait is a card over the chat's edge and the scene stays readable
+	// beside it; tapping the chat closes it.
+	narrow.AddSetter(a.portraitSplit, "max-sidebar-width", glib.NewValue(float64(200)))
 	narrow.AddSetter(a.brandVersion, "visible", glib.NewValue(false))
 	narrow.AddSetter(a.brand, "visible", glib.NewValue(false))
 	a.win.AddBreakpoint(narrow)
@@ -541,9 +546,10 @@ func (a *App) buildMainMenu() *gio.Menu {
 	section.Append("New Chat", "win.new-chat")
 	section.Append("Design a Character", "win.design-character")
 	section.Append("Characters", "win.characters")
-	section.Append("Writing Styles", "win.styles")
 	section.Append("Worlds", "win.worlds")
 	section.Append("Knowledge", "win.knowledge")
+	section.Append("Prompts", "win.prompts")
+	section.Append("Writing Styles", "win.styles")
 	section.Append("Study a Topic…", "win.study")
 	section.Append("Import Character…", "win.import-character")
 	menu.AppendSection("", section)
@@ -587,6 +593,7 @@ func (a *App) registerActions() {
 	add("styles", a.showStyles)
 	add("worlds", a.showWorlds)
 	add("knowledge", a.showKnowledge)
+	add("prompts", a.showPrompts)
 	add("study", func() { a.studyTopic("") })
 	add("import-character", a.actionImportCharacter)
 	add("settings", a.showSettings)

@@ -104,7 +104,7 @@ type Sidebar struct {
 	OnPrompts  func()
 	OnSettings func()
 	// OnPersona opens the list of your personas from the profile menu, and
-	// OnCreatePersona the Persona Creator. OnUsePersona switches which one
+	// OnCreatePersona the Persona Designer. OnUsePersona switches which one
 	// new chats are played as.
 	OnPersona       func()
 	OnCreatePersona func()

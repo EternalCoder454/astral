@@ -171,6 +171,20 @@ frame:focus-within {
 	border-color: @accent_bg_color;
 }
 
+/* A multi-line field looks like the single-line ones beside it: the same
+   translucent fill, no dark inset, and a transparent border that the focus
+   rule above turns to the accent. */
+frame.field-frame {
+	border: 1px solid transparent;
+	border-radius: 10px;
+	background-color: alpha(@window_fg_color, 0.1);
+}
+
+frame.field-frame textview,
+frame.field-frame textview text {
+	background-color: transparent;
+}
+
 /* ---- Sidebar ---- */
 
 .astral-sidebar {
@@ -1035,6 +1049,12 @@ menubutton.page-command > button:checked {
 	margin-bottom: 3px;
 }
 
+/* A hint at the head of a page is read on its own, not as an annotation under
+   a field, so it is set at the size of body text on a page. */
+.settings-hint.page-hint {
+	font-size: 0.95em;
+}
+
 /* One field: label, hint, control. The margin here is what separates it from
    the next field, and is deliberately larger than anything inside it. */
 .field {
@@ -1485,4 +1505,21 @@ list.settings-nav > row:selected:hover {
 	color: @sidebar_fg_color;
 	font-weight: 600;
 	box-shadow: inset 3px 0 0 @accent_bg_color;
+}
+
+/* The destructive action reads as the dangerous one. Left to libadwaita's
+   alert dialog it was a dim tint with rose text on a grey-purple card, which
+   looked disabled. A solid fill in the theme's destructive colour, with the
+   label colour the palette tests hold to 4.5:1, is unmistakable in every
+   theme. */
+button.destructive-action,
+button.destructive-action:hover {
+	background-color: @destructive_bg_color;
+	background-image: none;
+	color: @destructive_fg_color;
+	font-weight: 700;
+}
+
+button.destructive-action:hover {
+	background-image: linear-gradient(alpha(white, 0.14), alpha(white, 0.14));
 }

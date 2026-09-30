@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 
@@ -58,21 +59,28 @@ func (a *App) newThemePicker() *themePicker {
 	p.summary = wrappingLabel("")
 	p.summary.AddCSSClass("settings-hint")
 
-	// Rows of five rather than one of nine. Nine circles and their names are wider
-	// than the dialog is at its narrowest, where it becomes a sheet the width of
-	// the window, and a FlowBox wraps to fewer per line there instead of forcing
-	// the dialog wider or clipping the names.
-	flow := gtk.NewFlowBox()
-	flow.SetSelectionMode(gtk.SelectionNone)
-	flow.SetActivateOnSingleClick(false)
-	flow.SetMaxChildrenPerLine(5)
-	flow.SetMinChildrenPerLine(1)
-	flow.SetHomogeneous(true)
-	flow.SetColumnSpacing(18)
-	flow.SetRowSpacing(12)
-	flow.SetHAlign(gtk.AlignCenter)
-	flow.SetMarginTop(6)
-	flow.SetMarginBottom(6)
+	// Two rows, five over four, each centred so the short one sits under the
+	// middle of the long one; a FlowBox can only start every row at the left.
+	// Each row wraps by itself where nine circles and their names are wider
+	// than the dialog is at its narrowest, a sheet the width of the window,
+	// instead of forcing the dialog wider or clipping the names. A size group
+	// keeps the columns even whatever the names' widths.
+	const firstRow = 5
+	rows := gtk.NewBox(gtk.OrientationVertical, 12)
+	rows.SetHAlign(gtk.AlignCenter)
+	rows.SetMarginTop(6)
+	rows.SetMarginBottom(6)
+	var flows []*adw.WrapBox
+	for range 2 {
+		f := adw.NewWrapBox()
+		f.SetAlign(0.5)
+		f.SetChildSpacing(18)
+		f.SetLineSpacing(12)
+		f.SetHAlign(gtk.AlignCenter)
+		rows.Append(f)
+		flows = append(flows, f)
+	}
+	cells := gtk.NewSizeGroup(gtk.SizeGroupHorizontal)
 
 	for i, t := range theme.Themes {
 		id := t.ID
@@ -98,13 +106,8 @@ func (a *App) newThemePicker() *themePicker {
 		cell.SetHAlign(gtk.AlignCenter)
 		cell.Append(swatch)
 		cell.Append(caption)
-		flow.Append(cell)
-		// The FlowBox wraps each cell in a child of its own that takes keyboard
-		// focus, which would put two tab stops in front of every circle: one that
-		// does nothing, then the button. Only the button should take it.
-		if child := flow.ChildAtIndex(i); child != nil {
-			child.SetFocusable(false)
-		}
+		cells.AddWidget(cell)
+		flows[min(i/firstRow, 1)].Append(cell)
 
 		h := swatch.ConnectToggled(func() {
 			if p.syncing {
@@ -136,7 +139,7 @@ func (a *App) newThemePicker() *themePicker {
 	head.Append(p.name)
 	head.Append(p.summary)
 	card.Append(head)
-	card.Append(flow)
+	card.Append(rows)
 	card.Append(p.follow)
 	p.box = outer
 

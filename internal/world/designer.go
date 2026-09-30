@@ -74,7 +74,7 @@ const DesignerOpening = `Let's build a world.
 
 Anything is enough to start from: a place, a period, a single image, a rule you want to be true. "A port city where the tide is wrong", "post-war countryside", "everyone can hear one other person's thoughts" all work.
 
-If you would rather I invented one, say so and tell me roughly what kind of story you want to set in it.`
+If you'd rather I invent one, say so and tell me what kind of story you want to set in it.`
 
 // designerSchema decomposes a world into one required field per part, and asks
 // for the lorebook as a list.

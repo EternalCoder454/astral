@@ -108,7 +108,7 @@ func (a *App) editMemory() {
 		nowCard.Append(labelledField(f.Label, f.Hint, parts[f.Key]))
 	}
 	autoRow := gtk.NewBox(gtk.OrientationHorizontal, 8)
-	autoLabel := gtk.NewLabel("Update as the Scene Moves")
+	autoLabel := gtk.NewLabel("Update as the scene moves")
 	autoLabel.SetXAlign(0)
 	autoLabel.SetHExpand(true)
 	autoLabel.SetTooltipText("Astral updates these after each reply; writing your own turns it off")

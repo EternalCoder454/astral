@@ -91,11 +91,11 @@ func (a *App) showSettingsPage(page string) {
 	// the narrowest the dialog could be was set by whichever page happened to be
 	// widest. Each page takes its own width instead.
 	stack.SetHhomogeneous(false)
-	// Four pages. Appearance is first because it is about the window rather than
-	// the model, and Model stays the one the dialog opens on. Phone and the
-	// display options live on You, which is about you and this machine.
-	stack.AddTitled(scrolled(a.buildAppearancePage(picker)), "appearance", "Appearance")
+	// Four pages. Model is first because it is the one most visits are for, and
+	// the dialog opens on the first page in the list. Phone and the display
+	// options live on You, which is about you and this machine.
 	stack.AddTitled(scrolled(a.buildModelPage(f)), "model", "Model")
+	stack.AddTitled(scrolled(a.buildAppearancePage(picker)), "appearance", "Appearance")
 	stack.AddTitled(scrolled(a.buildYouPage(f)), "you", "You")
 	stack.AddTitled(scrolled(a.buildAboutPage(f)), "about", "About")
 
@@ -110,7 +110,7 @@ func (a *App) showSettingsPage(page string) {
 	list.AddCSSClass("navigation-sidebar")
 	list.AddCSSClass("settings-nav")
 	titles := map[string]string{}
-	for _, id := range []string{"appearance", "model", "you", "about"} {
+	for _, id := range []string{"model", "appearance", "you", "about"} {
 		title := stack.Page(stack.ChildByName(id)).Title()
 		titles[id] = title
 		row := gtk.NewListBoxRow()
@@ -189,8 +189,7 @@ func (a *App) showSettingsPage(page string) {
 		coreglib.Destroy(bp)
 	})
 
-	// The page asked for, or Model, which is what the dialog opens on: it is the
-	// one most visits are for, and it is not first in the list.
+	// The page asked for, or Model, the first in the list.
 	selected := -1
 	for i := 0; ; i++ {
 		row := list.RowAtIndex(i)

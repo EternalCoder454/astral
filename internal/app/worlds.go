@@ -37,7 +37,6 @@ func (a *App) showWorlds() {
 		empty := gtk.NewLabel("No worlds yet, so create a setting your characters can share.")
 		empty.SetWrap(true)
 		empty.SetJustify(gtk.JustifyCenter)
-		empty.SetVExpand(true)
 		empty.AddCSSClass("dim-label")
 		list.Append(empty)
 	}
@@ -419,7 +418,11 @@ func (a *App) showWorld(w world.World) {
 		}
 	}
 
-	actions := gtk.NewBox(gtk.OrientationHorizontal, 8)
+	// Wrapping: side by side the two buttons are wider than a 420px window,
+	// and the dialog's minimum width followed them past its edge.
+	actions := adw.NewWrapBox()
+	actions.SetChildSpacing(8)
+	actions.SetLineSpacing(8)
 	actions.SetMarginTop(8)
 	actions.SetMarginBottom(4)
 
