@@ -9,7 +9,7 @@
     <name>EternalCoder454</name>
   </developer>
   <description>
-    <p>Astral is a roleplay app for local AI. Chat with characters, build worlds and lorebooks, and shape the writing style, all with models you run yourself through Ollama. Nothing leaves your machine.</p>
+    <p>Astral is a roleplay app for local AI. Chat with characters, build worlds and lorebooks, and shape the writing style, all with models you run yourself through Ollama. Your library stays on your own machine.</p>
   </description>
   <launchable type="desktop-id">io.github.astral.desktop</launchable>
   <url type="homepage">https://github.com/EternalCoder454/astral</url>
@@ -34,6 +34,6 @@
     </screenshot>
   </screenshots>
   <releases>
-    <release version="0.5.33" date="2026-09-30"/>
+    <release version="@VERSION@" date="@DATE@"/>
   </releases>
 </component>

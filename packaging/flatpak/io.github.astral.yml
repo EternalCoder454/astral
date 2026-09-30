@@ -50,10 +50,16 @@ modules:
       - install -Dm644 assets/astral.svg /app/share/icons/hicolor/scalable/apps/io.github.astral.svg
       - sed 's|@BIN@|astral|' packaging/io.github.astral.desktop > io.github.astral.desktop
       - install -Dm644 io.github.astral.desktop /app/share/applications/io.github.astral.desktop
-      - install -Dm644 packaging/io.github.astral.metainfo.xml /app/share/metainfo/io.github.astral.metainfo.xml
+      # The release the software centre shows is this build's, stamped in here
+      # so the file never has to be edited for a release.
+      - |
+        VERSION=$(sed -n 's/^var version = "\(.*\)"/\1/p' internal/app/version.go)
+        sed -e "s|@VERSION@|$VERSION|" -e "s|@DATE@|$(date -u +%F)|" packaging/io.github.astral.metainfo.xml > io.github.astral.metainfo.xml
+        install -Dm644 io.github.astral.metainfo.xml /app/share/metainfo/io.github.astral.metainfo.xml
     sources:
       - type: dir
         path: ../..
         skip:
           - .git
+          - .claude
           - bin
