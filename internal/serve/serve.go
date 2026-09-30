@@ -490,8 +490,9 @@ func (s *Server) handlePortrait(w http.ResponseWriter, r *http.Request, d store.
 
 func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request, d store.Device) {
 	var body struct {
-		CharacterID int64 `json:"character_id"`
-		WorldID     int64 `json:"world_id"`
+		CharacterID int64  `json:"character_id"`
+		WorldID     int64  `json:"world_id"`
+		Kind        string `json:"kind"`
 	}
 	json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&body)
 
@@ -506,6 +507,9 @@ func (s *Server) handleNewChat(w http.ResponseWriter, r *http.Request, d store.D
 		if wd, err := s.store.World(body.WorldID); err == nil {
 			title = wd.Name
 		}
+	case body.Kind == store.KindNovel:
+		kind = store.KindNovel
+		title = "Novel"
 	default:
 		kind = store.KindAssistant
 		title = "General Chat"

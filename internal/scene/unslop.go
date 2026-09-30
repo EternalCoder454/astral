@@ -208,10 +208,10 @@ func stream(ctx context.Context, chat ChatFunc, msgs []ollama.Message, onDelta f
 }
 
 // Stream is how a turn's reply is fetched: with stock phrases cut out in a
-// scene, and with Continue's copy taken off in any conversation. Anything
-// else goes straight to the model.
+// scene or a novel, and with Continue's copy taken off in any conversation.
+// Anything else goes straight to the model.
 func Stream(ctx context.Context, chat ChatFunc, kind string, msgs []ollama.Message, onDelta func(ollama.Delta)) (ollama.Message, ollama.Stats, error) {
-	if kind == store.KindRoleplay || kind == "" {
+	if kind == store.KindRoleplay || kind == store.KindNovel || kind == "" {
 		return Unslop(ctx, chat, msgs, onDelta)
 	}
 	if n := len(msgs); n > 0 && msgs[n-1].Role == ollama.RoleAssistant {

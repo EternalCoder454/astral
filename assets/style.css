@@ -1523,3 +1523,17 @@ button.destructive-action:hover {
 button.destructive-action:hover {
 	background-image: linear-gradient(alpha(white, 0.14), alpha(white, 0.14));
 }
+
+/* The usage popover beside the send button: how full the model's memory is.
+   See internal/ui/usage.go. */
+.usage-panel {
+    padding: 6px 4px;
+}
+.usage-title {
+    font-weight: 600;
+}
+.usage-figure,
+.usage-note {
+    font-size: 0.9em;
+    opacity: 0.75;
+}

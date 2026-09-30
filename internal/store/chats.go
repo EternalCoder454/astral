@@ -32,6 +32,10 @@ const (
 	// KindPersonaDesigner is the Persona Designer, whose product is one of the
 	// people you play as.
 	KindPersonaDesigner = "persona"
+	// KindNovel is Novel Chat, where the model writes a story of its own from
+	// the person's prompt. Kept like a general chat (a record, a recap, carried
+	// on in a new chat) and drawn like a scene.
+	KindNovel = "novel"
 )
 
 // Chat is one conversation.

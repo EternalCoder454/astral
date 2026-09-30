@@ -136,9 +136,12 @@ type ChatView struct {
 	lengthAct, writeFirstAct *gio.SimpleAction
 	repliesMenu              *gio.Menu
 	sendBtn                  *gtk.Button
-	modelBtn                 *gtk.Button
-	hint                     *gtk.Label
-	placeholder              *gtk.Label
+	// usage is the ring beside the send button, and its popover: how full
+	// the model's memory is. See usage.go.
+	usage       *usageView
+	modelBtn    *gtk.Button
+	hint        *gtk.Label
+	placeholder *gtk.Label
 
 	chat store.Chat
 	char chars.Character
@@ -543,6 +546,8 @@ func (c *ChatView) buildComposer() *gtk.Widget {
 	spacer.SetHExpand(true)
 	tools.Append(spacer)
 
+	tools.Append(c.buildUsageButton())
+
 	c.sendBtn = gtk.NewButtonFromIconName(IconSend)
 	c.sendBtn.AddCSSClass("send-button")
 	c.sendBtn.SetTooltipText("Send (Enter)")
@@ -638,6 +643,8 @@ func (c *ChatView) refreshPlaceholder() {
 		text = "Say what you want changed, or just say go"
 	case c.chat.Kind == store.KindAssistant:
 		text = "Ask anything"
+	case c.chat.Kind == store.KindNovel:
+		text = "Say what the story is, or what happens next"
 	default:
 		text = "Write a message"
 	}
@@ -811,6 +818,18 @@ func (c *ChatView) LoadScene(ch store.Chat, cast []chars.Character, msgs []store
 	c.scrollToBottom()
 	c.settled = true
 	c.focusComposer()
+	// Measured after the chat is on screen, not before: measuring builds the
+	// next request, and a chat is opened to be read.
+	if c.usage != nil {
+		c.usage.btn.SetVisible(false)
+		id := c.chat.ID
+		coreglib.TimeoutAdd(400, func() bool {
+			if c.chat.ID == id {
+				c.refreshUsage()
+			}
+			return false
+		})
+	}
 }
 
 // FocusComposer puts the cursor in the input.
@@ -856,7 +875,10 @@ func (c *ChatView) speakerFor(role string, speaker int64) (string, string, int) 
 		return name, c.char.Initial(), c.char.Accent
 	}
 	// The designers are answered above, before the character, so what is left
-	// here is a plain conversation.
+	// here is a novel, told by its narrator, or a plain conversation.
+	if c.chat.Kind == store.KindNovel {
+		return "Narrator", "✦", 0
+	}
 	return "Assistant", "✦", 0
 }
 

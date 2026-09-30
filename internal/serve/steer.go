@@ -24,7 +24,7 @@ import (
 // same answer the window gives.
 func remembers(ch store.Chat, ca chars.Character) bool {
 	switch ch.Kind {
-	case store.KindAssistant:
+	case store.KindAssistant, store.KindNovel:
 		return true
 	case store.KindRoleplay, "":
 		return ca.Name != ""

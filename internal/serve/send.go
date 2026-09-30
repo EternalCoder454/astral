@@ -510,10 +510,10 @@ func (s *Server) housekeep(chatID int64, cast []chars.Character) {
 	// The cast's budget, not one character's: a group planned as a two-hander
 	// thinks it has room it does not have, and waits too long to compact. A
 	// conversation with nobody in it is measured against its own framing.
-	plain := ch.Kind == store.KindAssistant || len(cast) == 0 || cast[0].Name == ""
+	plain := ch.Kind == store.KindAssistant || ch.Kind == store.KindNovel || len(cast) == 0 || cast[0].Name == ""
 	budget := scene.GroupBudget(cfg, cast, p, scene.Relations(s.store, cast))
 	if plain {
-		budget = scene.PlainBudget(cfg)
+		budget = scene.BudgetForPlain(cfg, ch.Kind)
 	}
 	opts := scene.Options(cfg)
 

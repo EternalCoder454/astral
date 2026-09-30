@@ -121,7 +121,7 @@ func Get(id string) (Prompt, bool) {
 
 // groupOrder is the order the groups are listed in: roughly how often each is
 // sent, so the prompts that shape every reply come first.
-var groupOrder = []string{"Scenes", "Conversation", "Designers", "Pictures", "Memory", "Worlds", "Knowledge", "Optimizer"}
+var groupOrder = []string{"Scenes", "Novel Chat", "Conversation", "Designers", "Pictures", "Memory", "Worlds", "Knowledge", "Optimizer"}
 
 // All returns every prompt, grouped and in a stable order.
 func All() []Prompt {

@@ -226,6 +226,8 @@ func buildOne(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Charact
 		return system(withTools(st, cfg, ch.Kind, promptopt.System(ch.Note)))
 	case store.KindAssistant:
 		return Plain(st, cfg, ch, hist)
+	case store.KindNovel:
+		return Novel(cfg, ch, hist)
 	}
 	if ca.Name == "" {
 		// A scene whose character was deleted. It is still readable and still
@@ -264,6 +266,22 @@ func buildOne(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Charact
 	sc.Lore = Lore(st, ch, ca, hist, sc.Budget.Lore)
 	sc.Memory = Memory(st, ch, hist, nil, ca.Name, userNameOf(cfg), sc.Budget.Memory)
 	return chars.BuildMessages(ca, sc)
+}
+
+// Novel assembles a Novel Chat: its own framing, the story's recap once it has
+// one, the story so far, and the format reminder last, as a scene has.
+// No tools: a story that stops to search the web has stopped being a story.
+func Novel(cfg store.Config, ch store.Chat, hist []ollama.Message) []ollama.Message {
+	msgs := []ollama.Message{{Role: ollama.RoleSystem, Content: chars.NovelSystem()}}
+	if r := strings.TrimSpace(ch.Summary); r != "" {
+		msgs = append(msgs, ollama.Message{
+			Role: ollama.RoleSystem,
+			Content: "The story so far, before the part below, in note form. All of it has happened and " +
+				"stays true; carry on from it without going back over it.\n" + r,
+		})
+	}
+	msgs = append(msgs, hist...)
+	return append(msgs, ollama.Message{Role: ollama.RoleSystem, Content: chars.NovelReminder()})
 }
 
 // Plain assembles a conversation that is not a roleplay.
@@ -401,6 +419,26 @@ func CanSearch(kind string) bool {
 	return false
 }
 
+// NovelBudget divides the window for a Novel Chat: its own framing and
+// reminder, and the longer reply it keeps room for.
+func NovelBudget(cfg store.Config) chars.Budget {
+	numCtx := cfg.NumCtx
+	if numCtx <= 0 {
+		numCtx = chars.DefaultNumCtx
+	}
+	return chars.Plan(numCtx, OptionsFor(cfg, store.KindNovel).NumPredict,
+		len(chars.NovelSystem())+len(chars.NovelReminder()))
+}
+
+// BudgetForPlain is the budget of a conversation with nobody in it: a Novel
+// Chat's, or the plain one.
+func BudgetForPlain(cfg store.Config, kind string) chars.Budget {
+	if kind == store.KindNovel {
+		return NovelBudget(cfg)
+	}
+	return PlainBudget(cfg)
+}
+
 // PlainBudget divides the window for a conversation that is not a roleplay.
 func PlainBudget(cfg store.Config) chars.Budget {
 	numCtx := cfg.NumCtx
@@ -435,6 +473,10 @@ func StyleChanged(cfg store.Config, ch store.Chat, turns int) bool {
 // cut off partway and could not be saved.
 func OptionsFor(cfg store.Config, kind string) ollama.Options {
 	o := Options(cfg)
+	if kind == store.KindNovel {
+		// A part of a novel runs longer than a turn in a scene.
+		o.NumPredict = max(o.NumPredict, novelReply)
+	}
 	if kind == store.KindPromptOptimizer {
 		o.NumPredict = max(o.NumPredict, optimizerReply)
 		o.NumCtx = max(o.NumCtx, optimizerContext)
@@ -443,6 +485,7 @@ func OptionsFor(cfg store.Config, kind string) ollama.Options {
 }
 
 const (
+	novelReply       = 1500
 	optimizerReply   = 4096
 	optimizerContext = 12288
 )

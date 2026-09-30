@@ -651,6 +651,8 @@ func chatMark(ch store.Chat) gtk.Widgetter {
 		case store.KindDesigner, store.KindStyleDesigner, store.KindWorldDesigner,
 			store.KindPersonaDesigner, store.KindPromptOptimizer:
 			icon = IconDesigner
+		case store.KindNovel:
+			icon = IconDraft
 		}
 		tile := gtk.NewBox(gtk.OrientationHorizontal, 0)
 		tile.AddCSSClass("avatar")

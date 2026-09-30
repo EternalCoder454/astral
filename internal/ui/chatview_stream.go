@@ -840,14 +840,25 @@ func (c *ChatView) maybeLearn() {
 // so the cost is paid while you are reading rather than while you are waiting.
 // If you send again before it finishes, that turn simply goes out with the
 // transcript as it stands.
-func (c *ChatView) maybeCompact() {
-	if c.bg.running || c.chat.ID == 0 || !c.compactable() {
-		return
+func (c *ChatView) maybeCompact() { c.compact(false) }
+
+// CompactNow folds the conversation into the recap now, as Compact Now in the
+// usage popover asks: what is due if anything is, and otherwise everything but
+// the last few messages. It reports whether it started.
+func (c *ChatView) CompactNow() bool { return c.compact(true) }
+
+// keepOnCompact is how many of the newest messages a compaction asked for by
+// hand leaves word for word: the same tail Continue in a New Chat keeps.
+const keepOnCompact = scene.ContinueTail
+
+func (c *ChatView) compact(force bool) bool {
+	if c.bg.running || c.chat.ID == 0 || !c.compactable() || (force && c.busy) {
+		return false
 	}
 	chatID := c.chat.ID
 	stored, err := c.store.MessagesAfter(chatID, c.recapUpto)
 	if err != nil || len(stored) == 0 {
-		return
+		return false
 	}
 	// Labelled, so the recap can say which of them did what. A group's turns
 	// summarised without their names come back as things "the group" did, and
@@ -855,19 +866,22 @@ func (c *ChatView) maybeCompact() {
 	wire, ids := scene.HistoryWithIDs(stored, c.nameOf)
 	budget := c.sceneBudget()
 	aged, _ := chars.SplitForCompaction(wire, budget)
+	if len(aged) == 0 && force && len(wire) > keepOnCompact {
+		aged = wire[:len(wire)-keepOnCompact]
+	}
 	if len(aged) == 0 {
-		return
+		return false
 	}
 	// The recap will cover everything up to and including this message.
 	upto := ids[len(aged)-1]
 
 	ctx, ok := c.bg.take("recap", compactTimeout)
 	if !ok {
-		return
+		return false
 	}
 	client, model, sceneModel := c.client, c.housekeepingModel(), c.activeModel()
 	prev, cast, persona, opts := c.recap, c.sceneCast(), c.persona(), c.options()
-	plain := c.chat.Kind == store.KindAssistant
+	plain := c.chat.Kind == store.KindAssistant || c.chat.Kind == store.KindNovel
 
 	go func() {
 		model := scene.FitHousekeeping(ctx, client, model, sceneModel)
@@ -906,7 +920,14 @@ func (c *ChatView) maybeCompact() {
 				return false
 			}
 			if c.chat.ID == chatID {
+				// The chat's own copy too, which is what the next request is
+				// built from. Only the view's was updated, so until the chat
+				// was reopened a turn went out with the old recap and without
+				// the turns the new one had replaced.
 				c.recap, c.recapUpto = next, upto
+				c.chat.Summary, c.chat.SummaryUpto = next, upto
+				c.refreshUsage()
+				c.usageCompacted()
 			}
 			log.Printf("astral: compacted %d turns of chat %d into a %d-character recap using %s",
 				len(aged), chatID, len(next), model)
@@ -914,6 +935,7 @@ func (c *ChatView) maybeCompact() {
 			return false
 		})
 	}()
+	return true
 }
 
 // friendlyError turns the client's error into something worth reading. The
@@ -1207,6 +1229,7 @@ func (c *ChatView) indexOf(row *MessageRow) int {
 }
 
 func (c *ChatView) notifyChanged() {
+	c.scheduleUsage()
 	if c.OnChatChanged != nil {
 		c.OnChatChanged()
 	}

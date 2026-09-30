@@ -110,6 +110,7 @@ func (a *App) showNewChat() {
 		add(ui.IconWorlds, "Play in a World", "", cast == 0, a.showWorldPicker)
 	}
 	add(ui.IconChat, "General Chat", "", cast == 0 && len(worlds) == 0, a.newAssistantChat)
+	add(ui.IconDraft, "Novel Chat", "a story written from your prompt", false, a.newNovelChat)
 
 	heading("Create")
 	// Labels only: each says what it makes, and a line under it saying the
@@ -166,6 +167,16 @@ func (a *App) reviseCharacter(ca chars.Character) {
 // newAssistantChat opens a plain conversation with the model.
 func (a *App) newAssistantChat() {
 	a.startPlainChat(store.KindAssistant, "Chat", "")
+}
+
+// newNovelChat opens a Novel Chat, where the model writes a story of its own
+// from what you give it.
+func (a *App) newNovelChat() {
+	// No greeting stored as the model's first turn: it would be the one
+	// message in the story that steps out of it to ask a question, and the
+	// model copies what it sees itself having written. The placeholder says
+	// what to give it.
+	a.startPlainChat(store.KindNovel, "Novel", "")
 }
 
 // startPlainChat opens an unsaved chat of the given kind. Nothing is written

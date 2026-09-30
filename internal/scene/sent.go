@@ -21,6 +21,8 @@ func sentKind(kind string, group bool) (string, string) {
 	switch kind {
 	case store.KindAssistant:
 		return "chat", "General Chat Request"
+	case store.KindNovel:
+		return "novel", "Novel Chat Request"
 	case store.KindDesigner:
 		return "designer", "Character Designer Request"
 	case store.KindStyleDesigner:

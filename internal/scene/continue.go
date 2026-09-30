@@ -18,7 +18,7 @@ const ContinueTail = 6
 // chat: a scene, or a general chat, the conversations that keep a record.
 func CanContinue(ch store.Chat) bool {
 	switch ch.Kind {
-	case store.KindRoleplay, store.KindAssistant, "":
+	case store.KindRoleplay, store.KindAssistant, store.KindNovel, "":
 		return ch.ID != 0
 	}
 	return false
@@ -63,8 +63,8 @@ func ContinueChat(ctx context.Context, client *ollama.Client, model string, st *
 		p := Persona(cfg)
 		opts := OptionsFor(cfg, ch.Kind)
 		switch {
-		case ch.Kind == store.KindAssistant:
-			recap, err = chars.CompactPlain(ctx, client, model, ch.Summary, wire, p, opts, PlainBudget(cfg))
+		case ch.Kind == store.KindAssistant || ch.Kind == store.KindNovel:
+			recap, err = chars.CompactPlain(ctx, client, model, ch.Summary, wire, p, opts, BudgetForPlain(cfg, ch.Kind))
 		case len(cast) > 1:
 			recap, err = chars.CompactFor(ctx, client, model, ch.Summary, wire, cast, p, opts,
 				GroupBudget(cfg, cast, p, Relations(st, cast)))

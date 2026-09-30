@@ -372,7 +372,7 @@ func (c *ChatView) sceneBudget() chars.Budget {
 	// the user and their rules and so is not the one-sentence prompt the cast
 	// path would measure for a chat with no character in it.
 	if c.chat.Kind == store.KindAssistant || c.char.Name == "" {
-		return scene.PlainBudget(c.cfg)
+		return scene.BudgetForPlain(c.cfg, c.chat.Kind)
 	}
 	cast := c.sceneCast()
 	return scene.GroupBudget(c.cfg, cast, c.persona(), scene.Relations(c.store, cast))
@@ -533,7 +533,7 @@ func (c *ChatView) compactable() bool {
 	case store.KindDesigner, store.KindStyleDesigner, store.KindWorldDesigner, store.KindPromptOptimizer,
 		store.KindPersonaDesigner:
 		return false
-	case store.KindAssistant:
+	case store.KindAssistant, store.KindNovel:
 		return true
 	}
 	return c.char.Name != ""

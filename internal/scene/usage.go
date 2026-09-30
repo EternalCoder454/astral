@@ -67,9 +67,11 @@ func MeasureUsage(st *store.Store, cfg store.Config, ch store.Chat, cast []chars
 			add("Characters and Rules", n)
 		case m.Role != ollama.RoleSystem:
 			add("Conversation", n)
-		case i == len(msgs)-1 && strings.HasPrefix(m.Content, "["):
+		case i == len(msgs)-1 && (strings.HasPrefix(m.Content, "[") || m.Content == chars.NovelReminder()):
 			add("Closing Rules", n)
-		case strings.HasPrefix(m.Content, "Earlier in this scene"):
+		case strings.HasPrefix(m.Content, "Earlier in this scene"),
+			strings.HasPrefix(m.Content, "Earlier in this conversation"),
+			strings.HasPrefix(m.Content, "The story so far"):
 			add("Record", n)
 		case strings.HasPrefix(m.Content, "Reference for this world"):
 			add("World and Lorebook", n)
@@ -85,11 +87,11 @@ func MeasureUsage(st *store.Store, cfg store.Config, ch store.Chat, cast []chars
 		u.Used += t
 	}
 	u.Conversation = toTokens(sizes["Conversation"])
-	if ch.Kind == store.KindRoleplay || ch.Kind == store.KindAssistant || ch.Kind == "" {
+	if ch.Kind == store.KindRoleplay || ch.Kind == store.KindAssistant || ch.Kind == store.KindNovel || ch.Kind == "" {
 		var b chars.Budget
 		switch {
-		case ch.Kind == store.KindAssistant:
-			b = PlainBudget(cfg)
+		case ch.Kind == store.KindAssistant || ch.Kind == store.KindNovel:
+			b = BudgetForPlain(cfg, ch.Kind)
 		case len(cast) > 1:
 			b = GroupBudget(cfg, cast, Persona(cfg), Relations(st, cast))
 		case len(cast) == 1:

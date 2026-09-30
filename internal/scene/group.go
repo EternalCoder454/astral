@@ -55,7 +55,7 @@ func BuildTurn(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Ch
 		t.Onward = true
 	}
 	switch ch.Kind {
-	case store.KindDesigner, store.KindStyleDesigner, store.KindAssistant, store.KindPromptOptimizer:
+	case store.KindDesigner, store.KindStyleDesigner, store.KindAssistant, store.KindPromptOptimizer, store.KindNovel:
 		// These have no cast by construction. Answered here rather than left to
 		// fall through, so a stray cast row on one of them cannot turn the
 		// character designer into a roleplay.

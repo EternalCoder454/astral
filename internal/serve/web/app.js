@@ -256,6 +256,8 @@ function plainLine(s) {
 // Creator and the Prompt Optimizer, added later, came out as italic
 // narration from end to end.
 const SCENE_KINDS = new Set(["roleplay", ""]);
+// Drawn like a scene, italic narration and all, though nobody is in it.
+const STORY_KINDS = new Set(["roleplay", "novel", ""]);
 
 // proseFor picks how a message body is read, which depends on the kind of chat
 // and on who wrote it.
@@ -264,7 +266,7 @@ const SCENE_KINDS = new Set(["roleplay", ""]);
 // for a model that forgets its asterisks. That reasoning does not reach your
 // own messages: you put the asterisks where you meant them.
 function proseFor(role) {
-	if (!SCENE_KINDS.has(current?.kind ?? "")) return plainLine;
+	if (!STORY_KINDS.has(current?.kind ?? "")) return plainLine;
 	return role === "user" ? ownLine : replyLine;
 }
 
@@ -688,6 +690,7 @@ async function loadState() {
 		}));
 	}
 	start.append(row({ title: "General Chat", note: "answers, with the web and your knowledge to draw on", onClick: () => newChat({}) }));
+	start.append(row({ title: "Novel Chat", note: "a story written from your prompt", onClick: () => newChat({ kind: "novel" }) }));
 
 	const recent = $("home-recent");
 	recent.replaceChildren();
