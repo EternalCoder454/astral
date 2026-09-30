@@ -809,6 +809,38 @@ frame:focus-within {
 	color: @astral_faint;
 }
 
+/* ---- Pages: Characters, Worlds, Knowledge, Prompts ----
+
+   Laid out after Atlas Monitor's: a heavy title with a quiet caption across
+   from it, and under them a bar of flat commands, an icon and a word each. */
+.page-title {
+	font-size: 1.45em;
+	font-weight: 600;
+}
+
+.page-caption {
+	color: @astral_faint;
+	font-size: 0.9em;
+}
+
+.page-command {
+	padding: 5px 10px;
+	border-radius: 6px;
+	font-weight: normal;
+	color: @astral_muted;
+}
+
+.page-command:hover {
+	background-color: @astral_surface;
+	color: @window_fg_color;
+}
+
+/* libadwaita sets the label inside a button's icon and label content in bold on
+   a node of its own, so the button's weight does not reach it. */
+.page-command buttoncontent > box > label {
+	font-weight: normal;
+}
+
 /* ---- Welcome screen ---- */
 
 .welcome-page {

@@ -32,6 +32,15 @@ func (s *Store) Worlds() ([]world.World, error) {
 	return out, rows.Err()
 }
 
+// CountWorlds returns how many worlds exist. The sidebar shows it beside its
+// Worlds row, and a count is a COUNT(*) rather than reading every world only to
+// take the length of what comes back.
+func (s *Store) CountWorlds() (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM worlds`).Scan(&n)
+	return n, err
+}
+
 // World returns one world by id.
 func (s *Store) World(id int64) (world.World, error) {
 	var w world.World

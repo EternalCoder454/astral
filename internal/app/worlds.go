@@ -15,41 +15,22 @@ import (
 	"astral/internal/world"
 )
 
-// showWorlds lists the settings a character can belong to.
+// showWorlds shows the settings a character can belong to.
 func (a *App) showWorlds() {
-	d := adw.NewDialog()
-	ui.FreeOnClose(d)
-	d.SetTitle("Worlds")
-	d.SetContentWidth(560)
-	d.SetContentHeight(620)
-
-	header := adw.NewHeaderBar()
-	importBtn := gtk.NewButtonFromIconName(ui.IconFolder)
-	importBtn.SetTooltipText("Import a world from a file")
-	importBtn.ConnectClicked(func() {
-		d.Close()
-		a.actionImportWorld()
-	})
-	header.PackStart(importBtn)
-
-	newBtn := gtk.NewButtonFromIconName(ui.IconAdd)
-	newBtn.SetTooltipText("Create a world")
-	newBtn.ConnectClicked(func() {
-		d.Close()
-		a.editWorld(world.World{})
-	})
-	header.PackEnd(newBtn)
-
-	list := gtk.NewBox(gtk.OrientationVertical, 8)
-	list.SetMarginTop(14)
-	list.SetMarginBottom(14)
-	list.SetMarginStart(14)
-	list.SetMarginEnd(14)
-
 	worlds, err := a.store.Worlds()
 	if err != nil {
 		a.toast("Could not read your worlds: " + err.Error())
 	}
+	p := newPage("Worlds")
+	p.setCaption(count(len(worlds), "world", "worlds"))
+	a.refreshNavCounts()
+	p.commands.Append(commandButton(ui.IconFolder, "Import", a.actionImportWorld))
+	p.commands.Append(commandButton(ui.IconAdd, "New World", func() {
+		a.editWorld(world.World{})
+	}))
+
+	list := gtk.NewBox(gtk.OrientationVertical, 8)
+	p.body.Append(list)
 	if len(worlds) == 0 {
 		empty := gtk.NewLabel("No worlds yet, so create a setting your characters can share.")
 		empty.SetWrap(true)
@@ -61,25 +42,19 @@ func (a *App) showWorlds() {
 	rows := make([]filterRow, 0, len(worlds))
 	for _, w := range worlds {
 		rows = append(rows, filterRow{
-			Widget: a.worldRow(w, d),
+			Widget: a.worldRow(w),
 			Text:   strings.ToLower(w.Name + " " + w.Description),
 		})
 	}
 	searchableList(list, "Search worlds", rows)
 	list.Append(addRow("New World", func() {
-		d.Close()
 		a.editWorld(world.World{})
 	}))
-
-	tv := adw.NewToolbarView()
-	tv.AddTopBar(header)
-	tv.SetContent(scrolled(list))
-	d.SetChild(tv)
-	d.Present(a.win)
+	a.installPage(pageWorlds, p)
 }
 
 // worldRow is one world: click to open its lorebook.
-func (a *App) worldRow(w world.World, parent *adw.Dialog) *gtk.Box {
+func (a *App) worldRow(w world.World) *gtk.Box {
 	row := gtk.NewBox(gtk.OrientationHorizontal, 8)
 
 	open := gtk.NewButton()
@@ -123,7 +98,6 @@ func (a *App) worldRow(w world.World, parent *adw.Dialog) *gtk.Box {
 
 	setting := w
 	open.ConnectClicked(func() {
-		parent.Close()
 		a.showWorld(setting)
 	})
 	row.Append(open)
@@ -134,7 +108,6 @@ func (a *App) worldRow(w world.World, parent *adw.Dialog) *gtk.Box {
 	edit.SetTooltipText("Rename " + setting.Name)
 	edit.AddCSSClass("flat")
 	edit.ConnectClicked(func() {
-		parent.Close()
 		a.editWorld(setting)
 	})
 	side.Append(edit)
@@ -143,7 +116,6 @@ func (a *App) worldRow(w world.World, parent *adw.Dialog) *gtk.Box {
 	del.SetTooltipText("Delete " + setting.Name)
 	del.AddCSSClass("flat")
 	del.ConnectClicked(func() {
-		parent.Close()
 		a.confirm("Delete "+setting.Name,
 			"Its lorebook is deleted too, but its characters are kept.",
 			"Delete", func() {
@@ -525,7 +497,6 @@ func (a *App) worldCastRow(c chars.Character, w world.World, parent *adw.Dialog)
 
 	character := c
 	play.ConnectClicked(func() {
-		parent.Close()
 		a.newChat(character)
 	})
 	row.Append(play)
@@ -536,7 +507,6 @@ func (a *App) worldCastRow(c chars.Character, w world.World, parent *adw.Dialog)
 	open.SetTooltipText("Edit " + character.Name)
 	open.AddCSSClass("flat")
 	open.ConnectClicked(func() {
-		parent.Close()
 		a.editCharacter(character)
 	})
 	side.Append(open)
@@ -548,7 +518,6 @@ func (a *App) worldCastRow(c chars.Character, w world.World, parent *adw.Dialog)
 	out.SetTooltipText("Move " + character.Name + " out of " + w.Name)
 	out.AddCSSClass("flat")
 	out.ConnectClicked(func() {
-		parent.Close()
 		a.confirm("Move "+character.Name+" Out of "+w.Name,
 			"Their scenes stop drawing on this world's lorebook.",
 			"Move Out", func() {
@@ -604,7 +573,6 @@ func (a *App) lorebookRow(w world.World, parent *adw.Dialog) *gtk.Button {
 	btn.SetChild(col)
 	btn.SetTooltipText("Open the lorebook for " + w.Name)
 	btn.ConnectClicked(func() {
-		parent.Close()
 		a.showLorebook(w)
 	})
 	return btn

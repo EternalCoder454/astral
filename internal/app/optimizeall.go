@@ -109,7 +109,7 @@ func (a *App) startOptimizeAll() {
 // optimizeAllRow is the line at the top of the Prompts page: the button to
 // start, how far a run has got with a way to stop it, or the results waiting.
 // It keeps itself up to date while it is on screen.
-func (a *App) optimizeAllRow(parent *adw.Dialog) *gtk.Box {
+func (a *App) optimizeAllRow() *gtk.Box {
 	row := gtk.NewBox(gtk.OrientationHorizontal, 10)
 	row.AddCSSClass("card-row")
 	label := wrappingLabel("")
@@ -143,17 +143,18 @@ func (a *App) optimizeAllRow(parent *adw.Dialog) *gtk.Box {
 		label.SetText(fmt.Sprintf("Optimize All went through %d prompts, ready for review.", done))
 		button.SetLabel("Review")
 		button.AddCSSClass("suggested-action")
-		handler = button.ConnectClicked(func() {
-			parent.Close()
-			a.showOptimizeReview()
-		})
+		handler = button.ConnectClicked(a.showOptimizeReview)
 	}
 	refresh()
 	coreglib.TimeoutAdd(1000, func() bool {
-		if !row.Mapped() && row.Root() == nil {
+		// A page that is not showing is still in the window, so the timer runs
+		// until the row is let go of, and only does its work while it is seen.
+		if row.Root() == nil {
 			return false
 		}
-		refresh()
+		if row.Mapped() {
+			refresh()
+		}
 		return true
 	})
 	return row
@@ -191,6 +192,7 @@ func (a *App) showOptimizeReview() {
 			saved++
 		}
 		a.loadPromptOverrides()
+		a.refreshPage(pagePrompts)
 		a.toast(fmt.Sprintf("Astral sends %d rewritten %s from now on.", saved, plural(saved, "prompt", "prompts")))
 		return true
 	})

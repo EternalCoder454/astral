@@ -33,6 +33,30 @@ func TestWorldRoundTrip(t *testing.T) {
 	}
 }
 
+func TestCountWorlds(t *testing.T) {
+	s := openTest(t)
+	if n, err := s.CountWorlds(); err != nil || n != 0 {
+		t.Fatalf("an empty library counted %d, %v", n, err)
+	}
+	first, _ := s.SaveWorld(world.World{Name: "The Drowned Coast"})
+	if _, err := s.SaveWorld(world.World{Name: "Kestrel Bay"}); err != nil {
+		t.Fatal(err)
+	}
+	// An update is not a second world.
+	if _, err := s.SaveWorld(world.World{ID: first, Name: "The Drowned Coast, Revised"}); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.CountWorlds(); err != nil || n != 2 {
+		t.Errorf("two worlds counted as %d, %v", n, err)
+	}
+	if err := s.DeleteWorld(first); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.CountWorlds(); err != nil || n != 1 {
+		t.Errorf("one world left, counted as %d, %v", n, err)
+	}
+}
+
 func TestSaveWorldNeedsAName(t *testing.T) {
 	s := openTest(t)
 	if _, err := s.SaveWorld(world.World{Name: "   "}); err == nil {

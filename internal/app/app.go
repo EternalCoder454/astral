@@ -60,6 +60,8 @@ type App struct {
 	tidyAt      time.Time
 	tidyWaiting bool
 	stack       *gtk.Stack
+	// pages is what the Characters, Worlds, Knowledge and Prompts pages keep.
+	pages pageState
 	// phone is the server another device on this network talks to. Nil until
 	// the setting is switched on; see phone.go.
 	phone   *serve.Server
@@ -352,7 +354,10 @@ func (a *App) refreshSidebar() {
 		return
 	}
 	a.sidebar.SetChats(chats)
-	if a.chat != nil {
+	// The open chat is marked only while it is what the window shows. Home, or
+	// a page, is marked instead then, and the chat left behind is not to be
+	// marked again by the next rename or archive of some other chat.
+	if a.chat != nil && a.chatShowing() {
 		a.sidebar.Select(a.chat.Chat().ID)
 	}
 	a.refreshProfile()
@@ -365,9 +370,19 @@ func (a *App) refreshNavCounts() {
 	if a.store == nil || a.sidebar == nil {
 		return
 	}
-	characters, _ := a.store.CountCharacters()
-	worlds, _ := a.store.Worlds()
-	a.sidebar.SetCounts(characters, len(worlds))
+	// A count that cannot be read is passed on as -1, which leaves the row as it
+	// was rather than showing a library as empty because one query failed.
+	characters, err := a.store.CountCharacters()
+	if err != nil {
+		log.Printf("astral: counting characters: %v", err)
+		characters = -1
+	}
+	worlds, err := a.store.CountWorlds()
+	if err != nil {
+		log.Printf("astral: counting worlds: %v", err)
+		worlds = -1
+	}
+	a.sidebar.SetCounts(characters, worlds)
 }
 
 // Astral opens on Home, always.
@@ -380,6 +395,13 @@ func (a *App) refreshNavCounts() {
 
 // openChat loads a conversation into the centre panel.
 func (a *App) openChat(id int64) error {
+	// The chat a page was opened over, asked for again through its row: it is
+	// still loaded, and loading it again would stop a reply being written and
+	// throw away the reader's place in the transcript.
+	if id != 0 && a.pages.parked && a.pageShowing() != "" && a.chat.Chat().ID == id {
+		a.resumeChat()
+		return nil
+	}
 	ch, err := a.store.Chat(id)
 	if err != nil {
 		return err

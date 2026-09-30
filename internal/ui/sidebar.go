@@ -17,6 +17,21 @@ import (
 	"astral/internal/store"
 )
 
+// NavPage is one of the navigation rows at the top of the sidebar, each of them
+// somewhere the window can be.
+type NavPage int
+
+const (
+	// NavNone marks no navigation row: the window is showing a chat, whose own
+	// row is marked instead.
+	NavNone NavPage = iota
+	NavHome
+	NavCharacters
+	NavWorlds
+	NavKnowledge
+	NavPrompts
+)
+
 // Sidebar is the left panel: a new-chat button, the way through to the cast,
 // and the conversation list grouped by when you last touched it.
 type Sidebar struct {
@@ -24,10 +39,14 @@ type Sidebar struct {
 	listBox     *gtk.Box
 	profile     *gtk.Button
 	profileMenu *gtk.Popover
-	charsBtn    *gtk.Button
-	homeBtn     *gtk.Button
 
+	// selected is the chat that is open, and page which of the navigation rows
+	// stands for what the window is showing, NavNone while it is a chat. A chat
+	// row is marked only while page is NavNone, so the row that says where you
+	// are is always one row, whichever of the two the window was last told.
 	selected int64
+	page     NavPage
+	navBtns  map[NavPage]*gtk.Button
 
 	// charsCount and worldsCount are the counts at the end of their rows.
 	charsCount, worldsCount *gtk.Label
@@ -106,6 +125,7 @@ func NewSidebar() *Sidebar {
 		rows:     map[int64]*chatRow{},
 		rowMenus: map[int64]func(float64, float64){},
 		marked:   map[int64]bool{},
+		navBtns:  map[NavPage]*gtk.Button{},
 	}
 
 	s.widget = gtk.NewBox(gtk.OrientationVertical, 0)
@@ -125,55 +145,35 @@ func NewSidebar() *Sidebar {
 	nav := gtk.NewBox(gtk.OrientationVertical, 1)
 	nav.AddCSSClass("sidebar-nav")
 
+	// addNav builds one destination's row and remembers its button, so that
+	// SetActivePage can mark it. The callback is looked up when the row is
+	// clicked, not when it is built: the app assigns them after NewSidebar.
+	addNav := func(page NavPage, icon, text, tip string, target func() func()) *gtk.Label {
+		btn := gtk.NewButton()
+		btn.AddCSSClass("sidebar-item")
+		btn.AddCSSClass("nav-row")
+		row, count := navRow(icon, text)
+		btn.SetChild(row)
+		btn.SetTooltipText(tip)
+		btn.ConnectClicked(func() { fire(target()) })
+		nav.Append(btn)
+		s.navBtns[page] = btn
+		return count
+	}
+
 	// The way back. The welcome screen holds the cast, the worlds and the
 	// greeting, and until there was this it could only be reached by having no
 	// chat open, which, once you had opened one, meant not at all.
-	s.homeBtn = gtk.NewButton()
-	s.homeBtn.AddCSSClass("sidebar-item")
-	s.homeBtn.AddCSSClass("nav-row")
-	home, _ := navRow(IconHome, "Home")
-	s.homeBtn.SetChild(home)
-	s.homeBtn.SetTooltipText("Your cast and your worlds")
-	s.homeBtn.ConnectClicked(func() { fire(s.OnHome) })
-	nav.Append(s.homeBtn)
-
-	s.charsBtn = gtk.NewButton()
-	s.charsBtn.AddCSSClass("sidebar-item")
-	s.charsBtn.AddCSSClass("nav-row")
-	var charactersRow *gtk.Box
-	charactersRow, s.charsCount = navRow(IconCharacters, "Characters")
-	s.charsBtn.SetChild(charactersRow)
-	s.charsBtn.SetTooltipText("Browse and import characters (Ctrl+K)")
-	s.charsBtn.ConnectClicked(func() { fire(s.OnCharacters) })
-	nav.Append(s.charsBtn)
-
-	worldsBtn := gtk.NewButton()
-	worldsBtn.AddCSSClass("sidebar-item")
-	worldsBtn.AddCSSClass("nav-row")
-	var worldsRow *gtk.Box
-	worldsRow, s.worldsCount = navRow(IconWorlds, "Worlds")
-	worldsBtn.SetChild(worldsRow)
-	worldsBtn.SetTooltipText("Settings your characters live in (Ctrl+W)")
-	worldsBtn.ConnectClicked(func() { fire(s.OnWorlds) })
-	nav.Append(worldsBtn)
-
-	knowledgeBtn := gtk.NewButton()
-	knowledgeBtn.AddCSSClass("sidebar-item")
-	knowledgeBtn.AddCSSClass("nav-row")
-	knowledgeRow, _ := navRow(IconKnowledge, "Knowledge")
-	knowledgeBtn.SetChild(knowledgeRow)
-	knowledgeBtn.SetTooltipText("Notes and pages your chats draw on")
-	knowledgeBtn.ConnectClicked(func() { fire(s.OnKnowledge) })
-	nav.Append(knowledgeBtn)
-
-	promptsBtn := gtk.NewButton()
-	promptsBtn.AddCSSClass("sidebar-item")
-	promptsBtn.AddCSSClass("nav-row")
-	promptsRow, _ := navRow(IconDesigner, "Prompts")
-	promptsBtn.SetChild(promptsRow)
-	promptsBtn.SetTooltipText("Read, edit and optimize every prompt Astral sends")
-	promptsBtn.ConnectClicked(func() { fire(s.OnPrompts) })
-	nav.Append(promptsBtn)
+	addNav(NavHome, IconHome, "Home", "Your cast and your worlds",
+		func() func() { return s.OnHome })
+	s.charsCount = addNav(NavCharacters, IconCharacters, "Characters", "Browse and import characters (Ctrl+K)",
+		func() func() { return s.OnCharacters })
+	s.worldsCount = addNav(NavWorlds, IconWorlds, "Worlds", "Settings your characters live in (Ctrl+W)",
+		func() func() { return s.OnWorlds })
+	addNav(NavKnowledge, IconKnowledge, "Knowledge", "Notes and pages your chats draw on",
+		func() func() { return s.OnKnowledge })
+	addNav(NavPrompts, IconDesigner, "Prompts", "Read, edit and optimize every prompt Astral sends",
+		func() func() { return s.OnPrompts })
 	s.widget.Append(nav)
 
 	// Finding a chat by what was said in it. Above the list rather than in
@@ -367,14 +367,6 @@ func rowContent(icon, text string) *gtk.Box {
 	return box
 }
 
-// navContent is rowContent for the navigation buttons, where the icon and the
-// label sit together in the middle of the button rather than pinned to its left
-// edge.
-//
-// The difference is that a navigation button is a destination and a chat row is a
-// line of text. Four destinations centred read as a set; the same four pinned left
-// with a wide gap after them read as a list that has lost its right-hand column,
-// which is what a resizable sidebar makes obvious.
 // navRow is a navigation row's content, the way Atlas Monitor lays its pages
 // out: the icon and the name from the start, and at the end a count, empty
 // until SetCounts fills it in.
@@ -396,13 +388,15 @@ func navRow(icon, text string) (*gtk.Box, *gtk.Label) {
 }
 
 // SetCounts shows how many characters and worlds there are beside their
-// rows, and nothing for none.
+// rows, and nothing for none. A negative count means it could not be read, and
+// leaves what the row shows as it was: a failed query is not a library that has
+// emptied.
 func (s *Sidebar) SetCounts(characters, worlds int) {
 	for _, c := range []struct {
 		l *gtk.Label
 		n int
 	}{{s.charsCount, characters}, {s.worldsCount, worlds}} {
-		if c.l == nil {
+		if c.l == nil || c.n < 0 {
 			continue
 		}
 		c.l.SetVisible(c.n > 0)
@@ -410,16 +404,29 @@ func (s *Sidebar) SetCounts(characters, worlds int) {
 	}
 }
 
-// SetHomeActive marks Home as where you are, while the welcome screen is
-// showing, the way an open chat's row is marked.
-func (s *Sidebar) SetHomeActive(on bool) {
-	if on {
-		s.homeBtn.AddCSSClass("selected")
-	} else {
-		s.homeBtn.RemoveCSSClass("selected")
+// SetActivePage marks the navigation row for what the window is showing, and
+// clears the mark from every other row, chats included. Pass NavNone while a
+// chat is showing: that chat's own row is marked then, as Select says.
+func (s *Sidebar) SetActivePage(p NavPage) {
+	s.page = p
+	for page, btn := range s.navBtns {
+		if page == p {
+			btn.AddCSSClass("selected")
+		} else {
+			btn.RemoveCSSClass("selected")
+		}
 	}
+	s.applySelection()
 }
 
+// navContent is rowContent for the navigation buttons, where the icon and the
+// label sit together in the middle of the button rather than pinned to its left
+// edge.
+//
+// The difference is that a navigation button is a destination and a chat row is a
+// line of text. Four destinations centred read as a set; the same four pinned left
+// with a wide gap after them read as a list that has lost its right-hand column,
+// which is what a resizable sidebar makes obvious.
 func navContent(icon, text string) *gtk.Box {
 	box := gtk.NewBox(gtk.OrientationHorizontal, 10)
 	box.SetHAlign(gtk.AlignCenter)
@@ -834,7 +841,9 @@ func (s *Sidebar) OpenRowMenu(id int64) bool {
 // FirstChatID returns the topmost conversation in the list, or 0.
 func (s *Sidebar) FirstChatID() int64 { return s.firstChat }
 
-// Select marks a conversation as the open one.
+// Select records which conversation is open and marks its row, unless the
+// window is showing one of the navigation pages, which then holds the mark
+// alone. The row is marked when SetActivePage says a chat is showing again.
 func (s *Sidebar) Select(id int64) {
 	s.selected = id
 	s.applySelection()
@@ -842,7 +851,7 @@ func (s *Sidebar) Select(id int64) {
 
 func (s *Sidebar) applySelection() {
 	for id, row := range s.rows {
-		if id == s.selected {
+		if id == s.selected && s.page == NavNone {
 			row.btn.AddCSSClass("selected")
 		} else {
 			row.btn.RemoveCSSClass("selected")

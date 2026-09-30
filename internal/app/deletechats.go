@@ -39,7 +39,11 @@ func (a *App) deleteChats(ids []int64) {
 	}
 	if reopen != 0 {
 		a.chat.Clear()
-		a.showWelcome()
+		// Home unless the chat was left behind a page: someone on the Worlds
+		// page who deletes it is still reading the Worlds page.
+		if a.pageShowing() == "" {
+			a.showWelcome()
+		}
 	}
 	a.refreshSidebar()
 
