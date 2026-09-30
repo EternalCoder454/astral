@@ -320,19 +320,7 @@ func (a *App) buildCenter() {
 	// is refused here rather than three steps later.
 	// A reply that finishes while the window is in the background says so,
 	// so a slow model can be left to write while you do something else.
-	a.chat.OnReplyDone = func(title, text string) {
-		if !a.cfg.NotifyReplies || a.win == nil || a.win.IsActive() {
-			return
-		}
-		if title == "" {
-			title = "Astral"
-		}
-		n := gio.NewNotification(title)
-		n.SetBody(notificationPreview(text))
-		// One at a time: a new reply replaces the last notice rather than
-		// stacking a pile of them in the tray.
-		a.adw.SendNotification("reply", n)
-	}
+	a.chat.OnReplyDone = a.notifyReply
 	a.chat.OnImageFile = func(path string) {
 		a.importImageAsync(path, nil, "reference", a.chat.AttachImage)
 	}
@@ -345,6 +333,22 @@ func (a *App) buildCenter() {
 	a.stack.SetTransitionDuration(120)
 	a.stack.AddNamed(a.buildWelcome(), "welcome")
 	a.stack.AddNamed(a.chat.Widget(), "chat")
+}
+
+// notifyReply says a reply has been written, when nobody is looking at the
+// window.
+func (a *App) notifyReply(title, text string) {
+	if !a.cfg.NotifyReplies || a.win == nil || a.win.IsActive() {
+		return
+	}
+	if title == "" {
+		title = "Astral"
+	}
+	n := gio.NewNotification(title)
+	n.SetBody(notificationPreview(text))
+	// One at a time: a new reply replaces the last notice rather than
+	// stacking a pile of them in the tray.
+	a.adw.SendNotification("reply", n)
 }
 
 func (a *App) showChat() {

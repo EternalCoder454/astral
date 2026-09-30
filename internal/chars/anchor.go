@@ -92,7 +92,11 @@ func Anchor(c Character, sc Scene, userName string) string {
 
 	b.WriteString(freshWording(sc.Overused, c.Name, userName))
 	b.WriteString(SettingBlock(sc.Setting, sc.State, c.Name, userName))
-	b.WriteString(PaceBlock(c.Name, userName))
+	// Not when the character is writing first: the pace rule stays level with
+	// what the person last said, and they have said nothing for a while.
+	if !sc.Nudge {
+		b.WriteString(PaceBlock(c.Name, userName))
+	}
 	b.WriteString(LengthBlock(sc.Length))
 
 	// Last of all, and so weighted most. A direction is about where the scene
@@ -110,6 +114,9 @@ func Anchor(c Character, sc Scene, userName string) string {
 			"and do not have anyone name it outright, and do not resolve the whole thing at " +
 			"once. One step, now:\n")
 		b.WriteString(Substitute(d, c.Name, userName))
+	}
+	if sc.Nudge {
+		b.WriteString(WriteFirstBlock(c.Name, userName))
 	}
 	b.WriteString(NoteBlock(sc.Note, c.Name, userName))
 	b.WriteString("]")

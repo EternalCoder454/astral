@@ -279,6 +279,43 @@ func (s *Server) handleReplyLength(w http.ResponseWriter, r *http.Request, d sto
 	writeJSON(w, http.StatusOK, map[string]string{"length": body.Length})
 }
 
+// handleWriteFirst sets how many minutes of your silence pass before the
+// character writes first, as the desktop's Replies chip does. 0 is never.
+func (s *Server) handleWriteFirst(w http.ResponseWriter, r *http.Request, d store.Device) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var body struct {
+		Minutes int `json:"minutes"`
+	}
+	if err != nil || json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<10)).Decode(&body) != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unreadable request"})
+		return
+	}
+	if _, err := s.store.Chat(id); err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "no such chat"})
+		return
+	}
+	if err := s.store.SetChatWriteFirst(id, body.Minutes); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"minutes": body.Minutes})
+}
+
+// Writing reports whether a reply is being written into any chat from here
+// now, for the window's timer, which does not write first over one.
+func (s *Server) Writing() bool {
+	s.busy.mu.Lock()
+	defer s.busy.mu.Unlock()
+	return len(s.busy.on) > 0
+}
+
+// Claim marks a chat as having a reply written into it, so a phone cannot
+// start another meanwhile; the window's character writing first takes it. The
+// returned function frees it, and free says whether the claim succeeded.
+func (s *Server) Claim(chatID int64) (release func(), free bool) {
+	return s.busy.claim(chatID)
+}
+
 // continueTimeout bounds writing the story so far for a continuation.
 const continueTimeout = 5 * time.Minute
 

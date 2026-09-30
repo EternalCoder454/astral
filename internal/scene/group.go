@@ -36,6 +36,9 @@ type Turn struct {
 	// Onward is a group turn with nothing new from the person: the cast
 	// carry the scene on among themselves.
 	Onward bool
+	// Nudge is a turn the character starts after the person has been quiet
+	// for a while, in a scene with one character. A group's is Onward.
+	Nudge bool
 }
 
 // BuildTurn is BuildFor, steered.
@@ -45,7 +48,11 @@ func BuildTurn(st *store.Store, cfg store.Config, ch store.Chat, cast []chars.Ch
 		if len(cast) == 1 {
 			one = cast[0]
 		}
-		return withNote(buildOne(st, cfg, ch, one, hist, t.Note), ch, one, t.Note)
+		return withNote(buildOne(st, cfg, ch, one, hist, t.Note, t.Nudge), ch, one, t.Note)
+	}
+	if t.Nudge {
+		// A group has no one to write first to: the cast carry the scene on.
+		t.Onward = true
 	}
 	switch ch.Kind {
 	case store.KindDesigner, store.KindStyleDesigner, store.KindAssistant, store.KindPromptOptimizer:

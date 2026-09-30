@@ -144,6 +144,7 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("POST /api/chats/{id}/archive", s.guard(s.handleArchiveChat))
 	mux.Handle("POST /api/chats/{id}/continue", s.guard(s.handleContinue))
 	mux.Handle("POST /api/chats/{id}/length", s.guard(s.handleReplyLength))
+	mux.Handle("POST /api/chats/{id}/write-first", s.guard(s.handleWriteFirst))
 	mux.Handle("DELETE /api/chats/{id}/messages/{mid}", s.guard(s.handleDeleteMessage))
 	mux.Handle("POST /api/chats/{id}/messages/{mid}/version", s.guard(s.handleVersion))
 	mux.Handle("POST /api/chats/{id}/persona", s.guard(s.handleChatPersona))
@@ -373,6 +374,9 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, d store.Devi
 		// ReplyLength is how long a reply the scene asks for; see
 		// chars.LengthBlock.
 		ReplyLength string `json:"reply_length"`
+		// WriteFirst is the minutes of your silence before the character
+		// writes first, 0 for never.
+		WriteFirst int `json:"write_first"`
 		// Character is who a one-on-one scene is with, and Favorite whether
 		// they are one of your favorites, for the chat's menu.
 		Character int64 `json:"character,omitempty"`
@@ -382,6 +386,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request, d store.Devi
 	out.CanDraft = scene.CanDraft(ch, castFor(s.castFor(ch), s.characterFor(ch)))
 	out.Remembers = remembers(ch, s.characterFor(ch))
 	out.ReplyLength = ch.ReplyLength
+	out.WriteFirst = ch.WriteFirst
 	if ch.CharacterID != 0 {
 		if ca, err := s.store.Character(ch.CharacterID); err == nil {
 			out.Character, out.Favorite = ca.ID, ca.Favorite

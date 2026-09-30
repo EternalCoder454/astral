@@ -150,7 +150,7 @@ func loreHits(st *store.Store, ch store.Chat, ca chars.Character, hist []ollama.
 // hist is the conversation as it will be sent: everything since the recap, in
 // order, with the new user message already on the end.
 func Build(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character, hist []ollama.Message) []ollama.Message {
-	return buildOne(st, cfg, ch, ca, hist, "")
+	return buildOne(st, cfg, ch, ca, hist, "", false)
 }
 
 // withNote carries a rewrite's note into a conversation that has no closing
@@ -168,8 +168,9 @@ func withNote(msgs []ollama.Message, ch store.Chat, ca chars.Character, note str
 		Content: strings.TrimSpace(chars.NoteBlock(note, ca.Name, chars.DefaultPersonaName))})
 }
 
-// buildOne is Build with a note for this reply.
-func buildOne(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character, hist []ollama.Message, note string) []ollama.Message {
+// buildOne is Build with a note for this reply, and for a reply the character
+// starts after a silence (nudge).
+func buildOne(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Character, hist []ollama.Message, note string, nudge bool) []ollama.Message {
 	system := func(content string) []ollama.Message {
 		return append([]ollama.Message{{Role: ollama.RoleSystem, Content: content}}, hist...)
 	}
@@ -246,6 +247,7 @@ func buildOne(st *store.Store, cfg store.Config, ch store.Chat, ca chars.Charact
 		// from 0.87 to 0.78 and from 0.93 to 0.68.
 		Overused: chars.Overused(hist),
 		Note:     note,
+		Nudge:    nudge,
 		Setting:  ch.Setting,
 		State:    ch.State,
 		Length:   ch.ReplyLength,

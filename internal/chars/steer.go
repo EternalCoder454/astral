@@ -69,6 +69,15 @@ var (
 		Slots:   []string{"{{user}}"},
 		Default: onwardNote,
 	})
+	promptWriteFirst = prompts.Register(prompts.Prompt{
+		ID: "scene.write-first", Name: "Writes First", Group: "Scenes",
+		About: "Added to a one-character scene's closing block, in place of Pace, when the character " +
+			"writes first after you have been quiet for a while. A group scene uses Let Them Talk.",
+		Keep: "{{char}} becomes the character's name and {{user}} yours. It must say that {{user}} has " +
+			"said nothing, that {{char}} speaks first, and that nothing is written for {{user}}.",
+		Default: writeFirstNote,
+		Anchors: []string{"speaks up first", "Write nothing for {{user}}"},
+	})
 )
 
 // paceRule keeps a reply in the moment the person left it in.
@@ -305,6 +314,18 @@ const rewriteNote = "\n\nTHIS REPLY. The user asked for this reply to be written
 
 // onwardNote is a group turn nobody asked for.
 const onwardNote = "\n\nNOBODY IS WAITING ON {{user}}. {{user}} says and does nothing this turn. The characters carry the scene on among themselves: pick up a thread from what just happened and move it forward. Do not have anyone ask {{user}} a question or wait for them to answer."
+
+// writeFirstNote is a turn nobody asked for, after a silence. It replaces the
+// pace rule, which says to go no further than {{user}}'s last message, when
+// {{user}}'s last message is a while ago and there is no answer to stay level
+// with.
+const writeFirstNote = "\n\nSPEAKING FIRST. {{user}} has said nothing for a while since {{char}}'s last message, so {{char}} speaks up first. Pick the thread up again in a way that fits the moment and the time that has passed, and leave room for {{user}} to answer. Write nothing for {{user}}: no words, no actions, no reaction."
+
+// WriteFirstBlock is the closing block's part for a turn the character starts
+// after a silence, with names in.
+func WriteFirstBlock(charName, userName string) string {
+	return Substitute(prompts.Text(promptWriteFirst), charName, userName)
+}
 
 // NoteBlock is the closing block's final part for a guided rewrite, empty
 // without a note.

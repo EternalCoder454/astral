@@ -26,7 +26,10 @@ const safetyTokens = 256
 // every prompt carrying them and so come off the top. Lengthening that
 // wording without raising this overruns the window; TestWorstCaseNowFits
 // holds it.
-const blockFramingChars = 460 + len(paceRule) + 260 + SettingChars + stateParts*(StateChars+40) + lengthChars
+//
+// The pace rule is counted as the longer of it and the note a character
+// writing first is given instead.
+const blockFramingChars = 460 + max(len(paceRule), len(writeFirstNote)) + 260 + SettingChars + stateParts*(StateChars+40) + lengthChars
 
 // lengthChars is the most a LengthBlock line takes.
 const lengthChars = 260

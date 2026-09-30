@@ -2060,6 +2060,9 @@ function chatMenu() {
 		const names = { "": "As the Style Says", short: "Short", medium: "Medium", long: "Long" };
 		items.push({ title: "Reply Length", note: names[current.reply_length || ""] + ".",
 			icon: "draft", onClick: chooseLength });
+		const waits = { 0: "Off", 10: "After 10 minutes", 60: "After an hour", 180: "After three hours" };
+		items.push({ title: "Writes First", note: (waits[current.write_first || 0] || (current.write_first + " minutes")) + ".",
+			icon: "draft", onClick: chooseWriteFirst });
 	}
 	// One character's scene: a group's is named after its first member, and
 	// starring them from there would star somebody at random.
@@ -2117,6 +2120,33 @@ function chooseLength() {
 				if (!res.ok) throw new Error((await res.json()).error || "That could not be done.");
 				if (current && current.id === id) current.reply_length = key;
 				toast("Replies are " + title.toLowerCase() + " from the next one on.");
+			} catch (e) {
+				toast(e.message);
+			}
+		},
+	})));
+}
+
+// chooseWriteFirst offers how long you may be quiet before the character
+// writes first. The PC sends it, and it is here when the chat is opened.
+function chooseWriteFirst() {
+	if (!current) return;
+	const id = current.id;
+	const options = [
+		[0, "Off", "The character waits for you."],
+		[10, "After 10 Minutes", "After ten minutes without a message from you."],
+		[60, "After an Hour", "After an hour without a message from you."],
+		[180, "After Three Hours", "After three hours without a message from you."],
+	];
+	openMenu("Writes First", options.map(([minutes, title, note]) => ({
+		title: (current.write_first || 0) === minutes ? title + " (Now)" : title,
+		note, icon: "draft",
+		onClick: async () => {
+			try {
+				const res = await api("/api/chats/" + id + "/write-first", { method: "POST", body: JSON.stringify({ minutes }) });
+				if (!res.ok) throw new Error((await res.json()).error || "That could not be done.");
+				if (current && current.id === id) current.write_first = minutes;
+				toast(minutes ? "They will write first " + title.toLowerCase() + " of quiet, while this PC is on." : "They will wait for you.");
 			} catch (e) {
 				toast(e.message);
 			}

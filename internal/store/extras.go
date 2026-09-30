@@ -1,7 +1,9 @@
 package store
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -37,6 +39,11 @@ func (s *Store) migrateExtras() {
 	s.db.Exec(`ALTER TABLE lore_entries ADD COLUMN chance INTEGER NOT NULL DEFAULT 100`)
 	s.db.Exec(`ALTER TABLE lore_entries ADD COLUMN wait INTEGER NOT NULL DEFAULT 0`)
 	s.db.Exec(`ALTER TABLE lore_entries ADD COLUMN group_name TEXT NOT NULL DEFAULT ''`)
+	// Writes First: how many minutes of silence before the character writes
+	// unprompted, 0 for never, and the id of the last message written that
+	// way, so one silence is answered once. See scene.WriteFirstDue.
+	s.db.Exec(`ALTER TABLE chats ADD COLUMN write_first INTEGER NOT NULL DEFAULT 0`)
+	s.db.Exec(`ALTER TABLE chats ADD COLUMN nudged_at INTEGER NOT NULL DEFAULT 0`)
 }
 
 func boolInt(b bool) int {
@@ -85,6 +92,83 @@ func (s *Store) SetChatReplyLength(id int64, length string) error {
 	defer s.writeMu.Unlock()
 	_, err := s.db.Exec(`UPDATE chats SET reply_length = ? WHERE id = ?`, length, id)
 	return err
+}
+
+// MaxWriteFirst is the longest wait a scene can be set to, a week in minutes:
+// past that a scene is finished rather than quiet.
+const MaxWriteFirst = 7 * 24 * 60
+
+// SetChatWriteFirst records how many minutes of silence pass before the
+// scene's character writes first, 0 for never.
+func (s *Store) SetChatWriteFirst(id int64, minutes int) error {
+	if minutes < 0 || minutes > MaxWriteFirst {
+		return fmt.Errorf("a scene cannot wait %d minutes to write first", minutes)
+	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err := s.db.Exec(`UPDATE chats SET write_first = ? WHERE id = ?`, minutes, id)
+	return err
+}
+
+// SetChatNudged records the message the character wrote first, so the silence
+// it broke is not answered a second time. It leaves updated_at alone, since
+// AddMessage has just moved it.
+func (s *Store) SetChatNudged(id, messageID int64) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	_, err := s.db.Exec(`UPDATE chats SET nudged_at = ? WHERE id = ?`, messageID, id)
+	return err
+}
+
+// LastMessage is the newest turn of a chat, and false when it has none. It is
+// what a due check needs of it, who wrote it and when, so it reads no more
+// than that.
+func (s *Store) LastMessage(chatID int64) (Message, bool, error) {
+	var m Message
+	var created int64
+	err := s.db.QueryRow(`
+		SELECT id, chat_id, role, content, character_id, created_at
+		FROM messages WHERE chat_id = ? ORDER BY id DESC LIMIT 1`, chatID).
+		Scan(&m.ID, &m.ChatID, &m.Role, &m.Content, &m.CharacterID, &created)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Message{}, false, nil
+	}
+	if err != nil {
+		return Message{}, false, err
+	}
+	m.CreatedAt = fromUnix(created)
+	return m, true, nil
+}
+
+// ChatsWritingFirst is the chats that are set to write first, and not put
+// away: the candidates, which scene.WriteFirstDue then looks at one by one.
+func (s *Store) ChatsWritingFirst() ([]Chat, error) {
+	rows, err := s.db.Query(`SELECT id FROM chats WHERE write_first > 0 AND archived = 0 ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]Chat, 0, len(ids))
+	for _, id := range ids {
+		ch, err := s.Chat(id)
+		if err != nil {
+			continue // deleted since the list was read
+		}
+		out = append(out, ch)
+	}
+	return out, nil
 }
 
 // SetChatState records how a scene stands besides where it is.

@@ -230,3 +230,40 @@ func TestRewriteMineFromThePhone(t *testing.T) {
 		t.Errorf("rewriting the character's reply answered %d", got.Code)
 	}
 }
+
+// Writes First is set from the phone, and only to something sensible.
+func TestWritesFirstFromThePhone(t *testing.T) {
+	s, _ := testServer(t)
+	token := paired(t, s)
+	ch := seedScene(t, s)
+	path := "/api/chats/" + itoa(ch.ID) + "/write-first"
+
+	if got := do(t, s, "POST", path, token, `{"minutes":60}`); got.Code != http.StatusOK {
+		t.Fatalf("setting it answered %d: %s", got.Code, got.Body.String())
+	}
+	if got, _ := s.store.Chat(ch.ID); got.WriteFirst != 60 {
+		t.Fatalf("the chat writes first after %d minutes, want 60", got.WriteFirst)
+	}
+	w := do(t, s, "GET", "/api/chats/"+itoa(ch.ID), token, "")
+	var out struct {
+		WriteFirst int `json:"write_first"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil || out.WriteFirst != 60 {
+		t.Fatalf("the chat's JSON says %d (%v): %s", out.WriteFirst, err, w.Body.String())
+	}
+
+	for _, bad := range []string{`{"minutes":-5}`, `{"minutes":99999999}`, `{"minutes":"soon"}`, `nonsense`} {
+		if got := do(t, s, "POST", path, token, bad); got.Code != http.StatusBadRequest {
+			t.Errorf("%s answered %d, want 400", bad, got.Code)
+		}
+	}
+	if got, _ := s.store.Chat(ch.ID); got.WriteFirst != 60 {
+		t.Errorf("a refused value changed it to %d", got.WriteFirst)
+	}
+	if got := do(t, s, "POST", "/api/chats/99999/write-first", token, `{"minutes":10}`); got.Code != http.StatusNotFound {
+		t.Errorf("a chat that is not there answered %d, want 404", got.Code)
+	}
+	if got := do(t, s, "POST", path, token, `{"minutes":0}`); got.Code != http.StatusOK {
+		t.Errorf("turning it off answered %d", got.Code)
+	}
+}

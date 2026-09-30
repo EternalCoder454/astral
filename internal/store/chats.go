@@ -80,6 +80,11 @@ type Chat struct {
 	// ReplyLength is how long a reply the scene asks for, "" for whatever
 	// the style says; see chars.LengthBlock.
 	ReplyLength string
+	// WriteFirst is how many minutes of silence pass before the character
+	// writes to you first, 0 for never, and NudgedAt is the id of the last
+	// message written that way. See scene.WriteFirstDue.
+	WriteFirst int
+	NudgedAt   int64
 	// Archived chats are kept but listed apart from the rest. Writing a
 	// message of your own in one brings it back; see AddMessage.
 	Archived  bool
@@ -150,7 +155,7 @@ func (s *Store) Chats() ([]Chat, error) {
 	rows, err := s.db.Query(`
 		SELECT c.id, c.character_id, c.world_id, c.title, c.model, c.kind, c.created_at, c.updated_at,
 		       c.archived, COALESCE(ch.name, ''), COALESCE(ch.accent, 0), COALESCE(n.count, 0),
-		       COALESCE(cc.count, 0), COALESCE(ch.avatar_path, '')
+		       COALESCE(cc.count, 0), COALESCE(ch.avatar_path, ''), c.write_first, c.nudged_at
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
 		LEFT JOIN (SELECT chat_id, COUNT(*) AS count FROM messages GROUP BY chat_id) n
@@ -170,7 +175,7 @@ func (s *Store) Chats() ([]Chat, error) {
 		var created, updated int64
 		if err := rows.Scan(&c.ID, &c.CharacterID, &c.WorldID, &c.Title, &c.Model, &c.Kind,
 			&created, &updated, &c.Archived, &c.CharacterName, &c.Accent, &c.MessageCount,
-			&c.CastSize, &c.AvatarPath); err != nil {
+			&c.CastSize, &c.AvatarPath, &c.WriteFirst, &c.NudgedAt); err != nil {
 			return nil, err
 		}
 		c.CreatedAt, c.UpdatedAt = fromUnix(created), fromUnix(updated)
@@ -186,13 +191,13 @@ func (s *Store) Chat(id int64) (Chat, error) {
 	var state string
 	err := s.db.QueryRow(`
 		SELECT c.id, c.character_id, c.world_id, c.title, c.model, c.kind, c.summary, c.summary_upto,
-		       c.lore_upto, c.style_name, c.note, c.persona_id, c.setting, c.setting_auto, c.state, c.reply_length, c.archived, c.created_at, c.updated_at,
+		       c.lore_upto, c.style_name, c.note, c.persona_id, c.setting, c.setting_auto, c.state, c.reply_length, c.write_first, c.nudged_at, c.archived, c.created_at, c.updated_at,
 		       COALESCE(ch.name, ''), COALESCE(ch.accent, 0)
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
 		WHERE c.id = ?`, id).
 		Scan(&c.ID, &c.CharacterID, &c.WorldID, &c.Title, &c.Model, &c.Kind, &c.Summary, &c.SummaryUpto,
-			&c.LoreUpto, &c.StyleName, &c.Note, &c.PersonaID, &c.Setting, &c.SettingAuto, &state, &c.ReplyLength, &c.Archived, &created, &updated, &c.CharacterName, &c.Accent)
+			&c.LoreUpto, &c.StyleName, &c.Note, &c.PersonaID, &c.Setting, &c.SettingAuto, &state, &c.ReplyLength, &c.WriteFirst, &c.NudgedAt, &c.Archived, &created, &updated, &c.CharacterName, &c.Accent)
 	if err == sql.ErrNoRows {
 		return c, fmt.Errorf("no chat with id %d", id)
 	}

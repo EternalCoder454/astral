@@ -473,8 +473,53 @@ func (c *ChatView) chatActions() *gio.SimpleActionGroup {
 		}
 	})
 	group.AddAction(length)
+	writeFirst := gio.NewSimpleAction("write-first", glib.NewVariantType("x"))
+	writeFirst.ConnectActivate(func(p *glib.Variant) {
+		if p == nil {
+			return
+		}
+		if err := c.SetWriteFirst(int(p.Int64())); err != nil {
+			c.fail("Could not change when the character writes first: " + err.Error())
+		}
+	})
+	group.AddAction(writeFirst)
 	return group
 }
+
+// SetWriteFirst asks this scene's character to write first after that many
+// minutes of your silence, 0 for never. See scene.WriteFirstDue.
+func (c *ChatView) SetWriteFirst(minutes int) error {
+	if c.chat.ID != 0 {
+		if err := c.store.SetChatWriteFirst(c.chat.ID, minutes); err != nil {
+			return err
+		}
+	}
+	c.chat.WriteFirst = minutes
+	c.refreshActions()
+	return nil
+}
+
+// ShowWritten adds messages that were stored into this chat without this view
+// writing them, a character writing first, to the end of the transcript. The
+// rows before them are left as they are, so the reader keeps their place, and
+// the view follows the new message only when it was already at the end.
+func (c *ChatView) ShowWritten(msgs []store.Message) {
+	follow := c.atBottom()
+	for _, m := range msgs {
+		row := c.appendRowAs(m.CharacterID, m.Role, m.Content, m.Thinking, m.ID, m.CreatedAt)
+		row.Versions, row.Version = m.Versions, m.Version
+		if m.TokPerSec > 0 && c.cfg.ShowStats {
+			row.SetMeta(ollama.Stats{Tokens: m.EvalCount, TokPerSec: m.TokPerSec}.Summary())
+		}
+	}
+	c.refreshPagers()
+	if follow {
+		c.scrollToBottom()
+	}
+}
+
+// Composing reports whether there is something typed in the message box.
+func (c *ChatView) Composing() bool { return strings.TrimSpace(c.composerText()) != "" }
 
 // SetReplyLength asks this scene's replies to be of a length, from the next
 // one on: one of chars.Lengths, "" for whatever the style says.
@@ -489,10 +534,11 @@ func (c *ChatView) SetReplyLength(length string) error {
 	return nil
 }
 
-// lengthChip chooses how long the scene's replies are.
+// lengthChip is the Replies chip: how long the scene's replies are, and
+// whether the character writes first when you have been quiet.
 func (c *ChatView) lengthChip() *gtk.MenuButton {
 	btn := gtk.NewMenuButton()
-	label := "Reply Length"
+	label := "Replies"
 	for _, l := range chars.Lengths {
 		if l.Key != "" && l.Key == c.chat.ReplyLength {
 			label = "Length: " + l.Label
@@ -500,16 +546,32 @@ func (c *ChatView) lengthChip() *gtk.MenuButton {
 	}
 	btn.SetChild(chipLabel(label, 16))
 	btn.AddCSSClass("chat-action-chip")
-	if c.chat.ReplyLength != "" {
+	if c.chat.ReplyLength != "" || c.chat.WriteFirst > 0 {
 		btn.AddCSSClass("direction-set")
 	}
-	btn.SetTooltipText("Choose how long the replies in this scene are")
-	menu := gio.NewMenu()
+	tip := "Choose how long the replies in this scene are, and whether the character writes first. "
+	if wait := scene.WriteFirstWait(c.chat.WriteFirst); wait != "" {
+		tip += "They write first after " + wait + " of quiet."
+	} else {
+		tip += "They do not write first."
+	}
+	btn.SetTooltipText(tip)
+
+	lengths := gio.NewMenu()
 	for _, l := range chars.Lengths {
 		item := gio.NewMenuItem(l.Label, "")
 		item.SetActionAndTargetValue("chat.reply-length", glib.NewVariantString(l.Key))
-		menu.AppendItem(item)
+		lengths.AppendItem(item)
 	}
+	writes := gio.NewMenu()
+	for _, w := range scene.WriteFirstChoices {
+		item := gio.NewMenuItem(w.Label, "")
+		item.SetActionAndTargetValue("chat.write-first", glib.NewVariantInt64(int64(w.Minutes)))
+		writes.AppendItem(item)
+	}
+	menu := gio.NewMenu()
+	menu.AppendSection("Length", lengths)
+	menu.AppendSection("Writes First", writes)
 	btn.SetMenuModel(menu)
 	return btn
 }

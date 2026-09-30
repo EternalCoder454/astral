@@ -91,6 +91,11 @@ type App struct {
 	// continuation, so a second press does not start another. See
 	// continueChat.
 	continuing bool
+	// writingFirst is set while a character is being asked to write first,
+	// and writeFirstHeld is the chats left alone for a while after a try
+	// that failed. See writefirst.go.
+	writingFirst   bool
+	writeFirstHeld map[int64]time.Time
 
 	// pendingRestore is a backup to put back once the library is closed, on
 	// the way out; see restore.go.
@@ -178,6 +183,9 @@ func (a *App) activate() {
 	a.showWelcome()
 	a.probeModels()
 	a.maybeCheckForUpdate()
+	if !devRun() {
+		a.startWritesFirst()
+	}
 	if a.cfg.PhoneAccess {
 		a.startPhoneAccess()
 	}
