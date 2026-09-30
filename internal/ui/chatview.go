@@ -12,6 +12,8 @@ import (
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
+	"github.com/diamondburned/gotk4/pkg/gio/v2"
+	"github.com/diamondburned/gotk4/pkg/glib/v2"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 
@@ -90,16 +92,21 @@ type ChatView struct {
 	client *ollama.Client
 	store  *store.Store
 
-	widget      *gtk.Box
-	scroll      *gtk.ScrolledWindow
-	clamp       *adw.Clamp
-	column      *gtk.Box
-	composer    *gtk.TextView
-	actionBar   *gtk.Box
-	sendBtn     *gtk.Button
-	modelBtn    *gtk.Button
-	hint        *gtk.Label
-	placeholder *gtk.Label
+	widget    *gtk.Box
+	scroll    *gtk.ScrolledWindow
+	clamp     *adw.Clamp
+	column    *gtk.Box
+	composer  *gtk.TextView
+	actionBar *gtk.Box
+	// lengthAct and writeFirstAct are the Replies chip's actions, holding the
+	// scene's choices as their state so its menu marks them, and repliesMenu
+	// is that menu. See lengthChip.
+	lengthAct, writeFirstAct *gio.SimpleAction
+	repliesMenu              *gio.Menu
+	sendBtn                  *gtk.Button
+	modelBtn                 *gtk.Button
+	hint                     *gtk.Label
+	placeholder              *gtk.Label
 
 	chat store.Chat
 	char chars.Character
@@ -1363,6 +1370,10 @@ func (c *ChatView) SetModel(model string) {
 
 // refreshActions rebuilds the chip row for the current kind of chat.
 func (c *ChatView) refreshActions() {
+	if c.lengthAct != nil {
+		c.lengthAct.SetState(glib.NewVariantString(c.chat.ReplyLength))
+		c.writeFirstAct.SetState(glib.NewVariantInt64(int64(c.chat.WriteFirst)))
+	}
 	if c.actionBar == nil {
 		return
 	}

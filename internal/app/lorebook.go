@@ -287,6 +287,9 @@ func (a *App) editLore(e world.Entry, w world.World) {
 	chance.SetNumeric(true)
 	chance.SetValue(float64(e.Odds()))
 	chance.SetHAlign(gtk.AlignStart)
+	// As wide as the wait below it, whose range has more digits, so the two
+	// line up.
+	chance.SetWidthChars(5)
 	chance.SetTooltipText("Ignored when the entry is always sent")
 	whenCard.Append(labelledField("Chance in Percent",
 		"How often it is sent when triggered, 100 being every time.",
@@ -296,6 +299,7 @@ func (a *App) editLore(e world.Entry, w world.World) {
 	wait.SetNumeric(true)
 	wait.SetValue(float64(max(e.Wait, 0)))
 	wait.SetHAlign(gtk.AlignStart)
+	wait.SetWidthChars(5)
 	wait.SetTooltipText("Ignored when the entry is always sent")
 	whenCard.Append(labelledField("Wait for Messages",
 		"It is not sent until the scene has this many messages, 0 being from the start.",

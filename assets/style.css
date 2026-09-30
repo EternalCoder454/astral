@@ -958,6 +958,45 @@ frame:focus-within {
 	background-color: alpha(@accent_bg_color, 0.30);
 }
 
+/* A chip with a menu, Replies or Who Answers, is a menubutton holding a
+   button of its own. Drawn on both it came out as a pill inside a pill, so
+   the outer one is bare and the inner one, which is what is pressed, is the
+   chip. The font size stays on the outer, where the inner inherits it. */
+menubutton.chat-action-chip,
+menubutton.chat-action-chip:hover,
+menubutton.chat-action-chip.direction-set,
+menubutton.chat-action-chip.direction-set:hover {
+	padding: 0;
+	background: none;
+	border: none;
+	box-shadow: none;
+}
+
+menubutton.chat-action-chip > button {
+	padding: 6px 14px;
+	border-radius: 9999px;
+	background-color: alpha(@accent_bg_color, 0.18);
+	border: 1px solid alpha(@accent_bg_color, 0.55);
+	color: @accent_color;
+	box-shadow: none;
+	transition: background-color 120ms ease;
+}
+
+menubutton.chat-action-chip > button:hover,
+menubutton.chat-action-chip > button:checked {
+	background-color: alpha(@accent_bg_color, 0.30);
+}
+
+menubutton.chat-action-chip.direction-set > button {
+	background-color: alpha(@accent_bg_color, 0.20);
+	color: @astral_text;
+}
+
+menubutton.chat-action-chip.direction-set > button:hover,
+menubutton.chat-action-chip.direction-set > button:checked {
+	background-color: alpha(@accent_bg_color, 0.30);
+}
+
 /* The header warning shown when the model server is not answering. Amber
    rather than red: nothing is broken or lost, something is simply not running
    yet, and a red light in a header bar reads as an error that has already

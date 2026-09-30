@@ -466,7 +466,7 @@ func chipLabel(text string, maxChars int) *gtk.Label {
 // because it rebuilds the chips, and the chip the menu hangs from is one.
 func (c *ChatView) chatActions() *gio.SimpleActionGroup {
 	group := gio.NewSimpleActionGroup()
-	length := gio.NewSimpleAction("reply-length", glib.NewVariantType("s"))
+	length := gio.NewSimpleActionStateful("reply-length", glib.NewVariantType("s"), glib.NewVariantString(""))
 	length.ConnectActivate(func(p *glib.Variant) {
 		if p == nil {
 			return
@@ -479,7 +479,7 @@ func (c *ChatView) chatActions() *gio.SimpleActionGroup {
 		})
 	})
 	group.AddAction(length)
-	writeFirst := gio.NewSimpleAction("write-first", glib.NewVariantType("x"))
+	writeFirst := gio.NewSimpleActionStateful("write-first", glib.NewVariantType("x"), glib.NewVariantInt64(0))
 	writeFirst.ConnectActivate(func(p *glib.Variant) {
 		if p == nil {
 			return
@@ -492,6 +492,7 @@ func (c *ChatView) chatActions() *gio.SimpleActionGroup {
 		})
 	})
 	group.AddAction(writeFirst)
+	c.lengthAct, c.writeFirstAct = length, writeFirst
 	return group
 }
 
@@ -566,6 +567,18 @@ func (c *ChatView) lengthChip() *gtk.MenuButton {
 	}
 	btn.SetTooltipText(tip)
 
+	btn.SetMenuModel(c.repliesModel())
+	return btn
+}
+
+// repliesModel is the Replies chip's menu, made once for the view and handed
+// to every chip built after. It says the same for every scene: which choice a
+// scene has is the actions' state, which the menu shows as a mark. A menu made
+// with each chip left its two sections behind every time a chat was opened.
+func (c *ChatView) repliesModel() *gio.Menu {
+	if c.repliesMenu != nil {
+		return c.repliesMenu
+	}
 	lengths := gio.NewMenu()
 	for _, l := range chars.Lengths {
 		item := gio.NewMenuItem(l.Label, "")
@@ -578,11 +591,10 @@ func (c *ChatView) lengthChip() *gtk.MenuButton {
 		item.SetActionAndTargetValue("chat.write-first", glib.NewVariantInt64(int64(w.Minutes)))
 		writes.AppendItem(item)
 	}
-	menu := gio.NewMenu()
-	menu.AppendSection("Length", lengths)
-	menu.AppendSection("Writes First", writes)
-	btn.SetMenuModel(menu)
-	return btn
+	c.repliesMenu = gio.NewMenu()
+	c.repliesMenu.AppendSection("Length", lengths)
+	c.repliesMenu.AppendSection("Writes First", writes)
+	return c.repliesMenu
 }
 
 // memoryChip opens the scene's memory: its record and what is pinned.
