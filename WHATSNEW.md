@@ -3,6 +3,12 @@
 This file is what Astral shows you when an update is available. One version per
 heading, a few plain lines each. The detailed history is in the git log.
 
+## 0.5.34
+- Install on any Linux with one command: it builds Astral where your distribution can, or installs the Flatpak
+- Linux Mint, Ubuntu 24.04, Debian, Pop!_OS, Zorin and others get the Flatpak, which updates itself too
+- Uninstall Astral from Settings, About; your library is kept unless you choose to delete it too
+- Updates on Linux fetch a newer Go to build with when your distribution's is too old
+
 ## 0.5.33
 - Phone: a chat opens where you left off, or at its newest message, instead of at its very beginning
 - Phone: coming back to the app keeps your place in the open chat
