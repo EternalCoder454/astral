@@ -171,12 +171,21 @@ html, body {
 	text-overflow: ellipsis;
 }
 
+/* A chip is drawn 32dp tall but is a 48dp target: the transparent border is
+   the extra touch area, and the inset shadow draws the chip's own edge inside
+   it, so the element measures what a thumb needs and looks as it did. */
 .chip-button {
 	flex: 0 0 auto;
 	background: none;
 	font: inherit;
 	font-size: 0.75rem;
-	min-height: 32px;
+	min-height: 48px;
+	min-width: 48px;
+	border: 8px solid transparent;
+	background-clip: padding-box;
+	box-shadow: inset 0 0 0 1px var(--md-outline-variant);
+	padding: 0 8px;
+	color: var(--md-on-surface-variant);
 }
 
 .scroll {
@@ -185,6 +194,17 @@ html, body {
 	-webkit-overflow-scrolling: touch;
 	padding: 12px var(--gutter) 24px;
 }
+
+/* The page's first heading sits straight under the bar: the scroll area's own
+   padding is already the gap, and the heading's margin doubled it. */
+.scroll > .heading:first-child { margin-top: 0; }
+
+.field-hint {
+	font-size: 0.75rem;
+	color: var(--md-on-surface-variant);
+}
+
+.seen-moment strong { font-weight: 600; }
 
 .heading {
 	font-size: 0.875rem;
@@ -502,8 +522,8 @@ html, body {
 .msg.pinned .bubble::after {
 	content: "";
 	position: absolute;
-	top: -7px;
-	right: -5px;
+	top: -8px;
+	right: 8px;
 	width: 16px;
 	height: 16px;
 	background: var(--md-primary);
@@ -639,7 +659,7 @@ body.in-chat .screen { inset: 0; }
 .primary {
 	position: relative;
 	padding: 10px 24px;
-	min-height: 40px;
+	min-height: 48px;
 	border: none;
 	border-radius: var(--md-corner-full);
 	background: var(--md-primary);
@@ -674,8 +694,8 @@ body.in-chat .screen { inset: 0; }
 	display: grid;
 	place-items: center;
 	padding: 0 6px;
-	min-width: 40px;
-	min-height: 40px;
+	min-width: 48px;
+	min-height: 48px;
 }
 
 /* ---- Settings ---- */
@@ -747,6 +767,24 @@ a.row { text-decoration: none; }
 
 .toast[hidden] { display: none; }
 
+/* The search box is a field like the rest: the theme's focus colour, and its
+   own clear button in place of the browser's stock blue one. */
+.search:focus {
+	outline: none;
+	box-shadow: inset 0 0 0 2px var(--md-primary);
+}
+
+.search::-webkit-search-cancel-button {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 48px;
+	height: 48px;
+	margin: 0 -16px 0 0;
+	background: var(--md-on-surface-variant);
+	-webkit-mask: url("/icons/astral-close-symbolic.svg") center / 18px no-repeat;
+	mask: url("/icons/astral-close-symbolic.svg") center / 18px no-repeat;
+}
+
 .search {
 	width: 100%;
 	box-sizing: border-box;
@@ -774,8 +812,8 @@ a.row { text-decoration: none; }
 }
 
 .pager button {
-	min-width: 40px;
-	min-height: 36px;
+	min-width: 48px;
+	min-height: 48px;
 	border: none;
 	border-radius: 999px;
 	background: none;
@@ -877,6 +915,11 @@ a.row { text-decoration: none; }
 	background: var(--md-surface-container-highest);
 }
 
+.sheet-button.danger {
+	background: var(--md-error-container);
+	color: var(--md-on-error-container);
+}
+
 .sheet-button.primary {
 	background: var(--md-primary);
 	color: var(--md-on-primary);
@@ -949,7 +992,7 @@ a.row { text-decoration: none; }
 }
 
 .sheet-inline .sheet-field { flex: 1 1 auto; min-width: 0; }
-.sheet-inline .chip-button { flex: none; min-height: 44px; padding: 0 14px; max-width: none; }
+.sheet-inline .chip-button { flex: none; padding: 0 14px; max-width: none; }
 
 /* How full the model's memory is. */
 .usage-bar {
@@ -982,7 +1025,7 @@ a.row { text-decoration: none; }
 	display: flex;
 	align-items: center;
 	gap: 10px;
-	min-height: 40px;
+	min-height: 48px;
 	font-size: 0.9rem;
 	color: var(--md-on-surface-variant);
 }
@@ -995,7 +1038,7 @@ a.row { text-decoration: none; }
 	gap: 8px;
 }
 
-.sheet-chips .chip-button { max-width: none; min-height: 40px; padding: 0 14px; }
+.sheet-chips .chip-button { max-width: none; padding: 0 14px; }
 
 
 /* On a phone the greeting is what the top bar is for. The model is a detail,
@@ -1118,7 +1161,10 @@ a.row { text-decoration: none; }
  */
 .msg-actions {
 	display: flex;
-	gap: 4px;
+	/* Four buttons are wider than a phone; the last wraps to a second line
+	   rather than running off the edge. */
+	flex-wrap: wrap;
+	gap: 0 2px;
 	margin: 4px 0 0;
 }
 
@@ -1134,8 +1180,8 @@ a.row { text-decoration: none; }
 	/* A comfortable target, with its word beside its icon: these sit under
 	   a paragraph of text and a near miss taps the paragraph, and an icon on
 	   its own left Rewrite to be guessed at. */
-	min-height: 44px;
-	padding: 0 14px;
+	min-height: 48px;
+	padding: 0 10px;
 	border: none;
 	border-radius: 999px;
 	background: var(--md-surface-container-high);

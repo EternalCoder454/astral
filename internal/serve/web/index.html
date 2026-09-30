@@ -43,7 +43,8 @@
 <section id="chats" class="screen" hidden>
   <header class="topbar"><h1>Chats</h1></header>
   <div class="scroll">
-    <input id="chats-search" class="search" type="search" placeholder="Search Chats" aria-label="Search chats" autocomplete="off">
+    <input id="chats-search" class="search" type="search" placeholder="Search Chats" aria-label="Search chats" autocomplete="off"
+           autocorrect="off" autocapitalize="off" spellcheck="false">
     <div id="chats-list" class="rows"></div>
     <p id="chats-none" class="muted empty-list" hidden>No chat matches that.</p>
   </div>
@@ -74,15 +75,18 @@
       </label>
       <label class="field">
         <span>Context Size (tokens)</span>
-        <input id="set-numctx" type="number" inputmode="numeric" min="512" step="512">
+        <input id="set-numctx" type="number" inputmode="numeric" min="512" max="1048576" step="512">
+        <small class="field-hint">From 512 to 1048576. Blank keeps the current size.</small>
       </label>
       <label class="field">
         <span>Reply Limit (tokens)</span>
-        <input id="set-numpredict" type="number" inputmode="numeric" min="0" step="64">
+        <input id="set-numpredict" type="number" inputmode="numeric" min="0" max="1048576" step="64">
+        <small class="field-hint">0 means no limit. Blank keeps the current limit.</small>
       </label>
       <label class="field">
         <span>Temperature</span>
         <input id="set-temperature" type="number" inputmode="decimal" min="0" max="2" step="0.05">
+        <small class="field-hint">From 0 to 2. Blank keeps the current value.</small>
       </label>
     </div>
 
@@ -94,7 +98,7 @@
       </label>
       <label class="field">
         <span>Your Name</span>
-        <input id="set-persona" type="text" autocomplete="off">
+        <input id="set-persona" type="text" autocomplete="off" required>
       </label>
       <label class="field field-tall">
         <span>About You</span>
@@ -212,6 +216,33 @@
     <div class="sheet-buttons">
       <button id="note-cancel" class="sheet-button">Cancel</button>
       <button id="note-go" class="sheet-button primary">Rewrite</button>
+    </div>
+  </div>
+</div>
+
+<!-- A chat's new name, or a message's new words. -->
+<div id="edit-sheet" class="sheet-backdrop" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="edit-heading">
+    <h2 id="edit-heading" class="sheet-kicker">Edit</h2>
+    <input id="edit-title" class="sheet-field" type="text" maxlength="200" autocomplete="off" spellcheck="false">
+    <textarea id="edit-text" class="sheet-field" rows="8" hidden></textarea>
+    <p id="edit-hint" class="muted sheet-hint"></p>
+    <p id="edit-error" class="error" role="alert"></p>
+    <div class="sheet-buttons">
+      <button id="edit-cancel" class="sheet-button">Cancel</button>
+      <button id="edit-go" class="sheet-button primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Asks once before something that cannot be undone. -->
+<div id="confirm-sheet" class="sheet-backdrop" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="confirm-heading">
+    <h2 id="confirm-heading" class="sheet-kicker">Are You Sure?</h2>
+    <p id="confirm-text" class="sheet-hint"></p>
+    <div class="sheet-buttons">
+      <button id="confirm-cancel" class="sheet-button">Cancel</button>
+      <button id="confirm-go" class="sheet-button danger">Delete</button>
     </div>
   </div>
 </div>
