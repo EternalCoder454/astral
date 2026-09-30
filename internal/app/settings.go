@@ -201,7 +201,7 @@ func (a *App) showSettingsPage(page string) {
 			selected = i
 		}
 	}
-	list.SelectRow(list.RowAtIndex(selected))
+	list.SelectRow(list.RowAtIndex(max(selected, 0)))
 	if page != "" {
 		split.SetShowContent(true) // asked for a page, so show it even when folded
 	}

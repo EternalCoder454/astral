@@ -189,6 +189,13 @@ func TestPalettesAreReadable(t *testing.T) {
 		// The accent as text: links, and the selected chat's title.
 		pair{"accent text", "accent_color", "astral_canvas", 4.5},
 		pair{"accent text", "accent_color", "astral_surface", 4.5},
+		// And the colours libadwaita draws its own widgets with, in pairs.
+		pair{"title bar text", "headerbar_fg_color", "headerbar_bg_color", 7},
+		pair{"sidebar text", "sidebar_fg_color", "sidebar_bg_color", 7},
+		pair{"view text", "view_fg_color", "view_bg_color", 7},
+		pair{"card text", "card_fg_color", "card_bg_color", 7},
+		pair{"dialog text", "dialog_fg_color", "dialog_bg_color", 7},
+		pair{"popover text", "popover_fg_color", "popover_bg_color", 7},
 		// The status colours are read as icons and short words, which WCAG holds to
 		// 3:1. Ink's are over 7:1 and Paper's over 5.6:1, so this is the floor and
 		// not what they reach.
@@ -196,6 +203,17 @@ func TestPalettesAreReadable(t *testing.T) {
 		pair{"warning", "warning_color", "astral_canvas", 3},
 		pair{"error", "error_color", "astral_canvas", 3},
 	)
+	// Secondary text on the other surfaces it sits on: a card's description, a
+	// menu's hint, the composer's buttons. The caption colour is held to 3:1
+	// there rather than 4.5:1: captions proper, times and counts, sit on the
+	// canvas and the sidebar, checked above, and on a raised surface this
+	// colour is a placeholder or a hint. Measured, Ink's faint is 4.05:1 on
+	// the user's bubble and Ember's 4.41:1 on its composer.
+	for _, bg := range []string{"astral_elevated", "astral_composer_bg", "astral_user_bubble", "card_bg_color", "popover_bg_color"} {
+		pairs = append(pairs, pair{"secondary text", "astral_muted", bg, 4.5}, pair{"placeholder", "astral_faint", bg, 3})
+	}
+	pairs = append(pairs, pair{"accent text", "accent_color", "astral_sidebar", 4.5},
+		pair{"accent text", "accent_color", "popover_bg_color", 4.5})
 	for _, th := range Themes {
 		for _, p := range pairs {
 			fg, bg := th.Color(p.fg), th.Color(p.bg)

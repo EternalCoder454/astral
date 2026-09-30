@@ -45,11 +45,20 @@ func (a *App) startPhoneAccess() {
 // handed back to the main thread. Everything the phone can change is something
 // the window displays somewhere, and a model chip still naming the old model is
 // the kind of small wrongness that makes a person distrust the whole feature.
+//
+// The phone's copy of the settings was read before its change, on another
+// thread, so on its own it would undo whatever the window changed since: a
+// theme chosen a moment before came back as the old one. So the change is
+// made on the main thread, keeping what only the window sets, and the phone
+// waits for it to be saved.
 func (a *App) applyConfigFromPhone(cfg store.Config) error {
-	if err := store.SaveConfig(cfg); err != nil {
-		return err
-	}
+	done := make(chan error, 1)
 	coreglib.IdleAdd(func() bool {
+		keepWindowOwn(&cfg, a.cfg)
+		if err := store.SaveConfig(cfg); err != nil {
+			done <- err
+			return false
+		}
 		a.cfg = cfg
 		if a.chat != nil {
 			a.chat.SetConfig(cfg)
@@ -59,9 +68,23 @@ func (a *App) applyConfigFromPhone(cfg store.Config) error {
 			// The phone may have switched who you play as.
 			a.refreshPersonaMenu()
 		}
+		done <- nil
 		return false
 	})
-	return nil
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(10 * time.Second):
+		return fmt.Errorf("the window did not take the change")
+	}
+}
+
+// keepWindowOwn copies into cfg the settings only the window changes, from
+// what the window has now: its theme and how it is laid out.
+func keepWindowOwn(cfg *store.Config, window store.Config) {
+	cfg.Theme = window.Theme
+	cfg.WindowWidth, cfg.WindowHeight, cfg.WindowMaximized = window.WindowWidth, window.WindowHeight, window.WindowMaximized
+	cfg.SidebarWidth, cfg.SidebarOpen, cfg.PortraitOpen = window.SidebarWidth, window.SidebarOpen, window.PortraitOpen
 }
 
 // stopPhoneAccess closes it, and any pairing in progress with it.
