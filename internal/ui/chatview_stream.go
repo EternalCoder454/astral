@@ -903,6 +903,13 @@ func (c *ChatView) compact(force bool) bool {
 
 		coreglib.IdleAdd(func() bool {
 			c.bg.done()
+			// However it ends, an open usage popover stops saying it is
+			// compacting.
+			defer func() {
+				if c.chat.ID == chatID {
+					c.usageCompacted()
+				}
+			}()
 			if err != nil {
 				if ctx.Err() != nil {
 					return false // the user's turn took the lane; try again later
@@ -926,8 +933,7 @@ func (c *ChatView) compact(force bool) bool {
 				// the turns the new one had replaced.
 				c.recap, c.recapUpto = next, upto
 				c.chat.Summary, c.chat.SummaryUpto = next, upto
-				c.refreshUsage()
-				c.usageCompacted()
+				c.scheduleUsage()
 			}
 			log.Printf("astral: compacted %d turns of chat %d into a %d-character recap using %s",
 				len(aged), chatID, len(next), model)
