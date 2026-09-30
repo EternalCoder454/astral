@@ -2,9 +2,11 @@ package app
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/diamondburned/gotk4-adwaita/pkg/adw"
 	coreglib "github.com/diamondburned/gotk4/pkg/core/glib"
+	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/pango"
 
@@ -57,6 +59,9 @@ type pageState struct {
 type pageHost struct {
 	bin  *adw.Bin
 	root *gtk.ScrolledWindow
+	// search is the page's search entry, if it has one, so a rebuild can carry
+	// what was typed into it over to the new page.
+	search *gtk.SearchEntry
 }
 
 // pageView is a page being built: its title row, its command bar and the box
@@ -220,6 +225,28 @@ func (a *App) installPage(name string, v *pageView) {
 	a.setPageTitle(v.title)
 }
 
+// carriedQuery is what is typed in the named page's search entry, and whether
+// the page is showing, which makes the build that follows a refresh rather than
+// a first opening. A rebuild makes a new entry, so without this it would lose
+// the query and, on Knowledge, take the focus again.
+func (a *App) carriedQuery(name string) (query string, refreshing bool) {
+	if a.pageShowing() != name {
+		return "", false
+	}
+	if h := a.pages.hosts[name]; h != nil && h.search != nil {
+		return h.search.Text(), true
+	}
+	return "", true
+}
+
+// rememberSearch records the entry of the page just installed, for
+// carriedQuery.
+func (a *App) rememberSearch(name string, search *gtk.SearchEntry) {
+	if h := a.pages.hosts[name]; h != nil {
+		h.search = search
+	}
+}
+
 // refreshPage rebuilds the named page if it is the one showing, after
 // something changed what it lists. A page that is not showing is built fresh
 // when it is next opened, so there is nothing to do for it.
@@ -241,16 +268,78 @@ func (a *App) refreshPage(name string) {
 
 // resumeChat brings back the chat a page was opened over, as it was: still
 // loaded, still writing if it was. Everything openChat sets around a chat that
-// leaving it undid is put back, and nothing is read or rebuilt.
-func (a *App) resumeChat() {
-	ch := a.chat.Chat()
-	var ca chars.Character
-	if cast := a.chat.Cast(); len(cast) > 0 {
-		ca = cast[0]
+// leaving it undid is put back, and nothing is rebuilt.
+//
+// The chat may have changed while it was parked, its character edited, its cast
+// changed, or the chat renamed, so what is shown is read from the store again.
+// The loaded chat view cannot take a new character or cast without reloading, so
+// when they differ it says so and openChat loads the chat afresh. A reply being
+// written is worth more than that, so it keeps the chat as it is and only the
+// title and portrait are refreshed.
+func (a *App) resumeChat() bool {
+	loaded := a.chat.Chat()
+	ch, ca, cast, _, err := a.chatParts(loaded.ID, false)
+	if err != nil {
+		// Not readable now: show what is loaded rather than fail to go back.
+		ch, ca, cast = loaded, chars.Character{}, a.chat.Cast()
+		if len(cast) > 0 {
+			ca = cast[0]
+		}
+	} else if !a.chat.Busy() && !sameCast(a.chat.Cast(), leadCast(ca, cast)) {
+		return false
 	}
 	a.showPortraitFor(ca)
 	a.showChat()
 	a.sidebar.Select(ch.ID)
 	a.setTitle(ch, ca)
 	a.cfg.LastChat = ch.ID
+	return true
+}
+
+// leadCast is the cast a chat view is loaded with: everyone when there is more
+// than one, else just the character.
+func leadCast(ca chars.Character, cast []chars.Character) []chars.Character {
+	if len(cast) > 1 {
+		return cast
+	}
+	return []chars.Character{ca}
+}
+
+// sameCast says whether two casts are the same people as they are written now,
+// which is what decides whether a loaded chat can be shown as it is.
+func sameCast(a, b []chars.Character) bool {
+	return reflect.DeepEqual(a, b)
+}
+
+// installPageEscape makes Escape on a page go back to where you were: the chat
+// the page was opened over, else Home. The dialogs it replaced closed on Escape.
+//
+// It listens after the focused widget has had its say, so a search entry
+// clearing itself, a popover closing or a dialog over the page keeps its own
+// Escape. The window's visible dialog is checked as well, because a dialog's
+// keys also travel up to the window.
+func (a *App) installPageEscape() {
+	key := gtk.NewEventControllerKey()
+	key.ConnectKeyPressed(func(keyval, _ uint, state gdk.ModifierType) bool {
+		if keyval != gdk.KEY_Escape || state&gdk.ModifierType(gtk.AcceleratorGetDefaultModMask()) != 0 {
+			return false
+		}
+		if a.pageShowing() == "" || a.win.VisibleDialog() != nil {
+			return false
+		}
+		a.leavePage()
+		return true
+	})
+	a.win.AddController(key)
+}
+
+// leavePage goes back from a page to the parked chat, or to Home when none is
+// parked.
+func (a *App) leavePage() {
+	if a.pages.parked && a.chat != nil && a.chat.Chat().ID != 0 {
+		if err := a.openChat(a.chat.Chat().ID); err == nil {
+			return
+		}
+	}
+	a.goHome()
 }

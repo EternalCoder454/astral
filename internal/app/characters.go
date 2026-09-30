@@ -208,7 +208,7 @@ func (a *App) castRow(c chars.Character) *gtk.Box {
 						return
 					}
 					a.refreshWelcome()
-					a.showCharacters()
+					a.refreshPage(pageCharacters)
 				})
 		}},
 	} {
