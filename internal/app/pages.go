@@ -245,6 +245,24 @@ func (a *App) rememberSearch(name string, search *gtk.SearchEntry) {
 	if h := a.pages.hosts[name]; h != nil {
 		h.search = search
 	}
+	// A search entry keeps Escape for itself, so the window never hears it
+	// while the entry has the focus, which on Knowledge is from the moment it
+	// opens. Escape there clears what was typed, and in an empty entry goes
+	// back, as it does anywhere else on a page. The entry is found through
+	// the host rather than held by the handler, which would be a cycle.
+	search.ConnectStopSearch(func() {
+		h := a.pages.hosts[name]
+		if h == nil || h.search == nil {
+			return
+		}
+		if h.search.Text() != "" {
+			h.search.SetText("")
+			return
+		}
+		if a.win.VisibleDialog() == nil {
+			a.leavePage()
+		}
+	})
 }
 
 // refreshPage rebuilds the named page if it is the one showing, after
