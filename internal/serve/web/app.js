@@ -949,6 +949,7 @@ async function openChat(id) {
 	if (activeScreen !== "chat" && activeScreen !== "pair") {
 		chatOrigin = { screen: activeScreen, scroll: scrollerOf(activeScreen)?.scrollTop || 0 };
 	}
+	rememberScroll();
 	try {
 		const res = await api("/api/chats/" + id);
 		showChat(await res.json());
@@ -995,7 +996,7 @@ function showChat(chat) {
 	// Always: every chat can at least be archived from it.
 	$("chat-more").hidden = false;
 	show("chat");
-	scrollDown(false);
+	restoreScroll(chat.id);
 	setComposerBusy(streamingIn.has(chat.id));
 	if (chat.writing && !streamingIn.has(chat.id)) waitForReply(chat.id);
 }
@@ -1101,6 +1102,7 @@ async function showPortrait(chat) {
 // anything started on the PC meanwhile, is in them.
 function leaveChat() {
 	stopSpeaking();
+	rememberScroll();
 	const left = current;
 	current = null;
 	// The toast that said a chat was branched is about the chat being left.
@@ -1422,6 +1424,76 @@ function scrollDown(smooth = true) {
 	// irritating thing a transcript can do.
 	if (!smooth && t.scrollHeight - t.scrollTop - t.clientHeight > 120) return;
 	t.scrollTo({ top: t.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+}
+
+// SCROLL_KEY holds where each chat was left: the message at the top of the
+// screen and how far down it sat, or that it was left at the end. A message
+// rather than a distance, because a reply that finishes while the chat is
+// shut makes the chat longer, and the same distance would then land on
+// something else.
+const SCROLL_KEY = "astral.chatScroll";
+const SCROLL_KEPT = 60; // chats remembered, the most recently read
+
+function scrollMemory() {
+	try { return JSON.parse(localStorage.getItem(SCROLL_KEY) || "{}") || {}; } catch (_) { return {}; }
+}
+
+// rememberScroll notes where the open chat is scrolled to.
+function rememberScroll() {
+	if (!current || activeScreen !== "chat") return;
+	const t = $("transcript");
+	const top = t.getBoundingClientRect().top;
+	let place = { end: true };
+	if (t.scrollHeight - t.scrollTop - t.clientHeight > 120) {
+		for (const el of t.querySelectorAll("[data-id]")) {
+			const r = el.getBoundingClientRect();
+			if (r.bottom > top) {
+				place = { m: el.dataset.id, off: Math.round(r.top - top) };
+				break;
+			}
+		}
+	}
+	const all = scrollMemory();
+	delete all[current.id];
+	all[current.id] = place; // last, as the most recent
+	const ids = Object.keys(all);
+	for (const id of ids.slice(0, Math.max(0, ids.length - SCROLL_KEPT))) delete all[id];
+	try { localStorage.setItem(SCROLL_KEY, JSON.stringify(all)); } catch (_) {}
+}
+
+// restoreScroll puts a chat just drawn back where it was left, or at its end:
+// a chat opened for the first time, or left at the end, opens on the newest
+// message, and so does one whose remembered message is no longer drawn.
+//
+// Once now and again once the fonts are in. The italic face narration is set
+// in is only fetched when a transcript first needs it, and when it arrives
+// every paragraph of narration reflows: the first chat opened after starting
+// the app grew by a line in every few messages, and opened short of its end.
+// Not if the reader has touched the chat meanwhile: it is theirs by then.
+function restoreScroll(id) {
+	const t = $("transcript");
+	const place = scrollMemory()[id];
+	const put = () => {
+		const el = place?.m && t.querySelector(`[data-id="${CSS.escape(place.m)}"]`);
+		if (el) {
+			t.scrollTop += el.getBoundingClientRect().top - t.getBoundingClientRect().top - (place.off || 0);
+		} else {
+			t.scrollTop = t.scrollHeight;
+		}
+	};
+	put();
+	let touched = false;
+	const mark = () => { touched = true; };
+	const opts = { passive: true };
+	t.addEventListener("touchstart", mark, opts);
+	t.addEventListener("wheel", mark, opts);
+	// The fonts start loading once the transcript is laid out, so they are
+	// waited for from the next frame rather than now, when none are pending.
+	requestAnimationFrame(() => document.fonts.ready.then(() => {
+		t.removeEventListener("touchstart", mark, opts);
+		t.removeEventListener("wheel", mark, opts);
+		if (!touched && current?.id === id) put();
+	}));
 }
 
 async function send(text) {
@@ -1750,6 +1822,7 @@ for (const tab of document.querySelectorAll(".tab")) {
 // front, the lists and the open chat are fetched again: the PC may have
 // finished a reply, or been used, in the meantime.
 document.addEventListener("visibilitychange", () => {
+	if (document.visibilityState === "hidden") rememberScroll();
 	if (document.visibilityState !== "visible" || !token) return;
 	loadState().catch(() => {});
 	if (current && !busyHere()) {
