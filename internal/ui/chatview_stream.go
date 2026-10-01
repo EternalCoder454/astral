@@ -1246,6 +1246,49 @@ func (c *ChatView) replyDone(text string) {
 	if c.OnReplyDone != nil {
 		c.OnReplyDone(c.chat.Title, text)
 	}
+	c.maybeTitle(text)
+}
+
+// maybeTitle has the model name a General Chat or a Novel Chat after its first
+// reply, in place of the first line of what was typed. Not a chat that was
+// named by hand, whose title no longer matches that line.
+func (c *ChatView) maybeTitle(reply string) {
+	if c.chat.ID == 0 || (c.chat.Kind != store.KindAssistant && c.chat.Kind != store.KindNovel) {
+		return
+	}
+	var first string
+	users := 0
+	for _, m := range c.history() {
+		if m.Role == ollama.RoleUser {
+			if users == 0 {
+				first = m.Content
+			}
+			users++
+		}
+	}
+	if users != 1 || c.chat.Title != store.TitleFrom(first) {
+		return
+	}
+	chatID, client, model, sceneModel := c.chat.ID, c.client, c.housekeepingModel(), c.activeModel()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		model := scene.FitHousekeeping(ctx, client, model, sceneModel)
+		title, err := scene.SuggestTitle(ctx, client, model, first, reply)
+		if err != nil || title == "" {
+			return
+		}
+		coreglib.IdleAdd(func() bool {
+			if c.store.RenameChat(chatID, title) != nil {
+				return false
+			}
+			if c.chat.ID == chatID {
+				c.chat.Title = title
+			}
+			c.notifyChanged()
+			return false
+		})
+	}()
 }
 
 func (c *ChatView) fail(msg string) {

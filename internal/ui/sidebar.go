@@ -675,6 +675,13 @@ func chatMark(ch store.Chat) gtk.Widgetter {
 
 // chatRowWith is a chat's row, with the line a search matched under the title
 // when there is one.
+// lastReplyLine is a reply as one plain line: without its markup, and without
+// a speaker's name on the front.
+func lastReplyLine(s string) string {
+	s = strings.NewReplacer("*", "", "\"", "", "_", "").Replace(s)
+	return strings.Join(strings.Fields(s), " ")
+}
+
 func (s *Sidebar) chatRowWith(ch store.Chat, snippet string) *gtk.Button {
 	btn := gtk.NewButton()
 	btn.AddCSSClass("sidebar-item")
@@ -691,6 +698,14 @@ func (s *Sidebar) chatRowWith(ch store.Chat, snippet string) *gtk.Button {
 	title := ch.Title
 	if title == "" {
 		title = "New Chat"
+	}
+	// A scene with one character reads as who it is with and where it got
+	// to: their name, and the start of their newest reply under it.
+	if snippet == "" && ch.CharacterName != "" && ch.CastSize <= 1 {
+		title = ch.CharacterName
+		if r := lastReplyLine(ch.LastReply); r != "" {
+			snippet = "› " + r
+		}
 	}
 	l := gtk.NewLabel(title)
 	l.SetXAlign(0)

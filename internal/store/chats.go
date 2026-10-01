@@ -101,6 +101,8 @@ type Chat struct {
 	// AvatarPath is the character's picture, shown beside the chat's title.
 	AvatarPath   string
 	MessageCount int
+	// LastReply is the start of the newest reply, for the sidebar.
+	LastReply string
 	// CastSize is how many characters are in the scene, for the scenes that
 	// have more than one. Zero for every other conversation, so the sidebar can
 	// treat zero and one as the same thing.
@@ -159,7 +161,10 @@ func (s *Store) Chats() ([]Chat, error) {
 	rows, err := s.db.Query(`
 		SELECT c.id, c.character_id, c.world_id, c.title, c.model, c.kind, c.created_at, c.updated_at,
 		       c.archived, COALESCE(ch.name, ''), COALESCE(ch.accent, 0), COALESCE(n.count, 0),
-		       COALESCE(cc.count, 0), COALESCE(ch.avatar_path, ''), c.write_first, c.nudged_at
+		       COALESCE(cc.count, 0), COALESCE(ch.avatar_path, ''), c.write_first, c.nudged_at,
+		       COALESCE((SELECT substr(m.content, 1, 240) FROM messages m
+		                 WHERE m.chat_id = c.id AND m.role = 'assistant'
+		                 ORDER BY m.id DESC LIMIT 1), '')
 		FROM chats c
 		LEFT JOIN characters ch ON ch.id = c.character_id
 		LEFT JOIN (SELECT chat_id, COUNT(*) AS count FROM messages GROUP BY chat_id) n
@@ -179,7 +184,7 @@ func (s *Store) Chats() ([]Chat, error) {
 		var created, updated int64
 		if err := rows.Scan(&c.ID, &c.CharacterID, &c.WorldID, &c.Title, &c.Model, &c.Kind,
 			&created, &updated, &c.Archived, &c.CharacterName, &c.Accent, &c.MessageCount,
-			&c.CastSize, &c.AvatarPath, &c.WriteFirst, &c.NudgedAt); err != nil {
+			&c.CastSize, &c.AvatarPath, &c.WriteFirst, &c.NudgedAt, &c.LastReply); err != nil {
 			return nil, err
 		}
 		c.CreatedAt, c.UpdatedAt = fromUnix(created), fromUnix(updated)
